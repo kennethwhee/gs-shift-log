@@ -198,14 +198,14 @@
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 [data-cfv5-manual-edit] {
   min-height: 32px;
   padding: 0 12px;
-  border: 1px solid #2563eb;
+  border: 1px solid #c5d8ec;
   border-radius: 5px;
-  background: #2563eb;
-  color: #fff;
+  background: #edf4fb;
+  color: #355d83;
   font-size: 12px;
   font-weight: 700;
 }
-#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 [data-cfv5-manual-edit][aria-pressed="true"] { background: #fff; color: #2563eb; }
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 [data-cfv5-manual-edit][aria-pressed="true"] { background: #fff; color: #355d83; }
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 [data-cfv5-manual-edit]:disabled { opacity: .5; cursor: default; }
 #efficiencyCofiringDraftView .cofiring-period-v5[data-cfv-usage-editing="true"] .cfv-usage-v1 :is([data-cfv5-manual], [data-cfv5-receipt]) { border-color: #60a5fa; background: #eff6ff; }
 
@@ -226,6 +226,6 @@
   cursor: not-allowed;
 }
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 [data-cfv5-manual-edit]:enabled:hover {
-  background: #1d4ed8;
-  border-color: #1d4ed8;
+  background: #e1edf8;
+  border-color: #b6cee5;
 }
