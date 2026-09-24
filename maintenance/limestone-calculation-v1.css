@@ -13,3 +13,22 @@
   background: #d97706;
   box-shadow: 0 0 0 4px rgb(217 119 6 / 12%);
 }
+
+/* The actions live in the heading; use the remaining date-row width for status. */
+@media (min-width: 1181px) {
+  #efficiencyTeamModal #limestoneUsageCalculatorView .limestone-usage-date-card {
+    grid-template-columns: 44px 190px 44px 84px minmax(0, 1fr) !important;
+  }
+
+  #efficiencyTeamModal #limestoneUsageCalculatorView #limestoneUsageStatus {
+    grid-column: 5 / -1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box;
+  }
+
+  #efficiencyTeamModal #limestoneUsageCalculatorView #limestoneUsageStatus > div {
+    flex: 1;
+    min-width: 0;
+  }
+}
