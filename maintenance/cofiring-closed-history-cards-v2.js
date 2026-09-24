@@ -256,7 +256,7 @@
     const a=averageRows(rows);
     const avgRow={combined:a.combined};
     return `
-      <tr class="cfv15-average-row">
+      <tr class="cfv15-average-row" title="저장된 일별 값의 산술평균입니다. 항목별 누락값은 제외하고 실제 0은 포함합니다.">
         <th scope="row"><strong>월 평균</strong><small>${rows.length}일</small></th>
         <td class="is-fuel is-unit1">${fuelCell(a.unit1)}</td>
         <td class="is-ratio is-unit1">${ratioCell(a.unit1)}</td>
@@ -348,29 +348,35 @@
     async function getDetail(item){
       const date=String(item?.targetDate||'');
       if(detailCache.has(date))return detailCache.get(date);
-      const promise=api('?targetDate='+encodeURIComponent(date)).then(payload=>payload?.item||null);
+      const promise=api('?targetDate='+encodeURIComponent(date)).then(payload=>{
+        if(payload?.item&&payload.item.targetDate!==date)throw new Error('마감 상세 자료의 날짜가 다릅니다.');
+        return payload?.item||null;
+      });
       detailCache.set(date,promise);
-      try{return await promise;}catch(error){detailCache.delete(date);throw error;}
+      try{return await promise;}catch(error){if(detailCache.get(date)===promise)detailCache.delete(date);throw error;}
     }
 
     function setMonth(month){
       selectedMonth=normalizeMonth(month)||koreanCurrentMonth();
       monthInput.value=selectedMonth;
       monthText.textContent=monthLabel(selectedMonth);
-      void renderMonth();
+      void loadList({keepMonth:true});
     }
 
     async function loadList({keepMonth=true}={}){
       const epoch=++loadEpoch;
+      detailCache.clear();
       host.innerHTML='<div class="cfv15-state">마감 데이터 목록을 확인하는 중입니다...</div>';
       try{
-        const payload=await api('?limit=366');
-        if(epoch!==loadEpoch)return;
+        if(!keepMonth||!selectedMonth){
+          const latest=await api('?limit=1');if(epoch!==loadEpoch)return;
+          selectedMonth=normalizeMonth(latest.items?.[0]?.targetDate?.slice?.(0,7))||koreanCurrentMonth();
+        }
+        const month=selectedMonth;
+        const payload=await api('?month='+encodeURIComponent(month));
+        if(epoch!==loadEpoch||month!==selectedMonth)return;
         listItems=Array.isArray(payload?.items)?payload.items:[];
-        const latestMonth=normalizeMonth(listItems[0]?.targetDate?.slice?.(0,7));
-        if(!keepMonth||!selectedMonth)selectedMonth=latestMonth||koreanCurrentMonth();
-        monthInput.value=selectedMonth;
-        monthText.textContent=monthLabel(selectedMonth);
+        monthInput.value=selectedMonth;monthText.textContent=monthLabel(selectedMonth);
         await renderMonth(epoch);
       }catch(error){
         if(epoch!==loadEpoch)return;
@@ -380,7 +386,8 @@
 
     async function renderMonth(epoch=loadEpoch){
       openDate='';
-      const items=listItems.filter(item=>String(item?.targetDate||'').slice(0,7)===selectedMonth);
+      const month=selectedMonth;
+      const items=listItems.filter(item=>String(item?.targetDate||'').slice(0,7)===month);
       countText.textContent=`${items.length}일 저장`;
       monthText.textContent=monthLabel(selectedMonth);
       if(!items.length){host.innerHTML=tableMarkup([],selectedMonth);return;}
@@ -394,7 +401,7 @@
           return deriveSnapshot(item);
         }
       });
-      if(epoch!==loadEpoch||selectedMonth!==monthInput.value)return;
+      if(epoch!==loadEpoch||month!==selectedMonth||month!==monthInput.value)return;
       rows.sort((a,b)=>String(b.targetDate).localeCompare(String(a.targetDate)));
       host.innerHTML=tableMarkup(rows,selectedMonth);
     }
@@ -433,7 +440,10 @@
     async function deleteDate(date){
       if(!root.confirm?.(date+' 마감 데이터를 삭제하시겠습니까?'))return;
       try{
-        await api('?targetDate='+encodeURIComponent(date),{method:'DELETE'});
+        const item=listItems.find(row=>row.targetDate===date);
+        if(!item||!Number.isSafeInteger(item.revision)||!/^[a-f0-9]{64}$/.test(item.version||''))throw new Error('마감 목록을 새로고침하고 다시 확인해 주세요.');
+        const query=new URLSearchParams({targetDate:date,expectedRevision:item.revision,expectedVersion:item.version});
+        await api('?'+query.toString(),{method:'DELETE'});
         detailCache.delete(date);
         await loadList({keepMonth:true});
       }catch(error){root.alert?.(error.message);}
@@ -467,6 +477,9 @@
     });
 
     panel.querySelector('[data-cfv12-refresh]')?.addEventListener('click',()=>void loadList({keepMonth:true}));
+    root.addEventListener?.('cofiring:closed-history-changed',()=>{
+      detailCache.clear();if(!panel.hidden)void loadList({keepMonth:true});
+    });
 
     const observer=root.MutationObserver?new root.MutationObserver(()=>{if(!panel.hidden)void loadList({keepMonth:true});}):null;
     observer?.observe(panel,{attributes:true,attributeFilter:['hidden']});
@@ -494,6 +507,7 @@
 /* ===== CFH_LAYOUT_V3 : closed history presentation ===== */
 (function () {
   'use strict';
+  if (typeof document === 'undefined') return;
 
   const PATCH_ATTR =
     'data-cfh-layout-v3';
@@ -840,6 +854,7 @@
 /* ===== CFH_AVERAGE_V5 ===== */
 (function () {
   'use strict';
+  if (typeof document === 'undefined') return;
 
   let queued = false;
 
@@ -966,6 +981,7 @@
 /* ===== CFH_DATE_WEEKDAY_RATIO_V8 ===== */
 (function () {
   'use strict';
+  if (typeof document === 'undefined') return;
 
   const WEEKDAYS = ['일','월','화','수','목','금','토'];
   let queued = false;
@@ -1118,6 +1134,7 @@
 /* ===== CFH_TYPOGRAPHY_V9 ===== */
 (function () {
   'use strict';
+  if (typeof document === 'undefined') return;
 
   let queued = false;
 

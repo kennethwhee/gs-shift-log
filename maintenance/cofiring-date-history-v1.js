@@ -3,6 +3,7 @@
 
   const API='/api/cofiring-closed-history';
   const MIN_DATE='2021-01-01';
+  const core=root.CofiringCore||(typeof require==='function'?require('./cofiring-core.js'):null);
 
   function validDate(value){
     if(typeof value!=='string'||!/^20\d{2}-\d{2}-\d{2}$/.test(value))return false;
@@ -72,43 +73,23 @@
     return root.__cofiringPeriodV5Controller||null;
   }
 
-  function bioRatio(unit){
-    const coal=number(unit?.heats?.coal);
-    const bio=number(unit?.heats?.bio);
-    if(coal===null||bio===null||coal+bio<=0)return null;
-    return bio/(coal+bio)*100;
-  }
+  function summaryFromResult(result){return core.summaryFromResult(result);}
 
-  function totalRatio(unit){
-    return number(unit?.ratios?.total) ??
-      number(unit?.fuelRatios?.total);
+  function expectedWrite(item){
+    if(!item)return {expectedRevision:0,expectedVersion:null};
+    if(!Number.isSafeInteger(item.revision)||item.revision<1||!/^[a-f0-9]{64}$/.test(item.version||'')){
+      throw new Error('화면을 새로고침하고 최신 마감 자료를 확인해 주세요.');
+    }
+    return {expectedRevision:item.revision,expectedVersion:item.version};
   }
-
-  function summaryFromResult(result){
-    return {
-      unit1:{
-        coal:number(result?.units?.unit1?.coal?.quantity),
-        bio:number(result?.units?.unit1?.bio?.quantity),
-        organic:number(result?.units?.unit1?.organic?.quantity),
-        manure:number(result?.units?.unit1?.manure?.quantity),
-        bioRatio:bioRatio(result?.units?.unit1),
-        totalRatio:totalRatio(result?.units?.unit1)
-      },
-      unit2:{
-        coal:number(result?.units?.unit2?.coal?.quantity),
-        bio:number(result?.units?.unit2?.bio?.quantity),
-        organic:number(result?.units?.unit2?.organic?.quantity),
-        manure:number(result?.units?.unit2?.manure?.quantity),
-        bioRatio:bioRatio(result?.units?.unit2),
-        totalRatio:totalRatio(result?.units?.unit2)
-      },
-      combined:{
-        totalRatio:
-          number(result?.combined?.ratios?.total) ??
-          number(result?.combined?.fuelRatios?.total)
-      }
-    };
+  function closeNotice(container,message,error=false){
+    const label=container.querySelector('[data-cfv12-close-status]');
+    if(label){label.hidden=!message;label.textContent=message;label.className=error?'cfv12-error':'';}
   }
+  function changed(date){
+    if(root.CustomEvent)root.dispatchEvent?.(new root.CustomEvent('cofiring:closed-history-changed',{detail:{targetDate:date}}));
+  }
+  function credential(){const h=authHeaders();return String(h.Authorization||h.authorization||'');}
 
   function buildSnapshot(container){
     const c=controller();
@@ -180,6 +161,10 @@
       throw new Error('유기성·축분 저장 상태를 확인해 주세요.');
     }
 
+    const inputs=c.getSnapshotInputs?.();
+    if(!inputs||inputs.sourceRequestId!==String(saved.id||'')){
+      throw new Error('표시된 계산 결과의 조회 ID를 확인하지 못했습니다. 다시 계산해 주세요.');
+    }
     const summary=summaryFromResult(result);
 
     return {
@@ -192,8 +177,8 @@
         period:clone(spec),
         sourceRequestId:String(saved.id||''),
         result:clone(result),
-        settings:clone(settingsState.settings),
-        manual:clone(manualState.values),
+        settings:clone(inputs.settings),
+        manual:clone(inputs.manual),
         summary:clone(summary),
         capturedAt:new Date().toISOString()
       }
@@ -460,7 +445,6 @@
 
     let generation=0;
     let saving=false;
-    let lastSavedKey='';
     const waitMilliseconds=10*60*1000;
     const retryMilliseconds=250;
 
@@ -483,7 +467,9 @@
       targetDate,
       deadline,
       requireFreshSource,
-      previousSourceId
+      previousSourceId,
+      baselinePromise,
+      authKey
     ){
       root.setTimeout?.(
         ()=>{
@@ -492,7 +478,9 @@
             targetDate,
             deadline,
             requireFreshSource,
-            previousSourceId
+            previousSourceId,
+            baselinePromise,
+            authKey
           );
         },
         retryMilliseconds
@@ -504,9 +492,14 @@
       targetDate,
       deadline,
       requireFreshSource,
-      previousSourceId
+      previousSourceId,
+      baselinePromise,
+      authKey
     ){
-      if(token!==generation)return;
+      if(token!==generation||credential()!==authKey)return;
+      const baseline=await baselinePromise;
+      if(token!==generation||credential()!==authKey)return;
+      if(baseline.error){closeNotice(container,baseline.error.message,true);return;}
 
       if(
         modeInput?.value!=='daily'||
@@ -526,7 +519,9 @@
             targetDate,
             deadline,
             requireFreshSource,
-            previousSourceId
+            previousSourceId,
+            baselinePromise,
+            authKey
           );
         }
         return;
@@ -553,17 +548,18 @@
             targetDate,
             deadline,
             requireFreshSource,
-            previousSourceId
+            previousSourceId,
+            baselinePromise,
+            authKey
           );
         }
         return;
       }
 
-      const saveKey=
-        packed.targetDate+':'+packed.sourceRequestId;
-
-      if(saveKey===lastSavedKey||saving)return;
-
+      if(saving){
+        if(Date.now()<deadline)schedule(token,targetDate,deadline,requireFreshSource,previousSourceId,baselinePromise,authKey);
+        return;
+      }
       saving=true;
 
       try{
@@ -574,13 +570,15 @@
           },
           body:JSON.stringify({
             ...packed,
-            overwrite:true
+            overwrite:baseline.expectedRevision>0,
+            ...baseline
           })
         });
 
         if(token!==generation)return;
 
-        lastSavedKey=saveKey;
+        closeNotice(container,'마감 저장 완료');
+        changed(targetDate);
 
         try{
           if(typeof refreshHistory==='function'){
@@ -595,6 +593,7 @@
         );
 
       }catch(error){
+        if(token===generation&&credential()===authKey)closeNotice(container,'마감 저장 실패 · '+error.message,true);
         root.console?.error?.(
           '[혼소율] 마감 데이터 자동 저장 실패',
           error
@@ -620,6 +619,10 @@
       const previousSourceId=savedSourceId();
       const token=++generation;
       const deadline=Date.now()+waitMilliseconds;
+      const authKey=credential();
+      closeNotice(container,'');
+      const baselinePromise=api('?targetDate='+encodeURIComponent(targetDate))
+        .then(payload=>expectedWrite(payload.item)).catch(error=>({error}));
 
       // click handler의 기존 계산 로직이 먼저 진행될 시간을 준 뒤
       // 완료된 server result가 나타나는 즉시 저장한다.
@@ -630,7 +633,9 @@
             targetDate,
             deadline,
             requireFreshSource===true,
-            previousSourceId
+            previousSourceId,
+            baselinePromise,
+            authKey
           );
         },
         0
@@ -692,6 +697,11 @@
 
     tabs.append(calc,history);
     toolbar.append(tabs,closeButton);
+    const closeStatus=root.document.createElement('div');
+    closeStatus.setAttribute('data-cfv12-close-status','');
+    closeStatus.setAttribute('role','status');
+    closeStatus.setAttribute('aria-live','polite');
+    closeStatus.hidden=true;
 
     const panel=root.document.createElement('section');
     panel.className='cfv12-history-panel';
@@ -714,7 +724,7 @@
     `;
 
     title.after(toolbar);
-    toolbar.after(panel);
+    toolbar.after(closeStatus,panel);
 
     const body=panel.querySelector('[data-cfv12-body]');
     const detail=panel.querySelector('[data-cfv12-detail]');
@@ -733,13 +743,15 @@
       if(historyMode)void loadList();
     }
 
+    let listedItems=[];
     async function loadList(){
       body.innerHTML='<div class="cfv12-loading">마감 데이터 확인 중...</div>';
       detail.innerHTML='';
 
       try{
         const payload=await api('?limit=180');
-        body.innerHTML=listMarkup(payload.items||[]);
+        listedItems=payload.items||[];
+        body.innerHTML=listMarkup(listedItems);
       }catch(error){
         body.innerHTML=`<div class="cfv12-error">${escapeHtml(error.message)}</div>`;
       }
@@ -762,46 +774,26 @@
       }
     }
 
-    async function saveClosed(overwrite=false){
-      const packed=buildSnapshot(container);
-
-      closeButton.disabled=true;
-      closeButton.textContent='저장 중...';
-
+    async function saveClosed(){
+      closeButton.disabled=true;closeButton.textContent='저장 중...';
+      const authKey=credential();
       try{
-        const payload=await api('',{
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({
-            ...packed,
-            overwrite
-          })
-        });
-
-        root.alert?.(payload.message||'마감 저장했습니다.');
-
-      }catch(error){
-
-        if(
-          error.status===409 &&
-          error.payload?.code==='ALREADY_CLOSED'
-        ){
-          const yes=root.confirm?.(
-            packed.targetDate+
-            '은 이미 마감 저장되어 있습니다.\n현재 계산값으로 갱신하시겠습니까?'
-          );
-
-          if(yes){
-            return saveClosed(true);
-          }
-        }else{
-          root.alert?.(error.message);
+        const packed=buildSnapshot(container);
+        const save=expected=>api('',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({...packed,...expected,overwrite:expected.expectedRevision>0})});
+        let payload;
+        try{payload=await save(expectedWrite(null));}
+        catch(error){
+          if(error.status!==409||error.payload?.code!=='ALREADY_CLOSED')throw error;
+          if(credential()!==authKey)return;
+          if(!root.confirm?.(packed.targetDate+'은 이미 마감 저장되어 있습니다.\n현재 계산값으로 갱신하시겠습니까?'))return;
+          payload=await save(expectedWrite(error.payload.item));
         }
-
-      }finally{
-        closeButton.disabled=false;
-        closeButton.textContent='마감 저장';
-      }
+        changed(packed.targetDate);
+        closeNotice(container,payload.message||'마감 저장했습니다.');
+        root.alert?.(payload.message||'마감 저장했습니다.');
+      }catch(error){closeNotice(container,error.message,true);root.alert?.(error.message);}
+      finally{closeButton.disabled=false;closeButton.textContent='마감 저장';}
     }
 
     closeButton.addEventListener('click',()=>void saveClosed(false));
@@ -831,9 +823,10 @@
 
         void (async()=>{
           try{
-            await api('?targetDate='+encodeURIComponent(date),{
-              method:'DELETE'
-            });
+            const expected=expectedWrite(listedItems.find(item=>item.targetDate===date));
+            if(!expected.expectedRevision)throw new Error('마감 목록을 새로고침하고 다시 확인해 주세요.');
+            const query=new URLSearchParams({targetDate:date,...expected});
+            await api('?'+query.toString(),{method:'DELETE'});
             await loadList();
           }catch(error){
             root.alert?.(error.message);

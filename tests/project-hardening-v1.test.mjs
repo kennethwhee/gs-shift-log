@@ -99,6 +99,9 @@ function loadBrowserModule(relative, property) {
   // Browser bootstrap stays dormant; calculation exports are exercised directly.
   const sandbox={console,module:{exports:{}},setTimeout(){},clearTimeout(){},document:{readyState:'loading',addEventListener(){}}};
   sandbox.window=sandbox;
+  vm.runInNewContext(fs.readFileSync(path.join(root,'maintenance/cofiring-core.js'),'utf8'),sandbox);
+  sandbox.CofiringCore=sandbox.module.exports;
+  sandbox.module={exports:{}};
   vm.runInNewContext(fs.readFileSync(path.join(root,relative),'utf8'),sandbox,{filename:relative});
   return sandbox[property] || sandbox.module.exports;
 }

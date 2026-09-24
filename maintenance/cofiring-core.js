@@ -420,5 +420,22 @@
     return {period,units,combined:{heats:combinedHeats,ratios:combinedRatios,fuelRatios:combinedFuelRatios},warnings,sourceKind:'dataparc-period-summary',qualityVerified,productionReady:false,databaseWritten:false,calorifics:actualCalorifics,coefficients:actualCoefficients};
   }
 
-  return Object.freeze({ dailyRange: dailyRange, validateDailySource: validateDailySource, analyzeDay: analyzeDay, validateRange: validateRange, analyze: analyze, periodRange: periodRange, analyzePeriodSummary: analyzePeriodSummary, qualityGood: qualityGood, requiredSeries: REQUIRED_SERIES });
+  function summaryFromResult(result) {
+    const n = value => typeof value === 'number' && Number.isFinite(value) ? value : null;
+    const bioShare = value => {
+      const coal = n(value?.heats?.coal), bio = n(value?.heats?.bio);
+      return coal === null || bio === null || coal + bio <= 0 ? null : bio / (coal + bio) * 100;
+    };
+    const ratios = value => ({ bioRatio: bioShare(value),
+      organicGroupRatio: n(value?.fuelRatios?.organicGroup),
+      totalRatio: n(value?.fuelRatios?.total) ?? n(value?.ratios?.total) });
+    const summary = { combined: ratios(result?.combined) };
+    for (const unit of UNIT_IDS) {
+      const value = result?.units?.[unit];
+      summary[unit] = { ...Object.fromEntries(FUELS.map(fuel => [fuel, n(value?.[fuel]?.quantity)])), ...ratios(value) };
+    }
+    return summary;
+  }
+
+  return Object.freeze({ summaryFromResult, dailyRange: dailyRange, validateDailySource: validateDailySource, analyzeDay: analyzeDay, validateRange: validateRange, analyze: analyze, periodRange: periodRange, analyzePeriodSummary: analyzePeriodSummary, qualityGood: qualityGood, requiredSeries: REQUIRED_SERIES });
 }));

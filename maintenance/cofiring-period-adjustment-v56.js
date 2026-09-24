@@ -19,7 +19,7 @@
     if(![coal,bio,organic,manure,coalHv,bioHv,orgHv,manHv].every(Number.isFinite))return null;
     h.coal=coal*coalHv/1000;h.bio=bio*bioHv/1000;h.organic=organic*orgHv/1000;h.manure=manure*manHv/1000;h.total=h.coal+h.bio+h.organic+h.manure;
     const bioRatio=h.total>0?h.bio/h.total*100:null,orgRatio=h.total>0?h.organic/h.total*100:null,manRatio=h.total>0?h.manure/h.total*100:null;
-    unit.ratios={bio:bioRatio,organic:orgRatio,total:h.total>0?(h.bio+h.organic+h.manure)/h.total*100:null};
+    unit.ratios={bio:bioRatio,organic:h.total>0?(h.organic+h.manure)/h.total*100:null,total:h.total>0?(h.bio+h.organic+h.manure)/h.total*100:null};
     unit.fuelRatios={bio:bioRatio,organic:orgRatio,manure:manRatio,organicGroup:h.total>0?(h.organic+h.manure)/h.total*100:null,total:unit.ratios.total};
     if(unit.coal)unit.coal.averageTonPerHour=durationHours>0?unit.coal.quantity/durationHours:null;
     if(unit.bio)unit.bio.averageTonPerHour=durationHours>0?unit.bio.quantity/durationHours:null;
@@ -27,13 +27,14 @@
   }
   function recalcCombined(result){
     const one=result?.units?.unit1,two=result?.units?.unit2;if(!one||!two)return result;
-    const heats={};for(const f of ['coal','bio','organic','manure','total'])heats[f]=(Number(one.heats?.[f])||0)+(Number(two.heats?.[f])||0);
-    const total=heats.total;const ratios={bio:total>0?heats.bio/total*100:null,organic:total>0?heats.organic/total*100:null,total:total>0?(heats.bio+heats.organic+heats.manure)/total*100:null};
-    result.combined={heats,ratios,fuelRatios:{bio:ratios.bio,organic:ratios.organic,manure:total>0?heats.manure/total*100:null,organicGroup:total>0?(heats.organic+heats.manure)/total*100:null,total:ratios.total}};return result;
+    const heats={};for(const f of ['coal','bio','organic','manure','total']){const a=one.heats?.[f],b=two.heats?.[f];heats[f]=finite(a)&&finite(b)?a+b:null;}
+    const total=heats.total;const ratios={bio:total>0?heats.bio/total*100:null,organic:total>0?(heats.organic+heats.manure)/total*100:null,total:total>0?(heats.bio+heats.organic+heats.manure)/total*100:null};
+    result.combined={heats,ratios,fuelRatios:{bio:ratios.bio,organic:total>0?heats.organic/total*100:null,manure:total>0?heats.manure/total*100:null,organicGroup:total>0?(heats.organic+heats.manure)/total*100:null,total:ratios.total}};return result;
   }
   function adjustFinal(base,settings,finalOne,finalTwo,meta={}){
     if(!base?.units?.unit1||!base?.units?.unit2)return {ok:false,message:'먼저 기간 계산을 완료해 주세요.'};
-    const b1=Number(base.units.unit1.bio?.quantity),b2=Number(base.units.unit2.bio?.quantity),f1=Number(finalOne),f2=Number(finalTwo);
+    const b1=base.units.unit1.bio?.quantity,b2=base.units.unit2.bio?.quantity,f1=finalOne,f2=finalTwo;
+    if(!UNITS.every(unit=>['coal','bio','organic','manure'].every(fuel=>finite(base.units[unit]?.[fuel]?.quantity)&&base.units[unit][fuel].quantity>=0)))return {ok:false,message:'누락된 연료 사용량이 있습니다. 조회 결과와 입력값을 확인해 주세요.'};
     if(![b1,b2,f1,f2].every(Number.isFinite)||f1<0||f2<0)return {ok:false,message:'최종 Bio 사용량을 0 이상으로 확인해 주세요.'};
     if(f1+f2>b1+b2+0.011)return {ok:false,message:'최종 Bio 합계는 실제 Bio 사용량 합계를 초과할 수 없습니다.'};
     const result=clone(base),hours=Number(result.period?.durationHours)||Number(meta.durationHours)||0,deltas={};
@@ -49,9 +50,9 @@
     result.adjustment={mode:meta.mode||'manual_final',fromUnit:meta.fromUnit||null,bioTransferTons:round(meta.bioTransferTons||0,3),maxBioTpd:finite(meta.maxBioTpd)?meta.maxBioTpd:null,periodCapTons:finite(meta.periodCapTons)?meta.periodCapTons:null,excludedBioTons:round(Math.max(0,b1+b2-f1-f2),3),deltas,applied:true};
     return {ok:true,result,adjustment:result.adjustment};
   }
-  function manualTransfer(base,settings,fromUnit,tons){const t=Number(tons),dir=Number(fromUnit)===2?2:1,b1=Number(base?.units?.unit1?.bio?.quantity),b2=Number(base?.units?.unit2?.bio?.quantity);if(!Number.isFinite(t)||t<=0)return {ok:false,message:'Bio 이동량을 0보다 크게 입력해 주세요.'};if(![b1,b2].every(Number.isFinite))return {ok:false,message:'먼저 기간 계산을 완료해 주세요.'};const source=dir===1?b1:b2;if(t>source+1e-9)return {ok:false,message:`${dir}호기 Bio 사용량보다 많이 이동할 수 없습니다.`};return adjustFinal(base,settings,dir===1?b1-t:b1+t,dir===1?b2+t:b2-t,{mode:'manual_transfer',fromUnit:dir,bioTransferTons:t});}
+  function manualTransfer(base,settings,fromUnit,tons){const t=Number(tons),dir=Number(fromUnit)===2?2:1,b1=base?.units?.unit1?.bio?.quantity,b2=base?.units?.unit2?.bio?.quantity;if(!Number.isFinite(t)||t<=0)return {ok:false,message:'Bio 이동량을 0보다 크게 입력해 주세요.'};if(![b1,b2].every(Number.isFinite))return {ok:false,message:'먼저 기간 계산을 완료해 주세요.'};const source=dir===1?b1:b2;if(t>source+1e-9)return {ok:false,message:`${dir}호기 Bio 사용량보다 많이 이동할 수 없습니다.`};return adjustFinal(base,settings,dir===1?b1-t:b1+t,dir===1?b2+t:b2-t,{mode:'manual_transfer',fromUnit:dir,bioTransferTons:t});}
   function autoMax(base,settings,maxTpd){
-    const hours=Number(base?.period?.durationHours),cap=periodCap(maxTpd,hours),b1=Number(base?.units?.unit1?.bio?.quantity),b2=Number(base?.units?.unit2?.bio?.quantity);if(!Number.isFinite(cap)||cap<=0)return {ok:false,message:'호기당 Bio 최대량(t/d)을 확인해 주세요.'};if(![b1,b2].every(Number.isFinite))return {ok:false,message:'먼저 기간 계산을 완료해 주세요.'};
+    const hours=Number(base?.period?.durationHours),cap=periodCap(maxTpd,hours),b1=base?.units?.unit1?.bio?.quantity,b2=base?.units?.unit2?.bio?.quantity;if(!Number.isFinite(cap)||cap<=0)return {ok:false,message:'호기당 Bio 최대량(t/d)을 확인해 주세요.'};if(![b1,b2].every(Number.isFinite))return {ok:false,message:'먼저 기간 계산을 완료해 주세요.'};
     let f1=Math.min(b1,cap),f2=Math.min(b2,cap),ex1=Math.max(0,b1-f1),ex2=Math.max(0,b2-f2),c1=Math.max(0,cap-f1),c2=Math.max(0,cap-f2);
     const move12=Math.min(ex1,c2);f2+=move12;ex1-=move12;c2-=move12;
     const move21=Math.min(ex2,c1);f1+=move21;ex2-=move21;c1-=move21;
