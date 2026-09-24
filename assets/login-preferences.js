@@ -81,7 +81,22 @@
     const loginPassword = login?.querySelector('input[type="password"]');
     if (loginPassword) loginPassword.maxLength = 100;
     link(login, '비밀번호 설정·변경', 'login');
-    link(doc.getElementById('logoutButton')?.parentElement, '비밀번호 변경', 'header');
+    const menu = doc.getElementById('headerMoreDropdown');
+    if (menu && !doc.getElementById('accountPasswordMenuLink')) {
+      const passwordLink = doc.createElement('a');
+      passwordLink.id = 'accountPasswordMenuLink';
+      passwordLink.className = 'header-more-item header-more-item--group-start';
+      passwordLink.setAttribute('role', 'menuitem');
+      passwordLink.href = '/assets/account-security.html?return=' + encodeURIComponent(back);
+      const label = doc.createElement('span');
+      label.className = 'header-more-item__label'; label.textContent = '비밀번호 변경';
+      passwordLink.append(label);
+      passwordLink.addEventListener('click', () => {
+        if (typeof root.closeHeaderMoreMenu === 'function') root.closeHeaderMoreMenu();
+      });
+      const administrator = doc.getElementById('adminButton');
+      menu.insertBefore(passwordLink, administrator?.parentElement === menu ? administrator : null);
+    }
     link(doc.getElementById('employeeManagementSearch')?.parentElement, '직원 임시 비밀번호 발급', 'admin', true);
   }
   root.GSShiftLogLoginPreferences = Object.freeze({ read, remember, clear, requireCredentialDisplay, showTemporaryCredentials });
