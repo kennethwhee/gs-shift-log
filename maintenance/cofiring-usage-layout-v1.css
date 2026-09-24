@@ -1,0 +1,195 @@
+/* Approved usage-panel layout. Scope every override to this panel only. */
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-manual-panel.cfv-usage-v1 {
+  container: cfv-usage / inline-size;
+  padding: 16px;
+  color: #183c59;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv52-manual-head {
+  align-items: center;
+  gap: 10px 16px;
+  margin-bottom: 7px;
+  flex-wrap: wrap;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv52-manual-head > div:first-child { min-width: 0; }
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv52-manual-head > div:first-child > strong { font-size: 14px; }
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv52-manual-actions {
+  flex-direction: row;
+  gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 [data-cfv5-manual-state] {
+  flex: 1 1 120px;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 [data-cfv5-manual-save] {
+  height: 34px;
+  padding: 0 12px;
+  color: #216db6;
+  font-size: 12px;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv-usage-context {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: #617b94;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv-usage-total { font-size: 12px; font-weight: 500; }
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv-usage-context[data-tone="ready"] .cfv-usage-total {
+  color: #183c59;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv-usage-context[data-tone="error"] { color: #a44040; }
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv52-manual-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px solid #dce6ef;
+  align-items: start;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv14-receipt-inline,
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv52-manual-unit {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  white-space: normal;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv14-receipt-inline { padding-left: 0; }
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv52-manual-unit { border-left: 1px solid #dce6ef; }
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv52-manual-unit:last-child { padding-right: 0; }
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv52-manual-unit legend {
+  float: left;
+  grid-column: 1 / -1;
+  width: 100%;
+  min-height: 24px;
+  margin: 0;
+  padding: 0;
+  color: #183c59;
+  font-size: 12px;
+  line-height: 24px;
+  font-weight: 700;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv52-unit-dot { display: none; }
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv-usage-receipt-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  grid-column: 1 / -1;
+  gap: 4px 8px;
+  min-height: 24px;
+  font-size: 12px;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv-usage-receipt-head > strong { font-size: 12px; font-weight: 700; }
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv-usage-receipt-badge {
+  padding: 2px 7px;
+  border-radius: 12px;
+  background: #f0f8f5;
+  color: #397361;
+  font-size: 10px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv-usage-receipt-badge[data-tone="error"] { background: #fff1f1; color: #a44040; }
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv-usage-receipt-badge[data-tone="working"] { background: #eef4fb; color: #3f6f9c; }
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv-usage-receipt-badge[data-tone="manual"] { background: #f3f5f8; color: #617b94; }
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv14-receipt-inline label,
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv52-manual-unit label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 5px;
+  min-width: 0;
+  margin: 0;
+  color: #617b94;
+  font-size: 11px;
+  line-height: 1.5;
+  font-weight: 500;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv14-receipt-field,
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv13-manual-input-unit {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv14-receipt-input,
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv5-manual-input {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  padding: 0 8px;
+  font-size: 13px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv14-receipt-field small { flex: 0 0 auto; font-size: 10px; }
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv-usage-details { margin-top: 13px; border-top: 1px solid #e4ebf2; }
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv-usage-details > summary {
+  width: fit-content;
+  padding: 10px 0 0;
+  color: #526f89;
+  font-size: 11px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv-usage-details-body {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 7px;
+  background: #f7faff;
+  color: #526f89;
+  font-size: 12px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 [data-cfv15-organic-usage],
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv16-organic-main,
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv16-organic-calc { display: block; font-size: 12px; line-height: 1.8; white-space: normal; }
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 [data-cfv14-receipt-source] {
+  display: block;
+  height: auto;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.8;
+  white-space: normal;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv16-organic-detail > summary { padding: 5px 8px; font-size: 11px; }
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv16-organic-box { max-width: 100%; overflow-x: auto; }
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 :is(button, summary, input):focus-visible { outline: 2px solid #216db6; outline-offset: 2px; }
+@container cfv-usage (max-width: 850px) {
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv52-manual-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 16px; }
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv14-receipt-inline { grid-column: 1 / -1; padding: 0 0 14px; border-bottom: 1px solid #e4ebf2; }
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv52-manual-unit:nth-child(2) { padding-left: 0; border-left: 0; }
+}
+@container cfv-usage (max-width: 470px) {
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv52-manual-actions { width: 100%; justify-content: space-between; }
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv52-manual-grid { grid-template-columns: minmax(0, 1fr); }
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv52-manual-unit { padding: 0; border-left: 0; }
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv52-manual-unit:last-child { padding-top: 14px; border-top: 1px solid #e4ebf2; }
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 :is(.cfv14-receipt-input, .cfv5-manual-input) { height: 40px; }
+}
