@@ -82,8 +82,8 @@
         <span class="cfv5-version"><i aria-hidden="true"></i>Bio 목표 <strong>25%</strong></span>
       </div>
 
-      <div class="cfv5-query-box">
-        <div class="cfv8-query-mode"><label>계산 방식<select data-cfv8-mode><option value="daily" selected>일별 계산</option><option value="period">시간 · 기간 지정</option></select></label><span>오늘은 00:00부터 현재까지 누적, 지난 날짜는 00:00부터 다음 날 00:01까지 계산합니다.</span></div>
+      <div class="cfv5-query-box cfv-toolbar-v1">
+        <div class="cfv8-query-mode"><label>계산 방식<select data-cfv8-mode><option value="daily" selected>일별 계산</option><option value="period">시간 · 기간 지정</option></select></label></div>
         <div class="cfv5-query-grid">
           <label data-cfv8-daily-fields>혼소율 계산일<input data-cfv7-date type="date" min="2021-01-01" value="${date}"></label>
           <div class="cfv8-period-fields" data-cfv8-period-fields hidden><label>계산 시작<input data-cfv8-start type="datetime-local" min="2021-01-01T00:00" step="60" value="${partial.startLocal}"></label><label>계산 종료<input data-cfv8-end type="datetime-local" min="2021-01-01T00:01" step="60" value="${partial.endLocal}"></label><button type="button" data-cfv8-today>오늘 00시~현재</button></div>
@@ -93,7 +93,7 @@
             <button type="button" class="cfv5-requery" data-cfv5-requery>재조회</button>
           </div>
         </div>
-        <div class="cfv11-status-row"><p data-cfv11-status-line role="status" aria-live="polite">저장 결과 확인 중</p><details class="cfv11-status-details" data-cfv11-status-details><summary>상세</summary><div class="cfv11-status-body">
+        <div class="cfv11-status-row"><p data-cfv11-status-line role="status" aria-live="polite">저장 결과 확인 중</p><details class="cfv-toolbar-guide" data-cfv-toolbar-guide><summary>계산 기준</summary><div class="cfv-toolbar-guide-body"><p><strong>오늘:</strong> 00:00부터 현재까지 누적 계산합니다.</p><p><strong>지난 날짜:</strong> 선택일 00:00부터 다음 날 00:01까지 조회합니다.</p><p><strong>시간 · 기간 지정:</strong> 선택한 시작·종료 시각으로 계산하며, 종료 누적값 확인을 위해 다음 1분까지 조회합니다.</p><p>자동 조회 범위는 한국 시간 기준입니다.</p></div></details><details class="cfv11-status-details" data-cfv11-status-details><summary>상세</summary><div class="cfv11-status-body">
         <div class="cfv5-query-meta"><span data-cfv5-range>—</span><span class="cfv56-query-state"><em data-cfv56-prep>조회 준비 대기</em><strong data-cfv5-live-state>조회 전</strong></span></div>
         <span class="cfv6-data-source" data-cfv6-data-source>저장된 조회 결과가 있으면 바로 계산합니다.</span>
         <span class="cfv6-data-source" data-cfv7-click-timing hidden aria-live="off"></span>
