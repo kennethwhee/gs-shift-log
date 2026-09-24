@@ -119,7 +119,7 @@
       <div class="cfv52-manual-panel">
         <div class="cfv52-manual-head">
           <div><strong>유기성 · 축분 사용량 입력</strong><span data-cfv15-organic-usage>선택기간 누적량 · 빈칸=0t로 계산 · 유기성 자동사용량 대기</span></div>
-          <div class="cfv52-manual-actions"><div class="cfv14-receipt-inline" aria-label="입고량 입력"><strong>입고량</strong><span class="cfv14-receipt-auto" data-cfv14-receipt-source>입고기록 자동</span><label><span class="cfv14-receipt-label">유기성</span><span class="cfv14-receipt-field"><input class="cfv14-receipt-input" type="text" inputmode="decimal" data-cfv5-receipt="organic" placeholder="0"><small>ton</small></span></label><label><span class="cfv14-receipt-label">축분</span><span class="cfv14-receipt-field"><input class="cfv14-receipt-input" type="text" inputmode="decimal" data-cfv5-receipt="manure" placeholder="0"><small>ton</small></span></label></div><span data-cfv5-manual-state>저장값 없음</span><button type="button" data-cfv5-manual-save title="사용량과 입고량을 함께 저장합니다.">사용량 저장</button></div>
+          <div class="cfv52-manual-actions"><div class="cfv14-receipt-inline" aria-label="입고량 입력"><strong>입고량</strong><span class="cfv14-receipt-auto" data-cfv14-receipt-source>입고기록 자동</span><label><span class="cfv14-receipt-label">유기성</span><span class="cfv14-receipt-field"><input class="cfv14-receipt-input" type="text" inputmode="decimal" data-cfv5-receipt="organic" placeholder="0"><small>ton</small></span></label><label><span class="cfv14-receipt-label">축분</span><span class="cfv14-receipt-field"><input class="cfv14-receipt-input" type="text" inputmode="decimal" data-cfv5-receipt="manure" placeholder="0"><small>ton</small></span></label></div><span data-cfv5-manual-state>저장값 없음</span><button type="button" data-cfv5-manual-edit aria-pressed="false" title="입고량과 호기별 사용량을 직접 수정합니다.">수치 수정</button><button type="button" data-cfv5-manual-save title="사용량과 입고량을 함께 저장합니다.">사용량 저장</button></div>
         </div>
         <div class="cfv52-manual-grid">
           ${UNITS.map((unit,i)=>`<fieldset class="cfv52-manual-unit"><legend><span class="cfv52-unit-dot" aria-hidden="true"></span>${i+1}호기</legend><label><span>유기성</span><div class="cfv13-manual-input-unit">${manualInput(unit,'organic',null,false)}<small>ton</small></div></label><label><span>축분</span><div class="cfv13-manual-input-unit">${manualInput(unit,'manure',null,false)}<small>ton</small></div></label></fieldset>`).join('')}
@@ -212,6 +212,7 @@
   function writeSettings(container,settings){if(!settings)return;for(const fuel of FUEL_KEYS){const s=settings?.unit1?.[fuel]||settings?.unit2?.[fuel];if(!s)continue;for(const unit of UNITS){const c=container.querySelector(`[data-cfv5-calorific="${unit}:${fuel}"]`),f=container.querySelector(`[data-cfv5-coefficient="${unit}:${fuel}"]`);if(c)c.value=String(s.calorific);if(f)f.value=Number(s.coefficient).toFixed(2);}}}
   function readManual(container){
     const out={unit1:{},unit2:{},receipts:{organic:null,manure:null}};
+    if(container.dataset.cfvUsageInputMode==='manual')out.inputMode='manual';
     for(const unit of UNITS){
       for(const fuel of ['organic','manure']){
         out[unit][fuel]=manualApi.parseValue(container.querySelector(`[data-cfv5-manual="${unit}:${fuel}"]`)?.value??'');
@@ -224,6 +225,8 @@
   }
   function manualForCalculation(values){const out={unit1:{},unit2:{}};for(const unit of UNITS)for(const fuel of ['organic','manure']){const value=values?.[unit]?.[fuel];out[unit][fuel]=typeof value==='number'&&Number.isFinite(value)?value:0;}return out;}
   function writeManual(container,values){
+    container.dataset.cfvUsageInputMode=values?.inputMode==='manual'?'manual':'auto';
+    if(values?.inputMode==='manual')for(const input of container.querySelectorAll('[data-cfv5-receipt]'))delete input.dataset.cfv14Auto;
     for(const unit of UNITS){
       for(const fuel of ['organic','manure']){
         const input=container.querySelector(`[data-cfv5-manual="${unit}:${fuel}"]`);
@@ -510,6 +513,26 @@
 
     function updateOrganicInventoryUsage(){
       let spec=null;try{spec=currentSpec();}catch(_){}
+      const state=manual?.state();
+      const direct=container.dataset.cfvUsageInputMode==='manual';
+      const blocked=mobile||!state?.canEdit||!state.loaded||state.loading||state.saving;
+      const edit=container.querySelector('[data-cfv5-manual-edit]');
+      if(edit){edit.disabled=blocked;edit.textContent=direct?'자동값 사용':'수치 수정';edit.setAttribute('aria-pressed',String(direct));edit.title=direct?'입고기록과 50:50 자동배분 값으로 돌아갑니다.':'입고량과 호기별 사용량을 직접 수정합니다.';}
+      if(direct){
+        resetReceiptAuto();
+        for(const input of container.querySelectorAll('[data-cfv5-manual]')){input.readOnly=false;input.removeAttribute('aria-readonly');input.placeholder='0';}
+        let values=null;try{values=readManual(container);}catch(_){}
+        const total=core.organicManualUsage(values,spec);organicUsageState=total;
+        receiptSource('직접 입력','manual');
+        organicUsageSource(total.ok?'유기성 총 '+num(total.usage,3)+'t · 직접 입력':total.message,total.ok?'manual':'error');
+        const save=container.querySelector('[data-cfv5-manual-save]');if(save)save.disabled=blocked||!total.ok;
+        return total;
+      }
+      if(!state?.loaded||state.loading){
+        organicUsageState={ok:false,message:'저장된 사용량 확인 중'};
+        const save=container.querySelector('[data-cfv5-manual-save]');if(save)save.disabled=true;
+        return organicUsageState;
+      }
       const receiptInput=container.querySelector('[data-cfv5-receipt="organic"]');
       const rawReceipt=String(receiptInput?.value??'').trim();
       const signature=spec?JSON.stringify({startLocal:spec.startLocal,endLocal:spec.endLocal}):'';
@@ -525,7 +548,11 @@
         input.readOnly=true;input.setAttribute('aria-readonly','true');
         input.placeholder=total.ok?'0':'확인 필요';
         const value=total.ok?total.allocation[unit].toFixed(4):'';
-        if(String(input.value??'')!==value){input.value=value;autoChanged=true;}
+        if(String(input.value??'')!==value){
+          // Display precision alone must not turn a saved value into an unsaved edit.
+          if(String(input.value??'').trim()===''||Number(input.value)!==Number(value))autoChanged=true;
+          input.value=value;
+        }
       }
       if(!total.ok){
         organicUsageSource(total.message+(reference?' · 이전 저장 사용량은 계산에서 제외':''),reference?'error':'');
@@ -535,7 +562,7 @@
       if(autoChanged){manualDirty=true;const label=container.querySelector('[data-cfv5-manual-state]');
         if(label&&!manual?.state()?.saving)label.textContent='유기성 50:50 자동배분 · 미저장';}
       const save=container.querySelector('[data-cfv5-manual-save]');
-      if(save)save.disabled=mobile||!manual?.state()?.canEdit||!!manual?.state()?.saving;
+      if(save)save.disabled=blocked;
       const {startTotal,endTotal,usage}=total;
       const {unit1,unit2,ok:allocationOk}=total.allocation;
       organicUsageSource('유기성 총 '+num(usage,3)+'t · 1호기 '+num(unit1,4)+'t / 2호기 '+num(unit2,4)+'t · 50:50 자동배분','ready');
@@ -543,6 +570,11 @@
       return total;
     }
     function validateOrganicAllocationBeforeSave(values){
+        if(values?.inputMode==='manual'){
+          const total=core.organicManualUsage(values,currentSpec());
+          if(!total.ok)throw new Error(total.message);
+          return true;
+        }
         const total=updateOrganicInventoryUsage();
         if(!total?.ok)throw new Error(total?.message||'유기성 자동사용량을 확인한 뒤 저장해 주세요.');
 
@@ -575,6 +607,7 @@
 
       async function syncReceiptTotals(){
       const generation=++receiptSyncGeneration;receiptSyncState={status:'loading',signature:'',value:null};
+      if(container.dataset.cfvUsageInputMode==='manual'){resetReceiptAuto();updateOrganicInventoryUsage();return true;}
       if(queryMode(container)!=='daily'){resetReceiptAuto();receiptSource('기간 지정 · 수기','manual');updateOrganicInventoryUsage();paintManual();return false;}
       let p;try{p=periodSpec(container);}catch(_){resetReceiptAuto();receiptSource('조회 기간 확인 필요','error');updateOrganicInventoryUsage();return false;}
       const date=container.querySelector('[data-cfv7-date]')?.value||'',epoch=selectionEpoch,auth=String(authHeaders().Authorization||authHeaders().authorization||'');
@@ -588,7 +621,7 @@
         let payload=null;try{payload=await response.json();}catch(_){}
         if(!response.ok||payload?.ok!==true)throw new Error(payload?.message||'입고기록을 불러오지 못했습니다.');
         let current;try{const cp=periodSpec(container);current=JSON.stringify({startLocal:cp.startLocal,endLocal:cp.endLocal});}catch(_){current='';}
-        if(disposed||generation!==receiptSyncGeneration||epoch!==selectionEpoch||queryMode(container)!=='daily'||container.querySelector('[data-cfv7-date]')?.value!==date||current!==specSignature||String(authHeaders().Authorization||authHeaders().authorization||'')!==auth)return false;
+        if(disposed||container.dataset.cfvUsageInputMode==='manual'||generation!==receiptSyncGeneration||epoch!==selectionEpoch||queryMode(container)!=='daily'||container.querySelector('[data-cfv7-date]')?.value!==date||current!==specSignature||String(authHeaders().Authorization||authHeaders().authorization||'')!==auth)return false;
         if(payload.receiptStart!==p.startLocal||payload.receiptEnd!==p.endLocal||payload.source!=='solid-fuel-unloading'||payload.basis!=='completed-unloading-departure')throw new Error('입고량 조회 범위가 다릅니다.');
         setReceiptAutoValues(payload.receipts);receiptSyncState={status:'ready',signature:specSignature,value:payload.receipts.organic};
         const oc=Number(payload.counts?.organic||0),mc=Number(payload.counts?.manure||0);receiptSource(`입고기록 자동 · 완료 하역 기준 · 유기성 ${oc}건 · 축분 ${mc}건`,'ready');
@@ -596,7 +629,7 @@
         if(reference&&storesReady())calculate();
         return true;
       }catch(error){
-        if(disposed||generation!==receiptSyncGeneration||epoch!==selectionEpoch)return false;
+        if(disposed||container.dataset.cfvUsageInputMode==='manual'||generation!==receiptSyncGeneration||epoch!==selectionEpoch)return false;
         receiptSyncState={status:'error',signature:specSignature,value:null};
         receiptSource('입고량 확인 실패 · 다시 조회해 주세요','error');updateOrganicInventoryUsage();if(reference&&storesReady())calculate();
         return false;
@@ -639,7 +672,7 @@
       const state=container.querySelector('[data-cfv5-live-state]');if(state)state.textContent=waiting;
       const source=container.querySelector('[data-cfv6-data-source]');if(source)source.textContent=daily?'오늘은 00:00부터 현재까지 누적, 지난 날짜는 00:00부터 다음 날 00:01까지 계산합니다.':'완료된 시간의 선택 구간을 기준으로 계산합니다.';
       const query=container.querySelector('[data-cfv5-query]');query.disabled=true;query.textContent=waiting;container.querySelector('[data-cfv5-requery]').disabled=true;
-      for(const el of container.querySelectorAll('[data-cfv5-calorific],[data-cfv5-coefficient],[data-cfv5-manual],[data-cfv5-receipt],[data-cfv5-settings-save],[data-cfv5-manual-save],[data-cfv56-adjust]'))el.disabled=true;
+      for(const el of container.querySelectorAll('[data-cfv5-calorific],[data-cfv5-coefficient],[data-cfv5-manual],[data-cfv5-receipt],[data-cfv5-settings-save],[data-cfv5-manual-save],[data-cfv5-manual-edit],[data-cfv56-adjust]'))el.disabled=true;
       const settingsState=container.querySelector('[data-cfv5-settings-state]'),manualState=container.querySelector('[data-cfv5-manual-state]');if(settingsState)settingsState.textContent='조회 범위 확인 대기';if(manualState)manualState.textContent='조회 범위 확인 대기';
       if(a.readyAt!==null&&dayBoundaryTimer===null&&!disposed&&visible()&&root.setTimeout){dayBoundaryTimer=root.setTimeout(()=>{dayBoundaryTimer=null;if(!disposed&&visible())void periodChanged();},Math.min(2147483000,Math.max(50,a.readyAt-Date.now()+10)));}return true;
     }
@@ -942,6 +975,7 @@
         return false;
       }
 
+      if(snapshot.manual?.inputMode==='manual'){restored.inputMode='manual';restored.receipts=snapshot.manual.receipts;}
       writeManual(
         container,
         restored
@@ -991,6 +1025,7 @@
         const draft=pendingDailyDraft?.signature===JSON.stringify(currentSpec())&&pendingDailyDraft.auth===String(authHeaders().Authorization||authHeaders().authorization||'')?pendingDailyDraft:null;pendingDailyDraft=null;
         selectedStoreKey=next;periodGeneration++;reference=null;lastResult=null;displayResult=null;adjustmentActive=false;settingsDirty=!!draft?.settings;manualDirty=!!draft?.manual;
         settings?.select(p.targetDate);manual?.select(p.startLocal,p.endLocal);resetReceiptAuto();writeManual(container,manualApi.blank());
+        if(draft?.manual)container.dataset.cfvUsageInputMode=draft.inputMode==='manual'?'manual':'auto';
         for(const [selector,value] of [...(draft?.manual||[]),...(draft?.settings||[])]){const input=container.querySelector(selector);if(input)input.value=value;}
       }
       const epoch=periodGeneration;live?.select(currentSpec());
@@ -1000,7 +1035,7 @@
     }
     function paintSettings(force=false){if(!settings||showDayUnavailable())return;const s=settings.state(),state=container.querySelector('[data-cfv5-settings-state]');if((force||!settingsDirty)&&s.loaded)writeSettings(container,s.settings);if(state)state.textContent=s.error?s.error:s.saving?'저장 중...':s.loading?'불러오는 중...':settingsDirty?'수정됨 · 미저장':s.source==='saved'?`${s.effectiveDate} 적용값${s.updatedByName?' · '+s.updatedByName:''}`:'기본값';for(const el of container.querySelectorAll('[data-cfv5-calorific],[data-cfv5-coefficient]'))el.disabled=mobile||s.saving;container.querySelector('[data-cfv5-settings-save]').disabled=mobile||!s.canEdit||s.saving;}
     function currentManualFromFields(){try{return readManual(container);}catch(_){return manual?.state().values||manualApi.blank();}}
-    function paintManual(force=false){if(!manual||showDayUnavailable())return;const s=manual.state(),label=container.querySelector('[data-cfv5-manual-state]');if((force||!manualDirty)&&s.loaded)writeManual(container,s.values);if(label)label.textContent=s.error?s.error:s.saving?'저장 중...':s.loading?'불러오는 중...':manualDirty?'수정됨 · 미저장':s.revision?`저장 v${s.revision}${s.updatedByName?' · '+s.updatedByName:''}`:'저장값 없음';container.querySelector('[data-cfv5-manual-save]').disabled=mobile||!s.canEdit||s.saving;for(const el of container.querySelectorAll('[data-cfv5-manual],[data-cfv5-receipt]'))el.disabled=mobile||s.saving;updateOrganicInventoryUsage();const values=currentManualFromFields();renderOrganic(container,displayResult||lastResult,values);renderSummary(container,displayResult||lastResult,values,deadlineInputError);bindManualInputs();}
+    function paintManual(force=false){if(!manual||showDayUnavailable())return;const s=manual.state(),label=container.querySelector('[data-cfv5-manual-state]');if((force||!manualDirty)&&s.loaded)writeManual(container,s.values);if(label)label.textContent=s.error?s.error:s.saving?'저장 중...':s.loading?'불러오는 중...':manualDirty?'수정됨 · 미저장':s.revision?`저장 v${s.revision}${s.updatedByName?' · '+s.updatedByName:''}`:'저장값 없음';container.querySelector('[data-cfv5-manual-save]').disabled=mobile||!s.canEdit||s.saving;for(const el of container.querySelectorAll('[data-cfv5-manual],[data-cfv5-receipt]'))el.disabled=mobile||!s.canEdit||!s.loaded||s.loading||s.saving;updateOrganicInventoryUsage();const values=currentManualFromFields();renderOrganic(container,displayResult||lastResult,values);renderSummary(container,displayResult||lastResult,values,deadlineInputError);bindManualInputs();}
     function morningOrganicSelectionKey(){
       return queryMode(container)==='daily'?(container.querySelector('[data-cfv7-date]')?.value||''):'';
     }
@@ -1081,6 +1116,7 @@
     }
     function scheduleInputRecalc(){
       clearInputRecalc();
+      if(container.dataset.cfvUsageInputMode==='manual')updateOrganicInventoryUsage();
       if(!reference||!storesReady())return;
       inputRecalcTimer=root.setTimeout?.(()=>{
         inputRecalcTimer=null;
@@ -1160,7 +1196,7 @@
       if(JSON.stringify(old)===JSON.stringify(spec))return;
       const inputDraft=(attribute)=>Array.from(container.querySelectorAll('['+attribute+']')).map(el=>['['+attribute+'="'+el.getAttribute(attribute)+'"]',el.value]);
       const sameDay=old.startLocal===spec.startLocal&&selectedStoreKey===storeKey(),draft={signature:JSON.stringify(spec),auth:String(authHeaders().Authorization||authHeaders().authorization||''),manual:null,settings:null};
-      if(sameDay&&manualDirty)draft.manual=[...inputDraft('data-cfv5-manual'),...inputDraft('data-cfv5-receipt')];
+      if(sameDay&&(manualDirty||container.dataset.cfvUsageInputMode==='manual')){draft.manual=[...inputDraft('data-cfv5-manual'),...inputDraft('data-cfv5-receipt')];draft.inputMode=container.dataset.cfvUsageInputMode;}
       if(sameDay&&settingsDirty)draft.settings=[...inputDraft('data-cfv5-calorific'),...inputDraft('data-cfv5-coefficient')];
       // Reset synchronously and defer all reads until the click timer is started.
       void periodChanged({deferReads:true,draft,capturedAt});
@@ -1173,6 +1209,17 @@
       el.addEventListener('keydown',event=>{if(event.key==='Enter')flushInputRecalc();});
     }
     container.querySelector('[data-cfv5-settings-save]').addEventListener('click',async()=>{try{const values=readSettings(container);const ok=await settings.save(values);if(ok){settingsDirty=false;paintSettings(true);if(reference)calculate();}}catch(e){setStatus(container,e.message,'error');}});
+    container.querySelector('[data-cfv5-manual-edit]').addEventListener('click',async()=>{
+      const state=manual?.state();
+      if(mobile||!state?.canEdit||!state.loaded||state.loading||state.saving)return;
+      clearInputRecalc();receiptSyncGeneration++;
+      const direct=container.dataset.cfvUsageInputMode!=='manual';
+      container.dataset.cfvUsageInputMode=direct?'manual':'auto';manualDirty=true;
+      receiptSyncState={status:'idle',signature:'',value:null};resetReceiptAuto();paintManual();
+      if(!direct)await syncReceiptTotals();
+      if(reference&&storesReady())calculate();
+      if(direct)container.querySelector('[data-cfv5-receipt="organic"]')?.focus?.();
+    });
     container.querySelector('[data-cfv5-manual-save]').addEventListener('click',async()=>{try{updateOrganicInventoryUsage();const values=readManual(container);validateOrganicAllocationBeforeSave(values);const ok=await manual.save(values);if(ok){manualDirty=false;paintManual(true);if(reference)calculate();}}catch(e){setStatus(container,e.message,'error');}});
     container.querySelector('[data-cfv5-query]').addEventListener('click',async()=>{if(clickBusy)return;clickBusy=true;fastPrepGeneration++;restoringSaved=false;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}let token=null;try{
       refreshDailyForClick();if(showDayUnavailable())return;

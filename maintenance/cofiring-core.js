@@ -209,6 +209,19 @@
       startTotal,endTotal,receipt,usage,allocation:{unit1:half,unit2:half,total:half*2,diff:usage-half*2,ok:true,mode:'equal-50-50'}};
   }
 
+  // Explicit operator input is separate from the verified automatic balance.
+  function organicManualUsage(values, selected) {
+    const numeric=value=>typeof value==='number' && Number.isFinite(value) && value>=0 && value<=1000000;
+    const one=values?.unit1?.organic,two=values?.unit2?.organic;
+    if(values?.inputMode!=='manual' || !numeric(one) || !numeric(two) ||
+       !numeric(values?.receipts?.organic) || !numeric(values?.receipts?.manure)) {
+      return {ok:false,code:'MANUAL_USAGE_INVALID',message:'유기성 1·2호기 사용량과 입고량을 0 이상의 숫자로 입력해 주세요. 사용하지 않은 항목은 0을 입력하세요.',usage:null,allocation:null};
+    }
+    const usage=Math.round((one+two)*1000000)/1000000;
+    return {ok:true,basis:'operator-manual-v1',startLocal:selected?.startLocal,endLocal:selected?.endLocal,
+      receipt:values.receipts.organic,usage,allocation:{unit1:one,unit2:two,total:usage,diff:0,ok:true,mode:'manual'}};
+  }
+
   function manualFuel(input, unit, period, coefficient, fuelName) {
     const issues = [];
     let value = null;
@@ -465,5 +478,5 @@
     return summary;
   }
 
-  return Object.freeze({ organicInventoryUsage, summaryFromResult, dailyRange: dailyRange, validateDailySource: validateDailySource, analyzeDay: analyzeDay, validateRange: validateRange, analyze: analyze, periodRange: periodRange, analyzePeriodSummary: analyzePeriodSummary, qualityGood: qualityGood, requiredSeries: REQUIRED_SERIES });
+  return Object.freeze({ organicManualUsage, organicInventoryUsage, summaryFromResult, dailyRange: dailyRange, validateDailySource: validateDailySource, analyzeDay: analyzeDay, validateRange: validateRange, analyze: analyze, periodRange: periodRange, analyzePeriodSummary: analyzePeriodSummary, qualityGood: qualityGood, requiredSeries: REQUIRED_SERIES });
 }));

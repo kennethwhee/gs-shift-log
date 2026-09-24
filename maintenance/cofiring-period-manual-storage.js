@@ -11,6 +11,8 @@
   function parseValue(value){const raw=String(value??'').trim();if(raw==='')return null;if(!/^\d+(?:\.\d{1,6})?$/.test(raw))throw new Error('0 이상, 소수점 6자리 이하의 수량(ton)을 입력해 주세요.');const n=Number(raw);if(!Number.isFinite(n)||n<0||n>1000000)throw new Error('사용량 범위를 확인해 주세요.');return n;}
   function validValues(values){
     try{
+      if(values?.inputMode!==undefined&&!['auto','manual'].includes(values.inputMode))return false;
+      if(values?.inputMode==='manual'&&[values.unit1?.organic,values.unit2?.organic,values.receipts?.organic,values.receipts?.manure].some(v=>typeof v!=='number'||!Number.isFinite(v)))return false;
       const unitsOk=['unit1','unit2'].every(unit=>['organic','manure'].every(fuel=>{
         const v=values?.[unit]?.[fuel];
         return v===null||(typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=1000000);

@@ -13,7 +13,7 @@ test('server recomputes summaries and preserves blank manual input separately fr
   const db=database(t),p=packet();p.snapshot.manual.unit2.manure=null;p.summary={combined:{totalRatio:999}};p.snapshot.summary=p.summary;p.snapshot.result.heats={total:999};
   const r=await call(db,{body:p});assert.equal(r.status,200,JSON.stringify(r.payload));
   const saved=stored(db),snapshot=JSON.parse(saved.snapshot_json),summary=JSON.parse(saved.summary_json);
-  assert.equal(snapshot.validationVersion,4);assert.equal(snapshot.manual.unit2.manure,null);assert.equal(snapshot.manual.receipts.manure,0);
+  assert.equal(snapshot.validationVersion,5);assert.equal(snapshot.manual.unit2.manure,null);assert.equal(snapshot.manual.receipts.manure,0);
   assert.equal(snapshot.result.units.unit2.manure.quantity,0);assert.deepEqual(summary,core.summaryFromResult(p.snapshot.result));
   assert.equal(summary.unit1.organicGroupRatio,snapshot.result.units.unit1.fuelRatios.organicGroup);
   assert.notEqual(summary.combined.totalRatio,999);assert.match(r.payload.item.version,/^[a-f0-9]{64}$/);
@@ -145,4 +145,28 @@ test('monthly arithmetic average excludes missing values and includes explicit z
   vm.runInContext(fs.readFileSync(file,'utf8'),context);const monthly=context.module.exports;
   const mean=monthly.averageRows([{unit1:{coal:null,bioRatio:null}},{unit1:{coal:0,bioRatio:0}},{unit1:{coal:30,bioRatio:30}}]);
   assert.equal(mean.unit1.coal,15);assert.equal(mean.unit1.bioRatio,15);assert.equal(mean.unit2.coal,null);
+});
+
+test('explicit manual edits close with server-recomputed results and retain the chosen basis',async t=>{
+  for(const inventory of [true,false]){
+    const source=sourceResult({inventory}),db=database(t,source),p=packet(source),period=p.snapshot.period;
+    p.snapshot.manual={inputMode:'manual',unit1:{organic:20.123456,manure:3},unit2:{organic:34.5,manure:0},receipts:{organic:57.8,manure:0}};
+    p.snapshot.result=core.analyzePeriodSummary(source.report.reference,{
+      organic:{start:period.start,end:period.end,unit1:20.123456,unit2:34.5},
+      manure:{start:period.start,end:period.end,unit1:3,unit2:0}});
+    const r=await call(db,{body:p});assert.equal(r.status,200,JSON.stringify(r.payload));
+    const snap=JSON.parse(stored(db).snapshot_json);
+    assert.deepEqual(snap.manual,p.snapshot.manual);assert.equal(snap.organicUsage.basis,'operator-manual-v1');
+    assert.equal(snap.result.units.unit1.organic.quantity,20.123456);
+    assert.equal(snap.result.units.unit2.organic.quantity,34.5);
+    assert.deepEqual(snap.summary,core.summaryFromResult(p.snapshot.result));
+  }
+});
+test('automatic closing still requires inventory allocation and manual edits cannot forge result values',async t=>{
+  for(const mode of [undefined,'auto','manual','unknown']){
+    const db=database(t),p=packet();p.snapshot.manual.unit1.organic=19;
+    if(mode!==undefined)p.snapshot.manual.inputMode=mode;
+    const r=await call(db,{body:p});assert.equal(r.status,400,JSON.stringify(r.payload));
+    assert.equal(stored(db),undefined);
+  }
 });

@@ -193,3 +193,18 @@
   #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 .cfv52-manual-unit:last-child { padding-top: 14px; border-top: 1px solid #e4ebf2; }
   #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-usage-v1 :is(.cfv14-receipt-input, .cfv5-manual-input) { height: 40px; }
 }
+
+/* Explicit quantity editing stays visible in the compact usage panel. */
+#efficiencyCofiringDraftView .cofiring-period-v5 [data-cfv5-manual-edit] {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid #2563eb;
+  border-radius: 5px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 [data-cfv5-manual-edit][aria-pressed="true"] { background: #fff; color: #2563eb; }
+#efficiencyCofiringDraftView .cofiring-period-v5 [data-cfv5-manual-edit]:disabled { opacity: .5; cursor: default; }
+#efficiencyCofiringDraftView [data-cfv-usage-input-mode="manual"] :is([data-cfv5-manual], [data-cfv5-receipt]) { border-color: #60a5fa; background: #eff6ff; }

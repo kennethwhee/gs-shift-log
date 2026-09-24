@@ -25,11 +25,13 @@ function normalizeValues(input,fallbackReceipts=null){
     !input||
     Array.isArray(input)||
     typeof input!=='object'||
-    Object.keys(input).some(k=>!['unit1','unit2','receipts'].includes(k))||
+    Object.keys(input).some(k=>!['unit1','unit2','receipts','inputMode'].includes(k))||
+    (Object.hasOwn(input,'inputMode')&&!['auto','manual'].includes(input.inputMode))||
     !['unit1','unit2'].every(k=>Object.hasOwn(input,k))
   )return null;
 
   const out={};
+  if(input.inputMode==='manual')out.inputMode='manual';
 
   for(const unit of ['unit1','unit2']){
     const row=input[unit];
@@ -59,6 +61,7 @@ function normalizeValues(input,fallbackReceipts=null){
   }
 
   if(!Object.hasOwn(input,'receipts')){
+    if(out.inputMode==='manual')return null;
     out.receipts=fallback;
     return out;
   }
@@ -81,6 +84,7 @@ function normalizeValues(input,fallbackReceipts=null){
     out.receipts[fuel]=v;
   }
 
+  if(out.inputMode==='manual'&&[out.unit1.organic,out.unit2.organic,out.receipts.organic,out.receipts.manure].some(v=>v===null))return null;
   return out;
 }
 function periodKey(start,end){return `${start}|${end}`;}

@@ -58,7 +58,12 @@ export function validateClosedSnapshot(body, source, now = Date.now()) {
     if (value !== null && (!finite(value) || value < 0 || value > 1000000)) fail('마감 입고량이 올바르지 않습니다.');
     manual.receipts[fuel] = value;
   }
-  const organicUsage=core.organicInventoryUsage(saved.report.reference,manual.receipts.organic,spec);
+  const inputMode=snapshot.manual?.inputMode;
+  if(inputMode!==undefined&&!['auto','manual'].includes(inputMode))fail('사용량 입력 방식을 확인해 주세요.');
+  if(inputMode==='manual')manual.inputMode='manual';
+  const organicUsage=inputMode==='manual'
+    ?core.organicManualUsage(manual,spec)
+    :core.organicInventoryUsage(saved.report.reference,manual.receipts.organic,spec);
   if(!organicUsage.ok)fail(organicUsage.message+' 마감하지 않았습니다.');
   for(const unit of UNITS){
     if(!finite(manual[unit].organic)||Math.abs(manual[unit].organic-organicUsage.allocation[unit])>0.000001){
@@ -66,7 +71,7 @@ export function validateClosedSnapshot(body, source, now = Date.now()) {
     }
   }
   // Blank manure retains the established zero policy. Organic quantities have
-  // already been required to match the verified inventory balance above.
+  // already been validated against the selected automatic or manual basis.
   const manualInput = fuel => ({ start: spec.start, end: spec.end,
     unit1: manual.unit1[fuel] ?? 0, unit2: manual.unit2[fuel] ?? 0 });
   let result = core.analyzePeriodSummary(saved.report.reference, {
@@ -141,9 +146,9 @@ export function validateClosedSnapshot(body, source, now = Date.now()) {
   // Client-provided summary fields are never used as stored calculation results.
   const summary = core.summaryFromResult(result);
   return { summary, snapshot: {
-    schemaVersion: 1, validationVersion: 4, saveId: crypto.randomUUID(),
+    schemaVersion: 1, validationVersion: 5, saveId: crypto.randomUUID(),
     targetDate: body.targetDate, period: spec, sourceRequestId: body.sourceRequestId,
-    settings, manual, organicUsage, manualBlankPolicy: 'organic-inventory-required-manure-blank-zero',
+    settings, manual, organicUsage, manualBlankPolicy: inputMode==='manual'?'organic-explicit-manure-blank-zero':'organic-inventory-required-manure-blank-zero',
     result, summary, capturedAt: new Date(now).toISOString()
   } };
 }
