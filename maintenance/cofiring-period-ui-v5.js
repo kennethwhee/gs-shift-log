@@ -74,12 +74,27 @@
     try{return availabilityFor(periodSpec(container),now,queryMode(container)==='daily');}catch(e){return {ready:false,readyAt:null,period:null,message:e.message};}
   }
   function updateModeControls(container){const daily=queryMode(container)==='daily';const date=container.querySelector('[data-cfv8-daily-fields]'),period=container.querySelector('[data-cfv8-period-fields]');if(date)date.hidden=!daily;if(period)period.hidden=daily;}
+  // COFIRING_RESULTS_TARGET_V1: an operator's browser preference, not shared plant settings.
+  const BIO_TARGET_KEY='gs-shift-log.cofiring.bio-target-percent.v1';
+  const bioTargets=new WeakMap();
+  const targetPercentFor=container=>bioTargets.get(container)??25;
+  function parseBioTarget(value){
+    const text=String(value??'').trim(),n=Number(text);
+    return /^(?:\d+(?:\.\d{1,2})?|\.\d{1,2})$/.test(text)&&Number.isFinite(n)&&n>=0.01&&n<=99.99?n:null;
+  }
+  function storedBioTarget(){
+    try{return parseBioTarget(root.localStorage?.getItem(BIO_TARGET_KEY))??25;}catch(_){return 25;}
+  }
+  function paintBioTarget(container){
+    const value=targetPercentFor(container);
+    for(const el of container.querySelectorAll('[data-cfv-target-label]'))el.textContent=value+'%';
+  }
   function markup(){
     const date=defaultCalculationDate(),d=dailySelectionSpec(date);let partial;try{partial=currentDaySpec();}catch(_){partial=d;}
     return `<div class="cfv5-sheet">
       <div class="cfv5-title-row">
         <div class="cfv5-title-copy"><span class="cfv5-eyebrow">FUEL OPERATIONS</span><h2>혼소율 분석</h2></div>
-        <span class="cfv5-version"><i aria-hidden="true"></i>Bio 목표 <strong>25%</strong></span>
+        <span class="cfv5-version"><i aria-hidden="true"></i>Bio 목표 <strong data-cfv-target-label>25%</strong></span>
       </div>
 
       <div class="cfv5-query-box cfv-toolbar-v1">
@@ -115,9 +130,15 @@
         <div class="cfv52-summary-title"><strong>주요 계산값</strong><span class="cfv6-summary-caption">선택기간 · 보정계수 적용</span></div>
         <div class="cfv56-summary-actions"><span data-cfv52-summary-note>DataPARC 조회 전</span><button type="button" data-cfv56-adjust disabled>혼소 조정</button></div>
       </div>
+      <div class="cfv-target-control" data-cfv-target-control>
+        <label class="cfv-target-field">Bio 목표 <span><input type="number" inputmode="decimal" min="0.01" max="99.99" step="0.01" value="25" data-cfv-target-input aria-label="Bio 목표 비율" title="0.01%부터 99.99%까지 입력할 수 있습니다."><span>%</span></span></label>
+        <button type="button" data-cfv-target-apply>적용</button>
+        <span class="cfv-target-hint">1·2호기 공통 · 이 브라우저에 저장</span>
+        <span class="cfv-target-feedback" data-cfv-target-feedback role="status" aria-live="polite"></span>
+      </div>
       <div class="cfv52-summary-grid" data-cfv52-summary-grid>${summaryPlaceholder()}</div>
 
-      <details class="cfv6-target-basis"><summary>마감까지 Bio 25% 필요 투입량 계산 기준</summary><p>해당일 00:00부터 조회한 누적 Coal·Bio 사용량을 기준으로, 다음 날 00:01에 Bio 열량이 Coal+Bio 열량의 25%가 되도록 환산합니다. 남은 시간의 Coal 투입량은 조회 구간의 시간당 평균이 유지된다고 가정합니다.</p><p>마감 예상 Coal = 누적 Coal + Coal 평균(t/h) × 자료 기준 시각부터 남은 시간. 추가 Bio 필요량 = 마감 예상 Coal × Coal 발열량 ÷ Bio 발열량 ÷ 3 − 누적 Bio. 이를 남은 시간으로 나누어 Bio t/h를 표시하며, 보정 전 계측 투입량도 함께 환산합니다.</p><p>오늘 날짜의 <strong>일별 계산</strong>은 00:00부터 현재까지의 혼소율과 마감 목표를 함께 확인합니다. 00시부터 시작하지 않은 구간이나 여러 날의 결과는 하루 누적량이 없어 목표를 계산하지 않습니다. 자료 기준 시각 이후의 실제 사용량은 새 조회에서 반영됩니다. 혼소 조정을 적용하면 조정된 표시값 기준입니다.</p></details>
+      <details class="cfv6-target-basis"><summary>마감까지 Bio <span data-cfv-target-label>25%</span> 필요 투입량 계산 기준</summary><p>해당일 00:00부터 조회한 누적 Coal·Bio 사용량을 기준으로, 다음 날 00:01에 Bio 열량이 Coal+Bio 열량의 목표 비율이 되도록 환산합니다. 남은 시간의 Coal 투입량은 조회 구간의 시간당 평균이 유지된다고 가정합니다.</p><p>마감 예상 Coal = 누적 Coal + Coal 평균(t/h) × 자료 기준 시각부터 남은 시간. 추가 Bio 필요량 = 마감 예상 Coal × Coal 발열량 ÷ Bio 발열량 × 목표비율 ÷ (100 − 목표비율) − 누적 Bio. 목표비율은 % 단위이며, 추가 필요량이 음수이면 0t로 표시합니다. 이를 남은 시간으로 나누어 Bio t/h를 표시하며, 보정 전 계측 투입량도 함께 환산합니다.</p><p>오늘 날짜의 <strong>일별 계산</strong>은 00:00부터 현재까지의 혼소율과 마감 목표를 함께 확인합니다. 00시부터 시작하지 않은 구간이나 여러 날의 결과는 하루 누적량이 없어 목표를 계산하지 않습니다. 자료 기준 시각 이후의 실제 사용량은 새 조회에서 반영됩니다. 혼소 조정을 적용하면 조정된 표시값 기준입니다.</p></details>
 
       <details class="cfv52-fold">
         <summary><span>발열량 · 보정계수 설정</span><small>연료별 계산 기준 관리</small></summary>
@@ -151,24 +172,25 @@
       <p class="cfv5-foot"><strong>계산 기준</strong> 바이오 혼소율은 Coal+Bio 열량 기준입니다. 유기성 및 축분 혼소율과 종합혼소율은 전체 연료 열량 기준이며, 사용량 빈칸은 0t로 계산합니다.</p>
     </div>`;
   }
-  function summaryPlaceholder(){
+  function summaryPlaceholder(targetPercent=25){
     const cards=UNITS.map((unit,i)=>`<article class="cfv52-card" data-cfv52-unit="${unit}"><header><div class="cfv52-unit-title"><span class="cfv52-unit-number" aria-hidden="true">0${i+1}</span><div><strong>${i+1}호기</strong></div></div><span class="cfv52-card-status is-waiting">조회 전</span></header><div class="cfv52-metrics">
       ${summaryMetric('바이오 혼소율',null,{ratio:true})}
       ${summaryMetric('유기성 및 축분 혼소율',null,{ratio:true})}
       ${summaryMetric('종합혼소율',null,{ratio:true,emphasis:true})}
-      </div>${fuelUsageMarkup(null)}${targetReferenceMarkup(null)}</article>`);
+      </div>${fuelUsageMarkup(null)}${targetReferenceMarkup({targetPercent})}</article>`);
     cards.push(`<article class="cfv52-card cfv52-card-total"><header><strong>1,2호기 종합 혼소율</strong><span>열량 가중 기준</span></header><div class="cfv52-total-ratios">${summaryMetric('바이오 혼소율',null,{ratio:true})}${summaryMetric('유기성 및 축분 혼소율',null,{ratio:true})}${summaryMetric('종합혼소율',null,{ratio:true,emphasis:true})}</div></article>`);
     return cards.join('');
   }
   function targetReferenceMarkup(reference,{open=false}={}){
     const ready=reference?.ready===true,closed=reference?.status==='closed';
+    const goal=escapeHtml(reference?.targetPercent??25);
     const basis=reference?.dataAsOfLocal?.replace('T',' '),deadline=reference?.deadlineLocal?.replace('T',' ');
     const deadlineShort=deadline?deadline.slice(5):'다음 날 00:01';
     const message=reference?.message||'오늘 누적 조회 후 표시';
     const state=closed?'마감 완료':reference?.status==='invalid_input'?'입력 기준 확인 필요':ready?'':'당일 누적 조회 필요';
-    const warning=reference?.status==='above_target'?`추가 Bio 0t여도 마감 예상 ${pct(reference.projectedRatioPercent)} · 25% 초과`:'';
+    const warning=reference?.status==='above_target'?`추가 Bio 0t여도 마감 예상 ${pct(reference.projectedRatioPercent)} · ${goal}% 초과`:'';
     return `<section class="cfv6-target cfv8-deadline-target cfv10-target${ready?'':' is-unavailable'}" data-cfv6-target>
-      <div class="cfv10-target-head"><span class="cfv6-target-label">마감까지 Bio 필요 투입량 <b>25% 목표</b></span><span class="cfv10-target-deadline">${ready?escapeHtml(deadlineShort)+'까지':escapeHtml(state)}</span></div>
+      <div class="cfv10-target-head"><span class="cfv6-target-label">마감까지 Bio 필요 투입량 <b>${goal}% 목표</b></span><span class="cfv10-target-deadline">${ready?escapeHtml(deadlineShort)+'까지':escapeHtml(state)}</span></div>
       <div class="cfv10-target-main"><strong class="cfv10-target-value" data-cfv6-target-bio>${ready?num(reference.targetBioTonPerHour):closed?'마감 완료':'—'}${ready?' <small>t/h <span>실사용</span></small>':''}</strong>${ready?`<span class="cfv10-target-assumption">${escapeHtml(basis?.slice(11))} 기준<br>Coal ${num(reference.coalTonPerHour)} t/h 유지 가정</span>`:`<span class="cfv10-target-state">${closed?'추가 투입 목표 없음':escapeHtml(message)}</span>`}</div>
       ${warning?`<p class="cfv10-target-warning" role="status">${escapeHtml(warning)}</p>`:''}
       ${ready?`<details class="cfv10-target-details" data-cfv10-target-details${open?' open':''}><summary>계산 근거</summary><div class="cfv10-target-detail-body"><p data-cfv8-target-basis>자료 ${escapeHtml(basis)} → 마감 ${escapeHtml(deadline)} · ${num(reference.remainingHours,2)}시간 기준</p><dl><div><dt>조회 Bio 평균</dt><dd><b data-cfv6-current-bio>${num(reference.currentBioTonPerHour)} t/h</b></dd></div><div><dt>추가 Bio 필요량</dt><dd data-cfv6-target-delta>${num(reference.additionalBioTon)} t</dd></div><div><dt>Coal 유지 가정</dt><dd><b data-cfv6-target-coal>${num(reference.coalTonPerHour)} t/h</b></dd></div><div><dt>Bio 계측 투입 환산</dt><dd><b data-cfv8-target-measured>${num(reference.targetMeasuredBioTonPerHour)} t/h</b></dd></div></dl><p class="cfv8-target-note" data-cfv8-target-note>자료 이후 ${num(reference.lagHours*60,1)}분 경과 · 현재 구간을 다시 [계산하기]로 조회하면 최신 자료로 갱신합니다.</p></div></details>`:''}
@@ -235,7 +257,8 @@
   }
   function renderSummary(container,result,manualValues,targetError=''){
     const host=container.querySelector('[data-cfv52-summary-grid]'),note=container.querySelector('[data-cfv52-summary-note]');if(!host)return;
-    if(!result){host.innerHTML=summaryPlaceholder();if(note)note.textContent='DataPARC 조회 전';return;}
+    const targetPercent=targetPercentFor(container);
+    if(!result){host.innerHTML=summaryPlaceholder(targetPercent);if(note)note.textContent='DataPARC 조회 전';return;}
     const cards=[];
     for(const [i,unit] of UNITS.entries()){
       const u=result?.units?.[unit],manualComplete=!!(u?.organic?.complete&&u?.manure?.complete),bioReady=coalBioRatio(u)!==null;
@@ -243,7 +266,7 @@
         ${summaryMetric('바이오 혼소율',coalBioRatio(u),{ratio:true})}
         ${summaryMetric('유기성 및 축분 혼소율',u?.fuelRatios?.organicGroup,{ratio:true})}
         ${summaryMetric('종합혼소율',u?.fuelRatios?.total,{ratio:true,emphasis:true})}
-      </div>${fuelUsageMarkup(u)}${targetReferenceMarkup(targetError?{status:'invalid_input',ready:false,message:targetError}:deadlineTargetApi?{...deadlineTargetApi.forUnit(u,result.period),ratioPercent:coalBioRatio(u)}:null,{open:host.querySelector?.('[data-cfv52-unit="'+unit+'"]')?.querySelector?.('[data-cfv10-target-details]')?.open===true})}</article>`);
+      </div>${fuelUsageMarkup(u)}${targetReferenceMarkup(targetError?{status:'invalid_input',ready:false,message:targetError,targetPercent}:deadlineTargetApi?{...deadlineTargetApi.forUnit(u,result.period,{targetPercent}),ratioPercent:coalBioRatio(u)}:{targetPercent},{open:host.querySelector?.('[data-cfv52-unit="'+unit+'"]')?.querySelector?.('[data-cfv10-target-details]')?.open===true})}</article>`);
     }
     cards.push(`<article class="cfv52-card cfv52-card-total"><header><strong>1,2호기 종합 혼소율</strong><span>열량 가중 기준</span></header><div class="cfv52-total-ratios">
       ${summaryMetric('바이오 혼소율',combinedCoalBio(result).ratio,{ratio:true})}
@@ -260,6 +283,10 @@
   function renderWarnings(container,result){const box=container.querySelector('[data-cfv5-warning-box]'),list=container.querySelector('[data-cfv5-warnings]'),warnings=result?.warnings||[];box.hidden=!warnings.length;list.innerHTML=warnings.map(w=>`<li>${escapeHtml(w)}</li>`).join('');}
   function mount(container){
     if(!container||container.dataset.cofiringV5Mounted==='true')return null;container.dataset.cofiringV5Mounted='true';container.classList.add('cofiring-period-v5','cfv7-daily-date','cfv10-summary-ui','cfv11-status-ui');container.innerHTML=markup();
+    bioTargets.set(container,storedBioTarget());
+    const targetInput=container.querySelector('[data-cfv-target-input]');
+    if(targetInput)targetInput.value=String(targetPercentFor(container));
+    paintBioTarget(container);
     const mobile=isMobile();let reference=null,lastResult=null,displayResult=null,periodGeneration=0,settingsDirty=false,manualDirty=false,disposed=false,fastPrepTimer=null,fastPrepGeneration=0,inputRecalcTimer=null,adjustmentActive=false,conflictRetrying=false,selectedStoreKey='';
     let clickTiming=null,clickToken=null,clickContext=null,clickBusy=false,renderedRequestId=null,dayBoundaryTimer=null,deadlineRefreshTimer=null,selectionEpoch=0,deadlineInputError='',pendingDailyDraft=null,restoringSaved=false;
     // COFIRING_MORNING_MEETING_ORGANIC_AUTOFILL_V1
@@ -593,10 +620,35 @@
     function clearDeadlineRefresh(){if(deadlineRefreshTimer!==null){root.clearTimeout?.(deadlineRefreshTimer);deadlineRefreshTimer=null;}}
     function scheduleDeadlineRefresh(){
       clearDeadlineRefresh();if(disposed||!visible()||!displayResult||!deadlineTargetApi||deadlineInputError)return;
-      const targets=UNITS.map(unit=>deadlineTargetApi.forUnit(displayResult.units[unit],displayResult.period)).filter(t=>t.ready),deadline=Math.min(...targets.map(t=>t.deadlineMs));
+      const targets=UNITS.map(unit=>deadlineTargetApi.forUnit(displayResult.units[unit],displayResult.period,{targetPercent:targetPercentFor(container)})).filter(t=>t.ready),deadline=Math.min(...targets.map(t=>t.deadlineMs));
       if(!Number.isFinite(deadline)||deadline<=Date.now())return;
       deadlineRefreshTimer=root.setTimeout?.(()=>{deadlineRefreshTimer=null;if(disposed||!visible()||!displayResult)return;renderSummary(container,displayResult,currentManualFromFields(),deadlineInputError);scheduleDeadlineRefresh();},Math.min(60000,Math.max(20,deadline-Date.now()+10)));
     }
+    function applyBioTarget(){
+      if(disposed)return;
+      const feedback=container.querySelector('[data-cfv-target-feedback]'),value=parseBioTarget(targetInput?.value);
+      if(value===null){
+        targetInput?.setAttribute?.('aria-invalid','true');
+        if(feedback){feedback.dataset.tone='error';feedback.textContent='0.01~99.99%를 소수 둘째 자리까지 입력해 주세요. 현재 목표 '+targetPercentFor(container)+'%를 유지합니다.';}
+        targetInput?.focus?.();return;
+      }
+      flushInputRecalc();
+      bioTargets.set(container,value);targetInput.value=String(value);targetInput.setAttribute?.('aria-invalid','false');
+      let saved=false;try{if(root.localStorage){root.localStorage.setItem(BIO_TARGET_KEY,String(value));saved=true;}}catch(_){}
+      paintBioTarget(container);
+      renderSummary(container,displayResult||lastResult,currentManualFromFields(),deadlineInputError);
+      if(adjustmentActive){const note=container.querySelector('[data-cfv52-summary-note]');if(note)note.textContent='혼소 조정 적용';}
+      scheduleDeadlineRefresh();
+      if(feedback){feedback.dataset.tone='';feedback.textContent=value+'% 적용'+(saved?'':' · 이번 화면에서만 유지');}
+    }
+    container.querySelector('[data-cfv-target-apply]')?.addEventListener('click',applyBioTarget);
+    targetInput?.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();applyBioTarget();}});
+    targetInput?.addEventListener('input',()=>{
+      if(disposed)return;
+      targetInput.setAttribute?.('aria-invalid','false');
+      const feedback=container.querySelector('[data-cfv-target-feedback]');
+      if(feedback){feedback.dataset.tone='';feedback.textContent='적용 전 · 현재 목표 '+targetPercentFor(container)+'%';}
+    });
     function prepLabel(text,tone=''){const el=container.querySelector('[data-cfv56-prep]');if(el){el.textContent=text;el.dataset.tone=tone;}}
     function renderDisplay(result,{adjusted=false}={}){displayResult=result;const manualValues=readManual(container);/* CFV6 DETAIL RESULT BRIDGE R2 */container.__cfv6DetailPayload={result,manualValues};if(root.CustomEvent)container.dispatchEvent(new root.CustomEvent('cfv6-detail-result',{detail:container.__cfv6DetailPayload}));renderMain(container,result);renderOrganic(container,result,manualValues);renderSummary(container,result,manualValues,deadlineInputError);renderWarnings(container,result);scheduleDeadlineRefresh();adjustmentActive=!!adjusted;const b=container.querySelector('[data-cfv56-adjust]');if(b){b.disabled=!lastResult||mobile;b.classList.toggle('is-active',adjustmentActive);b.textContent=adjustmentActive?'혼소 조정 적용중':'혼소 조정';}const note=container.querySelector('[data-cfv52-summary-note]');if(note&&adjusted)note.textContent='혼소 조정 적용';}
     function adjustmentContext(){return {result:lastResult,settings:readSettings(container),spec:currentSpec()};}

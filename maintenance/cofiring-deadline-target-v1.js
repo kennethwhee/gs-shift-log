@@ -9,7 +9,7 @@
   const HOUR = 60 * MINUTE;
   const DAY = 24 * HOUR;
   const KST = 9 * HOUR;
-  const TARGET = 0.25;
+  const DEFAULT_TARGET_PERCENT = 25;
   const finite = value => typeof value === 'number' && Number.isFinite(value);
   const positive = value => finite(value) && value > 0;
   const nonnegative = value => finite(value) && value >= 0;
@@ -60,8 +60,9 @@
   function forUnit(unit, period, options) {
     options = options || {};
     const now = Object.prototype.hasOwnProperty.call(options, 'now') ? options.now : Date.now();
+    const targetPercent = Object.prototype.hasOwnProperty.call(options, 'targetPercent') ? options.targetPercent : DEFAULT_TARGET_PERCENT;
     const result = {
-      status: 'invalid_period', ready: false, message: '', targetPercent: 25,
+      status: 'invalid_period', ready: false, message: '', targetPercent,
       targetDate: null, dataAsOfLocal: null, deadlineLocal: null,
       dataAsOfMs: null, deadlineMs: null, elapsedHours: null, remainingHours: null, lagHours: null,
       coalAssumption: null, coalTonPerHour: null, currentBioTonPerHour: null,
@@ -70,6 +71,9 @@
       projectedRatioPercent: null, exactTargetPossible: false
     };
     function stop(status, message) { return Object.assign(result, { status, message }); }
+    if (!finite(targetPercent) || targetPercent <= 0 || targetPercent >= 100) {
+      return stop('invalid_target', 'Bio 목표 비율은 0% 초과, 100% 미만이어야 합니다.');
+    }
     if (!period || typeof period !== 'object') return stop('invalid_period', '조회 기간을 확인해 주세요.');
     const start = periodInstant(period, 'start'), end = periodInstant(period, 'end');
     if (!finite(start) || !finite(end) || end <= start) return stop('invalid_period', '조회 기간은 유효한 분 단위 시각으로 지정해야 합니다.');
@@ -105,7 +109,7 @@
     // quantity has already been corrected by CofiringCore. Do not multiply its
     // coefficient twice. The assumed coal rate and target are corrected tons.
     const projectedCoal = unit.coal.quantity + coalRate * result.remainingHours;
-    const totalBio = (TARGET / (1 - TARGET)) * projectedCoal * coalCV / bioCV;
+    const totalBio = (targetPercent / (100 - targetPercent)) * projectedCoal * coalCV / bioCV;
     const difference = totalBio - unit.bio.quantity;
     const tolerance = 1e-10 * Math.max(1, Math.abs(totalBio), unit.bio.quantity);
     const additionalBio = Math.abs(difference) <= tolerance ? 0 : Math.max(0, difference);
@@ -118,7 +122,7 @@
     const totalHeat = coalHeat + bioHeat;
     if (![projectedCoal, totalBio, difference, additionalBio, bioRate, measuredBioRate, currentBioRate, currentMeasuredBioRate,
       coalHeat, bioHeat, totalHeat].every(finite)) return stop('invalid_calculation', '입력값 범위가 너무 커서 마감 목표를 계산할 수 없습니다.');
-    if (totalHeat <= 0) return stop('no_heat', 'Coal·Bio 투입열량이 없어 25% 마감 목표를 계산할 수 없습니다.');
+    if (totalHeat <= 0) return stop('no_heat', `Coal·Bio 투입열량이 없어 ${targetPercent}% 마감 목표를 계산할 수 없습니다.`);
     Object.assign(result, {
       ready: true, coalAssumption: specifiedCoal ? 'specified' : 'period-average', coalTonPerHour: coalRate,
       currentBioTonPerHour: currentBioRate,
@@ -128,7 +132,7 @@
       projectedRatioPercent: bioHeat / totalHeat * 100, exactTargetPossible: difference >= -tolerance
     });
     if (!result.exactTargetPossible) {
-      return stop('above_target', '예상 Coal 투입량에서는 Bio를 추가하지 않아도 마감 혼소율이 25%를 넘습니다.');
+      return stop('above_target', `예상 Coal 투입량에서는 Bio를 추가하지 않아도 마감 혼소율이 ${targetPercent}%를 넘습니다.`);
     }
     return stop('ready', '자료 기준 시각부터 마감까지의 필요 Bio 투입량입니다.');
   }
