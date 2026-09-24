@@ -76,6 +76,7 @@
 }
 
 [data-cofiring-draft-root] .cfv-solid-fuel-management-panel {
+  position: relative;
   width: 100% !important;
   min-width: 0 !important;
   height: auto !important;
@@ -96,6 +97,37 @@
   border: 0 !important;
   overflow: hidden !important;
   background: #f7fafc !important;
+}
+
+/* COFIRING_SOLID_FUEL_STABLE_LAYOUT_V1: reserve space before first display. */
+[data-cofiring-draft-root] .cfv-solid-fuel-management-panel[aria-busy="true"] .cfv-solid-fuel-management-frame {
+  visibility: hidden;
+}
+[data-cofiring-draft-root] .cfv-sfm-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 42px 24px;
+  color: #244765;
+  background: #f7fafc;
+  font-size: 13px;
+  line-height: 32px;
+}
+[data-cofiring-draft-root] .cfv-sfm-loading button {
+  padding: 0 12px;
+  border: 1px solid #c6d5e2;
+  border-radius: 6px;
+  color: #244765;
+  background: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+[data-cofiring-draft-root] .cfv-solid-fuel-management-panel[aria-busy="false"] .cfv-sfm-loading {
+  display: none;
 }
 
 [data-cofiring-draft-root] .cfv-sfm-hidden-by-v2r2 {

@@ -58,6 +58,8 @@
   function syncReferenceTypography(root) {
     const frame = document.getElementById(FRAME_ID);
     if (!frame) return false;
+    // Keep the existing parent CSS typography stable while the embedded tab loads.
+    if (frame.dataset.cfvStableLayout === "1") return false;
 
     try {
       const doc = frame.contentDocument;

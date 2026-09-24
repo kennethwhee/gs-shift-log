@@ -395,14 +395,17 @@
     decorateRecords();
   }
 
-  let timer = 0;
+  let queued = false;
 
   function queue() {
-    clearTimeout(timer);
-    timer = setTimeout(decorate, 50);
+    if (queued) return;
+    queued = true;
+    // Apply classes to newly rendered rows before the next paint.
+    queueMicrotask(() => { queued = false; decorate(); });
   }
 
   function start() {
+    document.addEventListener("solid-fuel:prepare-layout", decorate);
     decorate();
 
     new MutationObserver(queue).observe(
@@ -567,8 +570,7 @@
 
     if (
       !companyTitle ||
-      !siloTitle ||
-      !companyTable
+      !siloTitle
     ) {
       return;
     }
@@ -615,7 +617,7 @@
       "sfr22-silo-panel"
     );
 
-    companyTable.classList.add(
+    companyTable?.classList.add(
       "sfr22-company-table"
     );
 
@@ -686,19 +688,17 @@
     document.body.dataset.sfr22Ready = "1";
   }
 
-  let timer = 0;
+  let queued = false;
 
   function queue() {
-    clearTimeout(timer);
-
-    timer =
-      setTimeout(
-        decorate,
-        50
-      );
+    if (queued) return;
+    queued = true;
+    // Apply classes to newly rendered rows before the next paint.
+    queueMicrotask(() => { queued = false; decorate(); });
   }
 
   function start() {
+    document.addEventListener("solid-fuel:prepare-layout", decorate);
     decorate();
 
     const observer =
@@ -891,19 +891,17 @@
       "1";
   }
 
-  let timer = 0;
+  let queued = false;
 
   function queue() {
-    clearTimeout(timer);
-
-    timer =
-      setTimeout(
-        decorate,
-        40
-      );
+    if (queued) return;
+    queued = true;
+    // Apply classes to newly rendered rows before the next paint.
+    queueMicrotask(() => { queued = false; decorate(); });
   }
 
   function start() {
+    document.addEventListener("solid-fuel:prepare-layout", decorate);
     decorate();
 
     const observer =

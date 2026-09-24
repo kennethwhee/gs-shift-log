@@ -300,7 +300,7 @@
   }
   function render(){syncAccessMode();companyLists();summary();groupStats();troubleTable();unloadTable();setText(e.status,`${state.troubles.length}건 조회 완료`);setText(e.unloadStatus,`${state.unloads.length}건 조회 완료`);renderCompanyManager();setBusy()}
 
-  async function load(){if(state.loading)return;state.loading=true;setBusy();setText(e.status,"조회 중...");setText(e.unloadStatus,"조회 중...");try{const r=await api(buildUrl(),{headers:headers()});state.troubles=Array.isArray(r.items)?r.items:[];state.unloads=Array.isArray(r.unloadingLogs)?r.unloadingLogs:[];state.companies=Array.isArray(r.companies)?r.companies:[];state.filterCompanies=Array.isArray(r.filterCompanies)?r.filterCompanies:state.companies;state.companyDirectory=Array.isArray(r.companyDirectory)?r.companyDirectory:state.companies.map(name=>({name,isActive:true}));state.user=r.user&&typeof r.user==="object"?r.user:null;state.permissions=normalizePermissions(r.permissions);render()}catch(err){console.error(err);state.troubles=[];state.unloads=[];state.user=null;state.permissions=normalizePermissions(null);render();setText(e.status,"조회 실패");setText(e.unloadStatus,"조회 실패");e.troubleBody.innerHTML=`<tr><td colspan="8" class="empty">${esc(err.message||"조회 실패")}</td></tr>`;e.unloadBody.innerHTML=`<tr><td colspan="12" class="empty">${esc(err.message||"조회 실패")}</td></tr>`}finally{state.loading=false;setBusy()}}
+  async function load(){if(state.loading)return;state.loading=true;setBusy();setText(e.status,"조회 중...");setText(e.unloadStatus,"조회 중...");try{const r=await api(buildUrl(),{headers:headers()});state.troubles=Array.isArray(r.items)?r.items:[];state.unloads=Array.isArray(r.unloadingLogs)?r.unloadingLogs:[];state.companies=Array.isArray(r.companies)?r.companies:[];state.filterCompanies=Array.isArray(r.filterCompanies)?r.filterCompanies:state.companies;state.companyDirectory=Array.isArray(r.companyDirectory)?r.companyDirectory:state.companies.map(name=>({name,isActive:true}));state.user=r.user&&typeof r.user==="object"?r.user:null;state.permissions=normalizePermissions(r.permissions);render()}catch(err){console.error(err);state.troubles=[];state.unloads=[];state.user=null;state.permissions=normalizePermissions(null);render();setText(e.status,"조회 실패");setText(e.unloadStatus,"조회 실패");e.troubleBody.innerHTML=`<tr><td colspan="8" class="empty">${esc(err.message||"조회 실패")}</td></tr>`;e.unloadBody.innerHTML=`<tr><td colspan="12" class="empty">${esc(err.message||"조회 실패")}</td></tr>`}finally{state.loading=false;setBusy();document.documentElement.dataset.solidFuelLoaded="1";document.dispatchEvent(new Event("solid-fuel:loaded"))}}
   function switchTab(tab){state.tab=tab;document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("is-active",b.dataset.tab===tab));document.querySelectorAll("[data-tab-panel]").forEach(p=>{const active=p.dataset.tabPanel===tab;p.classList.toggle("is-active",active);p.hidden=!active})}
 
 
@@ -622,6 +622,7 @@
     setMode("month");
     syncAccessMode();
     bind();
+    if(new URLSearchParams(location.search).get("embed")==="cofiring")switchTab("unload");
     const mobileMedia=window.matchMedia?.(MOBILE_READ_ONLY_QUERY);
     const handleAccessChange=()=>{
       if(state.loading)syncAccessMode();
@@ -766,7 +767,7 @@
     }
 
     const status = document.getElementById("unloadStatusText");
-    if(status){
+    if(status && !["조회 중...", "조회 실패"].includes(status.textContent)){
       status.textContent = `${visible}건 조회 완료`;
     }
 
@@ -828,7 +829,7 @@
         th=>String(th.textContent||"").trim()==="입고량"
       );
       const rows = [...body.rows].filter(
-        row=>!row.classList.contains("solid-fuel-inline-empty-row")
+        row=>!row.classList.contains("solid-fuel-inline-empty-row") && row.cells.length > 1
       );
 
       rows.forEach(row=>{

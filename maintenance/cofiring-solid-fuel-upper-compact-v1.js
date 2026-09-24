@@ -287,12 +287,16 @@
     }
   }
 
+  // The embedded host applies these styles synchronously before revealing it.
+  window.CofiringSolidFuelCompact = { prepare: markSections };
+
   function bindFrame() {
     const frame = document.getElementById(FRAME_ID);
     if (!frame || frame.dataset.cfvUpperCompactBound === "1") return;
 
     frame.dataset.cfvUpperCompactBound = "1";
     frame.addEventListener("load", () => {
+      if (frame.dataset.cfvStableLayout === "1") return;
       for (const delay of [0, 80, 220, 500, 1000]) {
         window.setTimeout(enhanceFrame, delay);
       }

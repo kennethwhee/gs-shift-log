@@ -9,8 +9,10 @@
   const BUTTON_ID = "cfvSolidFuelManagementTab";
   const PANEL_ID = "cfvSolidFuelManagementPanel";
   const FRAME_ID = "cfvSolidFuelManagementFrame";
-  const ROUTE = "/maintenance/solid-fuel-trouble?embed=cofiring";
+  const ROUTE = "/maintenance/solid-fuel-trouble?embed=cofiring&v=20260925-stable-v1";
   const HIDDEN_CLASS = "cfv-sfm-hidden-by-v2r2";
+  /* COFIRING_SOLID_FUEL_STABLE_LAYOUT_V1 */
+  const frameStates = new WeakMap();
 
   function textOf(node) {
     return String(node?.textContent || "").replace(/\s+/g, " ").trim();
@@ -50,14 +52,14 @@
     try {
       const doc = frame.contentDocument;
       if (!doc) return 0;
-      const html = doc.documentElement;
-      const body = doc.body;
-      return Math.max(
-        html?.scrollHeight || 0,
-        html?.offsetHeight || 0,
-        body?.scrollHeight || 0,
-        body?.offsetHeight || 0
-      );
+      const page = doc.querySelector("main.page");
+      if (!page) return 0;
+      const win = doc.defaultView;
+      const bodyStyle = win.getComputedStyle(doc.body);
+      // Measure normal-flow content, never the iframe viewport or fixed modals.
+      return Math.ceil(page.getBoundingClientRect().bottom + win.scrollY +
+        (parseFloat(bodyStyle.paddingBottom) || 0) +
+        (parseFloat(bodyStyle.marginBottom) || 0));
     } catch (_) {
       return 0;
     }
@@ -77,22 +79,72 @@
 
   function resizeFrameToContent(frame) {
     if (!frame || frame.hidden || embeddedModalOpen(frame)) return;
-
-    // First collapse the old explicit height so scrollHeight is measured
-    // from document content rather than a previously oversized iframe.
-    frame.style.height = "1px";
-
-    window.requestAnimationFrame(() => {
-      const measured = embeddedDocumentHeight(frame);
-      const next = Math.max(720, measured + 8);
+    const state = frameStates.get(frame);
+    if (!state || !frame.isConnected || frame.parentElement.hidden ||
+        !frame.getBoundingClientRect().width ||
+        state.doc?.documentElement.dataset.solidFuelLoaded !== "1") return;
+    const measured = embeddedDocumentHeight(frame);
+    if (!measured) return;
+    const minimum = parseFloat(window.getComputedStyle(frame).minHeight) || 720;
+    const next = Math.max(minimum, measured + 8);
+    if (Math.abs(frame.getBoundingClientRect().height - next) > 1) {
       frame.style.height = `${next}px`;
-    });
+    }
+    // All initial styles, the default tab and the first response are ready.
+    frame.parentElement.setAttribute("aria-busy", "false");
+    frame.removeAttribute("aria-hidden");
+    window.clearTimeout(state.slowTimer);
   }
 
   function scheduleFrameResize(frame) {
-    for (const delay of [0, 80, 220, 500, 1000]) {
-      window.setTimeout(() => resizeFrameToContent(frame), delay);
+    const state = frameStates.get(frame);
+    if (!state || state.raf) return;
+    state.raf = window.requestAnimationFrame(() => {
+      state.raf = 0;
+      resizeFrameToContent(frame);
+    });
+  }
+
+  function watchEmbeddedContent(frame, doc) {
+    const state = frameStates.get(frame);
+    if (state.doc === doc) return;
+    state.resizeObserver?.disconnect();
+    state.modalObserver?.disconnect();
+    state.doc = doc;
+    const page = doc.querySelector("main.page");
+    if (page && window.ResizeObserver) {
+      state.resizeObserver = new ResizeObserver(() => scheduleFrameResize(frame));
+      state.resizeObserver.observe(page);
     }
+    // A background refresh while a dialog is open is measured after it closes.
+    state.modalObserver = new MutationObserver(() => scheduleFrameResize(frame));
+    doc.querySelectorAll(".modal").forEach(modal => {
+      state.modalObserver.observe(modal, { attributes: true, attributeFilter: ["hidden"] });
+    });
+    doc.addEventListener("solid-fuel:loaded", () => {
+      doc.dispatchEvent(new doc.defaultView.Event("solid-fuel:prepare-layout"));
+      scheduleFrameResize(frame);
+    });
+  }
+
+  function loadEmbeddedFrame(frame) {
+    const state = frameStates.get(frame);
+    window.clearTimeout(state.slowTimer);
+    window.cancelAnimationFrame(state.raf);
+    state.raf = 0;
+    state.resizeObserver?.disconnect();
+    state.modalObserver?.disconnect();
+    state.doc = null;
+    frame.parentElement.setAttribute("aria-busy", "true");
+    frame.setAttribute("aria-hidden", "true");
+    const status = frame.parentElement.querySelector(".cfv-sfm-loading");
+    status.querySelector("span").textContent = "고형연료 자료를 불러오는 중입니다.";
+    status.querySelector("button").hidden = true;
+    state.slowTimer = window.setTimeout(() => {
+      status.querySelector("span").textContent = "조회가 지연되고 있습니다. 잠시 기다리거나 다시 불러와 주세요.";
+      status.querySelector("button").hidden = false;
+    }, 12000);
+    frame.src = ROUTE;
   }
 
   function findEmbeddedTab(doc, label) {
@@ -127,17 +179,15 @@
 
     if (doc.documentElement.dataset.cfvDefaultUnloadingActivated !== "1") {
       doc.documentElement.dataset.cfvDefaultUnloadingActivated = "1";
-      unloadingTab.click();
+      if (!unloadingTab.classList.contains("is-active")) unloadingTab.click();
     }
-
-    scheduleFrameResize(frame);
   }
 
 
   function prepareEmbeddedDocument(frame) {
     try {
       const doc = frame.contentDocument;
-      if (!doc) return;
+      if (!doc?.querySelector("main.page") || doc.readyState === "loading") return;
 
       doc.documentElement.classList.add("cfv-cofiring-embedded");
       doc.body?.classList.add("cfv-cofiring-embedded");
@@ -264,9 +314,10 @@
         doc.addEventListener("submit", resync, true);
       }
 
-      for (const delay of [40, 160, 450, 900]) {
-        window.setTimeout(() => activateDefaultUnloading(doc, frame), delay);
-      }
+      window.CofiringSolidFuelCompact?.prepare(doc);
+      activateDefaultUnloading(doc, frame);
+      doc.dispatchEvent(new doc.defaultView.Event("solid-fuel:prepare-layout"));
+      watchEmbeddedContent(frame, doc);
       scheduleFrameResize(frame);
     } catch (_) {
       // Same-origin is expected. If access fails, the page still renders.
@@ -280,21 +331,34 @@
     panel.hidden = true;
     panel.setAttribute("role", "tabpanel");
     panel.setAttribute("aria-labelledby", BUTTON_ID);
+    panel.setAttribute("aria-busy", "true");
+
+    const loading = document.createElement("div");
+    loading.className = "cfv-sfm-loading";
+    const message = document.createElement("span");
+    message.setAttribute("role", "status");
+    message.textContent = "고형연료 자료를 불러오는 중입니다.";
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.textContent = "다시 불러오기";
+    retry.hidden = true;
+    loading.append(message, retry);
 
     const frame = document.createElement("iframe");
     frame.id = FRAME_ID;
     frame.className = "cfv-solid-fuel-management-frame";
     frame.title = "고형연료 관리";
-    frame.loading = "lazy";
     frame.scrolling = "no";
-    frame.src = ROUTE;
+    frame.dataset.cfvStableLayout = "1";
+    frame.setAttribute("aria-hidden", "true");
+    frameStates.set(frame, { doc: null, raf: 0, slowTimer: 0 });
+    retry.addEventListener("click", () => loadEmbeddedFrame(frame));
 
     frame.addEventListener("load", () => {
       prepareEmbeddedDocument(frame);
-      scheduleFrameResize(frame);
     });
 
-    panel.append(frame);
+    panel.append(loading, frame);
     return panel;
   }
 
@@ -381,8 +445,8 @@
 
     const frame = panel.querySelector(`#${FRAME_ID}`);
     if (enabled && frame) {
-      prepareEmbeddedDocument(frame);
-      scheduleFrameResize(frame);
+      if (!frame.hasAttribute("src")) loadEmbeddedFrame(frame);
+      else scheduleFrameResize(frame);
 
       // Re-assert after the current click stack in case an older delegated
       // tab handler finishes later in the same event cycle.
