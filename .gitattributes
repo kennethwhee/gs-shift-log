@@ -1,0 +1,4 @@
+# These two PowerShell files are verified byte-for-byte by the OIS Agent.
+# Keep their reviewed CRLF bytes on every checkout, independently of core.autocrlf.
+local-tools/ois-agent/cofiring-period-v5/cofiring-period-worker-v5.ps1 text eol=crlf
+local-tools/ois-agent/cofiring-period-v5/run-cofiring-period-v5.ps1 text eol=crlf

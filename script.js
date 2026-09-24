@@ -22090,98 +22090,7 @@ function createSourceEntryKey(
   현재 파트장 일지에 저장된 항목 식별 키
 ========================================================= */
 
-function createImportedEntryUniqueKey(
-  entry
-) {
-  const sourceRole =
-    normalizeMemberLogRole(
-      entry
-        ?.importedFromRole ||
-      ""
-    );
 
-
-  const sourceLogId =
-    String(
-      entry
-        ?.importedFromLogId ||
-      ""
-    ).trim();
-
-
-  const rawSourceIndex =
-    entry
-      ?.importedFromEntryIndex;
-
-
-  const sourceIndex =
-    rawSourceIndex === "" ||
-    rawSourceIndex === null ||
-    rawSourceIndex === undefined
-      ? null
-      : Number(
-          rawSourceIndex
-        );
-
-
-  const entryId =
-    String(
-      entry?.id ||
-      ""
-    ).trim();
-
-
-  /*
-    저장된 항목도 고정 ID를
-    가장 먼저 사용한다.
-  */
-  if (
-    entryId
-  ) {
-    return [
-      "ID",
-      entryId
-    ].join(
-      "||"
-    );
-  }
-
-
-  /*
-    ID 없는 과거 취합 항목은
-    최초 원본 정보로 동일한 보조 ID를 계산한다.
-  */
-  if (
-    sourceLogId &&
-    Number.isInteger(
-      sourceIndex
-    ) &&
-    sourceIndex >= 0
-  ) {
-    return [
-      "ID",
-
-      resolveLogEntryId(
-        entry,
-        sourceLogId,
-        sourceIndex
-      )
-    ].join(
-      "||"
-    );
-  }
-
-
-  return [
-    "CONTENT",
-    sourceRole,
-    createLogEntryImportKey(
-      entry
-    )
-  ].join(
-    "||"
-  );
-}
 
 
 /* =========================================================
@@ -42222,19 +42131,7 @@ function getCurrentTimeValue() {
 /* =========================================================
   TAG / Facility Navigator
 ========================================================= */
-function openFacilityNavigator(rawTag) {
-  const tag = String(rawTag || "").trim().toUpperCase();
 
-  if (!tag) {
-    showToast("먼저 TAG를 입력해 주세요.");
-    return;
-  }
-
-  const targetUrl =
-    `${FACILITY_NAVIGATOR_URL}?tag=${encodeURIComponent(tag)}`;
-
-  window.open(targetUrl, "_blank", "noopener,noreferrer");
-}
 
 
 /* =========================================================
@@ -55708,59 +55605,7 @@ if (
   따라서 조회 전용 배열을 먼저 확인한다.
 ========================================================= */
 
-function findSearchResultLogById(
-  logId
-) {
-  const normalizedLogId =
-    String(
-      logId ||
-      ""
-    ).trim();
 
-
-  if (
-    !normalizedLogId
-  ) {
-    return null;
-  }
-
-
-  const searchLogs =
-    Array.isArray(
-      currentSearchResultLogs
-    )
-      ? currentSearchResultLogs
-      : [];
-
-
-  return (
-    searchLogs.find(
-      log => {
-        return (
-          String(
-            log?.id ||
-            ""
-          ).trim() ===
-          normalizedLogId
-        );
-      }
-    ) ||
-
-    appState.logs.find(
-      log => {
-        return (
-          String(
-            log?.id ||
-            ""
-          ).trim() ===
-          normalizedLogId
-        );
-      }
-    ) ||
-
-    null
-  );
-}
 
 /* =========================================================
   모바일 조회 결과 카드 1개
@@ -58200,24 +58045,7 @@ function resolveShiftLogSaveStatus(
   해당 보직의 일반적인 저장 흐름을 그대로 사용한다.
 ========================================================= */
 
-function getCurrentShiftLogPermissionType() {
-  const currentEditorRole =
-    normalizeMemberLogRole(
-      elements.logRole?.value ||
-      ""
-    );
 
-
-  if (
-    currentEditorRole ===
-    "파트장"
-  ) {
-    return "leader";
-  }
-
-
-  return "member";
-}
 
 
 /* =========================================================
@@ -58237,151 +58065,7 @@ function getCurrentShiftLogPermissionType() {
   현재 업무일지 보직 기준으로 동일하게 표시한다.
 ========================================================= */
 
-function updateLogEditorActionButtons() {
-  const permissionType =
-    getCurrentShiftLogPermissionType();
 
-
-  const submitButton =
-    getShiftLogEditorSubmitButton();
-
-
-  const saveDraftButton =
-    elements.saveDraftButton ||
-    document.getElementById(
-      "saveDraftButton"
-    );
-
-
-  const requestApprovalButton =
-    elements.requestApprovalButton ||
-    document.getElementById(
-      "requestApprovalButton"
-    );
-
-
-  const isLeaderMode =
-    permissionType ===
-    "leader";
-
-
-  /*
-    파트장 저장 버튼
-  */
-  if (
-    submitButton
-  ) {
-    submitButton.hidden =
-      !isLeaderMode;
-
-
-    submitButton.disabled =
-      !isLeaderMode;
-
-
-    submitButton.textContent =
-      "저장";
-
-
-    submitButton.title =
-      isLeaderMode
-        ? "파트장 업무일지를 저장완료 상태로 저장합니다."
-        : "";
-  }
-
-
-  /*
-    파트원 임시저장 버튼
-  */
-  if (
-    saveDraftButton
-  ) {
-    saveDraftButton.hidden =
-      isLeaderMode;
-
-
-    saveDraftButton.disabled =
-      isLeaderMode;
-
-
-    saveDraftButton.textContent =
-      "임시저장";
-
-
-    saveDraftButton.title =
-      isLeaderMode
-        ? ""
-        : "현재 작성 내용을 임시저장합니다.";
-  }
-
-
-  /*
-    파트원 결재요청 버튼
-  */
-  if (
-    requestApprovalButton
-  ) {
-    requestApprovalButton.hidden =
-      isLeaderMode;
-
-
-    requestApprovalButton.disabled =
-      isLeaderMode;
-
-
-    requestApprovalButton.textContent =
-      "결재요청";
-
-
-    requestApprovalButton.title =
-      isLeaderMode
-        ? ""
-        : "업무일지를 저장하고 결재를 요청합니다.";
-  }
-
-
-  /*
-    hidden 속성이 기존 CSS에 의해 무시되는 경우를 막기 위해
-    실제 표시 상태도 함께 고정한다.
-  */
-  if (
-    submitButton
-  ) {
-    submitButton.style.setProperty(
-      "display",
-      isLeaderMode
-        ? "inline-flex"
-        : "none",
-      "important"
-    );
-  }
-
-
-  if (
-    saveDraftButton
-  ) {
-    saveDraftButton.style.setProperty(
-      "display",
-      isLeaderMode
-        ? "none"
-        : "inline-flex",
-      "important"
-    );
-  }
-
-
-  if (
-    requestApprovalButton
-  ) {
-    requestApprovalButton.style.setProperty(
-      "display",
-      isLeaderMode
-        ? "none"
-        : "inline-flex",
-      "important"
-    );
-  }
-}
 
 /* =========================================================
   업무일지 수정·이어쓰기 가능 여부
@@ -58392,117 +58076,7 @@ function updateLogEditorActionButtons() {
   - 과거 연동 업무일지는 수정 불가
 ========================================================= */
 
-function canCurrentUserEditShiftLog(
-  log
-) {
-  if (
-    !log ||
-    typeof log !==
-      "object"
-  ) {
-    return false;
-  }
 
-
-  /*
-    과거 연동 업무일지는
-    기존대로 조회만 허용
-  */
-  if (
-    isReadOnlyLegacyShiftLog(
-      log
-    )
-  ) {
-    return false;
-  }
-
-
-  const currentUser =
-    getCurrentShiftLogUserIdentity();
-
-
-  const currentEmployeeNo =
-    String(
-      currentUser?.employeeNo ||
-      ""
-    ).trim();
-
-
-  const currentUserName =
-    String(
-      currentUser?.name ||
-      ""
-    ).trim();
-
-
-  if (
-    !currentEmployeeNo ||
-    !currentUserName
-  ) {
-    return false;
-  }
-
-
-  /*
-    최고관리자는 파트장·TGO·BCO1·BCO2·
-    TO·BO1·BO2 업무일지를 모두 수정할 수 있다.
-  */
-  if (
-    isCurrentUserSuperAdmin()
-  ) {
-    return true;
-  }
-
-
-  const normalizedStatus =
-    normalizeShiftLogApprovalStatus(
-      log.status
-    );
-
-
-  /*
-    임시저장은 기존 규칙대로
-    로그인한 직원이 이어쓸 수 있다.
-  */
-  if (
-    normalizedStatus ===
-      "임시저장"
-  ) {
-    return true;
-  }
-
-
-  if (
-    !isCurrentUserShiftLogAuthor(
-      log
-    )
-  ) {
-    return false;
-  }
-
-
-  const logRole =
-    normalizeMemberLogRole(
-      log.role
-    );
-
-
-  /*
-    파트장 본인의 저장완료 업무일지
-  */
-  if (
-    isCurrentShiftLogLeader() &&
-    logRole ===
-      "파트장" &&
-    normalizedStatus ===
-      "저장완료"
-  ) {
-    return true;
-  }
-
-
-  return false;
-}
 
 
 /* =========================================================
@@ -102681,63 +102255,7 @@ function addEfficiencyDailyWorkDateDays(
   2026-08-04 → 2026년 08월 04일 (화)
 ========================================================= */
 
-function formatEfficiencyDailyWorkDisplayDate(
-  value
-) {
-  const parsedDate =
-    parseEfficiencyDailyWorkDateValue(
-      value
-    );
 
-
-  if (
-    !parsedDate
-  ) {
-    return "";
-  }
-
-
-  const weekdayLabels = [
-    "일",
-    "월",
-    "화",
-    "수",
-    "목",
-    "금",
-    "토"
-  ];
-
-
-  return [
-    `${String(
-      parsedDate.getFullYear()
-    ).padStart(
-      4,
-      "0"
-    )}년`,
-
-    `${String(
-      parsedDate.getMonth() +
-      1
-    ).padStart(
-      2,
-      "0"
-    )}월`,
-
-    `${String(
-      parsedDate.getDate()
-    ).padStart(
-      2,
-      "0"
-    )}일`,
-
-    `(${weekdayLabels[
-      parsedDate.getDay()
-    ]})`
-  ].join(
-    " "
-  );
-}
 
 /* =========================================================
   일일업무현황 A4 문서 표시용 날짜
