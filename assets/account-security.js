@@ -102,7 +102,10 @@
       const result = await response.json();
       if (generation === sessionGeneration && response.ok && result.ok && result.user?.isSuperAdmin) {
         sessionToken = token; doc.getElementById('passwordResetSection').hidden = false;
-        if (location.hash === '#reset') doc.getElementById('passwordResetSection').scrollIntoView();
+        if (location.hash === '#reset') {
+          doc.getElementById('passwordResetDetails').open = true;
+          doc.getElementById('passwordResetSection').scrollIntoView();
+        }
       }
     } catch { /* Password change remains available without a session. */ }
   }
