@@ -14691,7 +14691,7 @@ export async function onRequestGet(context) {
     return jsonResponse(
       {
         ok: false,
-        message: error instanceof Error ? error.message : "Blower 교체 이력 조회 중 오류가 발생했습니다."
+        message: "Blower 교체 이력 조회 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
       },
       500
     );
@@ -14714,7 +14714,11 @@ export async function onRequestPost(context) {
       return jsonResponse({ ok: false, message: "요청 내용을 읽을 수 없습니다." }, 400);
     }
 
-    const action = normalizeText(body?.action);
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return jsonResponse({ ok: false, message: "요청 내용은 JSON 객체여야 합니다." }, 400);
+    }
+
+    const action = normalizeText(body.action);
 
     if (action === "scheduled_refresh") {
       return await handleBlowerSchedule(context, authentication.user, body);
@@ -14730,7 +14734,7 @@ export async function onRequestPost(context) {
     return jsonResponse(
       {
         ok: false,
-        message: error instanceof Error ? error.message : "Blower 교체 이력 저장 중 오류가 발생했습니다."
+        message: "Blower 교체 이력 저장 중 오류가 발생했습니다. 최신 이력을 조회한 뒤 저장 결과를 확인해 주세요."
       },
       500
     );

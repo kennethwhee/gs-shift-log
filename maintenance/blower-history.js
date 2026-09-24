@@ -77,6 +77,11 @@
   };
 
   const elements = {};
+  let dataLoadSequence = 0;
+  let dataMutationVersion = 0;
+  let pendingDataMutations = 0;
+  let blockingDataLoad = 0;
+  let actionBusy = false;
 
   function byId(id) {
     return document.getElementById(id);
@@ -396,6 +401,28 @@
   }
 
   async function apiRequest(options = {}) {
+    const changesHistory = (options.method || "GET") !== "GET" &&
+      (options.url || API_URL) === API_URL &&
+      options.body?.action !== "history_event_delete_preview" &&
+      hasAuthenticatedWriteAccess();
+    if (!changesHistory) return sendApiRequest(options);
+
+    // A read begun before or during a write must never repaint its old snapshot.
+    // Keep this invalidation even when the response is lost after a commit.
+    dataMutationVersion += 1;
+    pendingDataMutations += 1;
+    blockingDataLoad = 0;
+    renderBusyState();
+    try {
+      return await sendApiRequest(options);
+    } finally {
+      dataMutationVersion += 1;
+      pendingDataMutations -= 1;
+      renderBusyState();
+    }
+  }
+
+  async function sendApiRequest(options = {}) {
     const method = options.method || "GET";
 
     if (method !== "GET" && !hasAuthenticatedWriteAccess()) {
@@ -2229,19 +2256,29 @@
     elements.historyEventEditSave.disabled = true;
     setBusy(true);
     let reopenTag = "";
+    let saved = false;
     try {
       const result = await apiRequest({ method: "POST", body: { action: "history_event_edit", ...snapshot,
         eventType: elements.historyEventEditType.value, eventDate, runtimeHours, issueType: elements.historyEventEditIssue.value,
         actionType: elements.historyEventEditAction.value, note: elements.historyEventEditNote.value,
         changeNote: elements.historyEventEditReason.value } });
+      saved = true;
       elements.historyEventEditDialog.close();
       state.historyEventEditSnapshot = null;
       showToast(result.message || "이력을 수정했습니다.");
       await loadData({ silent: true, syncOperations: false, strict: true });
       reopenTag = snapshot.tagNumber;
     } catch (error) {
-      elements.historyEventEditError.textContent = error.message || "이력을 수정하지 못했습니다.";
-      elements.historyEventEditError.hidden = false;
+      if (saved) {
+        const message = "이력 수정은 완료됐지만 최신 이력을 다시 조회하지 못했습니다. 새로고침 후 확인해 주세요.";
+        elements.authNotice.textContent = message;
+        elements.authNotice.dataset.state = "error";
+        elements.authNotice.hidden = false;
+        showToast(message, "error");
+      } else {
+        elements.historyEventEditError.textContent = error.message || "이력을 수정하지 못했습니다.";
+        elements.historyEventEditError.hidden = false;
+      }
     } finally {
       elements.historyEventEditSave.disabled = false;
       setBusy(false);
@@ -8834,7 +8871,12 @@
   }
 
   function setBusy(isBusy) {
-    state.busy = Boolean(isBusy);
+    actionBusy = Boolean(isBusy);
+    renderBusyState();
+  }
+
+  function renderBusyState() {
+    state.busy = actionBusy || blockingDataLoad !== 0 || pendingDataMutations > 0;
     elements.refreshButton.disabled = isMobileMonitoringView() || !hasAuthenticatedWriteAccess() || state.busy || state.unifiedRefreshBusy;
     const writeBlocked = !hasAuthenticatedWriteAccess();
     elements.scanButton.disabled = writeBlocked || state.busy || shouldHideAutomaticData();
@@ -8871,10 +8913,33 @@
   }
 
   async function loadData(options = {}) {
-    if (!options.silent) setBusy(true);
+    const discardLoad = () => {
+      if (options.strict) {
+        const error = new Error("조회 중 데이터가 변경되었습니다. 다시 조회해 주세요.");
+        error.code = "READ_SUPERSEDED";
+        error.retryable = true;
+        throw error;
+      }
+      return false;
+    };
+    // A background refresh skipped during a write must not cancel the caller
+    // that will read back that write after it completes.
+    if (pendingDataMutations > 0) return discardLoad();
+    const sequence = ++dataLoadSequence;
+    const sessionToken = getSessionToken();
+    let readVersion = dataMutationVersion;
+    const blocksControls = !options.silent || blockingDataLoad !== 0;
+    if (blocksControls) {
+      blockingDataLoad = sequence;
+      renderBusyState();
+    }
+    const ownsLoad = () => sequence === dataLoadSequence && sessionToken === getSessionToken();
+    const isCurrentLoad = () => ownsLoad() && readVersion === dataMutationVersion && pendingDataMutations === 0;
 
     try {
+      if (!isCurrentLoad()) return discardLoad();
       let data = await apiRequest({ timeoutMs: Number(options.timeoutMs) || 0 });
+      if (!isCurrentLoad()) return discardLoad();
       const applyServerClock = payload => {
         const serverGeneratedAt = Date.parse(payload?.generatedAt || "");
         state.serverClockOffsetMs = Number.isFinite(serverGeneratedAt)
@@ -8894,20 +8959,29 @@
       let operationSyncResult = null;
 
       if (shouldSyncOperations) {
-        state.operationSyncCompleted = true;
         try {
           operationSyncResult = await syncOperationChanges(14);
-          if (Number(operationSyncResult?.appliedStateChanges || 0) > 0) {
-            data = await apiRequest();
-            applyServerClock(data);
-            state.data = data;
-          }
+          if (!ownsLoad()) return discardLoad();
+          state.operationSyncCompleted = true;
         } catch (syncError) {
+          if (!ownsLoad()) return discardLoad();
           console.warn("업무일지 교체운전 자동 동기화 실패:", syncError);
           if (options.forceOperationSync) {
             showToast(syncError.message || "교체운전 자동 동기화에 실패했습니다.", "error");
           }
         }
+        // Even a failed response may follow a committed write. Read it back;
+        // do not render the pre-sync snapshot or automatically repeat the write.
+        readVersion = dataMutationVersion;
+        if (!isCurrentLoad()) return discardLoad();
+        if (blocksControls) {
+          blockingDataLoad = sequence;
+          renderBusyState();
+        }
+        data = await apiRequest({ timeoutMs: Number(options.timeoutMs) || 0 });
+        if (!isCurrentLoad()) return discardLoad();
+        applyServerClock(data);
+        state.data = data;
       }
 
       if (hasAuthenticatedWriteAccess(data)) {
@@ -8928,14 +9002,19 @@
       if (Number(operationSyncResult?.appliedStateChanges || 0) > 0) {
         showToast(operationSyncResult.message || "업무일지 교체운전을 자동 반영했습니다.");
       }
+      return true;
     } catch (error) {
+      if (!isCurrentLoad()) return discardLoad();
       if (options.strict) throw error;
       console.error("Blower 이력 데이터 조회 실패:", error);
       elements.authNotice.hidden = false;
       elements.authNotice.textContent = error.message || "Blower 이력을 불러오지 못했습니다.";
       showToast(error.message || "데이터를 불러오지 못했습니다.", "error");
     } finally {
-      if (!options.silent) setBusy(false);
+      if (blockingDataLoad === sequence) {
+        blockingDataLoad = 0;
+        renderBusyState();
+      }
     }
   }
 

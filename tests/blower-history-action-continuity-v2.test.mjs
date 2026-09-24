@@ -41,7 +41,7 @@ function harness() {
       readyState: 'loading', body: node(), querySelectorAll: () => [], addEventListener() {},
       getElementById(id) { if (!nodes.has(id)) nodes.set(id, node()); return nodes.get(id); }
     },
-    window: { matchMedia: () => ({ matches: false }), setTimeout(fn) { fn(); } }
+    window: { matchMedia: () => ({ matches: false }), setTimeout(fn) { fn(); }, addEventListener() {} }
   });
   const marker = '  if (document.readyState === "loading") {';
   const expose = `globalThis.ui={state,elements,cacheElements,bindEvents,openAssetHistory,openHistoryEventEditDialog,openHistoryDeleteDialog,submitHistoryEventEdit,submitHistoryDelete,canEditAnyHistoryEvent};\n` +
