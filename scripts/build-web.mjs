@@ -14,6 +14,7 @@ export const RETIRED_ASSETS = new Set([
   'maintenance/cofiring-shared-settings-horizontal-v2.js',
   'maintenance/cofiring-detail-compact-v4.css',
   'maintenance/cofiring-organic-excel-auto-v1.js',
+  'maintenance/cofiring-closed-organic-autosave-v1.js',
   'maintenance/cofiring-organic-storage.js',
   'maintenance/cofiring-draft.js',
   'maintenance/cofiring-section-header-align-v1.css',

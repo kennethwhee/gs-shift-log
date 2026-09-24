@@ -58,8 +58,15 @@ export function validateClosedSnapshot(body, source, now = Date.now()) {
     if (value !== null && (!finite(value) || value < 0 || value > 1000000)) fail('마감 입고량이 올바르지 않습니다.');
     manual.receipts[fuel] = value;
   }
-  // Existing daily UI explicitly calculates blank manual fuel as zero. Retain the
-  // blank in the recorded inputs, and record that calculation policy separately.
+  const organicUsage=core.organicInventoryUsage(saved.report.reference,manual.receipts.organic,spec);
+  if(!organicUsage.ok)fail(organicUsage.message+' 마감하지 않았습니다.');
+  for(const unit of UNITS){
+    if(!finite(manual[unit].organic)||Math.abs(manual[unit].organic-organicUsage.allocation[unit])>0.000001){
+      fail('유기성 사용량이 서버의 시작재고 + 입고량 - 종료재고 계산값과 다릅니다. 다시 계산해 주세요.');
+    }
+  }
+  // Blank manure retains the established zero policy. Organic quantities have
+  // already been required to match the verified inventory balance above.
   const manualInput = fuel => ({ start: spec.start, end: spec.end,
     unit1: manual.unit1[fuel] ?? 0, unit2: manual.unit2[fuel] ?? 0 });
   let result = core.analyzePeriodSummary(saved.report.reference, {
@@ -134,9 +141,9 @@ export function validateClosedSnapshot(body, source, now = Date.now()) {
   // Client-provided summary fields are never used as stored calculation results.
   const summary = core.summaryFromResult(result);
   return { summary, snapshot: {
-    schemaVersion: 1, validationVersion: 3, saveId: crypto.randomUUID(),
+    schemaVersion: 1, validationVersion: 4, saveId: crypto.randomUUID(),
     targetDate: body.targetDate, period: spec, sourceRequestId: body.sourceRequestId,
-    settings, manual, manualBlankPolicy: 'zero-for-calculation-preserve-null-input',
+    settings, manual, organicUsage, manualBlankPolicy: 'organic-inventory-required-manure-blank-zero',
     result, summary, capturedAt: new Date(now).toISOString()
   } };
 }

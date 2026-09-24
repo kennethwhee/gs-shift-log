@@ -181,6 +181,34 @@
     };
   }
 
+  // Canonical DataPARC inventory only. Missing source data never authorizes reuse
+  // of saved manual quantities, and a confirmed zero remains a real zero.
+  function organicInventoryUsage(reference, receipt, selected) {
+    const fail=(code,message)=>({ok:false,code,message,usage:null,allocation:null});
+    const inventory=reference && reference.organicInventory;
+    if(!inventory || reference.organicInventoryReady===false) return fail('ORGANIC_INVENTORY_MISSING','유기성 재고 자료 미수신 · 재조회가 필요합니다.');
+    const spec=selected || reference;
+    if(inventory.basis!=='dataparc_period_boundary' || inventory.schemaVersion!==1 ||
+       !spec || inventory.startLocal!==spec.startLocal || inventory.endLocal!==spec.endLocal ||
+       reference.startLocal!==spec.startLocal || reference.endLocal!==spec.endLocal) {
+      return fail('ORGANIC_PERIOD_MISMATCH','유기성 재고와 선택한 조회 기간이 다릅니다.');
+    }
+    const numeric=value=>typeof value==='number' && Number.isFinite(value) && value>=0;
+    const keys=['organicDaySilo','organicStorageSiloA','organicStorageSiloB'];
+    for(const side of [inventory.start,inventory.end]) {
+      if(!side || !numeric(side.total) || keys.some(key=>!numeric(side[key])) ||
+         Math.abs(keys.reduce((sum,key)=>sum+side[key],0)-side.total)>0.001) {
+        return fail('ORGANIC_INVENTORY_INVALID','유기성 Day·Storage A·B 재고값을 확인해 주세요.');
+      }
+    }
+    if(!numeric(receipt)) return fail('ORGANIC_RECEIPT_MISSING','선택 기간의 유기성 입고량 확인이 필요합니다.');
+    const startTotal=inventory.start.total,endTotal=inventory.end.total,raw=startTotal+receipt-endTotal;
+    if(raw < -0.05) return {...fail('ORGANIC_BALANCE_NEGATIVE','시작재고 + 입고량보다 종료재고가 큽니다. 원본 값을 확인해 주세요.'),startTotal,endTotal,receipt};
+    const usage=Math.max(0,raw),half=Math.round(usage/2*10000)/10000;
+    return {ok:true,basis:'dataparc-inventory-balance-v1',startLocal:spec.startLocal,endLocal:spec.endLocal,
+      startTotal,endTotal,receipt,usage,allocation:{unit1:half,unit2:half,total:half*2,diff:usage-half*2,ok:true,mode:'equal-50-50'}};
+  }
+
   function manualFuel(input, unit, period, coefficient, fuelName) {
     const issues = [];
     let value = null;
@@ -437,5 +465,5 @@
     return summary;
   }
 
-  return Object.freeze({ summaryFromResult, dailyRange: dailyRange, validateDailySource: validateDailySource, analyzeDay: analyzeDay, validateRange: validateRange, analyze: analyze, periodRange: periodRange, analyzePeriodSummary: analyzePeriodSummary, qualityGood: qualityGood, requiredSeries: REQUIRED_SERIES });
+  return Object.freeze({ organicInventoryUsage, summaryFromResult, dailyRange: dailyRange, validateDailySource: validateDailySource, analyzeDay: analyzeDay, validateRange: validateRange, analyze: analyze, periodRange: periodRange, analyzePeriodSummary: analyzePeriodSummary, qualityGood: qualityGood, requiredSeries: REQUIRED_SERIES });
 }));

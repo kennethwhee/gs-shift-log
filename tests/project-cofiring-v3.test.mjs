@@ -1,66 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DatabaseSync } from 'node:sqlite';
-import { createHash } from 'node:crypto';
-import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import * as api from '../functions/api/cofiring-closed-history.js';
-const require=createRequire(import.meta.url);
-const core=require('../maintenance/cofiring-core.js');
-const contract=require('../maintenance/cofiring-live-contract.js');
-const adjust=require('../maintenance/cofiring-period-adjustment-v56.js');
-const history=require('../maintenance/cofiring-date-history-v1.js');
-const clone=value=>structuredClone(value);
-const hash=value=>createHash('sha256').update(value).digest('hex');
-const SOURCE_ID='00000000-0000-4000-8000-000000000123';
-const DATE='2026-09-10';
-const spec={startLocal:DATE+'T00:00',endLocal:'2026-09-11T00:00',stepUnit:'minute',stepValue:1};
-function sourceResult({gap=false,specification=spec}={}){
-  const p=contract.period(specification,Number.MAX_SAFE_INTEGER),duration=p.durationMinutes*60;
-  const report={kind:'cofiring_dataparc_period_report',schemaVersion:1,status:gap?'PERIOD_DATA_GAPS':'PERIOD_READY',
-    runId:'0123456789abcdef0123456789abcdef',...specification,queryEndLocal:p.queryEndLocal,
-    executionSucceeded:true,cleanupVerified:true,processCleanupVerified:true,timedOut:false,workerExitCode:0,cleanupErrors:[],
-    completedAtUtc:'2026-09-11T01:00:00Z',summaries:contract.definitions.map((def,i)=>{
-      const start=10000+i*1000,usage=def.fuel==='coal'?100+i:40+i;
-      return {key:def.id,unit:def.unit,fuel:def.fuel,tag:def.queryTag,startValue:start,endValue:start+usage,
-        min:start,max:start+usage,delta:usage,usageTon:usage,startQuality:'Raw, Good',endQuality:'Good, Raw',
-        startTime:specification.startLocal+':00+09:00',endTime:specification.endLocal+':00+09:00',
-        durationGoodSeconds:duration-(gap&&i===0?60:0),durationBadSeconds:gap&&i===0?60:0,boundaryValid:true,durationCoverageValid:true};})};
-  return contract.periodResult({kind:'cofiring_period_live_result',schemaVersion:1,requestId:SOURCE_ID,request:specification,report},SOURCE_ID,specification);
-}
-function packet(source=sourceResult()){
-  const reference=source.report.reference,settings={},manual={unit1:{organic:10,manure:2},unit2:{organic:null,manure:0},receipts:{organic:null,manure:0}};
-  for(const unit of ['unit1','unit2'])settings[unit]=Object.fromEntries(['coal','bio','organic','manure'].map(fuel=>[fuel,{calorific:reference.calorifics[unit][fuel],coefficient:reference.coefficients[unit][fuel]}]));
-  const p=core.periodRange(spec.startLocal,spec.endLocal,'minute',1);
-  const result=core.analyzePeriodSummary(reference,{organic:{start:p.start,end:p.end,unit1:10,unit2:0},manure:{start:p.start,end:p.end,unit1:2,unit2:0}});
-  const summary=core.summaryFromResult(result);
-  return {targetDate:DATE,sourceRequestId:SOURCE_ID,expectedRevision:0,expectedVersion:null,overwrite:false,summary,
-    snapshot:{schemaVersion:1,targetDate:DATE,period:p,sourceRequestId:SOURCE_ID,result,settings,manual,summary,capturedAt:'2026-09-11T02:00:00Z'}};
-}
-function database(t,source=sourceResult()){
-  const raw=new DatabaseSync(':memory:');t.after(()=>raw.close());
-  raw.exec(`CREATE TABLE users(employee_no TEXT PRIMARY KEY,name TEXT,is_active INTEGER);
-    CREATE TABLE shift_log_sessions(token_hash TEXT PRIMARY KEY,employee_no TEXT,expires_at TEXT,last_used_at TEXT);
-    CREATE TABLE ois_data_requests(id TEXT PRIMARY KEY,request_type TEXT,target_date TEXT,status TEXT,result_json TEXT);
-    INSERT INTO users VALUES('9000001','검토 사용자',1),('9000002','사용중지',0);`);
-  for(const [token,id,expiry] of [['valid','9000001','2099-01-01'],['disabled','9000002','2099-01-01'],['expired','9000001','2020-01-01'],['bad-expiry','9000001','invalid']])raw.prepare('INSERT INTO shift_log_sessions VALUES(?,?,?,?)').run(hash(token),id,expiry,'');
-  raw.prepare('INSERT INTO ois_data_requests VALUES(?,?,?,?,?)').run(SOURCE_ID,'cofiring_period',DATE,'complete',JSON.stringify(source));
-  const db={raw,beforeWrite:null,writes:0,prepare(sql){let args=[];return{bind(...values){args=values;return this;},
-    async first(){return raw.prepare(sql).get(...args)||null;},
-    async all(){if(/^(UPDATE|INSERT|DELETE)\s/i.test(sql.trim())){db.writes++;if(db.beforeWrite){const hook=db.beforeWrite;db.beforeWrite=null;await hook(sql,args);}}return {results:raw.prepare(sql).all(...args)};},
-    async run(){const result=raw.prepare(sql).run(...args);return {success:true,meta:{changes:Number(result.changes)}};}};}};
-  return db;
-}
-async function call(db,{method='POST',body=packet(),query='',token='valid',headers={}}={}){
-  const request=new Request('https://review.invalid/api/cofiring-closed-history'+query,{method,
-    headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{}),...headers},
-    ...(['GET','DELETE'].includes(method)?{}:{body:typeof body==='string'?body:JSON.stringify(body)})});
-  const response=await api.onRequest({request,env:{DB:db}});return {status:response.status,payload:await response.json()};
-}
-const stored=db=>db.raw.prepare('SELECT * FROM cofiring_closed_snapshots WHERE target_date=?').get(DATE);
-const expect=item=>({expectedRevision:item.revision,expectedVersion:item.version,overwrite:true});
-const deleteQuery=item=>'?'+new URLSearchParams({targetDate:DATE,expectedRevision:item.revision,expectedVersion:item.version});
+import { sourceResult, packet, database, call, stored, expect, deleteQuery, SOURCE_ID, DATE, spec, core, contract, adjust, history, clone } from './helpers/cofiring-review-fixture.mjs';
 
 test('closed API denies anonymous, expired, disabled and malformed sessions before business writes',async t=>{
   const db=database(t);for(const token of [undefined,'wrong','disabled','expired','bad-expiry'])for(const method of ['GET','POST','DELETE']){
@@ -68,11 +10,11 @@ test('closed API denies anonymous, expired, disabled and malformed sessions befo
   }assert.equal(db.writes,0);assert.equal(db.raw.prepare("SELECT name FROM sqlite_master WHERE name='cofiring_closed_snapshots'").get(),undefined);
 });
 test('server recomputes summaries and preserves blank manual input separately from explicit zero',async t=>{
-  const db=database(t),p=packet();p.summary={combined:{totalRatio:999}};p.snapshot.summary=p.summary;p.snapshot.result.heats={total:999};
+  const db=database(t),p=packet();p.snapshot.manual.unit2.manure=null;p.summary={combined:{totalRatio:999}};p.snapshot.summary=p.summary;p.snapshot.result.heats={total:999};
   const r=await call(db,{body:p});assert.equal(r.status,200,JSON.stringify(r.payload));
   const saved=stored(db),snapshot=JSON.parse(saved.snapshot_json),summary=JSON.parse(saved.summary_json);
-  assert.equal(snapshot.validationVersion,3);assert.equal(snapshot.manual.unit2.organic,null);assert.equal(snapshot.manual.unit2.manure,0);
-  assert.equal(snapshot.result.units.unit2.organic.quantity,0);assert.deepEqual(summary,core.summaryFromResult(p.snapshot.result));
+  assert.equal(snapshot.validationVersion,4);assert.equal(snapshot.manual.unit2.manure,null);assert.equal(snapshot.manual.receipts.manure,0);
+  assert.equal(snapshot.result.units.unit2.manure.quantity,0);assert.deepEqual(summary,core.summaryFromResult(p.snapshot.result));
   assert.equal(summary.unit1.organicGroupRatio,snapshot.result.units.unit1.fuelRatios.organicGroup);
   assert.notEqual(summary.combined.totalRatio,999);assert.match(r.payload.item.version,/^[a-f0-9]{64}$/);
   const detail=await call(db,{method:'GET',query:'?targetDate='+DATE});assert.equal(detail.payload.item.version,r.payload.item.version);
@@ -174,7 +116,7 @@ test('browser and server summary agree, including incomplete and explicit zero v
 });
 test('the recorded settings and manual inputs reproduce the actual edited calculation',async t=>{
   const source=sourceResult(),db=database(t,source),p=packet(source),calorifics={},coefficients={};
-  p.snapshot.manual.unit1.organic=23;
+  p.snapshot.manual.unit1.manure=23;
   for(const unit of ['unit1','unit2']){
     p.snapshot.settings[unit].coal.calorific=6100;p.snapshot.settings[unit].bio.coefficient=0.87;
     calorifics[unit]=Object.fromEntries(Object.entries(p.snapshot.settings[unit]).map(([fuel,value])=>[fuel,value.calorific]));
@@ -182,16 +124,16 @@ test('the recorded settings and manual inputs reproduce the actual edited calcul
   }
   const period=p.snapshot.period;
   p.snapshot.result=core.analyzePeriodSummary(source.report.reference,{calorifics,coefficients,
-    organic:{start:period.start,end:period.end,unit1:23,unit2:0},manure:{start:period.start,end:period.end,unit1:2,unit2:0}});
+    organic:{start:period.start,end:period.end,unit1:10,unit2:10},manure:{start:period.start,end:period.end,unit1:23,unit2:0}});
   const response=await call(db,{body:p});assert.equal(response.status,200,JSON.stringify(response.payload));
   const snapshot=JSON.parse(stored(db).snapshot_json);
   assert.deepEqual(snapshot.settings,p.snapshot.settings);assert.deepEqual(snapshot.manual,p.snapshot.manual);
-  assert.equal(snapshot.result.units.unit1.organic.quantity,23);assert.equal(snapshot.result.units.unit1.bio.quantity,44*0.87);
+  assert.equal(snapshot.result.units.unit1.manure.quantity,23);assert.equal(snapshot.result.units.unit1.bio.quantity,44*0.87);
 });
 test('stopped counters preserve zero fuel and leave zero-total-heat ratios undefined',async t=>{
   const raw=sourceResult();for(const item of raw.report.summaries){item.endValue=item.startValue;item.max=item.min;item.delta=0;item.usageTon=0;delete item.effectiveEndValue;}
   const source=contract.periodResult(raw,SOURCE_ID,spec),db=database(t,source),p=packet(source),period=p.snapshot.period;
-  p.snapshot.manual={unit1:{organic:0,manure:0},unit2:{organic:0,manure:0},receipts:{organic:null,manure:null}};
+  p.snapshot.manual={unit1:{organic:0,manure:0},unit2:{organic:0,manure:0},receipts:{organic:10,manure:null}};
   p.snapshot.result=core.analyzePeriodSummary(source.report.reference,{organic:{start:period.start,end:period.end,unit1:0,unit2:0},manure:{start:period.start,end:period.end,unit1:0,unit2:0}});
   const response=await call(db,{body:p});assert.equal(response.status,200,JSON.stringify(response.payload));
   assert.equal(response.payload.item.summary.unit1.coal,0);assert.equal(response.payload.item.summary.unit1.bioRatio,null);
