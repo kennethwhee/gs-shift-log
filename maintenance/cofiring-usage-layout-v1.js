@@ -84,13 +84,34 @@
     return state;
   }
 
+  // Keep the editable controls outside the grid that the result renderer replaces.
+  // Move live nodes so input values, listeners and the native reading order survive.
+  function arrangeResults(panel) {
+    const sheet = panel.closest('.cfv5-sheet');
+    const results = sheet && sheet.querySelector('.cfv-results-dark');
+    const grid = results && results.querySelector('[data-cfv52-summary-grid]');
+    if (!grid || grid.parentElement !== results) return;
+    const freshTotal = grid.querySelector('.cfv52-card-total');
+    const previousTotal = [...results.children].find(node => node.classList.contains('cfv52-card-total'));
+    if (grid.nextElementSibling !== panel) grid.after(panel);
+    if (freshTotal) {
+      if (previousTotal) previousTotal.replaceWith(freshTotal);
+      else panel.after(freshTotal);
+    } else if (!grid.children.length && previousTotal) {
+      previousTotal.remove();
+    }
+    const total = freshTotal || previousTotal;
+    if (total && total.parentElement === results && panel.nextElementSibling !== total) panel.after(total);
+    results.classList.add('cfv-compact-order-v11');
+  }
+
   function observeView(view) {
     let scheduled = false;
     function update() {
       scheduled = false;
       for (const panel of view.querySelectorAll('.cfv52-manual-panel')) {
         const state = mount(panel);
-        if (state) refresh(state);
+        if (state) { refresh(state); arrangeResults(panel); }
       }
     }
     const observer = new MutationObserver(() => {
