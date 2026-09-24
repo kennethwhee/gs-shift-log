@@ -145,8 +145,11 @@
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv10-fuel .cfv10-fuel-label { color: var(--cf-ui-muted); font-size: 12px; font-weight: 400; line-height: 1.3; }
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv10-fuel .cfv10-fuel-value { display: block; color: var(--cf-ui-ink); font-size: 21px; font-weight: 600; line-height: 1.2; margin-top: 3px; letter-spacing: -.6px; font-variant-numeric: tabular-nums; }
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv10-fuel .cfv10-fuel-value > small { color: var(--cf-ui-muted); font-size: 11px; font-weight: 400; margin-left: 3px; letter-spacing: 0; }
-#efficiencyCofiringDraftView .cofiring-period-v5 .cfv6-target.cfv10-target { margin: auto 0 0; padding: 6px 11px; border: 1px solid var(--cf-ui-target-line); border-radius: 7px; background: var(--cf-ui-target); }
-#efficiencyCofiringDraftView .cfv-results-dark .cfv10-target-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 2px 8px; }
+/* COFIRING_TARGET_META_COMPACT_V1: value on the left, deadline and disclosure on the right. */
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-card[data-cfv52-unit] { container: cf-target-unit / inline-size; }
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv6-target.cfv10-target { display: grid; grid-template-columns: minmax(210px,1fr) minmax(0,1fr); column-gap: 10px; align-items: start; margin: auto 0 0; padding: 6px 11px; border: 1px solid var(--cf-ui-target-line); border-radius: 7px; background: var(--cf-ui-target); }
+#efficiencyCofiringDraftView .cfv-results-dark .cfv10-target-head { display: contents; }
+#efficiencyCofiringDraftView .cfv-results-dark .cfv10-target-head > .cfv-target-inline { grid-column: 1; grid-row: 1; }
 #efficiencyCofiringDraftView .cfv-results-dark .cfv-target-inline { display: flex; align-items: center; flex: 0 1 210px; width: 210px; max-width: 100%; min-height: 28px; }
 #efficiencyCofiringDraftView .cfv-results-dark .cfv-dark-target-edit { display: inline-flex; align-items: center; min-height: 28px; gap: 5px; margin: 0; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--cf-ui-mint); box-shadow: none; font: inherit; cursor: pointer; }
 #efficiencyCofiringDraftView .cfv-results-dark .cfv-dark-target-edit[aria-expanded="true"] { display: none !important; }
@@ -154,18 +157,29 @@
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv10-target-head .cfv6-target-label { color: var(--cf-ui-mint) !important; font-size: 12px !important; font-weight: 650 !important; line-height: 1.5 !important; }
 #efficiencyCofiringDraftView .cfv-results-dark .cfv6-target-label > b { font: inherit; margin-left: 0; }
 #efficiencyCofiringDraftView .cfv-results-dark .cfv-dark-edit-icon { font-size: 17px; line-height: 1; }
-#efficiencyCofiringDraftView .cofiring-period-v5 .cfv10-target-deadline { color: var(--cf-ui-muted); font-size: 11px; font-weight: 400; line-height: 1.5; white-space: normal; }
-#efficiencyCofiringDraftView .cofiring-period-v5 .cfv10-target-main { display: block; margin-top: 2px; }
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv10-target-deadline { grid-column: 2; grid-row: 1; align-self: center; min-width: 0; text-align: right; color: var(--cf-ui-muted); font-size: 11px; font-weight: 400; line-height: 1.5; white-space: normal; }
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv10-target-main { grid-column: 1; grid-row: 2 / 4; display: block; min-width: 0; margin-top: 0; }
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv10-target-value { display: block; color: var(--cf-ui-mint); font-size: 26px; font-weight: 700; line-height: 1.2; letter-spacing: -.8px; font-variant-numeric: tabular-nums; }
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv10-target-value > small { color: var(--cf-ui-muted); font-size: 12px; font-weight: 400; letter-spacing: 0; }
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv10-target.is-unavailable .cfv10-target-value { color: var(--cf-ui-muted); font-size: 24px; }
-#efficiencyCofiringDraftView .cofiring-period-v5 .cfv6-target p.cfv10-target-warning { min-height: 16px; margin: 3px 0 0; padding: 0; border: 0; color: var(--cf-ui-muted); font-size: 11px; line-height: 1.5; }
-#efficiencyCofiringDraftView .cofiring-period-v5 .cfv10-target-details { margin: 2px 0 0; }
-#efficiencyCofiringDraftView .cofiring-period-v5 .cfv10-target-details > summary { width: fit-content; padding: 2px 0; color: var(--cf-ui-muted); font-size: 11px; font-weight: 400; line-height: 1.5; text-align: left; }
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv6-target p.cfv10-target-warning { grid-column: 2; grid-row: 2; min-width: 0; min-height: 0; margin: 0; padding: 0; border: 0; text-align: right; overflow-wrap: anywhere; color: var(--cf-ui-muted); font-size: 11px; line-height: 1.5; }
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv10-target-details { grid-column: 2; grid-row: 3; min-width: 0; margin: 0; }
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv10-target-details > summary { width: fit-content; margin-left: auto; padding: 2px 0; color: var(--cf-ui-muted); font-size: 11px; font-weight: 400; line-height: 1.5; text-align: right; }
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv10-target-details[open] { grid-column: 1 / -1; }
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv10-target:has(> .cfv10-target-details[open]) > .cfv10-target-main { grid-row: 2; }
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv10-target-detail-body { border-color: var(--cf-ui-target-line); margin-top: 6px; padding-top: 8px; }
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv10-target-detail-body p,
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv10-target-detail-body dt { color: var(--cf-ui-muted); font-size: 11px; }
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv10-target-detail-body dd { color: var(--cf-ui-ink); font-size: 12px; }
+@container cf-target-unit (max-width: 380px) {
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv6-target.cfv10-target { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  #efficiencyCofiringDraftView .cfv-results-dark .cfv10-target-head > .cfv-target-inline { grid-column: 1 / -1; }
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv10-target-deadline { grid-row: 2; }
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv10-target-main { grid-row: 2 / 5; align-self: center; }
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv6-target p.cfv10-target-warning { grid-row: 3; }
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv10-target-details { grid-row: 4; }
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv10-target:has(> .cfv10-target-details[open]) > .cfv10-target-main { grid-row: 2 / 4; }
+}
 /* Earlier total-card styles use !important; clear their blue/yellow surfaces. */
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-card-total { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 3.05fr); align-items: center; gap: 12px; padding: 8px 15px; background: #edf3fa !important; border-color: #b9cce1 !important; box-shadow: none !important; }
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-card-total > header { min-width: 0; padding: 0; margin: 0; gap: 0; }
