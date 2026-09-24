@@ -140,7 +140,105 @@ test('ordinary single-shift sync forwards Bearer only to the same origin and for
   assert.equal(new URL(calls[0].url).origin,'https://review.invalid');
   assert.equal(new URL(calls[0].url).pathname,'/api/legacy-diaries');
   assert.equal(calls[0].options.headers.Authorization,'Bearer user-token');
-  assert.equal(calls[0].options.redirect,'error');
+  assert.equal(calls[0].options.redirect,'manual');
+});
+
+test('legacy sync imports real diary bodies on a Workers-compatible fetch and updates without duplicates', async t => {
+  const db = fixture(t), calls = [];
+  db.raw.exec('CREATE UNIQUE INDEX legacy_diary_unique ON legacy_logs(legacy_diary_id)');
+  // D1 supports numbered placeholders; bind equivalent positional parameters in node:sqlite.
+  const prepare = db.prepare.bind(db);
+  db.prepare = sql => prepare(sql.replace(/\?\d+/g, '?'));
+  const roles = ['GROUP_LEADER','TGO','BCO1','BCO2','TO','BO1','BO2'];
+  let revision = 1;
+  t.mock.method(globalThis,'fetch',async (url,options) => {
+    if (options.redirect === 'error') throw new TypeError('Invalid redirect value: Workers accepts follow or manual');
+    calls.push({url,options});
+    return Response.json({success:true,items:roles.map(position => ({
+      diary_id:'legacy-night-' + position, position, writer_id:'fixture-author', writer_name:'검토 작성자',
+      body:[{index:0,content:'운전현황'},{index:1,content:`${position} 작업내용 ${revision}`}], version:revision
+    }))});
+  });
+  for (revision of [1,2]) {
+    const result = await (await call(db,'legacy-import',{token:'user-token',body:{date:'20260924',shift:'NIGHT'}})).json();
+    assert.equal(result.failedShiftCount,0); assert.equal(result.hasFailures,false);
+    assert.equal(result.fetchedCount,7); assert.equal(result.createdCount,revision===1?7:0); assert.equal(result.updatedCount,revision===2?7:0);
+    assert.equal(result.dateResults[0].shiftResults[0].savedLogs.length,7);
+    const rows = db.raw.prepare('SELECT * FROM legacy_logs ORDER BY role').all();
+    assert.equal(rows.length,7);
+    for (const row of rows) {
+      assert.equal(row.work_date,'2026-09-24'); assert.equal(row.shift,'NS'); assert.equal(row.operation_status,'운전현황');
+      const position = row.role==='파트장'?'GROUP_LEADER':row.role;
+      assert.deepEqual(JSON.parse(row.entries_json),[{index:1,content:`${position} 작업내용 ${revision}`}]);
+    }
+  }
+  assert.equal(calls.length,2);
+  for (const {url,options} of calls) {
+    const parsed = new URL(url);
+    assert.equal(parsed.origin,'https://review.invalid'); assert.equal(parsed.pathname,'/api/legacy-diaries');
+    assert.equal(parsed.searchParams.get('date'),'20260924'); assert.equal(parsed.searchParams.get('shift'),'NIGHT');
+    assert.equal(options.headers.Authorization,'Bearer user-token'); assert.equal(options.redirect,'manual');
+  }
+});
+
+test('legacy sync stops on redirect before reading its body or following its destination', async t => {
+  t.mock.method(console,'warn',()=>{}); t.mock.method(console,'error',()=>{});
+  for (const status of [301,302,303,307,308]) {
+    const db = fixture(t), calls = [];
+    const mocked = t.mock.method(globalThis,'fetch',async (url,options) => {
+      calls.push({url,options});
+      return {status,ok:false,headers:new Headers({Location:'https://redirect.invalid/?private=value'}),
+        async text(){ throw Error('Redirect response body must not be consumed'); }};
+    });
+    const result = await (await call(db,'legacy-import',{token:'user-token',body:{date:'20260924',shift:'NIGHT'}})).json();
+    assert.equal(result.hasFailures,true); assert.equal(result.failedShiftCount,1);
+    assert.equal(result.fetchedCount,0); assert.equal(db.writes,0); assert.equal(calls.length,1);
+    assert.equal(calls[0].options.redirect,'manual');
+    assert.match(result.failedRequests[0].message,/1회/); assert.match(result.failedRequests[0].message,new RegExp(`HTTP ${status}`));
+    assert.doesNotMatch(result.failedRequests[0].message,/private|redirect.invalid|value|body must/);
+    mocked.mock.restore();
+  }
+});
+
+test('legacy sync reports one attempt for non-retryable client errors', async t => {
+  t.mock.method(console,'warn',()=>{}); t.mock.method(console,'error',()=>{});
+  for (const status of [400,401,403,404]) {
+    const db = fixture(t); let calls=0;
+    const mocked = t.mock.method(globalThis,'fetch',async()=>{calls++;return Response.json({success:false,message:'요청을 확인해 주세요.'},{status});});
+    const result = await (await call(db,'legacy-import',{token:'user-token',body:{date:'20260924',shift:'NIGHT'}})).json();
+    assert.equal(calls,1); assert.equal(db.writes,0); assert.match(result.failedRequests[0].message,/1회/);
+    mocked.mock.restore();
+  }
+});
+
+test('legacy sync still retries temporary network/server failures and treats an empty shift as success', async t => {
+  const db = fixture(t), delays = []; let calls=0;
+  t.mock.method(console,'warn',()=>{});
+  const nativeTimeout = globalThis.setTimeout;
+  t.mock.method(globalThis,'setTimeout',(callback,delay,...args)=>{
+    if (delay===700 || delay===1400) {delays.push(delay); return nativeTimeout(callback,0,...args);}
+    return nativeTimeout(callback,delay,...args);
+  });
+  t.mock.method(globalThis,'fetch',async()=>{
+    calls++;
+    if(calls===1)throw new TypeError('Temporary network failure');
+    if(calls===2)return Response.json({success:false,message:'Temporarily unavailable'},{status:503});
+    return Response.json({success:true,items:[]});
+  });
+  const result = await (await call(db,'legacy-import',{token:'user-token',body:{date:'20260924',shift:'NIGHT'}})).json();
+  assert.equal(calls,3); assert.deepEqual(delays,[700,1400]); assert.equal(result.hasFailures,false);
+  assert.equal(result.fetchedCount,0); assert.equal(db.writes,0);
+});
+
+test('legacy sync stops after three temporary failures without importing data', async t => {
+  const db = fixture(t); let calls=0;
+  t.mock.method(console,'warn',()=>{}); t.mock.method(console,'error',()=>{});
+  const nativeTimeout = globalThis.setTimeout;
+  t.mock.method(globalThis,'setTimeout',(callback,delay,...args)=>nativeTimeout(callback,delay===700||delay===1400?0:delay,...args));
+  t.mock.method(globalThis,'fetch',async()=>{calls++;return Response.json({success:false,message:'조회 제한'},{status:429});});
+  const result = await (await call(db,'legacy-import',{token:'user-token',body:{date:'20260924',shift:'NIGHT'}})).json();
+  assert.equal(calls,3); assert.equal(result.hasFailures,true); assert.equal(result.fetchedCount,0);
+  assert.equal(db.writes,0); assert.match(result.failedRequests[0].message,/3회/);
 });
 
 test('bulk/ALL sync and upstream login diagnostics require administrator; forged role fields have no effect', async t => {

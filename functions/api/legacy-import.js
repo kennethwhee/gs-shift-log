@@ -1150,6 +1150,8 @@ async function fetchLegacyDiaries(
   let lastError =
     null;
 
+  let attemptedCount = 0;
+
 
   for (
     let attemptNumber = 1;
@@ -1157,6 +1159,7 @@ async function fetchLegacyDiaries(
       maximumAttemptCount;
     attemptNumber += 1
   ) {
+    attemptedCount = attemptNumber;
     try {
       /*
         한 요청이 지나치게 오래 멈추는 것을 방지한다.
@@ -1191,14 +1194,27 @@ async function fetchLegacyDiaries(
                 "no-store",
 
               signal:
-                abortController.signal
-            , redirect: 'error'}
+                abortController.signal,
+
+              // Workers supports manual redirects. Never forward the session
+              // Authorization header to a redirect destination.
+              redirect: "manual"
+            }
           );
 
       } finally {
         clearTimeout(
           timeoutId
         );
+      }
+
+      if (response.status >= 300 && response.status < 400) {
+        const redirectError = new Error(
+          `${date} ${shift} / 이전일지 조회 주소가 변경되었다는 응답을 받았습니다. (HTTP ${response.status})`
+        );
+        redirectError.status = response.status;
+        redirectError.retryable = false;
+        throw redirectError;
       }
 
 
@@ -1322,7 +1338,8 @@ async function fetchLegacyDiaries(
         반복해도 해결되지 않으므로 바로 종료한다.
       */
       if (
-        isRequestInputError
+        isRequestInputError ||
+        normalizedError.retryable === false
       ) {
         break;
       }
@@ -1368,7 +1385,7 @@ async function fetchLegacyDiaries(
   throw new Error(
     [
       `${date} ${shift}`,
-      `기존 업무일지 조회를 ${maximumAttemptCount}회 시도했지만 실패했습니다.`,
+      `기존 업무일지 조회를 ${attemptedCount}회 시도했지만 실패했습니다.`,
       finalMessage
     ].join(" / ")
   );
