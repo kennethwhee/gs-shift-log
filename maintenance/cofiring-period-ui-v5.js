@@ -94,11 +94,11 @@
     return `<div class="cfv5-sheet">
       <div class="cfv5-title-row">
         <div class="cfv5-title-copy"><span class="cfv5-eyebrow">FUEL OPERATIONS</span><h2>혼소율 분석</h2></div>
-        <span class="cfv5-version"><i aria-hidden="true"></i>Bio 목표 <strong data-cfv-target-label>25%</strong></span>
+        <button type="button" class="cfv5-version" data-cfv-target-open aria-label="Bio 목표 비율 수정, 1·2호기 공통" aria-controls="cfv-dark-target-editor">Bio 목표 <strong data-cfv-target-label>25%</strong><span aria-hidden="true">✎</span></button>
       </div>
 
       <div class="cfv5-query-box cfv-toolbar-v1">
-        <div class="cfv8-query-mode"><label>계산 방식<select data-cfv8-mode><option value="daily" selected>일별 계산</option><option value="period">시간 · 기간 지정</option></select></label></div>
+        <div class="cfv8-query-mode"><strong class="cfv-query-title">계산 조건</strong><label>계산 방식<select data-cfv8-mode><option value="daily" selected>일별 계산</option><option value="period">시간 · 기간 지정</option></select></label></div>
         <div class="cfv5-query-grid">
           <label data-cfv8-daily-fields>혼소율 계산일<input data-cfv7-date type="date" min="2021-01-01" value="${date}"></label>
           <div class="cfv8-period-fields" data-cfv8-period-fields hidden><label>계산 시작<input data-cfv8-start type="datetime-local" min="2021-01-01T00:00" step="60" value="${partial.startLocal}"></label><label>계산 종료<input data-cfv8-end type="datetime-local" min="2021-01-01T00:01" step="60" value="${partial.endLocal}"></label><button type="button" data-cfv8-today>오늘 00시~현재</button></div>
@@ -662,6 +662,12 @@
       else{delete targetEditor.dataset.unit;container.querySelector('[data-cfv-target-home]')?.appendChild?.(targetEditor);container.querySelector('[data-cfv-target-edit="'+unit+'"]')?.focus?.({preventScroll:true});}
     }
     container.addEventListener('click',event=>{
+      if(event.target.closest?.('[data-cfv-target-open]')){
+        container.querySelector('.cf-sky-tab-v3[data-cf-sky-index="0"][aria-selected="false"]')?.click?.();
+        setBioTargetEditor('unit1',true);
+        targetEditor?.scrollIntoView?.({block:'nearest'});
+        return;
+      }
       const button=event.target.closest?.('[data-cfv-target-edit]');if(!button)return;
       const unit=button.getAttribute('data-cfv-target-edit');
       setBioTargetEditor(unit,targetEditor?.hidden||targetEditor?.dataset.unit!==unit);
