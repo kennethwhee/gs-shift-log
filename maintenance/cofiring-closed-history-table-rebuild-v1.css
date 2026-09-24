@@ -127,7 +127,7 @@
 #efficiencyCofiringDraftView .cfh-readable-panel .cfh-readable-table td.cfh-combined { padding:9px 12px!important; }
 #efficiencyCofiringDraftView .cfh-readable-panel .cfh-combined-main { display:flex; align-items:baseline; justify-content:space-between; gap:6px; margin-bottom:5px; }
 #efficiencyCofiringDraftView .cfh-readable-panel .cfh-combined-main span { color:#326a60!important; font-size:11px!important; font-weight:500!important; }
-#efficiencyCofiringDraftView .cfh-readable-panel .cfh-combined-main strong { color:#08716a!important; font-size:20px!important; font-weight:700!important; letter-spacing:-.4px!important; }
+#efficiencyCofiringDraftView .cfh-readable-panel .cfh-combined-main strong { color:#08716a!important; font-size:16px!important; font-weight:700!important; letter-spacing:-.4px!important; }
 #efficiencyCofiringDraftView .cfh-readable-panel .cfh-combined-sub { display:flex; align-items:baseline; justify-content:space-between; gap:6px; margin-top:3px; }
 #efficiencyCofiringDraftView .cfh-readable-panel .cfh-combined-sub span { color:#49645e!important; font-size:11px!important; font-weight:400!important; }
 #efficiencyCofiringDraftView .cfh-readable-panel .cfh-combined-sub b { color:#254c46!important; font-size:13px!important; font-weight:600!important; }
