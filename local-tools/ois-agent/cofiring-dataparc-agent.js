@@ -83,8 +83,8 @@ function createCofiringCollector(options={}) {
 const collectCofiringDailyValues=createCofiringCollector();
 
 const COFIRING_PERIOD_REQUEST_TYPE=contract.PERIOD_TYPE;
-const PERIOD_CONTROLLER_SHA256='f6232e0215bcfefa293f4a75cf7f6a7d71e35b93cc49133ee247dcfec17654aa';
-const PERIOD_WORKER_SHA256='19420b8aa1d04bec993102224adb109ded5439f2493c1f57e9231329391a2876';
+const PERIOD_CONTROLLER_SHA256='8f995f7ea049a98ff39b985569752ac73bfe565d1336ec24bda6828ed59ed2ff';
+const PERIOD_WORKER_SHA256='d4577dd9abb8e806d9f49c104864381f1583d3ff64aea336babeb1a3c4cfae98';
 // Leave room for the bounded startup/query watchdog, owned-process cleanup,
 // controller/report overhead and server delivery within the existing request lease.
 const PERIOD_MIN_REMAINING_MS=8*60000;
@@ -235,3 +235,5 @@ function createCofiringPeriodCollector(options={}) {
 }
 const collectCofiringPeriodValues=createCofiringPeriodCollector();
 module.exports={COFIRING_REQUEST_TYPE,COFIRING_PERIOD_REQUEST_TYPE,READER_SHA256,PERIOD_CONTROLLER_SHA256,PERIOD_WORKER_SHA256,createCofiringCollector,createCofiringPeriodCollector,collectCofiringDailyValues,collectCofiringPeriodValues,isCofiringExcelBlocked};
+
+

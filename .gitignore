@@ -7,3 +7,5 @@ local-tools/ois-agent/ois-agent.log
 local-tools/ois-agent/ois-agent-error-*.png
 .patch-backup/
 ois-agent-error-*.png
+web-dist/
+**/node_modules/

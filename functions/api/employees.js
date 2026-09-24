@@ -1,3 +1,5 @@
+import { authenticateEmployeeRequest } from "../_shared/employee-auth.js";
+
 /* ==================================================
    GS Shift Log 직원 명단 관리 API
 
@@ -380,6 +382,9 @@ export async function onRequestGet(
   context
 ) {
   try {
+    const authentication = await authenticateEmployeeRequest(context, { write: false });
+    if (authentication.error) return authentication.error;
+
     const requestUrl =
       new URL(
         context.request.url
@@ -1057,6 +1062,9 @@ export async function onRequestPost(
   context
 ) {
   try {
+    const authentication = await authenticateEmployeeRequest(context, { write: true });
+    if (authentication.error) return authentication.error;
+
     const body =
       await context.request.json();
 
@@ -1342,6 +1350,9 @@ export async function onRequestDelete(
   context
 ) {
   try {
+    const authentication = await authenticateEmployeeRequest(context, { write: true });
+    if (authentication.error) return authentication.error;
+
     const url =
       new URL(
         context.request.url

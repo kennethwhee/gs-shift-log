@@ -1151,6 +1151,7 @@ return {ok:true,startTotal,receipt,endTotal,usage,allocation:{unit1,unit2,total:
 /* ===== COFIRING_BASIS_DETAIL_COMPACT_V10 ===== */
 (function () {
   'use strict';
+  if (typeof document === 'undefined') return;
 
   let queued = false;
 
@@ -1512,6 +1513,7 @@ return {ok:true,startTotal,receipt,endTotal,usage,allocation:{unit1,unit2,total:
 /* ===== COFIRING_TOP_TAB_REDESIGN_V14 ===== */
 (() => {
   'use strict';
+  if (typeof document === 'undefined') return;
 
   const configs = [
     {

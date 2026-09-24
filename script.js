@@ -5724,10 +5724,10 @@ async function loadEmployeeManagement() {
           method:
             "GET",
 
-          headers: {
+          headers: getShiftLogAuthHeaders({
             Accept:
               "application/json"
-          },
+          }),
 
           cache:
             "no-store"
@@ -33635,10 +33635,10 @@ async function loadEfficiencyDailyWorkTeamLeaders() {
               method:
                 "GET",
 
-              headers: {
+              headers: getShiftLogAuthHeaders({
                 Accept:
                   "application/json"
-              },
+              }),
 
               cache:
                 "no-store"
@@ -57457,13 +57457,13 @@ async function handleEmployeeExcelUpload(event) {
           method:
             "POST",
 
-          headers: {
+          headers: getShiftLogAuthHeaders({
             "Content-Type":
               "application/json",
 
             Accept:
               "application/json"
-          },
+          }),
 
           cache:
             "no-store",

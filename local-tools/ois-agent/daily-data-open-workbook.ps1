@@ -2,6 +2,7 @@
 <#
 Read-only discovery of an already-open monthly Daily DATA workbook.
 Dot-source this file; call Resolve-DailyDataOpenWorkbook -TargetDate yyyy-MM-dd.
+Every distinct Excel.Application exposed by every same-session NativeOM window is scanned.
 The caller owns the three returned COM references (Workbook, Workbooks, Excel),
 and must release them when finished. No Excel process or workbook is created.
 Run COM work in the caller's separate STA worker with a wall-clock timeout:
@@ -16,7 +17,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
 
-public static class GsDailyDataOpenWorkbookNativeOmV1
+public static class GsDailyDataOpenWorkbookNativeOmV2
 {
     private const uint OBJID_NATIVEOM = 0xFFFFFFF0;
     private delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr state);
@@ -30,6 +31,8 @@ public static class GsDailyDataOpenWorkbookNativeOmV1
     private static extern int GetClassName(IntPtr hwnd, StringBuilder text, int maximum);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetWindowText(IntPtr hwnd, StringBuilder text, int maximum);
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
     [DllImport("oleacc.dll", PreserveSig = true)]
     private static extern int AccessibleObjectFromWindow(IntPtr hwnd, uint objectId, ref Guid iid,
         [MarshalAs(UnmanagedType.Interface)] out object nativeObject);
@@ -38,6 +41,19 @@ public static class GsDailyDataOpenWorkbookNativeOmV1
     {
         StringBuilder result = new StringBuilder(256);
         return GetClassName(hwnd, result, result.Capacity) > 0 ? result.ToString() : "";
+    }
+
+    public static bool IsWorkbookWindow(IntPtr hwnd)
+    {
+        return String.Equals(WindowClass(hwnd), "EXCEL7", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static string GetRootWindowTitle(IntPtr hwnd)
+    {
+        IntPtr root = GetAncestor(hwnd, 2);
+        if (root == IntPtr.Zero) root = hwnd;
+        StringBuilder title = new StringBuilder(1024);
+        return GetWindowText(root, title, title.Capacity) > 0 ? title.ToString() : "";
     }
 
     public static IntPtr[] FindNativeObjectWindows(int processId)
@@ -91,7 +107,7 @@ public static class GsDailyDataOpenWorkbookNativeOmV1
 '@
 
 function Initialize-DailyDataNativeOm {
-  if (-not ('GsDailyDataOpenWorkbookNativeOmV1' -as [type])) {
+  if (-not ('GsDailyDataOpenWorkbookNativeOmV2' -as [type])) {
     # In-memory compilation: no shared DLL filename or file lock across Agent workers.
     Add-Type -TypeDefinition $script:DailyDataNativeOmSource -ErrorAction Stop
   }
@@ -151,7 +167,13 @@ function Select-DailyDataWorkbookMatch {
     if ([int]$candidate.ProcessId -le 0 -or [string]::IsNullOrWhiteSpace([string]$candidate.FullName)) {
       throw ('대상 통합문서의 Excel PID 또는 전체 경로를 확인하지 못했습니다: ' + $ExpectedWorkbookName)
     }
-    $identity = [string]$candidate.ProcessId + '|' +
+    $connectionIdentity = ''
+    $connectionIdentityProperty = $candidate.PSObject.Properties['ConnectionIdentity']
+    if ($null -ne $connectionIdentityProperty) { $connectionIdentity = [string]$connectionIdentityProperty.Value }
+    if ([string]::IsNullOrWhiteSpace($connectionIdentity)) {
+      $connectionIdentity = 'PID:' + [string]$candidate.ProcessId
+    }
+    $identity = $connectionIdentity + '|' +
       ([string]$candidate.FullName).Normalize([Text.NormalizationForm]::FormC)
     if ($seen.Add($identity)) { $matches.Add($candidate) }
   }
@@ -169,41 +191,120 @@ function Get-DailyDataExcelProcessId {
   [uint32]$applicationPid = 0
   $applicationHwnd = [IntPtr]([int64](Invoke-DailyDataComRead -Read { $ExcelApplication.Hwnd } -Label 'Excel 창 PID 확인'))
   if ($applicationHwnd -eq [IntPtr]::Zero) { return 0 }
-  [void][GsDailyDataOpenWorkbookNativeOmV1]::GetWindowThreadProcessId($applicationHwnd, [ref]$applicationPid)
+  [void][GsDailyDataOpenWorkbookNativeOmV2]::GetWindowThreadProcessId($applicationHwnd, [ref]$applicationPid)
   return [int]$applicationPid
 }
 
-function Get-DailyDataProcessConnection {
-  param([Parameter(Mandatory=$true)][int]$ProcessId)
+function Get-DailyDataComIdentity {
+  param([Parameter(Mandatory=$true)]$Value)
+  $unknown = [IntPtr]::Zero
+  try {
+    # COM identity is stable across the different EXCEL7 NativeOM wrappers that
+    # expose the same Excel.Application. The call adds one IUnknown reference.
+    $unknown = [Runtime.InteropServices.Marshal]::GetIUnknownForObject($Value)
+    if ($unknown -eq [IntPtr]::Zero) { throw 'COM identity를 확인하지 못했습니다.' }
+    return ('IUnknown:' + $unknown.ToInt64().ToString('X16', [Globalization.CultureInfo]::InvariantCulture))
+  } finally {
+    if ($unknown -ne [IntPtr]::Zero) { [void][Runtime.InteropServices.Marshal]::Release($unknown) }
+  }
+}
+
+function Get-DailyDataProcessConnections {
+  param([Parameter(Mandatory=$true)][int]$ProcessId, $DiscoveryState = $null)
   $lastFailure = '읽을 수 있는 Excel 창을 찾지 못했습니다.'
   for ($attachAttempt = 0; $attachAttempt -lt 2; $attachAttempt += 1) {
-    $windows = @([GsDailyDataOpenWorkbookNativeOmV1]::FindNativeObjectWindows($ProcessId))
+    $connections = New-Object System.Collections.Generic.List[object]
+    $attachFailures = New-Object System.Collections.Generic.List[object]
+    $seenApplications = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+    $windows = @([GsDailyDataOpenWorkbookNativeOmV2]::FindNativeObjectWindows($ProcessId))
     foreach ($nativeHwnd in $windows) {
       $nativeObject = $null
       $application = $null
       $books = $null
+      $applicationIdentity = ''
       try {
-        $nativeObject = [GsDailyDataOpenWorkbookNativeOmV1]::GetNativeObject($nativeHwnd)
-        if ($null -eq $nativeObject) { continue }
+        $nativeObject = [GsDailyDataOpenWorkbookNativeOmV2]::GetNativeObject($nativeHwnd)
+        if ($null -eq $nativeObject) { throw 'NativeOM 개체를 확인하지 못했습니다.' }
         $application = Invoke-DailyDataComRead -Read { $nativeObject.Application } -Label 'Excel Application 연결'
-        if ($null -eq $application -or (Get-DailyDataExcelProcessId $application) -ne $ProcessId) { continue }
+        if ($null -eq $application -or (Get-DailyDataExcelProcessId $application) -ne $ProcessId) { throw 'NativeOM Excel PID 검증에 실패했습니다.' }
+        $applicationIdentity = Get-DailyDataComIdentity -Value $application
+        if ($seenApplications.Contains($applicationIdentity)) { continue }
         $books = Invoke-DailyDataComRead -Read { ,$application.Workbooks } -Label '열린 통합문서 목록'
-        if ($null -eq $books) { continue }
-        $connection = [pscustomobject]@{ Excel=$application; Workbooks=$books; ProcessId=$ProcessId; Via='NativeOM' }
+        if ($null -eq $books) { throw 'NativeOM Workbooks 목록을 확인하지 못했습니다.' }
+        if (-not $seenApplications.Add($applicationIdentity)) { continue }
+        $connection = [pscustomobject]@{
+          Excel=$application; Workbooks=$books; ProcessId=$ProcessId; Via='NativeOM'
+          Identity=$applicationIdentity; NativeHwnd=[int64]$nativeHwnd
+        }
+        $connections.Add($connection)
         $application = $null
         $books = $null
-        return $connection
-      } catch { $lastFailure = $_.Exception.Message }
+      } catch {
+        $lastFailure = $_.Exception.Message
+        # XLMAIN often does not support NativeOM; only real workbook-window
+        # failures are actionable when other connections in this PID succeeded.
+        if ([GsDailyDataOpenWorkbookNativeOmV2]::IsWorkbookWindow($nativeHwnd)) {
+          $attachFailures.Add([pscustomobject]@{
+            NativeHwnd=[int64]$nativeHwnd; ApplicationIdentity=$applicationIdentity
+            RootTitle=[GsDailyDataOpenWorkbookNativeOmV2]::GetRootWindowTitle($nativeHwnd)
+            Message=('Excel PID ' + $ProcessId + ' / HWND ' + [int64]$nativeHwnd + ': ' + $lastFailure)
+          })
+        }
+      }
       finally {
         Release-DailyDataOpenCom $books
         Release-DailyDataOpenCom $application
         Release-DailyDataOpenCom $nativeObject
       }
     }
+    if ($connections.Count -gt 0) {
+      if ($null -ne $DiscoveryState) {
+        foreach ($attachFailure in $attachFailures) {
+          if ($attachFailure.ApplicationIdentity -and $seenApplications.Contains($attachFailure.ApplicationIdentity)) { continue }
+          $DiscoveryState.Failures.Add($attachFailure)
+        }
+      }
+      return $connections.ToArray()
+    }
     if ($attachAttempt -eq 0) { Start-Sleep -Milliseconds 200 }
   }
   throw ('Excel PID ' + $ProcessId + '의 열린 파일을 확인하지 못했습니다. ' + $lastFailure +
     ' 셀 입력을 마치고 Excel 대화상자 또는 조회 작업이 끝난 뒤 다시 눌러 주세요.')
+}
+
+function Get-DailyDataWorkbookCandidatesFromConnection {
+  param(
+    [Parameter(Mandatory=$true)]$Connection,
+    [Parameter(Mandatory=$true)][string]$ExpectedWorkbookName,
+    [Parameter(Mandatory=$true)][AllowEmptyCollection()][System.Collections.Generic.List[object]]$RetainedWorkbooks,
+    $ScanState = $null
+  )
+  $records = New-Object System.Collections.Generic.List[object]
+  $countBefore = [int](Invoke-DailyDataComRead -Read { $Connection.Workbooks.Count } -Label '통합문서 수 확인')
+  for ($bookIndex = 1; $bookIndex -le $countBefore; $bookIndex += 1) {
+    $book = $null
+    try {
+      $book = Invoke-DailyDataComRead -Read { ,$Connection.Workbooks.Item($bookIndex) } -Label '열린 통합문서 확인'
+      $name = [string](Invoke-DailyDataComRead -Read { $book.Name } -Label '통합문서 이름 확인')
+      $isTarget = [string]::Equals($name.Normalize([Text.NormalizationForm]::FormC), $ExpectedWorkbookName, [StringComparison]::OrdinalIgnoreCase)
+      # Retain evidence even if a later FullName/Count read fails before records return.
+      if ($isTarget -and $null -ne $ScanState) { $ScanState.TargetObserved = $true }
+      $fullName = [string](Invoke-DailyDataComRead -Read { $book.FullName } -Label '통합문서 경로 확인')
+      $record = [pscustomobject]@{
+        Name=$name; FullName=$fullName; ProcessId=[int]$Connection.ProcessId
+        Workbook=$null; Connection=$Connection; ConnectionIdentity=[string]$Connection.Identity
+      }
+      if ($isTarget) {
+        $record.Workbook = $book
+        $RetainedWorkbooks.Add($book)
+        $book = $null
+      }
+      $records.Add($record)
+    } finally { Release-DailyDataOpenCom $book }
+  }
+  $countAfter = [int](Invoke-DailyDataComRead -Read { $Connection.Workbooks.Count } -Label '통합문서 목록 변경 확인')
+  if ($countBefore -ne $countAfter) { throw '조회 중 열린 통합문서 목록이 변경되었습니다. 다시 조회해 주세요.' }
+  return $records.ToArray()
 }
 
 function Resolve-DailyDataOpenWorkbook {
@@ -226,36 +327,45 @@ function Resolve-DailyDataOpenWorkbook {
   $processes = @(Get-Process -Name EXCEL -ErrorAction SilentlyContinue)
   try {
     foreach ($excelProcess in $processes) {
-      if ([int]$excelProcess.SessionId -ne $sessionId) { continue }
       $processId = [int]$excelProcess.Id
-      $observedIds.Add($processId)
-      $processTitles = @([GsDailyDataOpenWorkbookNativeOmV1]::FindProcessWindowTitles($processId))
-      foreach ($title in $processTitles) { $windowTitles.Add($title) }
-      $expectedTitlePattern = '(?i)' + [regex]::Escape([IO.Path]::GetFileNameWithoutExtension($expectedName)) + '(?:\.xlsx)?(?:\s|$)'
-      $targetTitleSeen = @($processTitles | Where-Object { ([string]$_).Normalize([Text.NormalizationForm]::FormC) -match $expectedTitlePattern }).Count -gt 0
+      $targetTitleSeen = $false
       try {
+        if ([int]$excelProcess.SessionId -ne $sessionId) { continue }
+        $observedIds.Add($processId)
+        $processTitles = @([GsDailyDataOpenWorkbookNativeOmV2]::FindProcessWindowTitles($processId))
+        foreach ($title in $processTitles) { $windowTitles.Add($title) }
+        $expectedTitlePattern = '(?i)' + [regex]::Escape([IO.Path]::GetFileNameWithoutExtension($expectedName)) + '(?:\.xlsx)?(?::[0-9]+)?(?:\s|$)'
+        $targetTitleSeen = @($processTitles | Where-Object { ([string]$_).Normalize([Text.NormalizationForm]::FormC) -match $expectedTitlePattern }).Count -gt 0
         $startTicks = [long]$excelProcess.StartTime.ToUniversalTime().Ticks
-        $connection = Get-DailyDataProcessConnection -ProcessId $processId
-        $connections.Add($connection)
-        # One Workbooks scan per application PID, irrespective of SDI window count.
-        $countBefore = [int](Invoke-DailyDataComRead -Read { $connection.Workbooks.Count } -Label '통합문서 수 확인')
-        for ($bookIndex = 1; $bookIndex -le $countBefore; $bookIndex += 1) {
-          $book = $null
-          try {
-            $book = Invoke-DailyDataComRead -Read { ,$connection.Workbooks.Item($bookIndex) } -Label '열린 통합문서 확인'
-            $name = [string](Invoke-DailyDataComRead -Read { $book.Name } -Label '통합문서 이름 확인')
-            $fullName = [string](Invoke-DailyDataComRead -Read { $book.FullName } -Label '통합문서 경로 확인')
-            $record = [pscustomobject]@{ Name=$name; FullName=$fullName; ProcessId=$processId; Workbook=$null; Connection=$connection }
-            if ([string]::Equals($name.Normalize([Text.NormalizationForm]::FormC), $expectedName, [StringComparison]::OrdinalIgnoreCase)) {
-              $record.Workbook = $book
-              $retainedWorkbooks.Add($book)
-              $book = $null
-            }
-            $candidates.Add($record)
-          } finally { Release-DailyDataOpenCom $book }
+        $discoveryState = [pscustomobject]@{ Failures=(New-Object System.Collections.Generic.List[object]) }
+        $processConnections = @(Get-DailyDataProcessConnections -ProcessId $processId -DiscoveryState $discoveryState)
+        # Transfer every acquired connection to the outer cleanup owner before
+        # inspecting any of them, so a failure cannot strand later COM references.
+        foreach ($connection in @($processConnections)) { $connections.Add($connection) }
+        foreach ($attachFailure in $discoveryState.Failures) {
+          $failureNamesTarget = ([string]$attachFailure.RootTitle).Normalize([Text.NormalizationForm]::FormC) -match $expectedTitlePattern
+          if ($failureNamesTarget) { $errors.Add($attachFailure.Message) }
+          else {
+            $warnings.Add($attachFailure.Message)
+            if (-not $skippedIds.Contains($processId)) { $skippedIds.Add($processId) }
+          }
         }
-        $countAfter = [int](Invoke-DailyDataComRead -Read { $connection.Workbooks.Count } -Label '통합문서 목록 변경 확인')
-        if ($countBefore -ne $countAfter) { throw '조회 중 열린 통합문서 목록이 변경되었습니다. 다시 조회해 주세요.' }
+        foreach ($connection in @($processConnections)) {
+          $scanState = [pscustomobject]@{ TargetObserved=$false }
+          try {
+            $connectionCandidates = @(Get-DailyDataWorkbookCandidatesFromConnection `
+              -Connection $connection -ExpectedWorkbookName $expectedName -RetainedWorkbooks $retainedWorkbooks -ScanState $scanState)
+            foreach ($record in $connectionCandidates) { $candidates.Add($record) }
+          } catch {
+            $knownTargetInConnection = [bool]$scanState.TargetObserved
+            if ($targetTitleSeen -or $knownTargetInConnection) {
+              $errors.Add($_.Exception.Message)
+            } else {
+              $warnings.Add($_.Exception.Message)
+              if (-not $skippedIds.Contains($processId)) { $skippedIds.Add($processId) }
+            }
+          }
+        }
         $excelProcess.Refresh()
         if ($excelProcess.HasExited -or [long]$excelProcess.StartTime.ToUniversalTime().Ticks -ne $startTicks) {
           throw '조회 중 Excel 인스턴스가 종료되거나 변경되었습니다. 다시 조회해 주세요.'
@@ -350,6 +460,13 @@ function Assert-DailyDataOpenWorkbookSelector {
   } catch { $readDidThrow = $true }
   if (-not $readDidThrow -or $script:DailyDataValidationReadAttempts -ne 1) { throw '영구 COM 오류의 불필요한 재시도 허용' }
   Remove-Variable -Name DailyDataValidationReadAttempts -Scope Script
+  $script:DailyDataValidationCollection = New-Object Collections.ArrayList
+  [void]$script:DailyDataValidationCollection.Add('first')
+  [void]$script:DailyDataValidationCollection.Add('second')
+  $roundTripCollection = Invoke-DailyDataComRead -Read { ,$script:DailyDataValidationCollection }
+  if (-not [object]::ReferenceEquals($roundTripCollection, $script:DailyDataValidationCollection) -or
+      $roundTripCollection.Count -ne 2) { throw 'COM 컬렉션 비열거 왕복 검사 실패' }
+  Remove-Variable -Name DailyDataValidationCollection -Scope Script
   $expected = Get-DailyDataExpectedWorkbookName '2026-09-01'
   $august = [pscustomobject]@{ Name='26.08-일일DATA관리.xlsx'; FullName='W:\2026\26.08-일일DATA관리.xlsx'; ProcessId=101 }
   $september = [pscustomobject]@{ Name=$expected; FullName=('W:\2026\' + $expected); ProcessId=202 }
@@ -369,6 +486,60 @@ function Assert-DailyDataOpenWorkbookSelector {
     try { $null = Select-DailyDataWorkbookMatch @($september,$ambiguous) $expected } catch { $didThrow = $true }
     if (-not $didThrow) { throw '같은 이름/다른 경로 또는 인스턴스의 모호성 허용' }
   }
+
+  function New-DailyDataValidationBooks([object[]]$Items) {
+    $collection = [pscustomobject]@{ Entries=@($Items) }
+    Add-Member -InputObject $collection -MemberType ScriptProperty -Name Count -Value { @($this.Entries).Count }
+    Add-Member -InputObject $collection -MemberType ScriptMethod -Name Item -Value {
+      param([int]$Index)
+      if ($Index -lt 1 -or $Index -gt @($this.Entries).Count) { throw 'validation index out of range' }
+      return $this.Entries[$Index - 1]
+    }
+    return $collection
+  }
+  $cofiring = [pscustomobject]@{
+    Name='혼소율계산(Coal, Bio, 슬러지)_26.07.21.xlsx'; FullName='W:\2026\혼소율계산.xlsx'
+  }
+  $daily = [pscustomobject]@{ Name=$expected; FullName=$september.FullName }
+  $firstConnection = [pscustomobject]@{
+    ProcessId=19404; Identity='validation:first'; Workbooks=(New-DailyDataValidationBooks @($cofiring)); Excel=$null; Via='Validation'
+  }
+  $laterConnection = [pscustomobject]@{
+    ProcessId=19404; Identity='validation:later'; Workbooks=(New-DailyDataValidationBooks @($daily)); Excel=$null; Via='Validation'
+  }
+  $validationRetained = New-Object System.Collections.Generic.List[object]
+  $connectionCandidates = @()
+  foreach ($validationConnection in @($firstConnection,$laterConnection)) {
+    $connectionCandidates += @(Get-DailyDataWorkbookCandidatesFromConnection `
+      -Connection $validationConnection -ExpectedWorkbookName $expected -RetainedWorkbooks $validationRetained)
+  }
+  $laterFound = Select-DailyDataWorkbookMatch -Candidates $connectionCandidates -ExpectedWorkbookName $expected
+  if ($null -eq $laterFound -or [string]$laterFound.ConnectionIdentity -cne 'validation:later') {
+    throw '같은 PID의 뒤쪽 NativeOM 연결 대상 선택 검사 실패'
+  }
+  $duplicateConnection = [pscustomobject]@{
+    ProcessId=19404; Identity='validation:duplicate'; Workbooks=(New-DailyDataValidationBooks @($daily)); Excel=$null; Via='Validation'
+  }
+  $duplicateCandidates = @(Get-DailyDataWorkbookCandidatesFromConnection `
+    -Connection $duplicateConnection -ExpectedWorkbookName $expected -RetainedWorkbooks $validationRetained)
+  $didThrow = $false
+  try { $null = Select-DailyDataWorkbookMatch @($connectionCandidates + $duplicateCandidates) $expected } catch { $didThrow = $true }
+  if (-not $didThrow) { throw '같은 PID의 서로 다른 Excel 연결 중복 대상 허용' }
+
+  # Finding the target name before a later COM failure must remain a blocking
+  # target error; it must not silently permit another potentially duplicate file.
+  $failingDaily = [pscustomobject]@{ Name=$expected }
+  Add-Member -InputObject $failingDaily -MemberType ScriptProperty -Name FullName -Value { throw 'validation path failure' }
+  $failingConnection = [pscustomobject]@{
+    ProcessId=19404; Identity='validation:failure'; Workbooks=(New-DailyDataValidationBooks @($failingDaily))
+  }
+  $failureState = [pscustomobject]@{ TargetObserved=$false }
+  $didThrow = $false
+  try {
+    $null = Get-DailyDataWorkbookCandidatesFromConnection -Connection $failingConnection `
+      -ExpectedWorkbookName $expected -RetainedWorkbooks $validationRetained -ScanState $failureState
+  } catch { $didThrow = $true }
+  if (-not $failureState.TargetObserved) { throw '실패 전 확인한 대상 파일 증거 누락' }
 }
 
 if ($ValidateOnly) {
@@ -378,5 +549,204 @@ if ($ValidateOnly) {
   if (@($parseErrors).Count -gt 0) { throw ($parseErrors | Out-String) }
   Initialize-DailyDataNativeOm
   Assert-DailyDataOpenWorkbookSelector
-  [Console]::WriteLine('PASS: 열린 월간 Excel 연결 코드 구문/C# 및 월 전환·파일 선택 검사. Excel에 연결하지 않았습니다.')
+  [Console]::WriteLine('PASS: 모든 NativeOM 연결 순회 코드 구문/C# 및 월 전환·뒤쪽 연결 파일 선택 검사. Excel에 연결하지 않았습니다.')
 }
+
+# [COFIRING_ORGANIC_HIDDEN_EXCEL_V1]
+# Closed monthly Daily DATA fallback for co-firing organic auto-fill.
+# Existing open-workbook resolution always runs first.
+# Fallback opens exactly one matching recent workbook in a new hidden,
+# read-only Excel instance and closes only that owned instance later.
+
+if (-not (Get-Variable -Scope Script -Name CofiringOrganicOriginalResolve -ErrorAction SilentlyContinue)) {
+    $script:CofiringOrganicOriginalResolve = ${function:Resolve-DailyDataOpenWorkbook}
+}
+if (-not (Get-Variable -Scope Script -Name CofiringOrganicOriginalRelease -ErrorAction SilentlyContinue)) {
+    $script:CofiringOrganicOriginalRelease = ${function:Release-ExcelComObject}
+}
+$script:CofiringOrganicOwnedExcelHwnd = 0
+
+function Get-CofiringOrganicExcelRecentTargets {
+    param([Parameter(Mandatory=$true)][string]$ExpectedName)
+
+    $targets = New-Object 'System.Collections.Generic.List[string]'
+
+    $officeRoot = 'HKCU:\Software\Microsoft\Office'
+    if (Test-Path $officeRoot) {
+        foreach ($version in @(Get-ChildItem $officeRoot -ErrorAction SilentlyContinue)) {
+            $mru = Join-Path $version.PSPath 'Excel\File MRU'
+            if (-not (Test-Path $mru)) { continue }
+            try {
+                $props = Get-ItemProperty $mru
+                foreach ($prop in $props.PSObject.Properties) {
+                    if ($prop.Name -notmatch '^Item ') { continue }
+                    $value = [string]$prop.Value
+                    $value = [regex]::Replace($value, '^\[[^\]]+\]\*?', '').Trim('"')
+                    if ([string]::IsNullOrWhiteSpace($value)) { continue }
+                    try { $value = [IO.Path]::GetFullPath($value) } catch { continue }
+                    if (
+                        [string]::Equals([IO.Path]::GetFileName($value), $ExpectedName, [StringComparison]::OrdinalIgnoreCase) -and
+                        (Test-Path -LiteralPath $value -PathType Leaf)
+                    ) {
+                        $targets.Add($value)
+                    }
+                }
+            } catch {}
+        }
+    }
+
+    $recent = Join-Path $env:APPDATA 'Microsoft\Windows\Recent'
+    $shell = $null
+    try {
+        if (Test-Path -LiteralPath $recent -PathType Container) {
+            $shell = New-Object -ComObject WScript.Shell
+            foreach ($lnk in @(Get-ChildItem -LiteralPath $recent -Filter '*.lnk' -File -ErrorAction SilentlyContinue)) {
+                try {
+                    $shortcut = $shell.CreateShortcut($lnk.FullName)
+                    $target = [string]$shortcut.TargetPath
+                    if (
+                        $target -and
+                        [string]::Equals([IO.Path]::GetFileName($target), $ExpectedName, [StringComparison]::OrdinalIgnoreCase) -and
+                        (Test-Path -LiteralPath $target -PathType Leaf)
+                    ) {
+                        $targets.Add([IO.Path]::GetFullPath($target))
+                    }
+                } catch {}
+            }
+        }
+    }
+    finally {
+        if ($shell) {
+            try { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($shell) } catch {}
+        }
+    }
+
+    return @($targets | Sort-Object -Unique)
+}
+
+function Get-CofiringOrganicExcelProcessId {
+    param([Parameter(Mandatory=$true)]$Excel)
+    try {
+        if (-not ('CofiringOrganicExcelNativeV1' -as [type])) {
+            Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class CofiringOrganicExcelNativeV1 {
+    [DllImport("user32.dll")]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+}
+'@
+        }
+        $excelProcessId = [uint32]0
+        [void][CofiringOrganicExcelNativeV1]::GetWindowThreadProcessId(
+            [IntPtr]([int64]$Excel.Hwnd),
+            [ref]$excelProcessId
+        )
+        return [int]$excelProcessId
+    }
+    catch { return 0 }
+}
+
+function Resolve-DailyDataOpenWorkbook {
+    param([Parameter(Mandatory=$true)][string]$TargetDate)
+
+    try {
+        return (& $script:CofiringOrganicOriginalResolve -TargetDate $TargetDate)
+    }
+    catch {
+        $openError = $_
+    }
+
+    if ($TargetDate -notmatch '^[0-9]{4}-[0-9]{2}-[0-9]{2}$') {
+        throw $openError
+    }
+
+    $targetValue = [datetime]::ParseExact(
+        $TargetDate,
+        'yyyy-MM-dd',
+        [Globalization.CultureInfo]::InvariantCulture
+    )
+    $expectedName = (
+        $targetValue.ToString('yy.MM', [Globalization.CultureInfo]::InvariantCulture) +
+        '-일일DATA관리.xlsx'
+    ).Normalize([Text.NormalizationForm]::FormC)
+
+    $paths = @(Get-CofiringOrganicExcelRecentTargets -ExpectedName $expectedName)
+    if ($paths.Count -eq 0) {
+        throw (
+            $openError.Exception.Message +
+            ' 자동 숨김 열기도 시도했지만 최근 파일에서 ' +
+            $expectedName +
+            ' 경로를 찾지 못했습니다.'
+        )
+    }
+    if ($paths.Count -ne 1) {
+        throw (
+            '같은 이름의 일일DATA 파일 경로가 여러 개 확인되어 자동으로 열지 않았습니다: ' +
+            ($paths -join ', ')
+        )
+    }
+
+    $excel = $null
+    $workbooks = $null
+    $workbook = $null
+    try {
+        Write-DailyDataStage -Message (
+            '대상 월 파일이 닫혀 있어 숨김 Excel 읽기 전용 열기 · ' + $paths[0]
+        )
+
+        $excel = New-Object -ComObject Excel.Application
+        $excel.Visible = $false
+        $excel.DisplayAlerts = $false
+        $excel.ScreenUpdating = $false
+        $excel.AskToUpdateLinks = $false
+        $excel.EnableEvents = $false
+        try { $excel.AutomationSecurity = 3 } catch {}
+
+        $workbooks = $excel.Workbooks
+        $workbook = $workbooks.Open($paths[0], 0, $true)
+
+        $hwnd = 0
+        try { $hwnd = [int]$excel.Hwnd } catch {}
+        $script:CofiringOrganicOwnedExcelHwnd = $hwnd
+
+        return [pscustomobject]@{
+            Excel = $excel
+            Workbooks = $workbooks
+            Workbook = $workbook
+            ProcessId = Get-CofiringOrganicExcelProcessId -Excel $excel
+            OwnedByDailyDataReader = $true
+            WorkbookSource = 'hidden_readonly'
+        }
+    }
+    catch {
+        if ($workbook) { try { $workbook.Close($false) } catch {} }
+        if ($excel) { try { $excel.Quit() } catch {} }
+        foreach ($value in @($workbook,$workbooks,$excel)) {
+            if ($value) {
+                try { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($value) } catch {}
+            }
+        }
+        $script:CofiringOrganicOwnedExcelHwnd = 0
+        throw
+    }
+}
+
+function Release-ExcelComObject {
+    param($Value)
+
+    if ($null -ne $Value -and $script:CofiringOrganicOwnedExcelHwnd -gt 0) {
+        try {
+            $valueHwnd = [int]$Value.Hwnd
+            if ($valueHwnd -eq $script:CofiringOrganicOwnedExcelHwnd) {
+                try { $Value.DisplayAlerts = $false } catch {}
+                try { $Value.Quit() } catch {}
+                $script:CofiringOrganicOwnedExcelHwnd = 0
+            }
+        } catch {}
+    }
+
+    & $script:CofiringOrganicOriginalRelease -Value $Value
+}
+# [COFIRING_ORGANIC_HIDDEN_EXCEL_V1_END]
+

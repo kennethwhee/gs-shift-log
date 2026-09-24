@@ -2403,3 +2403,4 @@ Write-CofiringProgress 'COMPLETE'
 [Console]::Out.Flush()
 if ($cleanupErrors.Count -gt 0 -or $null -ne $queryFailure) { exit 1 }
 exit 0
+
