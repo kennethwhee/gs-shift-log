@@ -799,7 +799,8 @@
 
   function formatSignedRemaining(asset) {
     if (!asset.lastReplacementAt) return "확정된 V-Belt 교체 이력이 없습니다.";
-    if (asset.cycleStartState === "pending") return "기동 등록 전 · 주기 계산 대기";
+    if (asset.cycleStartState === "pending" && asset.runRuntime?.verified !== true)
+      return isDataParcRuntimeAsset(asset) ? "RUN 조회 후 주기 계산" : "기동 등록 전 · 주기 계산 대기";
     if (asset.severity === "unset") return "교체주기 설정 필요";
     if (asset.cycleRuntimeState === "unknown") return "운전시간 확인 필요 · 기간조회 또는 누적시간 직접 보정";
 

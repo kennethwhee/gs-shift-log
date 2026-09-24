@@ -18662,13 +18662,15 @@ async function createBlowerRuntimeProbeRequest(
     /^(?:104|204)HHL(?:60AP|10AN)(?:611|621|631)$/.test(assetTag);
 
 
-  // FBHE / Seal Pot do not need a manually registered startup before a
-  // DataPARC RUN=1/0 probe.  The existing Agent only accepts the historical
+  // All supported RUN assets may be queried without a manually registered startup.
+  // A replacement's pending marker is not evidence that its motor is stopped.
+  // BLOWER_PENDING_RUN_V6: use the same revision-pinned signal-only path for
+  // Bag Filter, Silo, organic/manure, FBHE and Seal Pot RUN=1/0 probes.
+  // The existing Agent only accepts the historical
   // `legacy|started` wire contract, so an actual pending cycle is carried over
   // the wire as `legacy` while its exact revisions remain pinned.  Apply-time
   // CAS maps it back to the real pending row; no Agent restart is required.
   const signalOnlyCycle =
-    fbheSealBinaryRun &&
     expectedCycleStartState === "pending";
 
   const probeExpectedCycleStartState =
@@ -18684,25 +18686,10 @@ async function createBlowerRuntimeProbeRequest(
 
 
   if (
-    expectedCycleStartState === "pending" &&
-    !fbheSealBinaryRun
-  ) {
-    return jsonResponse(
-      {
-        ok: false,
-        code: "BLOWER_RUNTIME_PROBE_CYCLE_PENDING",
-        message: "기동 대기 Cycle은 DataPARC 기간조회 대상에서 제외됩니다. 실제 기동 후 조회해 주세요."
-      },
-      409
-    );
-  }
-
-
-  if (
     ![
       "legacy",
       "started",
-      ...(fbheSealBinaryRun ? ["pending"] : [])
+      "pending"
     ].includes(
       expectedCycleStartState
     ) ||
@@ -18863,7 +18850,7 @@ async function createBlowerRuntimeProbeRequest(
                 parsedCycleStartedAt.date
               )
             : (
-                fbheSealBinaryRun && parsedLastReplacementAt
+                (fbheSealBinaryRun || signalOnlyCycle) && parsedLastReplacementAt
                   ? formatKstRfc3339(parsedLastReplacementAt.date)
                   : ""
               )

@@ -21,8 +21,8 @@ export function incrementalEvidence(source) {
 function strictVerifiedAppendBase(asset, rows, dataParcTag) {
   if (!asset?.last_replacement_at) return null;
   const assetTag = String(asset.tag_number || '').trim().toUpperCase();
-  const fbheSealBinaryRun = /^(?:104|204)HHL(?:60AP|10AN)(?:611|621|631)$/.test(assetTag);
-  if (asset.cycle_start_state === 'pending' && !fbheSealBinaryRun) return null;
+  const supportedBinaryRun = /^(?:(?:104|204)(?:HHL(?:60AP|10AN)(?:611|621|631)|ETG30AN60[12]|SDF01AN00[12])|104ETH03AN60[12]|204LMDF01AN001)$/.test(assetTag);
+  if (asset.cycle_start_state === 'pending' && !supportedBinaryRun) return null;
   const stored = number(asset.cycle_runtime_hours), anchor = instant(asset.cycle_runtime_anchor_at);
   if (!Number.isFinite(stored) || stored < 0 || !Number.isFinite(anchor)) return null;
   // Latest timestamp-owned event, not just ANY historical row with equal hours.
@@ -36,7 +36,7 @@ function strictVerifiedAppendBase(asset, rows, dataParcTag) {
   let s; try { s = JSON.parse(row.source_text); } catch { return null; }
   if (!s || typeof s !== 'object' || Array.isArray(s)) return null;
   const actualCycleStartState = asset.cycle_start_state || 'legacy';
-  const signalOnlyPending = fbheSealBinaryRun && actualCycleStartState === 'pending' &&
+  const signalOnlyPending = supportedBinaryRun && actualCycleStartState === 'pending' &&
     s.expectedCycleStartState === 'legacy' && s.signalOnlyCycle === true && !String(s.expectedCycleStartedAt || '');
   if (s.schemaVersion !== 1 || s.assetTag !== asset.tag_number || s.dataParcTag !== dataParcTag ||
       s.requestType !== 'blower_runtime_probe' || s.requestId !== row.source_log_id || row.id !== `dataparc_runtime:${s.requestId}` ||

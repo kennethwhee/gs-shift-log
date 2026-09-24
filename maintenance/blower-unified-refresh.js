@@ -50,7 +50,9 @@
     return /^(?:104|204)HHL(?:60AP|10AN)(?:611|621|631)$/.test(String(a?.tagNumber || '').trim().toUpperCase());
   }
   function fbheSealRunView(a, basis = null) {
-    if (!fbheSealRunAsset(a)) return null;
+    // Keep the established FBHE/Seal view contract and also use verified RUN
+    // evidence for pending replacements on every other supported Blower.
+    if (!fbheSealRunAsset(a) && !(DP_TAGS.has(a?.tagNumber) && a.cycleStartState === 'pending')) return null;
     const p = a.runRuntime || {};
     const verified = p.verified === true && ['dataparc','manual'].includes(p.source) &&
       a.measurementRequired !== true && a.cycleElapsedHours !== null && a.cycleElapsedHours !== undefined &&
@@ -97,9 +99,6 @@
       if (!Number.isFinite(replacement)) { skip('교체일 등록 필요 · 이력 보기 / V-Belt 교체 등록'); continue; }
       if (replacement >= end) { skip('교체일이 현재 시각 이후입니다.'); continue; }
       if (!DP_TAGS.has(a.tagNumber)) { skip('연결된 운전시간 조회 방식이 없습니다.'); continue; }
-      if (a.cycleStartState === 'pending' && !fbheSealRunAsset(a)) {
-        skip('기동 대기 Cycle은 최신화 대상에서 제외됩니다. 실제 기동 후 조회해 주세요.'); continue;
-      }
       const dataParcTag = a.tagNumber === '104ETH03AN602' ? SIGNAL : String(a.dataParcTag || '').trim();
       if (!/^GSPOGE\.ABB_DCS\.[A-Z0-9][A-Z0-9._-]*$/.test(dataParcTag) || dataParcTag.length > 200 || (a.tagNumber !== '104ETH03AN602' && dataParcTag === SIGNAL)) {
         skip('RUN TAG 설정 필요 · 이력 보기 → 조회 기준·상세'); continue;

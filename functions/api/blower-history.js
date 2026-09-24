@@ -1676,7 +1676,7 @@ function currentDataParcRuntimeBasis(asset, rows) {
     const coverageStartAt = incremental ? incremental.coverageStartAt : source.startAt;
     const start = Date.parse(coverageStartAt), observed = Date.parse(source.observedAt || source.endAt);
     const actualCycleStartState = asset.cycle_start_state || "legacy";
-    const signalOnlyPending = isFbheSealRunAsset(asset) &&
+    const signalOnlyPending = DATAPARC_RUNTIME_SYNC_ASSET_TAGS.includes(asset.tag_number) &&
       actualCycleStartState === "pending" &&
       source.expectedCycleStartState === "legacy" &&
       source.signalOnlyCycle === true &&
@@ -1713,7 +1713,10 @@ function isFbheSealRunAsset(asset) {
   return /^(?:104|204)HHL(?:60AP|10AN)(?:611|621|631)$/.test(tag);
 }
 function fbheSealRunProvenance(asset, rows, now = new Date()) {
-  if (!isFbheSealRunAsset(asset)) return null;
+  // A pending replacement cannot override verified RUN evidence on any supported
+  // asset. Retain the existing projection for other, non-pending asset groups.
+  if (!isFbheSealRunAsset(asset) && !(asset.cycle_start_state === "pending" &&
+      DATAPARC_RUNTIME_SYNC_ASSET_TAGS.includes(asset.tag_number))) return null;
   const numeric = value => value !== null && value !== undefined && typeof value !== "boolean" &&
     String(value).trim() !== "" && Number.isFinite(Number(value)) && Number(value) >= 0;
   const replacement = Date.parse(asset.last_replacement_at || "");
@@ -7127,7 +7130,7 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
 
   const signalOnlyPending =
     probe.signalOnlyCycle === true &&
-    isFbheSealRunAsset(asset) &&
+    DATAPARC_RUNTIME_SYNC_ASSET_TAGS.includes(asset.tag_number) &&
     currentCycleStartState === "pending" &&
     probe.expectedCycleStartState === "legacy" &&
     !probe.expectedCycleStartedAt;
