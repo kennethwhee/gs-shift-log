@@ -35,7 +35,7 @@ export async function onRequestPost(context) {
     const name = typeof body?.name === "string" ? body.name.trim() : "";
     const password = body?.password;
     if (!/^\d{6,10}$/.test(employeeNo) || name.length < 2 || name.length > 30 || newPasswordError(password, employeeNo)) {
-      return json({ ok: false, message: "사번 6~10자리, 이름 2~30자, 비밀번호 15~100자를 확인해 주세요." }, 400);
+      return json({ ok: false, message: "사번 6~10자리, 이름 2~30자, 비밀번호 6~100자를 확인해 주세요." }, 400);
     }
     if (await db.prepare(`SELECT id FROM users WHERE ${ADMIN_PREDICATE} LIMIT 1`).first()) {
       return json({ ok: false, message: "최초 최고관리자는 이미 생성되었습니다." }, 409);

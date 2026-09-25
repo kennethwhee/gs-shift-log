@@ -49,8 +49,8 @@ export function credentials(body, passwordField = 'password') {
 }
 
 export function newPasswordError(password, employeeNo, currentPassword = '') {
-  if (typeof password !== 'string' || [...password].length < 15 || password.length > 100) {
-    return '새 비밀번호는 15~100자로 입력해 주세요. 띄어쓰기를 포함한 문장도 사용할 수 있습니다.';
+  if (typeof password !== 'string' || [...password].length < 6 || password.length > 100) {
+    return '새 비밀번호는 6~100자로 입력해 주세요. 띄어쓰기를 포함한 문장도 사용할 수 있습니다.';
   }
   if (password === currentPassword || password.trim() === employeeNo || /^(.)\1+$/u.test(password)) {
     return '현재 비밀번호, 사번 또는 같은 글자의 반복은 사용할 수 없습니다.';

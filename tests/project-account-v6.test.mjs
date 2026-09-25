@@ -157,6 +157,17 @@ test('short, repeated, unchanged and invalid new passwords cannot alter accounts
   }
   assert.equal(storedHash(db), oldHash); assert.equal(sessionCount(db), 1); assert.equal(db.statements.length, 0);
 });
+test('password changes reject five characters and accept six with the existing login and revocation flow', async t => {
+  const db = dbFixture(t), sixCharacters = '새암호123';
+  assert.equal((await change(db, { newPassword: '새암호12' })).status, 400);
+  assert.equal(storedHash(db), oldHash); assert.equal(sessionCount(db), 1); assert.equal(db.statements.length, 0);
+  const response = await change(db, { newPassword: sixCharacters });
+  assert.equal(response.status, 200); assert.equal(sessionCount(db), 0);
+  assert.ok(await verifyPassword(sixCharacters, storedHash(db)));
+  assert.equal((await login.onRequestGet(context(db, 'login', { method: 'GET', token: 'user-token' }))).status, 401);
+  assert.equal((await loginAs(db, password)).status, 401);
+  assert.equal((await loginAs(db, sixCharacters)).status, 200);
+});
 test('wrong current password and disabled accounts cannot change credentials', async t => {
   const db = dbFixture(t);
   assert.equal((await change(db, { currentPassword: 'incorrect' })).status, 401);
@@ -271,11 +282,20 @@ test('retired alternative provisioning endpoints perform no database action even
   }
   assert.equal(db.statements.length, 0);
 });
-test('one-time initial setup rejects weak passwords while existing users are unaffected', async t => {
+test('one-time initial setup rejects five characters and accepts six with setup authorization intact', async t => {
   const db = accountDatabase(t), key = 'synthetic-setup-key-at-least-32-characters';
-  const ctx = context(db, 'create-initial-admin', { body: { employeeNo: adminNo, name: '관리자', password: 'short-password' }, headers: { 'X-Setup-Key': key } });
+  const ctx = context(db, 'create-initial-admin', { body: { employeeNo: adminNo, name: '관리자', password: 'short' }, headers: { 'X-Setup-Key': key } });
   ctx.env.USER_SETUP_KEY = key;
   assert.equal((await setup.onRequestPost(ctx)).status, 400); assert.equal(db.raw.prepare('SELECT count(*) n FROM users').get().n, 0);
+  const sixCharacters = 'Admin6';
+  const unauthorized = context(db, 'create-initial-admin', { body: { employeeNo: adminNo, name: '관리자', password: sixCharacters } });
+  unauthorized.env.USER_SETUP_KEY = key;
+  assert.equal((await setup.onRequestPost(unauthorized)).status, 403); assert.equal(db.raw.prepare('SELECT count(*) n FROM users').get().n, 0);
+  const accepted = context(db, 'create-initial-admin', { body: { employeeNo: adminNo, name: '관리자', password: sixCharacters }, headers: { 'X-Setup-Key': key } });
+  accepted.env.USER_SETUP_KEY = key;
+  assert.equal((await setup.onRequestPost(accepted)).status, 201);
+  const response = await loginAs(db, sixCharacters, adminNo);
+  assert.equal(response.status, 200); assert.equal((await response.json()).user.isSuperAdmin, true);
 });
 test('database failures fail closed without returning internal details or login cookies', async t => {
   const db = dbFixture(t); t.mock.method(console, 'error', () => {}); db.failSql = /auth_attempt_limits_v6/;

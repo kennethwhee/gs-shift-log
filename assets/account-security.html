@@ -25,10 +25,10 @@
       <div class="account-form-grid">
         <label>사번<input name="employeeNo" inputmode="numeric" pattern="[0-9]{6,10}" maxlength="10" autocomplete="username" placeholder="사번 입력" required></label>
         <label>현재 또는 임시 비밀번호<input name="currentPassword" type="password" maxlength="100" autocomplete="current-password" placeholder="현재 비밀번호 입력" required></label>
-        <label>새 비밀번호<input name="newPassword" type="password" minlength="15" maxlength="100" autocomplete="new-password" aria-describedby="passwordHelp" placeholder="15자 이상 입력" required></label>
-        <label>새 비밀번호 확인<input name="confirmPassword" type="password" minlength="15" maxlength="100" autocomplete="new-password" placeholder="새 비밀번호 한 번 더 입력" required></label>
+        <label>새 비밀번호<input name="newPassword" type="password" minlength="6" maxlength="100" autocomplete="new-password" aria-describedby="passwordHelp" placeholder="6자 이상 입력" required></label>
+        <label>새 비밀번호 확인<input name="confirmPassword" type="password" minlength="6" maxlength="100" autocomplete="new-password" placeholder="새 비밀번호 한 번 더 입력" required></label>
       </div>
-      <p id="passwordHelp">15~100자 · 공백 사용 가능 · 현재 비밀번호와 다르게 설정</p>
+      <p id="passwordHelp">6~100자 · 공백 사용 가능 · 현재 비밀번호와 다르게 설정</p>
       <div class="account-form-actions">
         <p class="account-session-note"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg>변경하면 모든 기기에서 로그아웃됩니다.</p>
         <button type="submit">비밀번호 저장 <span aria-hidden="true">→</span></button>
