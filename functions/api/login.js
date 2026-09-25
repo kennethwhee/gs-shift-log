@@ -194,13 +194,12 @@ async function handlePost(context) {
     if (!matched || !user || Number(user.is_active) !== 1) {
       return jsonResponse({ ok: false, message: "사번 또는 비밀번호가 올바르지 않습니다." }, 401);
     }
-    if (password === employeeNo || user.password_hash.startsWith("pbkdf2-temp$")) {
+    // Preserve existing verified credentials; newly issued temporary passwords require setup.
+    if (user.password_hash.startsWith("pbkdf2-temp$")) {
       return jsonResponse({
         ok: false,
         code: "PASSWORD_CHANGE_REQUIRED",
-        message: password === employeeNo
-          ? "사번을 비밀번호로 쓰던 계정입니다. 최고관리자에게 임시 비밀번호 발급을 요청하거나, 이미 로그인된 본인 화면에서 비밀번호를 변경해 주세요."
-          : "비밀번호 설정·변경에서 임시 비밀번호를 입력하고 새 비밀번호를 설정해 주세요."
+        message: "비밀번호 설정·변경에서 임시 비밀번호를 입력하고 새 비밀번호를 설정해 주세요."
       }, 403);
     }
     const role = resolveLoginRole(user);

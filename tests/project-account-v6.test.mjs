@@ -80,16 +80,45 @@ test('custom legacy passwords continue to log in and keep the attachment cookie 
   db.raw.prepare('UPDATE users SET role=NULL WHERE employee_no=?').run(employeeNo);
   assert.equal((await loginAs(db)).status, 200, 'legacy nullable account role remains compatible');
 });
-test('employee-number and temporary passwords require setup without issuing a session', async t => {
-  for (const temporary of [false, true]) {
-    const db = accountDatabase(t), pwd = temporary ? 'temporary-secret-for-review' : employeeNo;
-    seedAccount(db, employeeNo, await hashPassword(pwd, temporary), temporary ? {} : {token:'prior-session'});
-    const r = await loginAs(db, pwd); assert.equal(r.status, 403); assert.equal((await r.json()).code, 'PASSWORD_CHANGE_REQUIRED');
-    assert.equal(sessionCount(db), temporary ? 0 : 1); assert.equal(r.headers.getSetCookie().length, 0);
-    if (!temporary) assert.equal((await change(db, { currentPassword: pwd })).status, 403);
-    assert.equal((await change(db, { currentPassword: pwd }, temporary ? {} : {token:'prior-session'})).status, 200);
-    assert.equal((await loginAs(db, newPassword)).status, 200);
+test('legacy employee-number passwords support login then an authenticated password change without a prior session', async t => {
+  for (const id of [employeeNo, '2014081']) {
+    const db = accountDatabase(t), initialHash = await hashPassword(id);
+    seedAccount(db, id, initialHash);
+    assert.equal(db.raw.prepare('SELECT count(*) n FROM shift_log_sessions').get().n, 0);
+    assert.equal((await change(db, { employeeNo: id, currentPassword: id })).status, 403,
+      'changing an employee-number password still requires the matching authenticated session');
+    const response = await loginAs(db, id, id);
+    assert.equal(response.status, 200, 'an unchanged legacy password remains a valid login credential');
+    const result = await response.json(), token = result.user.sessionToken;
+    assert.ok(token); assert.equal(response.headers.getSetCookie().length, 2);
+    assert.equal(result.user.isSuperAdmin, id === '2014081');
+    assert.equal(db.raw.prepare('SELECT password_hash FROM users WHERE employee_no=?').get(id).password_hash, initialHash);
+    assert.equal((await login.onRequestGet(context(db, 'login', { method: 'GET', token }))).status, 200);
+    assert.equal((await change(db, { employeeNo: id, currentPassword: id }, { token })).status, 200);
+    assert.equal(db.raw.prepare('SELECT count(*) n FROM shift_log_sessions WHERE employee_no=?').get(id).n, 0);
+    assert.equal((await login.onRequestGet(context(db, 'login', { method: 'GET', token }))).status, 401);
+    assert.equal((await loginAs(db, id, id)).status, 401, 'the employee number stops working after the password changes');
+    assert.equal((await loginAs(db, newPassword, id)).status, 200);
   }
+});
+test('employee numbers cannot bypass custom or inactive account credentials', async t => {
+  const db = dbFixture(t);
+  seedAccount(db, '2014081', oldHash);
+  seedAccount(db, '9000003', await hashPassword('9000003'), { active: 0 });
+  for (const id of [employeeNo, '2014081', '9000003', '9999999']) {
+    const response = await loginAs(db, id, id);
+    assert.equal(response.status, 401); assert.equal(response.headers.getSetCookie().length, 0);
+  }
+  assert.equal(sessionCount(db), 1); assert.equal(storedHash(db), oldHash);
+  assert.equal(db.raw.prepare('SELECT count(*) n FROM shift_log_sessions WHERE employee_no=?').get('2014081').n, 0);
+});
+test('temporary passwords require setup without issuing a session', async t => {
+  const db = accountDatabase(t), pwd = 'temporary-secret-for-review';
+  seedAccount(db, employeeNo, await hashPassword(pwd, true));
+  const r = await loginAs(db, pwd); assert.equal(r.status, 403); assert.equal((await r.json()).code, 'PASSWORD_CHANGE_REQUIRED');
+  assert.equal(sessionCount(db), 0); assert.equal(r.headers.getSetCookie().length, 0);
+  assert.equal((await change(db, { currentPassword: pwd })).status, 200);
+  assert.equal((await loginAs(db, newPassword)).status, 200);
 });
 test('a password change atomically revokes every session and clears attachment cookies', async t => {
   const db = dbFixture(t); db.raw.prepare('INSERT INTO shift_log_sessions VALUES(?,?,?,?,?)').run(digest('another'), employeeNo, '2099-01-01', '', '');
