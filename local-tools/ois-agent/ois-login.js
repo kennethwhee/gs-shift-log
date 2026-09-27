@@ -19495,26 +19495,88 @@ async function collectDailyDataWorkbookValues(
 async function openOisSteamDailySales(
   page
 ) {
-  // MORNING_MEETING_STEAM_OIS_SURFACE_V7
+  // MORNING_MEETING_STEAM_OIS_SURFACE_V9
+  // Screenshot-confirmed OIS layout: the page is open when the result Grid
+  // exposes 8Bar / 34Bar / 소계 and/or the 증기사용량 header.
   const browserContext = page.context();
   const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 
+  const inspectSalesFrame = async frame => {
+    const [innerText, textContent] = await Promise.all([
+      frame.locator("body").innerText().catch(() => ""),
+      frame.locator("body").textContent().catch(() => "")
+    ]);
+    const combined = normalizeOisAgentText(`${innerText} ${textContent}`);
+    const compact = combined.replace(/\s+/g, "").toLowerCase();
+
+    const domSignals = await frame.evaluate(() => {
+      const normalize = value => String(value ?? "")
+        .replace(/\u00a0/g, " ").replace(/\s+/g, "").toLowerCase();
+      const body = normalize(document.body?.textContent || "");
+      const rowNodes = [...document.querySelectorAll(
+        "tr,[role=\"row\"],.x-grid3-row,.x-grid-row,.grid-row"
+      )];
+      const rowTexts = rowNodes.map(node => normalize(node.textContent || node.innerText || ""));
+      return {
+        has8Bar: body.includes("8bar") || rowTexts.some(text => text.includes("8bar")),
+        has34Bar: body.includes("34bar") || rowTexts.some(text => text.includes("34bar")),
+        hasSubtotal: body.includes("소계") || rowTexts.some(text => text.includes("소계")),
+        hasSteamUsage: body.includes("증기사용량"),
+        hasSteamType: body.includes("증기구분"),
+        hasTitle: body.includes("일별증기판매량"),
+        rowCount: rowNodes.length
+      };
+    }).catch(() => ({
+      has8Bar:false, has34Bar:false,hasSubtotal:false,
+      hasSteamUsage:false,hasSteamType:false,hasTitle:false,rowCount:0
+    }));
+
+    const signals = {
+      has8Bar: compact.includes("8bar") || domSignals.has8Bar,
+      has34Bar: compact.includes("34bar") || domSignals.has34Bar,
+      hasSubtotal: compact.includes("소계") || domSignals.hasSubtotal,
+      hasSteamUsage: compact.includes("증기사용량") || domSignals.hasSteamUsage,
+      hasSteamType: compact.includes("증기구분") || domSignals.hasSteamType,
+      hasTitle: compact.includes("일별증기판매량") || domSignals.hasTitle,
+      hasTon: compact.includes("ton"),
+      rowCount: domSignals.rowCount
+    };
+
+    const accepted =
+      (signals.has8Bar && signals.has34Bar && signals.hasSubtotal) ||
+      (signals.hasSteamUsage && signals.hasSteamType) ||
+      (signals.hasTitle && signals.hasSteamUsage && signals.hasTon);
+
+    return { accepted, signals };
+  };
+
   const findSalesSurface = async (timeoutMilliseconds = OIS_QUERY_TIMEOUT) => {
     const startedAt = Date.now();
+    let best = null;
     while (Date.now() - startedAt < timeoutMilliseconds) {
       for (const candidatePage of browserContext.pages()) {
         for (const frame of candidatePage.frames()) {
-          const bodyText = normalizeOisAgentText(
-            await frame.locator("body").innerText().catch(() => "")
-          );
-          const compactText = bodyText.replace(/\s+/g, "");
-          if (compactText.includes("증기구분") && compactText.includes("증기사용량")) {
-            return frame;
+          const inspected = await inspectSalesFrame(frame);
+          const score = [
+            inspected.signals.has8Bar, inspected.signals.has34Bar,
+            inspected.signals.hasSubtotal, inspected.signals.hasSteamUsage,
+            inspected.signals.hasSteamType, inspected.signals.hasTitle,
+            inspected.signals.hasTon
+          ].filter(Boolean).length;
+          if (!best || score > best.score) {
+            best = {
+              score,
+              pageUrl: String(candidatePage.url() || ""),
+              frameUrl: String(frame.url() || ""),
+              signals: inspected.signals
+            };
           }
+          if (inspected.accepted) return frame;
         }
       }
       await sleep(250);
     }
+    if (best) console.warn("OIS 증기 판매량 화면 탐색 최선 후보:", best);
     return null;
   };
 
@@ -19552,14 +19614,10 @@ async function openOisSteamDailySales(
 
   const salesSurface = await findSalesSurface(OIS_QUERY_TIMEOUT);
   if (!salesSurface) {
-    const diagnostics = browserContext.pages().map(candidatePage => ({
-      url: String(candidatePage.url() || ""), frameCount: candidatePage.frames().length
-    }));
-    console.warn("OIS 일별 증기 판매량 화면 탐색 진단:", diagnostics);
-    throw new Error("OIS 일별 증기 판매량 화면이 열리지 않았습니다.");
+    throw new Error("OIS 일별 증기 판매량 화면은 열렸지만 8Bar/34Bar 결과 Grid를 인식하지 못했습니다.");
   }
 
-  console.log("OIS 일별 증기 판매량 화면을 열었습니다.");
+  console.log("OIS 일별 증기 판매량 화면/Grid를 확인했습니다.");
   return salesSurface;
 }
 
