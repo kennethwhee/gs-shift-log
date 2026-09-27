@@ -68,7 +68,7 @@
   const ROLE_MODAL_ID = "inspectionRoleTodayModal";
   const AUTH_STORAGE_KEY = "gsShiftLog.currentUser";
   const PAGE_URL =
-    "inspection-logs/inspection-logs.html?v=20260927-inspection-compact-v1";
+    "inspection-logs/inspection-logs.html?v=20260927-soot-api-v1";
 
   const deferInitialFrameLoad =
     window.__GS_MOBILE_RUNTIME_V14 === true;

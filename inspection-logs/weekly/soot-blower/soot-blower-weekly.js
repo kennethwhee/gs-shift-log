@@ -352,6 +352,42 @@ function initializeSootBlowerWeeklyInspection() {
   }
 
 
+  async function requestApi(url, options = {}) {
+    const token = getSessionToken();
+
+    if (!token) {
+      throw new Error("로그인 정보가 없습니다. 업무일지에서 다시 로그인해 주세요.");
+    }
+
+    const headers = new Headers(options.headers);
+    headers.set("Accept", "application/json");
+    headers.set("Authorization", `Bearer ${token}`);
+
+    const response = await fetch(url, { ...options, headers });
+    let payload = null;
+
+    try {
+      payload = await response.json();
+    } catch {
+      // A missing/invalid response must not be treated as a saved record.
+    }
+
+    if (!response.ok || payload?.ok !== true) {
+      const error = new Error(
+        payload?.message ||
+        (response.ok
+          ? "서버 응답을 확인하지 못했습니다. 다시 조회해 주세요."
+          : `요청에 실패했습니다. (${response.status})`)
+      );
+      error.status = response.status;
+      error.payload = payload;
+      throw error;
+    }
+
+    return payload;
+  }
+
+
   /* =======================================================
     Soot Blower 주간점검 일정 자동 연동
 
@@ -813,6 +849,7 @@ function initializeSootBlowerWeeklyInspection() {
 
 
   function setToolbarBusy(isBusy) {
+    inspectionDate.disabled = isBusy;
     [
       saveButton,
       previewButton,
@@ -959,8 +996,14 @@ function initializeSootBlowerWeeklyInspection() {
 
 
   function applyLogToForm(log) {
-    if (!log) {
-      return;
+    if (
+      !log || !normalizeText(log.id) ||
+      !parseDateValue(log.inspectionDate) ||
+      !log.form || typeof log.form !== "object" ||
+      Array.isArray(log.form) ||
+      !Number.isInteger(log.serverRevision) || log.serverRevision < 1
+    ) {
+      throw new Error("서버의 점검일지 응답을 확인하지 못했습니다. 다시 조회해 주세요.");
     }
 
     isApplyingData = true;
@@ -1056,7 +1099,7 @@ function initializeSootBlowerWeeklyInspection() {
         `${SOOT_BLOWER_WEEKLY_API_URL}?date=${encodeURIComponent(targetDate)}`
       );
 
-      if (payload.log) {
+      if (payload.log !== null) {
         applyLogToForm(payload.log);
         removeRecoveryDraft(targetDate);
 
@@ -1301,6 +1344,7 @@ function initializeSootBlowerWeeklyInspection() {
           409 &&
         error.payload?.currentLog
       ) {
+        setSaveState("저장 충돌 · 입력 내용 유지 · 최신 기록 확인 필요", "error");
         const useServerData =
           window.confirm(
             `${error.message}\n\n서버의 최신 내용을 불러오시겠습니까?`
@@ -1310,9 +1354,11 @@ function initializeSootBlowerWeeklyInspection() {
         if (
           useServerData
         ) {
-          applyLogToForm(
-            error.payload.currentLog
-          );
+          try {
+            applyLogToForm(error.payload.currentLog);
+          } catch (loadError) {
+            setSaveState(loadError.message, "error");
+          }
         }
 
       } else {
@@ -1482,9 +1528,11 @@ function initializeSootBlowerWeeklyInspection() {
     try {
       const payload = await requestApi(SOOT_BLOWER_WEEKLY_API_URL);
 
-      archiveAllLogs = Array.isArray(payload.logs)
-        ? payload.logs
-        : [];
+      if (!Array.isArray(payload.logs)) {
+        throw new Error("서버의 보관함 응답을 확인하지 못했습니다. 다시 조회해 주세요.");
+      }
+
+      archiveAllLogs = payload.logs;
 
       if (archiveEmpty) {
         archiveEmpty.textContent =
