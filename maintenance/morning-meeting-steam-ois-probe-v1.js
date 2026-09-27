@@ -1,18 +1,17 @@
 "use strict";
 
 /*
-  MORNING MEETING STEAM OIS PROBE V1
+  MORNING MEETING STEAM OIS SOURCE OWNER V2
 
-  The steam-card refresh button runs a dedicated steam_status request directly.
-  It deliberately bypasses the legacy daily-data workbook loader so this first
-  stage can validate OIS steam values without changing other morning-meeting cards.
+  Steam card source ownership:
+  - Sales: OIS > LOG SHEET > daily steam sales (8Bar / 34Bar / subtotal, TON)
+  - Production: OIS > LOG SHEET query > BCO1/BCO2 MAIN STM FLOW 01~24 sum
+  - The legacy daily_data_excel client may continue serving the other cards,
+    but its DOM writes are not allowed to remain visible in the steam card.
 */
-(function installMorningMeetingSteamOisProbeV1() {
-  if (window.__morningMeetingSteamOisProbeV1Installed === true) {
-    return;
-  }
-
-  window.__morningMeetingSteamOisProbeV1Installed = true;
+(function installMorningMeetingSteamOisSourceOwnerV2() {
+  if (window.__morningMeetingSteamOisSourceOwnerV2Installed === true) return;
+  window.__morningMeetingSteamOisSourceOwnerV2Installed = true;
 
   const API_URL = "/api/ois-data-requests";
   const BUTTON_ID = "efficiencyMorningMeetingAutoSteamRefreshButton";
@@ -24,19 +23,19 @@
   const MAXIMUM_WAIT = 5 * 60 * 1000;
 
   const VALUE_IDS = {
-    steamSalesLowPressure:
-      "efficiencyMorningMeetingAutoDailySteamSalesLowPressure",
-    steamSalesHighPressure:
-      "efficiencyMorningMeetingAutoDailySteamSalesHighPressure",
-    steamSales:
-      "efficiencyMorningMeetingAutoSteamSales",
-    unitOneProduction:
-      "efficiencyMorningMeetingAutoSteamProductionUnitOne",
-    unitTwoProduction:
-      "efficiencyMorningMeetingAutoSteamProductionUnitTwo",
-    totalProduction:
-      "efficiencyMorningMeetingAutoSteamProductionTotal"
+    steamSalesLowPressure: "efficiencyMorningMeetingAutoDailySteamSalesLowPressure",
+    steamSalesHighPressure: "efficiencyMorningMeetingAutoDailySteamSalesHighPressure",
+    steamSales: "efficiencyMorningMeetingAutoSteamSales",
+    unitOneProduction: "efficiencyMorningMeetingAutoSteamProductionUnitOne",
+    unitTwoProduction: "efficiencyMorningMeetingAutoSteamProductionUnitTwo",
+    totalProduction: "efficiencyMorningMeetingAutoSteamProductionTotal"
   };
+
+  let phase = "idle";
+  let lastResult = null;
+  let syncing = false;
+  let activePromise = null;
+  let routeInstallTimer = null;
 
   const text = value => String(value ?? "").trim();
 
@@ -51,19 +50,20 @@
   function resolveTargetDate() {
     const panel = document.getElementById(PANEL_ID);
     const cardDate = document.getElementById(DATE_ID);
+    const state =
+      window.efficiencyMorningMeetingUploadState &&
+      typeof window.efficiencyMorningMeetingUploadState === "object"
+        ? window.efficiencyMorningMeetingUploadState
+        : {};
 
     const candidates = [
       panel?.dataset?.morningMeetingAutoBaseDate,
+      state?.shiftPart?.reportDate,
+      state?.shiftPart?.loadedDate,
       panel?.dataset?.steamStatusTargetDate,
       dateFromText(cardDate?.textContent),
-      dateFromText(
-        document.getElementById("efficiencyMorningMeetingWaterDate")
-          ?.textContent
-      ),
-      dateFromText(
-        document.getElementById("efficiencyMorningMeetingShiftDate")
-          ?.textContent
-      )
+      dateFromText(document.getElementById("efficiencyMorningMeetingWaterDate")?.textContent),
+      dateFromText(document.getElementById("efficiencyMorningMeetingShiftDate")?.textContent)
     ];
 
     return candidates.map(text).find(isDate) || "";
@@ -73,21 +73,15 @@
     if (typeof window.getShiftLogAuthHeaders === "function") {
       return window.getShiftLogAuthHeaders(extra);
     }
-
     if (typeof getShiftLogAuthHeaders === "function") {
       return getShiftLogAuthHeaders(extra);
     }
-
-    return {
-      Accept: "application/json",
-      ...extra
-    };
+    return { Accept: "application/json", ...extra };
   }
 
   async function readResponse(response, fallback) {
     const responseText = await response.text();
     let data = {};
-
     if (responseText.trim()) {
       try {
         data = JSON.parse(responseText);
@@ -95,25 +89,19 @@
         throw new Error("OIS 증기 조회 서버 응답 형식이 올바르지 않습니다.");
       }
     }
-
     if (!response.ok || data.ok === false) {
       throw new Error(
-        data.message ||
-        data.error ||
-        fallback ||
+        data.message || data.error || fallback ||
         `OIS 증기 조회 요청에 실패했습니다. (HTTP ${response.status})`
       );
     }
-
     return data;
   }
 
   async function createRequest(targetDate) {
     const response = await fetch(API_URL, {
       method: "POST",
-      headers: headers({
-        "Content-Type": "application/json"
-      }),
+      headers: headers({ "Content-Type": "application/json" }),
       cache: "no-store",
       body: JSON.stringify({
         requestType: "steam_status",
@@ -128,9 +116,7 @@
     );
 
     const item = data.item || {};
-    const requestType = text(
-      item.requestType || item.request_type
-    )
+    const requestType = text(item.requestType || item.request_type)
       .toLowerCase()
       .replace(/[\s-]+/g, "_");
 
@@ -141,10 +127,7 @@
     }
 
     const id = text(item.id || data.id);
-    if (!id) {
-      throw new Error("OIS 증기 조회 요청 ID를 확인하지 못했습니다.");
-    }
-
+    if (!id) throw new Error("OIS 증기 조회 요청 ID를 확인하지 못했습니다.");
     return id;
   }
 
@@ -166,56 +149,40 @@
   }
 
   function wait(milliseconds) {
-    return new Promise(resolve => {
-      window.setTimeout(resolve, milliseconds);
-    });
+    return new Promise(resolve => window.setTimeout(resolve, milliseconds));
   }
 
   async function waitForCompletion(id) {
     const startedAt = Date.now();
-
     while (Date.now() - startedAt < MAXIMUM_WAIT) {
       const data = await getRequest(id);
       const item = data.item;
-
-      if (!item) {
-        throw new Error("OIS 증기 조회 요청을 찾지 못했습니다.");
-      }
+      if (!item) throw new Error("OIS 증기 조회 요청을 찾지 못했습니다.");
 
       const status = text(item.status).toLowerCase();
-
-      if (status === "complete") {
-        return item;
-      }
-
+      if (status === "complete") return item;
       if (status === "failed") {
         throw new Error(
           text(item.errorMessage || item.error_message) ||
           "OIS 증기 생산·판매 조회에 실패했습니다."
         );
       }
-
       await wait(POLL_INTERVAL);
     }
-
     throw new Error("OIS 증기 생산·판매 조회 응답 시간이 초과되었습니다.");
   }
 
   function requireNumber(result, key, label) {
     const value = Number(result?.[key]);
-
     if (!Number.isFinite(value)) {
       throw new Error(`${label} 값을 확인하지 못했습니다.`);
     }
-
     return value;
   }
 
   function normalizeResult(item, expectedDate) {
     const raw =
-      item?.result &&
-      typeof item.result === "object" &&
-      !Array.isArray(item.result)
+      item?.result && typeof item.result === "object" && !Array.isArray(item.result)
         ? item.result
         : {};
 
@@ -232,32 +199,12 @@
     const result = {
       targetDate: expectedDate,
       sourceDate: sourceDate || expectedDate,
-      steamSalesLowPressure: requireNumber(
-        raw,
-        "steamSalesLowPressure",
-        "저압 증기 판매량"
-      ),
-      steamSalesHighPressure: requireNumber(
-        raw,
-        "steamSalesHighPressure",
-        "고압 증기 판매량"
-      ),
+      steamSalesLowPressure: requireNumber(raw, "steamSalesLowPressure", "저압 증기 판매량"),
+      steamSalesHighPressure: requireNumber(raw, "steamSalesHighPressure", "고압 증기 판매량"),
       steamSales: requireNumber(raw, "steamSales", "총 증기 판매량"),
-      unitOneProduction: requireNumber(
-        raw,
-        "unitOneProduction",
-        "1호기 증기 생산량"
-      ),
-      unitTwoProduction: requireNumber(
-        raw,
-        "unitTwoProduction",
-        "2호기 증기 생산량"
-      ),
-      totalProduction: requireNumber(
-        raw,
-        "totalProduction",
-        "총 증기 생산량"
-      ),
+      unitOneProduction: requireNumber(raw, "unitOneProduction", "1호기 증기 생산량"),
+      unitTwoProduction: requireNumber(raw, "unitTwoProduction", "2호기 증기 생산량"),
+      totalProduction: requireNumber(raw, "totalProduction", "총 증기 생산량"),
       source: text(raw.source) || "OIS",
       requestId: text(item.id)
     };
@@ -266,10 +213,8 @@
 
     if (
       Math.abs(
-        round3(
-          result.steamSalesLowPressure +
-          result.steamSalesHighPressure
-        ) - round3(result.steamSales)
+        round3(result.steamSalesLowPressure + result.steamSalesHighPressure) -
+        round3(result.steamSales)
       ) > 0.05
     ) {
       throw new Error("저압 + 고압과 총 증기 판매량이 일치하지 않습니다.");
@@ -277,10 +222,8 @@
 
     if (
       Math.abs(
-        round3(
-          result.unitOneProduction +
-          result.unitTwoProduction
-        ) - round3(result.totalProduction)
+        round3(result.unitOneProduction + result.unitTwoProduction) -
+        round3(result.totalProduction)
       ) > 0.05
     ) {
       throw new Error("1호기 + 2호기와 총 증기 생산량이 일치하지 않습니다.");
@@ -296,75 +239,167 @@
     })} ton`;
   }
 
-  function setStatus(message, state) {
-    const element = document.getElementById(STATUS_ID);
-    if (!element) return;
-
-    element.textContent = message;
-    element.dataset.steamOisProbeStatus = state || "";
+  function setTextIfDifferent(element, value) {
+    if (element && element.textContent !== value) element.textContent = value;
   }
 
-  function renderResult(result) {
-    for (const [key, id] of Object.entries(VALUE_IDS)) {
-      const element = document.getElementById(id);
-      if (element) {
-        element.textContent = formatTon(result[key]);
+  function statusText() {
+    if (phase === "loading") return "OIS 조회중";
+    if (phase === "complete") return "OIS 완료";
+    if (phase === "error") return "OIS 실패";
+    return "OIS 대기";
+  }
+
+  function applySourceOwnership() {
+    if (syncing) return;
+    syncing = true;
+
+    try {
+      const card = document.getElementById(CARD_ID);
+      if (!card) return;
+
+      const targetDate = resolveTargetDate();
+      if (
+        lastResult &&
+        targetDate &&
+        lastResult.sourceDate !== targetDate
+      ) {
+        lastResult = null;
+        phase = "idle";
       }
-    }
 
-    const card = document.getElementById(CARD_ID);
-    if (card) {
       card.dataset.steamSource = "ois";
-      card.dataset.steamSourceDate = result.sourceDate;
-      card.dataset.steamRequestId = result.requestId;
+      if (targetDate) card.dataset.steamSourceDate = targetDate;
+
+      const dateElement = document.getElementById(DATE_ID);
+      setTextIfDifferent(
+        dateElement,
+        targetDate ? `${targetDate} · OIS` : "OIS"
+      );
+
+      const statusElement = document.getElementById(STATUS_ID);
+      if (statusElement) {
+        setTextIfDifferent(statusElement, statusText());
+        statusElement.dataset.steamOisSource = "true";
+        statusElement.dataset.steamOisPhase = phase;
+      }
+
+      const button = document.getElementById(BUTTON_ID);
+      if (button) {
+        button.title = "OIS에서 증기 생산·판매 재조회";
+        button.setAttribute("aria-label", "OIS에서 증기 생산·판매 재조회");
+        button.dataset.steamSource = "ois";
+        button.disabled = phase === "loading";
+      }
+
+      for (const [key, id] of Object.entries(VALUE_IDS)) {
+        const element = document.getElementById(id);
+        if (!element) continue;
+
+        const value =
+          lastResult && (!targetDate || lastResult.sourceDate === targetDate)
+            ? formatTon(lastResult[key])
+            : "-";
+
+        setTextIfDifferent(element, value);
+      }
+    } finally {
+      syncing = false;
+    }
+  }
+
+  function installSectionRouter() {
+    const current = window.refreshEfficiencyMorningMeetingDailyDataSection;
+    if (typeof current !== "function") return;
+    if (current.__steamOisSourceOwnerV2 === true) return;
+
+    const legacy = current.__steamOisLegacy || current;
+
+    async function routedRefresh(section, ...args) {
+      if (text(section).toLowerCase() === "steam") {
+        return await run(document.getElementById(BUTTON_ID));
+      }
+      return await legacy.apply(this, [section, ...args]);
     }
 
-    setStatus("OIS 조회 완료", "complete");
+    Object.defineProperty(routedRefresh, "__steamOisSourceOwnerV2", {
+      value: true
+    });
+    Object.defineProperty(routedRefresh, "__steamOisLegacy", {
+      value: legacy
+    });
 
-    window.__morningMeetingSteamOisProbeLastResult = result;
-
-    document.dispatchEvent(
-      new CustomEvent("morningMeetingSteamOisProbeLoaded", {
-        detail: result
-      })
-    );
-
-    console.log("오전회의 증기 생산·판매 OIS 확인 완료:", result);
+    window.refreshEfficiencyMorningMeetingDailyDataSection = routedRefresh;
   }
 
   async function run(button) {
-    const targetDate = resolveTargetDate();
+    if (activePromise) return await activePromise;
 
-    if (!targetDate) {
-      throw new Error("오전회의 증기 조회 기준일을 확인하지 못했습니다.");
-    }
+    activePromise = (async () => {
+      const targetDate = resolveTargetDate();
+      if (!targetDate) {
+        throw new Error("오전회의 증기 조회 기준일을 확인하지 못했습니다.");
+      }
 
-    setStatus("OIS 조회중", "loading");
-    button.disabled = true;
+      lastResult = null;
+      phase = "loading";
+      applySourceOwnership();
+
+      try {
+        const id = await createRequest(targetDate);
+        const item = await waitForCompletion(id);
+        lastResult = normalizeResult(item, targetDate);
+        phase = "complete";
+        applySourceOwnership();
+
+        window.__morningMeetingSteamOisProbeLastResult = lastResult;
+        document.dispatchEvent(
+          new CustomEvent("morningMeetingSteamOisProbeLoaded", {
+            detail: lastResult
+          })
+        );
+        console.log("오전회의 증기 생산·판매 OIS 확인 완료:", lastResult);
+        return lastResult;
+      } catch (error) {
+        lastResult = null;
+        phase = "error";
+        applySourceOwnership();
+        console.error("오전회의 증기 생산·판매 OIS 조회 실패:", error);
+        window.alert?.(
+          error instanceof Error
+            ? error.message
+            : "OIS 증기 생산·판매 조회에 실패했습니다."
+        );
+        throw error;
+      } finally {
+        if (button) button.disabled = false;
+      }
+    })();
 
     try {
-      const id = await createRequest(targetDate);
-      const item = await waitForCompletion(id);
-      const result = normalizeResult(item, targetDate);
-      renderResult(result);
-    } catch (error) {
-      setStatus("조회 실패", "error");
-      console.error("오전회의 증기 생산·판매 OIS 조회 실패:", error);
-      window.alert?.(
-        error instanceof Error
-          ? error.message
-          : "OIS 증기 생산·판매 조회에 실패했습니다."
-      );
+      return await activePromise;
     } finally {
-      button.disabled = false;
+      activePromise = null;
+      applySourceOwnership();
     }
   }
 
-  function prepareButton() {
-    const button = document.getElementById(BUTTON_ID);
-    if (!button) return;
-    button.title = "OIS에서 증기 생산·판매 재조회";
-    button.dataset.steamSource = "ois";
+  function initializeOwnership() {
+    applySourceOwnership();
+    installSectionRouter();
+
+    if (routeInstallTimer === null) {
+      let attempts = 0;
+      routeInstallTimer = window.setInterval(() => {
+        attempts += 1;
+        installSectionRouter();
+        applySourceOwnership();
+        if (attempts >= 30) {
+          window.clearInterval(routeInstallTimer);
+          routeInstallTimer = null;
+        }
+      }, 1000);
+    }
   }
 
   document.addEventListener(
@@ -374,31 +409,41 @@
         event.target instanceof Element
           ? event.target.closest(`#${BUTTON_ID}`)
           : null;
-
-      if (!target) {
-        return;
-      }
+      if (!target) return;
 
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
-
-      void run(target);
+      void run(target).catch(() => {});
     },
     true
   );
 
-  const observer = new MutationObserver(prepareButton);
-  observer.observe(document.documentElement, {
-    childList: true,
-    subtree: true
+  const observer = new MutationObserver(() => {
+    applySourceOwnership();
+    installSectionRouter();
   });
 
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: [
+      "data-morning-meeting-auto-base-date",
+      "data-steam-status-target-date"
+    ]
+  });
+
+  window.loadEfficiencyMorningMeetingSteamOis = options => {
+    void options;
+    return run(document.getElementById(BUTTON_ID));
+  };
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", prepareButton, {
+    document.addEventListener("DOMContentLoaded", initializeOwnership, {
       once: true
     });
   } else {
-    prepareButton();
+    initializeOwnership();
   }
 })();
