@@ -56,8 +56,16 @@ function fixture() {
       sql.exec('COMMIT'); return results;
     } catch (error) { sql.exec('ROLLBACK'); throw error; }
   }};
-  const body = () => ({targetDate: DATE, shift: 'NS', role: 'TO', values: {...VALUES}, expectedRevision: 0,
+  const body = (date = DATE, values = VALUES, expectedRevision = 0) => ({targetDate: date, shift: 'NS', role: 'TO', values: {...values}, expectedRevision,
     sourceLogId: 'employee-position:to', sourceLogRevision: 1});
+  function history(date, values) {
+    sql.exec(`CREATE TABLE IF NOT EXISTS morning_meeting_auto_history_overrides (
+      target_date TEXT PRIMARY KEY, values_json TEXT NOT NULL DEFAULT '{}'
+    )`);
+    sql.prepare(`INSERT INTO morning_meeting_auto_history_overrides(target_date, values_json)
+      VALUES (?, ?) ON CONFLICT(target_date) DO UPDATE SET values_json = excluded.values_json`)
+      .run(date, JSON.stringify(values));
+  }
   async function call(method = 'GET', content = body(), user = 'to', options = {}) {
     const headers = {...(user ? {Authorization: 'Bearer ' + tokenFor(user)} : {}),
       ...(method === 'POST' ? {'Content-Type': 'application/json', Origin: 'https://example.test'} : {}), ...options.headers};
@@ -68,7 +76,7 @@ function fixture() {
   }
   const count = table => sql.prepare(`SELECT name FROM sqlite_master WHERE name = ?`).get(table) ?
     sql.prepare(`SELECT count(*) n FROM ${table}`).get().n : 0;
-  return {sql, db, call, body, count};
+  return {sql, db, call, body, history, count};
 }
 function run(name, fn) { test(name, async t => { const f = fixture(); t.after(() => f.sql.close()); await fn(f); }); }
 run('GET: registered TO position is allowed before any TO log is written; read causes no schema writes', async f => {
@@ -204,15 +212,90 @@ run('workbook merge is date-scoped, nonmutating and preserves unrelated fields',
   const merged = pure.mergeValues(original, payload, DATE);
   assert.equal(merged.generatorEcmsGen1, VALUES.generatorEcmsGen1); assert.equal(original.generatorEcmsGen1, 1);
   assert.equal(merged.sludgeTotal, 116.73); assert.equal(merged.unitOneProduction, 123); assert.equal(merged.solarMonthlyCumulative, 456);
+  assert.equal(payload.solarCumulative.monthly, null); assert.equal(payload.solarCumulative.yearly, null);
   assert.throws(() => pure.mergeValues(original, payload, '2026-09-25'));
   assert.equal(pure.mergeValues(original, payload, DATE, true).generatorEcmsGen1, 1);
 });
 run('UI rejects wrong response date, unit, revision or NaN record', async f => {
   await f.call('POST'); const payload = (await f.call()).data;
   for (const change of [p => p.targetDate = '2026-09-25', p => p.unit = 'MWh', p => p.item.revision = 0,
-    p => p.item.values.generatorEcmsGen1 = NaN, p => p.sourceLog = null]) {
+    p => p.item.values.generatorEcmsGen1 = NaN, p => p.sourceLog = null,
+    p => p.solarCumulative.monthly = NaN, p => { delete p.solarCumulative.yearly; }]) {
     const invalid = structuredClone(payload); change(invalid); assert.throws(() => pure.normalizePayload(invalid, DATE));
   }
+});
+
+// R5: TO daily solar drives Morning Meeting monthly/yearly cumulative values.
+run('TO daily solar adds to the exact previous-day historical monthly/yearly baseline', async f => {
+  f.history('2026-09-26', {powerSolar: 100, powerSolarMonthly: 12000, powerSolarYearly: 120000});
+  const values = {...VALUES, solarDailyGeneration: 350};
+  const saved = await f.call('POST', f.body('2026-09-27', values));
+  assert.equal(saved.status, 200); assert.deepEqual(saved.data.solarCumulative, {monthly: 12350, yearly: 120350});
+  const read = await f.call('GET', null, 'to', {date: '2026-09-27'});
+  assert.deepEqual(read.data.solarCumulative, {monthly: 12350, yearly: 120350});
+});
+run('October 1 resets monthly cumulative while yearly cumulative continues', async f => {
+  f.history('2026-09-30', {powerSolar: 250, powerSolarMonthly: 15000, powerSolarYearly: 150000});
+  const values = {...VALUES, solarDailyGeneration: 400};
+  const saved = await f.call('POST', f.body('2026-10-01', values));
+  assert.equal(saved.data.solarCumulative.monthly, 400);
+  assert.equal(saved.data.solarCumulative.yearly, 150400);
+});
+run('month-to-date replay uses TO daily input and historical fallback for a missing TO day', async f => {
+  f.history('2026-09-30', {powerSolar: 250, powerSolarMonthly: 15000, powerSolarYearly: 150000});
+  f.history('2026-10-02', {powerSolar: 300, powerSolarMonthly: 700, powerSolarYearly: 150700});
+  await f.call('POST', f.body('2026-10-01', {...VALUES, solarDailyGeneration: 400}));
+  const saved = await f.call('POST', f.body('2026-10-03', {...VALUES, solarDailyGeneration: 500}));
+  assert.equal(saved.data.solarCumulative.monthly, 1200);
+  assert.equal(saved.data.solarCumulative.yearly, 151200);
+});
+run('backdated TO solar correction is reflected in a later date without rewriting that later row', async f => {
+  f.history('2026-09-30', {powerSolar: 250, powerSolarMonthly: 15000, powerSolarYearly: 150000});
+  await f.call('POST', f.body('2026-10-01', {...VALUES, solarDailyGeneration: 400}));
+  await f.call('POST', f.body('2026-10-02', {...VALUES, solarDailyGeneration: 500}));
+  const before = await f.call('GET', null, 'to', {date: '2026-10-02'});
+  assert.equal(before.data.item.revision, 1); assert.equal(before.data.solarCumulative.monthly, 900);
+  await f.call('POST', f.body('2026-10-01', {...VALUES, solarDailyGeneration: 450}, 1));
+  const after = await f.call('GET', null, 'to', {date: '2026-10-02'});
+  assert.equal(after.data.item.revision, 1); assert.equal(after.data.solarCumulative.monthly, 950);
+  assert.equal(after.data.solarCumulative.yearly, 150950);
+  const accepted = pure.acceptRefresh(before.data, after.data, '2026-10-02');
+  assert.equal(accepted.solarCumulative.monthly, 950);
+});
+run('existing target cumulative can be corrected when an intermediate history day is unavailable', async f => {
+  f.history('2026-09-30', {powerSolar: 250, powerSolarMonthly: 15000, powerSolarYearly: 150000});
+  f.history('2026-10-01', {powerSolar: 390, powerSolarMonthly: 390, powerSolarYearly: 150390});
+  f.history('2026-10-03', {powerSolar: 480, powerSolarMonthly: 1170, powerSolarYearly: 151170});
+  await f.call('POST', f.body('2026-10-01', {...VALUES, solarDailyGeneration: 400}));
+  const saved = await f.call('POST', f.body('2026-10-03', {...VALUES, solarDailyGeneration: 500}));
+  // 1170 + (400-390) + (500-480)
+  assert.equal(saved.data.solarCumulative.monthly, 1200);
+  assert.equal(saved.data.solarCumulative.yearly, 151200);
+});
+run('missing historical baseline never fabricates a cumulative zero mid-period', async f => {
+  const saved = await f.call('POST', f.body('2026-09-27', {...VALUES, solarDailyGeneration: 350}));
+  assert.deepEqual(saved.data.solarCumulative, {monthly: null, yearly: null});
+  const merged = pure.mergeValues({solarMonthlyCumulative: 123, solarYearlyCumulative: 456}, saved.data, '2026-09-27');
+  assert.equal(merged.solarMonthlyCumulative, 123); assert.equal(merged.solarYearlyCumulative, 456);
+});
+run('derived cumulative overlays Morning Meeting/workbook fields when reliable', async f => {
+  f.history('2026-09-26', {powerSolar: 100, powerSolarMonthly: 12000, powerSolarYearly: 120000});
+  const saved = await f.call('POST', f.body('2026-09-27', {...VALUES, solarDailyGeneration: 350}));
+  const original = {solarDailyGeneration: 1, solarMonthlyCumulative: 2, solarYearlyCumulative: 3, steamSales: 44};
+  const merged = pure.mergeValues(original, saved.data, '2026-09-27');
+  assert.equal(merged.solarDailyGeneration, 350);
+  assert.equal(merged.solarMonthlyCumulative, 12350);
+  assert.equal(merged.solarYearlyCumulative, 120350);
+  assert.equal(merged.steamSales, 44); assert.equal(original.solarMonthlyCumulative, 2);
+});
+run('GET cumulative derivation is read-only and creates no new audit or override rows', async f => {
+  f.history('2026-09-26', {powerSolar: 100, powerSolarMonthly: 12000, powerSolarYearly: 120000});
+  await f.call('POST', f.body('2026-09-27', {...VALUES, solarDailyGeneration: 350}));
+  const powerBefore = powerSnapshot(f);
+  const historyBefore = f.sql.prepare('SELECT * FROM morning_meeting_auto_history_overrides ORDER BY target_date').all();
+  for (let i = 0; i < 8; i++) assert.equal((await f.call('GET', null, 'to', {date: '2026-09-27'})).data.solarCumulative.monthly, 12350);
+  assert.deepEqual(powerSnapshot(f), powerBefore);
+  assert.deepEqual(f.sql.prepare('SELECT * FROM morning_meeting_auto_history_overrides ORDER BY target_date').all(), historyBefore);
 });
 
 // R2: old-log synchronization has no authority over the independent manual record.

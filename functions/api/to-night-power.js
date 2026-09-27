@@ -1,13 +1,16 @@
 /* TO night-duty daily electricity. All four values are kWh, not kW/MWh.
  * Separate additive tables; no writes to shift logs, OIS results or closing data.
- * R4 authorization uses the registered employee position (employees.position='TO').
- * The browser still receives a sourceLog-shaped authority token for backward
- * compatibility, but no saved 업무일지 is required to show or save the input.
+ * R5 adds read-only solar month/year cumulative derivation for Morning Meeting:
+ * TO daily solar has priority; pre-feature auto-history is used only as the
+ * historical baseline/fallback. Cumulative values are derived, never persisted
+ * into the TO table, so legacy synchronization still cannot clear manual input.
  */
 const FIELDS = Object.freeze(['generatorEcmsGen1', 'ismartReception', 'epowerTransmission', 'solarDailyGeneration']);
 const TABLE = 'to_night_power_daily';
 const AUDIT = 'to_night_power_audit';
+const HISTORY = 'morning_meeting_auto_history_overrides';
 const MAX_VALUE = 1e12;
+const MAX_CUMULATIVE = MAX_VALUE * 366;
 const response = (body, status = 200) => Response.json(body, {status, headers: {
   'Cache-Control': 'no-store, no-cache, must-revalidate', 'X-Content-Type-Options': 'nosniff'
 }});
@@ -21,6 +24,15 @@ const validValues = value => isObject(value) && Object.keys(value).length === FI
   FIELDS.every(key => Object.hasOwn(value, key) && typeof value[key] === 'number' &&
     Number.isFinite(value[key]) && value[key] >= 0 && value[key] <= MAX_VALUE);
 const validRevision = value => Number.isSafeInteger(value) && value >= 0;
+const storedNumber = (value, maximum = MAX_CUMULATIVE) =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= maximum ? value : null;
+const roundEnergy = value => Math.round((value + Number.EPSILON) * 1e6) / 1e6;
+const addDays = (date, amount) => {
+  const value = new Date(date + 'T00:00:00Z');
+  value.setUTCDate(value.getUTCDate() + amount);
+  return value.toISOString().slice(0, 10);
+};
+const periodStart = (date, kind) => kind === 'monthly' ? date.slice(0, 7) + '-01' : date.slice(0, 4) + '-01-01';
 
 async function authenticate(context) {
   if (!context?.env?.DB) throw new InputError('서버 DB 연결을 확인해 주세요.', 500, 'DATABASE_UNAVAILABLE');
@@ -57,8 +69,93 @@ function itemFromRow(row, date) {
   return {targetDate: date, shift: 'NS', role: 'TO', unit: 'kWh', values, revision: row.revision,
     sourceLogId: row.source_log_id, updatedBy: row.updated_by_name, updatedAt: row.updated_at};
 }
-async function tableExists(db) {
-  return Boolean(await db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").bind(TABLE).first());
+async function tableExists(db, name = TABLE) {
+  return Boolean(await db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").bind(name).first());
+}
+function historyValues(row) {
+  if (!row) return {};
+  try {
+    const values = JSON.parse(row.values_json || '{}');
+    return isObject(values) ? values : {};
+  } catch { return {}; }
+}
+function solarFromToRow(row) {
+  try {
+    const values = JSON.parse(row.values_json || '{}');
+    return validValues(values) ? storedNumber(values.solarDailyGeneration, MAX_VALUE) : null;
+  } catch { return null; }
+}
+async function loadSolarRows(db, start, date) {
+  const toRows = await tableExists(db, TABLE)
+    ? (await db.prepare(`SELECT target_date, values_json FROM ${TABLE}
+        WHERE target_date >= ? AND target_date <= ? ORDER BY target_date ASC`).bind(start, date).all()).results || []
+    : [];
+  const historyRows = await tableExists(db, HISTORY)
+    ? (await db.prepare(`SELECT target_date, values_json FROM ${HISTORY}
+        WHERE target_date >= ? AND target_date <= ? ORDER BY target_date ASC`).bind(start, date).all()).results || []
+    : [];
+  return {toRows, historyRows};
+}
+function deriveOneCumulative(date, kind, toRows, historyRows) {
+  const start = periodStart(date, kind);
+  const cumulativeKey = kind === 'monthly' ? 'powerSolarMonthly' : 'powerSolarYearly';
+  const toMap = new Map();
+  for (const row of toRows) {
+    const daily = solarFromToRow(row);
+    if (validDate(row?.target_date) && daily !== null) toMap.set(row.target_date, daily);
+  }
+  if (!toMap.has(date)) return null;
+  const historyMap = new Map();
+  for (const row of historyRows) {
+    if (validDate(row?.target_date)) historyMap.set(row.target_date, historyValues(row));
+  }
+  const toDates = [...toMap.keys()].filter(value => value >= start && value <= date).sort();
+  if (!toDates.length) return null;
+  const firstTo = toDates[0];
+
+  // Primary path: take the exact cumulative immediately before TO takeover,
+  // then replay every day with TO daily values taking priority over history.
+  let total = null;
+  let cursor = firstTo;
+  if (firstTo === start) total = 0;
+  else total = storedNumber(historyMap.get(addDays(firstTo, -1))?.[cumulativeKey]);
+  if (total !== null) {
+    let complete = true;
+    while (cursor <= date) {
+      const daily = toMap.has(cursor)
+        ? toMap.get(cursor)
+        : storedNumber(historyMap.get(cursor)?.powerSolar, MAX_VALUE);
+      if (daily === null) { complete = false; break; }
+      total = roundEnergy(total + daily);
+      cursor = addDays(cursor, 1);
+    }
+    if (complete && storedNumber(total) !== null) return total;
+  }
+
+  // Fallback: if the existing target cumulative is available, correct it only
+  // for dates where TO explicitly replaced the old daily solar value. This
+  // safely retains days not represented by TO rows.
+  const targetHistory = historyMap.get(date);
+  let corrected = storedNumber(targetHistory?.[cumulativeKey]);
+  if (corrected !== null) {
+    for (const toDate of toDates) {
+      const historicalDaily = storedNumber(historyMap.get(toDate)?.powerSolar, MAX_VALUE);
+      if (historicalDaily === null) return null;
+      corrected = roundEnergy(corrected + toMap.get(toDate) - historicalDaily);
+      if (storedNumber(corrected) === null) return null;
+    }
+    return corrected;
+  }
+  return null;
+}
+async function deriveSolarCumulative(db, date, item) {
+  if (!item) return null;
+  const yearStart = periodStart(date, 'yearly');
+  const {toRows, historyRows} = await loadSolarRows(db, yearStart, date);
+  return {
+    monthly: deriveOneCumulative(date, 'monthly', toRows, historyRows),
+    yearly: deriveOneCumulative(date, 'yearly', toRows, historyRows)
+  };
 }
 async function ensureSchema(db) {
   await db.batch([
@@ -88,8 +185,9 @@ export async function onRequestGet(context) {
     if (!validDate(date)) throw new InputError('올바른 실적 기준일을 선택해 주세요.');
     const authority = accountAuthority(user);
     const row = await tableExists(db) ? await db.prepare(`SELECT * FROM ${TABLE} WHERE target_date = ?`).bind(date).first() : null;
+    const item = itemFromRow(row, date);
     return response({ok: true, targetDate: date, shift: 'NS', role: 'TO', unit: 'kWh',
-      canEdit: Boolean(authority), sourceLog: authority, item: itemFromRow(row, date)});
+      canEdit: Boolean(authority), sourceLog: authority, item, solarCumulative: await deriveSolarCumulative(db, date, item)});
   } catch (error) { return handleError(error); }
 }
 export async function onRequestPost(context) {
@@ -162,6 +260,6 @@ export async function onRequestPost(context) {
     const item = itemFromRow(results[3]?.results?.[0], date);
     if (!item) throw new Error('Saved power record missing');
     return response({ok: true, targetDate: date, shift: 'NS', role: 'TO', unit: 'kWh', canEdit: true,
-      sourceLog: authority, item});
+      sourceLog: authority, item, solarCumulative: await deriveSolarCumulative(db, date, item)});
   } catch (error) { return handleError(error); }
 }

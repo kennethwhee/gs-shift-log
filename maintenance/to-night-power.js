@@ -1,7 +1,8 @@
 /* Night TO power entry + read-only morning-meeting provider. No Excel/Agent call.
- * R2: keep the last confirmed date/session-scoped manual record through legacy
+ * R5: keep the last confirmed date/session-scoped manual record through legacy
  * synchronization, background refresh and transient errors. Never POST from sync.
- * Retained values are display-only until a fresh GET is confirmed for workbook use.
+ * Server-derived solar month/year cumulative values follow TO daily solar input and
+ * are read-only overlays for Morning Meeting / final workbook output.
  */
 (function (root) {
   'use strict';
@@ -15,6 +16,7 @@
   const dateValid = value => typeof value === 'string' && /^20\d{2}-\d{2}-\d{2}$/.test(value) &&
     Number.isFinite(Date.parse(value + 'T00:00:00Z')) && new Date(value + 'T00:00:00Z').toISOString().slice(0, 10) === value;
   const validNumber = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1e12;
+  const validCumulative = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 366e12;
   function parseInput(value) {
     const text = String(value ?? '').trim();
     if (!text) throw new Error('값을 입력해 주세요. 실제 사용량이 없으면 0을 입력해 주세요.');
@@ -42,7 +44,18 @@
         FIELDS.some(([key]) => !validNumber(item.values[key])))) {
       throw new Error('저장된 전력 자료를 확인하지 못했습니다.');
     }
-    return {...payload, item: item === null ? null : {...item, values: Object.fromEntries(FIELDS.map(([key]) => [key, item.values[key]]))}};
+    const solarCumulative = payload.solarCumulative;
+    if (item === null) {
+      if (solarCumulative !== null) throw new Error('저장되지 않은 날짜에 태양광 누적값이 포함되어 있습니다.');
+    } else if (!solarCumulative || typeof solarCumulative !== 'object' || Array.isArray(solarCumulative) ||
+        !Object.hasOwn(solarCumulative, 'monthly') || !Object.hasOwn(solarCumulative, 'yearly') ||
+        (solarCumulative.monthly !== null && !validCumulative(solarCumulative.monthly)) ||
+        (solarCumulative.yearly !== null && !validCumulative(solarCumulative.yearly))) {
+      throw new Error('태양광 누적 자료를 확인하지 못했습니다.');
+    }
+    return {...payload,
+      item: item === null ? null : {...item, values: Object.fromEntries(FIELDS.map(([key]) => [key, item.values[key]]))},
+      solarCumulative: item === null ? null : {monthly: solarCumulative.monthly, yearly: solarCumulative.yearly}};
   }
   function acceptRefresh(previous, incoming, date) {
     const next = normalizePayload(incoming, date);
@@ -61,7 +74,9 @@
     const source = dailyData && typeof dailyData === 'object' ? {...dailyData} : {};
     if (suppressed || !payload?.item) return source;
     const result = normalizePayload(payload, date);
-    return {...source, ...result.item.values};
+    return {...source, ...result.item.values,
+      ...(validCumulative(result.solarCumulative?.monthly) ? {solarMonthlyCumulative: result.solarCumulative.monthly} : {}),
+      ...(validCumulative(result.solarCumulative?.yearly) ? {solarYearlyCumulative: result.solarCumulative.yearly} : {})};
   }
   if (typeof module === 'object' && module.exports) module.exports = {FIELDS, dateValid, parseInput, normalizePayload, acceptRefresh, mergeValues};
   if (!root?.document || root.toNightPower) return;
@@ -319,6 +334,17 @@
       renderMeeting();
     });
   }
+  function renderSolarCumulative(payload) {
+    const cumulative = payload?.solarCumulative;
+    if (validCumulative(cumulative?.monthly)) {
+      setText(byId('efficiencyMorningMeetingAutoSolarMonthlyCumulative'),
+        cumulative.monthly.toLocaleString('ko-KR', {maximumFractionDigits: 6}) + ' kWh');
+    }
+    if (validCumulative(cumulative?.yearly)) {
+      setText(byId('efficiencyMorningMeetingAutoSolarYearlyCumulative'),
+        cumulative.yearly.toLocaleString('ko-KR', {maximumFractionDigits: 6}) + ' kWh');
+    }
+  }
   function renderMeeting() {
     checkSession();
     const card = byId(PREFIX + 'PowerCard'), date = targetDate();
@@ -335,6 +361,7 @@
     }
     if (session && entry?.payload?.item && entry.status !== 'ready') {
       for (const [key, , suffix] of FIELDS) setText(byId(PREFIX + suffix), entry.payload.item.values[key].toLocaleString('ko-KR', {maximumFractionDigits: 6}) + ' kWh');
+      renderSolarCumulative(entry.payload);
       setText(byId(PREFIX + 'PowerDate'), date);
       badge(entry.status === 'error' ? '재조회 실패 · 마지막 저장값 유지' : '재확인 중 · 마지막 저장값 유지', entry.status === 'error' ? 'error' : 'loading');
       card.title = `${date} N/S TO · ${entry.payload.item.updatedBy || 'TO 담당자'} · ${entry.payload.item.updatedAt || ''} · 마지막 저장값 (재확인 전)` + (entry.error ? ` · ${entry.error}` : '');
@@ -350,6 +377,7 @@
     }
     if (entry.payload.item) {
       for (const [key, , suffix] of FIELDS) setText(byId(PREFIX + suffix), entry.payload.item.values[key].toLocaleString('ko-KR', {maximumFractionDigits: 6}) + ' kWh');
+      renderSolarCumulative(entry.payload);
       setText(byId(PREFIX + 'PowerDate'), date);
       badge('TO 입력 완료', 'complete');
       card.title = `${date} N/S TO · ${entry.payload.item.updatedBy || 'TO 담당자'} · ${entry.payload.item.updatedAt || ''} · kWh`;
@@ -376,7 +404,7 @@
     if (entry?.status !== 'ready') throw new Error('TO 전력 저장자료를 확인하지 못했습니다. 전력 카드에서 재조회 후 다시 생성해 주세요.');
     return mergeValues(dailyData, entry.payload, date);
   }
-  root.toNightPower = {version: '20260927-v1-r2', targetDate, renderMeeting, refreshMeeting, ensureForWorkbook, valuesForWorkbook,
+  root.toNightPower = {version: '20260927-v1-r5', targetDate, renderMeeting, refreshMeeting, ensureForWorkbook, valuesForWorkbook,
     refreshDuty: () => { selectionStamp = ''; queueUI(); }};
   function init() {
     const original = root.updateShiftMemberCardStates;

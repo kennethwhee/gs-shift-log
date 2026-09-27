@@ -8,8 +8,9 @@ const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 const root = process.env.TO_POWER_SOURCE_ROOT || (existsSync(path.join(packageRoot, 'script.js')) ? packageRoot : path.join(packageRoot, 'files'));
 const source = readFileSync(path.join(root, 'script.js'), 'utf8').replaceAll('\r\n', '\n');
 const index = readFileSync(path.join(root, 'index.html'), 'utf8');
+const providerSource = readFileSync(path.join(root, 'maintenance/to-night-power.js'), 'utf8');
 const pureContext = {module: {exports: {}}};
-vm.runInNewContext(readFileSync(path.join(root, 'maintenance/to-night-power.js'), 'utf8'), pureContext);
+vm.runInNewContext(providerSource, pureContext);
 const pure = pureContext.module.exports;
 const sourceFunction = name => {
   const marker = 'function ' + name + '(';
@@ -23,13 +24,19 @@ const sourceFunction = name => {
 test('actual patched main script parses', () => { new vm.Script(source, {filename: 'script.js'}); });
 test('provider loads after the classic main script; both cache keys and CSS are present', () => {
   const main = [...index.matchAll(/<script\b[^>]*src=["']\/?script\.js(?:\?[^"']*)?["'][^>]*>/gi)];
-  assert.equal(main.length, 1); assert.match(main[0][0], /toNightPower=20260927-v1-r2/);
-  assert.ok(index.indexOf('/maintenance/to-night-power.js?v=20260927-v1-r2') > main[0].index);
-  assert.equal(index.split('/maintenance/to-night-power.js?v=20260927-v1-r2').length - 1, 1);
+  assert.equal(main.length, 1); assert.match(main[0][0], /toNightPower=20260927-v1-r5/);
+  assert.ok(index.indexOf('/maintenance/to-night-power.js?v=20260927-v1-r5') > main[0].index);
+  assert.equal(index.split('/maintenance/to-night-power.js?v=20260927-v1-r5').length - 1, 1);
   assert.equal(index.split('/maintenance/to-night-power.css?v=20260927-v1-r2-ui1').length - 1, 1);
 });
 test('TO render runs after existing closed-data/query render', () => {
   assert.match(source, /window\.morningMeetingClosedCofiring\?\.renderOrganic\(\);\s*window\.morningMeetingQuerySources\?\.render\(\);\s*window\.toNightPower\?\.renderMeeting\(\);/);
+});
+test('TO provider renders server-derived monthly/yearly solar cumulative fields', () => {
+  assert.match(providerSource, /efficiencyMorningMeetingAutoSolarMonthlyCumulative/);
+  assert.match(providerSource, /efficiencyMorningMeetingAutoSolarYearlyCumulative/);
+  assert.match(providerSource, /solarMonthlyCumulative/);
+  assert.match(providerSource, /solarYearlyCumulative/);
 });
 test('workbook awaits fresh TO data and rechecks reset before writing', () => {
   const awaitAt = source.indexOf('await window.toNightPower.ensureForWorkbook(closedValuesTargetDate)');
@@ -55,7 +62,8 @@ function exportFixture(manual = true) {
   const date = '2026-09-26', cells = new Map();
   const payload = {ok: true, targetDate: date, shift: 'NS', role: 'TO', unit: 'kWh', canEdit: true,
     sourceLog: {id: 'test-source', revision: 1}, item: manual ? {targetDate: date, shift: 'NS', role: 'TO', unit: 'kWh', revision: 1,
-      values: {generatorEcmsGen1: 1000500.125, ismartReception: 0, epowerTransmission: 888777.25, solarDailyGeneration: 154.375}} : null};
+      values: {generatorEcmsGen1: 1000500.125, ismartReception: 0, epowerTransmission: 888777.25, solarDailyGeneration: 154.375}} : null,
+    solarCumulative: manual ? {monthly: 12345.5, yearly: 98765.25} : null};
   const context = vm.createContext({window: {
     morningMeetingClosedCofiring: {valuesForWorkbook: (data, options) => options.suppressClosedValues ? {} : {...data, sludgeTotal: 116.73}},
     toNightPower: {valuesForWorkbook: (data, options) => pure.mergeValues(data, payload, options.targetDate, options.suppressClosedValues)}
@@ -70,16 +78,17 @@ test('actual workbook function converts thermal power kWh to MWh, not solar', ()
   assert.equal(f.cells.get('AK7'), 1000.500125); assert.equal(f.cells.get('AK8'), 888.77725);
   assert.equal(f.cells.get('AK9'), 0); assert.equal(f.cells.get('H18'), 154.375);
 });
-test('actual workbook keeps steam, solar cumulative, closed organic and formulas intact', () => {
+test('actual workbook overlays TO solar cumulative while preserving steam, organic and formulas', () => {
   const f = exportFixture(); f.context.applyMorningMeetingDailyDataValues({}, f.data, {targetDate: f.date});
   assert.equal(f.cells.get('E7'), 300); assert.equal(f.cells.get('E8'), 250);
-  assert.equal(f.cells.get('M18'), 999); assert.equal(f.cells.get('V18'), 8888); assert.equal(f.cells.get('AH14'), 116.73);
+  assert.equal(f.cells.get('M18'), 12345.5); assert.equal(f.cells.get('V18'), 98765.25); assert.equal(f.cells.get('AH14'), 116.73);
   for (const address of ['E11', 'AN7', 'AN8', 'AN9', 'AM11', 'AE13']) assert.equal(f.cells.has(address), false);
-  assert.equal(f.data.generatorEcmsGen1, 100);
+  assert.equal(f.data.generatorEcmsGen1, 100); assert.equal(f.data.solarMonthlyCumulative, 999);
 });
 test('no manual record retains existing same-date workbook values', () => {
   const f = exportFixture(false); f.context.applyMorningMeetingDailyDataValues({}, f.data, {targetDate: f.date});
   assert.equal(f.cells.get('AK7'), .1); assert.equal(f.cells.get('H18'), 4);
+  assert.equal(f.cells.get('M18'), 999); assert.equal(f.cells.get('V18'), 8888);
 });
 test('suppressed export cannot repopulate manually saved values', () => {
   const f = exportFixture(); f.context.applyMorningMeetingDailyDataValues({}, {}, {targetDate: f.date, suppressClosedValues: true});
