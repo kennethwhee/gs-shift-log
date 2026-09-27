@@ -55,7 +55,7 @@ test('empty and invalid replacement definitions are rejected', () => {
 });
 test('startup checks retain original hashes and the raw worker integrity check', () => {
   const source=fs.readFileSync(path.join(__dirname,'cofiring-startup-preservation.test.cjs'),'utf8');
-  assert.match(source,/const item=baselines\[0\];assert\.equal\(sha\(preservedPart\(item\)\), item\.sha256\)/);
+  assert.match(source,/const item=baselines\[0\];[\s\S]*?assert\.equal\(sha\(preservedPart\(item, restorePostV15Worker\(worker\)\)\), item\.sha256\)/);
   assert.match(source,/preservedPart\(item, restoreControllerForPreservation\(controller\)\)/);
   assert.match(source,/preservedPart\(item, restoreWorkerForPreservation\(worker\)\)/);
   assert.match(source,/assert\.equal\(pin\[1\], sha\(workerBytes\)\)/);
