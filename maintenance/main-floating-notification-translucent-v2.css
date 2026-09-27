@@ -1,0 +1,55 @@
+/* Main floating operating alert translucency V2
+   Desktop only: visibly transparent instead of frosted-white.
+   Text/icons remain opaque because parent opacity is never used. */
+@media screen and (min-width: 769px) {
+  html body
+  #mainNotificationRail.main-floating-notification-dock {
+    border-color: rgba(150, 170, 191, 0.20) !important;
+    background: rgba(248, 250, 253, 0.06) !important;
+    box-shadow:
+      0 8px 22px rgba(25, 43, 66, 0.035),
+      0 1px 4px rgba(25, 43, 66, 0.018) !important;
+    -webkit-backdrop-filter: blur(3px) saturate(1.01) !important;
+    backdrop-filter: blur(3px) saturate(1.01) !important;
+  }
+
+  html body
+  #mainNotificationRail.main-floating-notification-dock:hover {
+    background: rgba(248, 250, 253, 0.10) !important;
+  }
+
+  html body
+  #mainNotificationRail .main-floating-notification-dock__close {
+    border-color: rgba(155, 176, 198, 0.20) !important;
+    background: rgba(247, 249, 252, 0.04) !important;
+  }
+
+  html body
+  #mainNotificationRail .main-floating-notification-dock__close:hover {
+    background: rgba(238, 243, 247, 0.14) !important;
+  }
+
+  html body
+  #mainNotificationRailList > .blower-history-main-alert {
+    border-color: rgba(199, 70, 83, 0.25) !important;
+    background: rgba(255, 241, 243, 0.04) !important;
+  }
+
+  html body
+  #mainNotificationRailList > .blower-history-main-alert.is-warning {
+    border-color: rgba(201, 151, 38, 0.25) !important;
+    background: rgba(255, 248, 232, 0.05) !important;
+  }
+
+  html body
+  #mainNotificationRailList > .arm-roll-box-main-alert {
+    border-color: rgba(205, 132, 27, 0.25) !important;
+    background: rgba(255, 248, 232, 0.05) !important;
+  }
+
+  html body
+  #mainNotificationRailList > .arm-roll-box-main-alert.is-critical {
+    border-color: rgba(199, 69, 83, 0.25) !important;
+    background: rgba(255, 241, 243, 0.04) !important;
+  }
+}
