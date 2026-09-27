@@ -1,0 +1,285 @@
+/* SOLID_FUEL_RECORD_ONE_SCREEN_V1
+   Record-registration modal only.
+   Goal: complete normal unloading and Trouble entry without vertical scrolling
+   on the embedded desktop workspace / 1366x768-class viewport.
+   UI/CSS only: no runtime, API, Agent, database or co-firing logic changes. */
+
+@media (min-width: 761px){
+  #recordModal{
+    align-items:center !important;
+    justify-content:center !important;
+    padding:10px !important;
+  }
+
+  #recordModal .record-editor-card{
+    width:min(980px,calc(100vw - 20px)) !important;
+    max-height:calc(100vh - 20px) !important;
+    overflow:hidden !important;
+    border-radius:12px !important;
+  }
+
+  #recordModal .modal-head{
+    position:relative !important;
+    top:auto !important;
+    min-height:0 !important;
+    padding:9px 13px !important;
+    align-items:center !important;
+  }
+
+  #recordModal .modal-head > div{
+    min-width:0 !important;
+  }
+
+  #recordModal .modal-head span{
+    font-size:8px !important;
+    line-height:1.05 !important;
+    letter-spacing:.1em !important;
+  }
+
+  #recordModal .modal-head h2{
+    margin:2px 0 0 !important;
+    font-size:17px !important;
+    line-height:1.05 !important;
+  }
+
+  #recordModal .icon-btn{
+    width:29px !important;
+    height:29px !important;
+    min-width:29px !important;
+    min-height:29px !important;
+    border-radius:7px !important;
+    font-size:18px !important;
+    line-height:1 !important;
+  }
+
+  #recordModal #recordForm.editor{
+    gap:6px !important;
+    max-height:calc(100vh - 74px) !important;
+    padding:8px 13px 9px !important;
+    overflow-y:auto !important;
+    overscroll-behavior:contain;
+  }
+
+  #recordModal .record-kind{
+    grid-template-columns:1fr 1fr !important;
+    gap:6px !important;
+  }
+
+  #recordModal .record-kind legend{
+    margin-bottom:3px !important;
+    font-size:10px !important;
+    line-height:1.05 !important;
+  }
+
+  #recordModal .record-kind__option > span{
+    min-height:34px !important;
+    padding:5px 9px !important;
+    border-radius:7px !important;
+    gap:8px !important;
+  }
+
+  #recordModal .record-kind__option strong{
+    font-size:12px !important;
+    line-height:1.1 !important;
+    white-space:nowrap !important;
+  }
+
+  #recordModal .record-kind__option small{
+    font-size:9px !important;
+    line-height:1.1 !important;
+    white-space:nowrap !important;
+  }
+
+  #recordModal .record-optional-guide{
+    margin:0 !important;
+    padding:5px 8px !important;
+    border-radius:6px !important;
+    font-size:9.5px !important;
+    line-height:1.2 !important;
+  }
+
+  #recordModal .editor-section{
+    gap:6px !important;
+    padding:8px 9px !important;
+    border-radius:8px !important;
+  }
+
+  #recordModal .editor-section > header{
+    min-height:0 !important;
+    gap:8px !important;
+    padding-bottom:4px !important;
+  }
+
+  #recordModal .editor-section > header strong{
+    font-size:11.5px !important;
+    line-height:1.1 !important;
+  }
+
+  #recordModal .editor-section > header small{
+    font-size:9px !important;
+    line-height:1.1 !important;
+    white-space:nowrap !important;
+  }
+
+  /* DOM order naturally becomes:
+     row 1 = date / fuel / receipt,
+     row 2 = company / vehicle / silo,
+     row 3 = arrival / departure / duration. */
+  #recordModal .record-grid.receipt-enabled-grid{
+    display:grid !important;
+    grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+    gap:6px 9px !important;
+    width:100% !important;
+    align-items:end !important;
+  }
+
+  #recordModal .record-grid.receipt-enabled-grid > label{
+    min-width:0 !important;
+  }
+
+  #recordModal .editor label{
+    gap:2px !important;
+  }
+
+  #recordModal .editor label > span{
+    margin:0 !important;
+    font-size:9.5px !important;
+    line-height:1.1 !important;
+  }
+
+  #recordModal .editor em{
+    font-size:8px !important;
+  }
+
+  #recordModal .editor input,
+  #recordModal .editor select{
+    height:32px !important;
+    min-height:32px !important;
+    padding:0 8px !important;
+    border-radius:6px !important;
+    font-size:12px !important;
+    line-height:1.1 !important;
+  }
+
+  #recordModal .receipt-ton-control{
+    gap:4px !important;
+    min-width:0 !important;
+  }
+
+  #recordModal .receipt-ton-control input{
+    min-width:0 !important;
+  }
+
+  #recordModal .receipt-ton-control small{
+    margin:0 !important;
+    font-size:9px !important;
+  }
+
+  #recordModal #recordDurationPreview{
+    min-width:0 !important;
+    background:#f5f9fc !important;
+  }
+
+  #recordModal #recordNote{
+    min-height:39px !important;
+    height:39px !important;
+    padding:6px 8px !important;
+    resize:none !important;
+    border-radius:6px !important;
+    font-size:11.5px !important;
+    line-height:1.3 !important;
+  }
+
+  /* Trouble-only section uses one extra compact row instead of stacking fields. */
+  #recordModal #recordTroubleFields:not([hidden]){
+    display:grid !important;
+    grid-template-columns:minmax(0,1.65fr) minmax(0,1fr) !important;
+    gap:6px 9px !important;
+    align-items:end !important;
+  }
+
+  #recordModal #recordTroubleFields:not([hidden]) > header{
+    grid-column:1 / -1 !important;
+  }
+
+  #recordModal #recordEquipment{
+    min-height:42px !important;
+    height:42px !important;
+    padding:6px 8px !important;
+    resize:none !important;
+    border-radius:6px !important;
+    font-size:11.5px !important;
+    line-height:1.3 !important;
+  }
+
+  #recordModal #recordFiles{
+    height:42px !important;
+    min-height:42px !important;
+    padding:5px 7px !important;
+    font-size:11px !important;
+  }
+
+  #recordModal .editor-status{
+    padding:5px 8px !important;
+    border-radius:6px !important;
+    font-size:10px !important;
+    line-height:1.2 !important;
+  }
+
+  #recordModal .modal-foot{
+    gap:6px !important;
+    padding-top:1px !important;
+  }
+
+  #recordModal .modal-foot .btn{
+    min-height:31px !important;
+    height:31px !important;
+    padding:0 12px !important;
+    border-radius:6px !important;
+    font-size:11px !important;
+  }
+}
+
+/* On shorter embedded workspaces, keep all normal-entry controls visible first. */
+@media (min-width:761px) and (max-height:700px){
+  #recordModal #recordForm.editor{
+    gap:5px !important;
+    padding-top:7px !important;
+    padding-bottom:7px !important;
+  }
+
+  #recordModal .record-kind__option > span{
+    min-height:31px !important;
+    padding-top:4px !important;
+    padding-bottom:4px !important;
+  }
+
+  #recordModal .record-optional-guide{
+    padding-top:4px !important;
+    padding-bottom:4px !important;
+  }
+
+  #recordModal .editor-section{
+    gap:5px !important;
+    padding-top:7px !important;
+    padding-bottom:7px !important;
+  }
+
+  #recordModal .record-grid.receipt-enabled-grid{
+    row-gap:5px !important;
+  }
+
+  #recordModal #recordNote{
+    min-height:34px !important;
+    height:34px !important;
+  }
+
+  #recordModal #recordEquipment,
+  #recordModal #recordFiles{
+    min-height:36px !important;
+    height:36px !important;
+  }
+}
+
+/* Keep existing mobile behavior untouched. */
+/* SOLID_FUEL_RECORD_ONE_SCREEN_V1_END */
