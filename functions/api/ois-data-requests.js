@@ -11146,6 +11146,8 @@ async function handleAgentNextRequest(
   - 기존 action=next는 구버전 에이전트를 위해 유지한다.
 ========================================================= */
 
+
+// MORNING_MEETING_STEAM_OIS_LANE_V1
 const OIS_AGENT_OIS_LANE_REQUEST_TYPES = [
   "water_environment",
   "limestone_stock",
@@ -11155,7 +11157,8 @@ const OIS_AGENT_OIS_LANE_REQUEST_TYPES = [
   "auxiliary_materials",
   "logsheet_approval",
   "fbhe_vibration",
-  "seal_pot_runtime"
+  "seal_pot_runtime",
+  "steam_status"
 ];
 
 
@@ -11164,7 +11167,6 @@ const OIS_AGENT_EXCEL_LANE_REQUEST_TYPES = [
   "cofiring_period",
   "daily_data_excel",
   "organic_silo_dataparc",
-  "steam_status",
   "logsheet_pdf",
   BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
   "open_final_excel_folder"
