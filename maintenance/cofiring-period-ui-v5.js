@@ -12,6 +12,8 @@
   const UNITS=['unit1','unit2'];
   const escapeHtml=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const num=(v,p=2)=>typeof v==='number'&&Number.isFinite(v)?v.toLocaleString('ko-KR',{minimumFractionDigits:p,maximumFractionDigits:p}):'—';
+  // COFIRING_TON_INPUT_2DP_V3
+  function tonInput2(value){if(value==null||value==='')return '';const n=Number(value);return Number.isFinite(n)?n.toFixed(2):String(value);}
   const pct=v=>typeof v==='number'&&Number.isFinite(v)?v.toFixed(2)+'%':'—';
   const sum=values=>values.every(v=>typeof v==='number'&&Number.isFinite(v))?values.reduce((a,b)=>a+b,0):null;
   function coalBioHeat(unit){const coal=unit?.heats?.coal,bio=unit?.heats?.bio;return typeof coal==='number'&&Number.isFinite(coal)&&typeof bio==='number'&&Number.isFinite(bio)?coal+bio:null;}
@@ -230,13 +232,13 @@
     for(const unit of UNITS){
       for(const fuel of ['organic','manure']){
         const input=container.querySelector(`[data-cfv5-manual="${unit}:${fuel}"]`);
-        if(input)input.value=values?.[unit]?.[fuel]==null?'':String(values[unit][fuel]);
+        if(input)input.value=tonInput2(values?.[unit]?.[fuel]);
       }
     }
     if(values&&Object.hasOwn(values,'receipts')){
       for(const fuel of ['organic','manure']){
         const input=container.querySelector(`[data-cfv5-receipt="${fuel}"]`);
-        if(input&&input.dataset.cfv14Auto!=='1')input.value=values?.receipts?.[fuel]==null?'':String(values.receipts[fuel]);
+        if(input&&input.dataset.cfv14Auto!=='1')input.value=tonInput2(values?.receipts?.[fuel]);
       }
     }
   }
@@ -346,7 +348,7 @@
     let receiptSyncGeneration=0,receiptSyncState={status:'idle',signature:'',value:null},organicUsageState=null;
     function receiptSource(text,tone=''){const el=container.querySelector('[data-cfv14-receipt-source]');if(el){el.textContent=text;el.dataset.tone=tone;}}
     function resetReceiptAuto(){for(const input of container.querySelectorAll('[data-cfv5-receipt]')){delete input.dataset.cfv14Auto;input.readOnly=false;input.removeAttribute('aria-readonly');}}
-    function setReceiptAutoValues(receipts){for(const fuel of ['organic','manure']){const input=container.querySelector(`[data-cfv5-receipt="${fuel}"]`);if(!input)continue;const value=receipts?.[fuel];if(typeof value!=='number'||!Number.isFinite(value)||value<0)throw new Error('입고량 응답을 확인해 주세요.');input.value=String(value);input.dataset.cfv14Auto='1';input.readOnly=true;input.setAttribute('aria-readonly','true');}}
+    function setReceiptAutoValues(receipts){for(const fuel of ['organic','manure']){const input=container.querySelector(`[data-cfv5-receipt="${fuel}"]`);if(!input)continue;const value=receipts?.[fuel];if(typeof value!=='number'||!Number.isFinite(value)||value<0)throw new Error('입고량 응답을 확인해 주세요.');input.value=tonInput2(value);input.dataset.cfv14Auto='1';input.readOnly=true;input.setAttribute('aria-readonly','true');}}
     function organicUsageSource(text,tone=''){
       const el=container.querySelector('[data-cfv15-organic-usage]');
       if(el){el.textContent=text;el.dataset.tone=tone;}
@@ -561,7 +563,7 @@
         if(!input)continue;
         input.readOnly=true;input.setAttribute('aria-readonly','true');
         input.placeholder=total.ok?'0':'확인 필요';
-        const value=total.ok?total.allocation[unit].toFixed(4):'';
+        const value=total.ok?total.allocation[unit].toFixed(2):'';
         if(String(input.value??'')!==value){
           // Display precision alone must not turn a saved value into an unsaved edit.
           if(String(input.value??'').trim()===''||Number(input.value)!==Number(value))autoChanged=true;
@@ -592,6 +594,8 @@
         const total=updateOrganicInventoryUsage();
         if(!total?.ok)throw new Error(total?.message||'유기성 자동사용량을 확인한 뒤 저장해 주세요.');
 
+        values.unit1.organic=total.allocation.unit1;
+        values.unit2.organic=total.allocation.unit2;
         const one=Number(values?.unit1?.organic??0);
         const two=Number(values?.unit2?.organic??0);
 
