@@ -26,7 +26,7 @@ test('provider loads after the classic main script; both cache keys and CSS are 
   assert.equal(main.length, 1); assert.match(main[0][0], /toNightPower=20260927-v1-r2/);
   assert.ok(index.indexOf('/maintenance/to-night-power.js?v=20260927-v1-r2') > main[0].index);
   assert.equal(index.split('/maintenance/to-night-power.js?v=20260927-v1-r2').length - 1, 1);
-  assert.equal(index.split('/maintenance/to-night-power.css?v=20260927-v1-r2').length - 1, 1);
+  assert.equal(index.split('/maintenance/to-night-power.css?v=20260927-v1-r2-ui1').length - 1, 1);
 });
 test('TO render runs after existing closed-data/query render', () => {
   assert.match(source, /window\.morningMeetingClosedCofiring\?\.renderOrganic\(\);\s*window\.morningMeetingQuerySources\?\.render\(\);\s*window\.toNightPower\?\.renderMeeting\(\);/);
