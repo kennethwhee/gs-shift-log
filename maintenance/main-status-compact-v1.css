@@ -1,0 +1,321 @@
+/* Main status compact V1. Desktop presentation only. */
+@media screen and (min-width: 901px) {
+  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) .app-main { padding-top: 18px; }
+
+  html:not(.main-floating-notification-mobile-client) #statusView { color: #172c42; }
+  html:not(.main-floating-notification-mobile-client) #statusView > .content-section {
+    padding: 18px 20px;
+    margin-bottom: 14px;
+    background: #fff;
+    border: 1px solid #dbe4ec;
+    border-radius: 12px;
+    box-shadow: 0 2px 6px #203c5810;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView .section-heading {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView .section-heading__eyebrow {
+    margin: 0 0 5px;
+    color: #63758a;
+    font-size: 10px;
+    font-weight: 650;
+    letter-spacing: 1.2px;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView .section-heading__title {
+    margin: 0;
+    color: #172c42;
+    font-size: 21px;
+    font-weight: 750;
+    line-height: 1.3;
+    letter-spacing: -.5px;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView .shift-heading-right {
+    width: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    gap: 10px !important;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView .shift-summary { gap: 8px; padding: 0; }
+  html:not(.main-floating-notification-mobile-client) #statusView .shift-summary__label { font-size: 12px; color: #607286; }
+  html:not(.main-floating-notification-mobile-client) #statusView .shift-summary__value { font-size: 13px; color: #29415a; font-weight: 650; }
+
+  html:not(.main-floating-notification-mobile-client) #statusView #shiftMemberGrid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 10px;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView #shiftMemberGrid .shift-member-card-wrap {
+    position: relative;
+    display: block !important;
+    grid-template-rows: none !important;
+    row-gap: 0;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView #shiftMemberGrid .role-notice-button {
+    position: absolute !important;
+    top: 9px !important;
+    right: 10px !important;
+    z-index: 1;
+    min-width: 32px !important;
+    width: auto !important;
+    height: 22px !important;
+    min-height: 22px !important;
+    margin: 0 !important;
+    padding: 0 6px !important;
+    border-radius: 5px !important;
+  }
+  /* The inspection launcher groups these controls at runtime. Keep both
+     buttons together and retain its hidden/permission/state handling. */
+  html:not(.main-floating-notification-mobile-client) #statusView #shiftMemberGrid .shift-member-card-wrap:has(> .role-card-top-actions) {
+    display: grid !important;
+    grid-template-rows: 26px minmax(0, 1fr) !important;
+    row-gap: 4px !important;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView #shiftMemberGrid .role-card-top-actions .role-notice-button {
+    position: static !important;
+    inset: auto !important;
+    width: 36px !important;
+    min-width: 36px !important;
+    max-width: 36px !important;
+    height: 24px !important;
+    min-height: 24px !important;
+    max-height: 24px !important;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView #shiftMemberGrid .role-card-top-actions .role-today-inspection-button {
+    max-width: calc(100% - 40px);
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView #shiftMemberGrid .shift-member-card-wrap:has(> .role-card-top-actions) .shift-member-card__role {
+    padding-right: 0;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView #shiftMemberGrid .shift-member-card {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    min-height: 112px;
+    height: auto;
+    padding: 12px;
+    border: 1px solid #dce5ee;
+    border-radius: 9px;
+    background: #fff;
+    box-shadow: none;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView #shiftMemberGrid .shift-member-card:hover {
+    border-color: #89b9b0;
+    box-shadow: 0 2px 8px #28504b0d;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView .shift-member-card__role {
+    padding-right: 36px;
+    color: #465b70;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .2px;
+    line-height: 18px;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView .shift-member-card__body {
+    min-height: 24px;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    color: #172c42;
+    border-radius: 0;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView .shift-member-card__name { font-size: 18px; line-height: 24px; font-weight: 700; }
+  html:not(.main-floating-notification-mobile-client) #statusView .shift-member-card__name:empty::after { content: '—'; color: #65768a; }
+  html:not(.main-floating-notification-mobile-client) #statusView .shift-member-card__status {
+    align-self: flex-start;
+    min-height: 22px;
+    padding: 3px 7px;
+    font-size: 11px;
+    font-weight: 650;
+    line-height: 16px;
+    border-radius: 5px;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView .shift-member-card__status.is-approved,
+  html:not(.main-floating-notification-mobile-client) #statusView .status-badge.is-approved { background: #eaf5ef; color: #146546; border-color: #d5e9df; }
+  html:not(.main-floating-notification-mobile-client) #statusView .shift-member-card__status.is-writing,
+  html:not(.main-floating-notification-mobile-client) #statusView .status-badge.is-writing { background: #fff5e6; color: #8a570b; border-color: #f0dfbf; }
+  html:not(.main-floating-notification-mobile-client) #statusView .shift-member-card__status.is-requested,
+  html:not(.main-floating-notification-mobile-client) #statusView .shift-member-card__status.is-complete,
+  html:not(.main-floating-notification-mobile-client) #statusView .status-badge.is-requested,
+  html:not(.main-floating-notification-mobile-client) #statusView .status-badge.is-complete { background: #eef4fb; color: #2d5e93; border-color: #dbe6f3; }
+  html:not(.main-floating-notification-mobile-client) #statusView .shift-member-card__status.is-empty,
+  html:not(.main-floating-notification-mobile-client) #statusView .status-badge.is-empty { background: #f1f4f7; color: #58697b; border-color: #e0e6ec; }
+  html:not(.main-floating-notification-mobile-client) #statusView .shift-member-card__status.is-team-approved,
+  html:not(.main-floating-notification-mobile-client) #statusView .status-badge.is-team-approved { background: #e7effc; color: #274f92; border-color: #cbdcf4; }
+  html:not(.main-floating-notification-mobile-client) #statusView #shiftMemberGrid .shift-member-card.is-team-manager-approved {
+    background: #f5f8fe;
+    border-color: #adc5e6;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView .team-manager-approval-button:not([hidden]) {
+    position: static !important;
+    align-self: flex-start;
+    width: auto !important;
+    margin: 0 !important;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView .team-manager-approval-button[hidden] { display: none !important; }
+  html:not(.main-floating-notification-mobile-client) #statusView #shiftMemberGrid .shift-member-card:has(.shift-member-card__substitute) {
+    border-color: #c99a4c;
+    background: #fffbf3;
+  }
+
+  html:not(.main-floating-notification-mobile-client) #statusView .date-navigation-section {
+    display: grid !important;
+    grid-template-columns: 34px auto 34px minmax(0, 1fr) !important;
+    align-items: center;
+    gap: 10px !important;
+    min-height: 60px;
+    padding: 12px 16px !important;
+    margin-bottom: 14px;
+    border: 1px solid #dbe4ec;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: none;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView .date-navigation__center {
+    flex-direction: row !important;
+    gap: 12px !important;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView .date-navigation__label { font-size: 11px; color: #64758a; }
+  html:not(.main-floating-notification-mobile-client) #statusView #selectedDateText { font-size: 15px; color: #20374f; font-weight: 700; }
+  html:not(.main-floating-notification-mobile-client) #statusView #previousDateButton,
+  html:not(.main-floating-notification-mobile-client) #statusView #nextDateButton {
+    width: 34px !important;
+    min-width: 34px !important;
+    max-width: 34px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    border-radius: 7px;
+    font-size: 23px;
+    color: #304a63;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView .shift-badge { font-size: 11px; min-height: 23px; padding: 3px 7px; background: #edf4f3; color: #196a60; border: 1px solid #d9e7e4; border-radius: 5px; }
+  html:not(.main-floating-notification-mobile-client) #statusView .date-quick-navigation {
+    grid-column: auto !important;
+    display: flex !important;
+    justify-content: flex-end;
+    gap: 6px !important;
+    width: auto !important;
+    margin: 0 !important;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView #dateQuickNavigation > button {
+    width: auto !important;
+    flex: 0 0 auto !important;
+    min-width: 61px !important;
+    min-height: 32px !important;
+    height: 32px !important;
+    padding: 0 10px !important;
+    border: 1px solid #dce4ec !important;
+    border-radius: 6px !important;
+    background: #fff !important;
+    color: #40566e !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView #dateQuickNavigation #todayButton {
+    width: auto !important;
+    min-width: 61px !important;
+    flex: 0 0 auto !important;
+    background: #eaf4f1 !important;
+    border-color: #cbe1d9 !important;
+    color: #1d6758 !important;
+  }
+
+  html:not(.main-floating-notification-mobile-client) #statusView .log-list-section .section-heading { margin-bottom: 14px; }
+  html:not(.main-floating-notification-mobile-client) #statusView #openLogEditorButton:not([hidden]) {
+    min-height: 34px;
+    padding: 7px 13px;
+    border-radius: 7px;
+    background: #e8f3ee;
+    border: 1px solid #c7dfd4;
+    color: #215c49;
+    font-size: 13px;
+    font-weight: 650;
+    box-shadow: none;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView .log-table-wrap { border: 1px solid #dce5ed; border-radius: 8px; }
+  html:not(.main-floating-notification-mobile-client) #statusView .log-table { border-collapse: collapse; }
+  html:not(.main-floating-notification-mobile-client) #statusView .log-table thead th {
+    padding: 11px 12px;
+    background: #f5f8fa;
+    color: #50657b;
+    border-color: #e0e7ee;
+    font-size: 12px;
+    font-weight: 650;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView .log-table td {
+    padding: 11px 12px;
+    border-color: #e5ebf1;
+    border-bottom: 1px solid #e5ebf1 !important;
+    vertical-align: middle;
+    color: #243c54;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView .log-table .log-row__role,
+  html:not(.main-floating-notification-mobile-client) #statusView .log-table .log-row__author { font-size: 13px; font-weight: 650; }
+  html:not(.main-floating-notification-mobile-client) #statusView .log-table .status-badge { padding: 4px 8px; min-height: 23px; font-size: 11px; font-weight: 650; border-radius: 5px; }
+  html:not(.main-floating-notification-mobile-client) #statusView .log-preview { padding: 0; gap: 6px; color: #243c54; }
+  html:not(.main-floating-notification-mobile-client) #statusView .log-preview__group { padding-block: 2px; }
+  html:not(.main-floating-notification-mobile-client) #statusView .log-preview__title { color: #50657b; font-size: 12px; font-weight: 650; }
+  html:not(.main-floating-notification-mobile-client) #statusView .log-preview__content,
+  html:not(.main-floating-notification-mobile-client) #statusView .log-preview__text { color: #243c54; font-size: 13px; line-height: 1.5; font-weight: 450; }
+  html:not(.main-floating-notification-mobile-client) #statusView .attachment-indicator.is-empty { color: #64758a !important; }
+  html:not(.main-floating-notification-mobile-client) #statusView .row-actions { gap: 5px; }
+  html:not(.main-floating-notification-mobile-client) #statusView .table-action-button { min-height: 28px; padding: 4px 8px; font-size: 11px; border-radius: 5px; color: #35526f; background: #fff; border-color: #d8e3ed; box-shadow: none; }
+  html:not(.main-floating-notification-mobile-client) #statusView .table-action-button.is-delete { color: #a74142; background: #fff; border-color: #ebd6d7; }
+
+  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRail.main-floating-notification-dock {
+    width: 320px !important;
+    padding: 12px !important;
+    gap: 10px !important;
+    border: 1px solid #dce5ee !important;
+    border-radius: 12px !important;
+    background: #fff !important;
+    box-shadow: 0 6px 22px #1c35491a !important;
+    backdrop-filter: none;
+  }
+  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) .main-floating-notification-dock__heading strong { color: #263e54; font-size: 13px; font-weight: 700; }
+  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) .main-floating-notification-dock__total { min-width: 23px; height: 22px; background: #f7eddb; color: #81550f; }
+  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) .main-floating-notification-dock__close { flex-basis: 26px; width: 26px; height: 26px; border-radius: 6px; background: #fff; color: #61758a; }
+  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList > button:not([hidden]) {
+    display: flex !important;
+    align-items: center !important;
+    min-height: 56px !important;
+    padding: 9px 10px !important;
+    gap: 8px !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+  }
+  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList > .blower-history-main-alert { background: #fff8ee !important; border-color: #ebddc5 !important; color: #825721 !important; }
+  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList > .arm-roll-box-main-alert { background: #fcf2f1 !important; border-color: #ead4d0 !important; color: #954b41 !important; }
+  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList [class$="__content"] { flex: 1; min-width: 0; }
+  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList [class$="__content"] small { color: #617185 !important; font-size: 10px !important; font-weight: 600 !important; }
+  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList [class$="__content"] strong { color: #31455a !important; font-size: 12px !important; font-weight: 650 !important; line-height: 1.4 !important; }
+  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList [class$="__count"] { flex: 0 0 auto !important; min-width: 25px !important; width: auto !important; height: 23px !important; min-height: 23px !important; padding: 0 6px !important; background: #fff !important; color: #7d4e27 !important; font-size: 10px !important; border: 1px solid #e1d3be !important; border-radius: 5px !important; }
+  html:not(.main-floating-notification-mobile-client) #statusView #shiftMemberGrid .role-notice-button.has-important-notice {
+    background: #eaf2fc !important;
+    border-color: #bad1eb !important;
+    color: #245b98 !important;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView #shiftMemberGrid .role-notice-button.has-important-notice .role-notice-button__label { color: #245b98 !important; }
+  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList > button[hidden] { display: none !important; }
+  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList > .blower-history-main-alert,
+  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList > .arm-roll-box-main-alert.is-critical {
+    background: #fcf2f1 !important; border-color: #ead4d0 !important; color: #954b41 !important;
+  }
+  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList > .blower-history-main-alert.is-warning,
+  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList > .arm-roll-box-main-alert:not(.is-critical) {
+    background: #fff8ee !important; border-color: #ebddc5 !important; color: #825721 !important;
+  }
+  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList > :is(.is-critical,.is-overdue) { border-left: 3px solid #b65050 !important; }
+  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRail.has-critical-alert .main-floating-notification-dock__total { background: #f9e9e7; color: #9a3536; }
+  html:not(.main-floating-notification-mobile-client) #statusView button:focus-visible { outline: 2px solid #287e6b; outline-offset: 3px; }
+}
+@media screen and (min-width: 901px) and (max-width: 1100px) {
+  html:not(.main-floating-notification-mobile-client) #statusView #shiftMemberGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  html:not(.main-floating-notification-mobile-client) #statusView .date-navigation__label { display: none; }
+  html:not(.main-floating-notification-mobile-client) #statusView #dateQuickNavigation > button { min-width: 49px !important; padding-inline: 7px !important; }
+}
