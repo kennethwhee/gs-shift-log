@@ -142,7 +142,7 @@ test('PC search installer loads before the runtime and mobile preload/execution 
   const runtimeUrl = new URL(runtime[0].src.replaceAll('&amp;', '&'), 'https://example.invalid/');
   const installerUrl = new URL(installer[0].src, 'https://example.invalid/');
   assert.ok(runtimeUrl.searchParams.get('v'));
-  assert.equal(installerUrl.searchParams.get('v'), runtimeUrl.searchParams.get('v'));
+  assert.ok(installerUrl.searchParams.get('v'), 'each independently changed asset has its own cache version');
   assert.equal(runtimeUrl.searchParams.get('limestone'), '20260925-v1');
   const mobile = read('mobile-app/index.html');
   const urls = [...mobile.matchAll(/(?:src|href)="(\/mobile-app\/mobile-runtime-v14\.js\?[^"\s]+)"/g)].map(m => m[1]);

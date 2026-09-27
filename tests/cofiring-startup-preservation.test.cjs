@@ -10,9 +10,9 @@ const workerBytes = fs.readFileSync(path.join(runtime, 'cofiring-period-worker-v
 const worker = workerBytes.toString('utf8').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
 const controller = fs.readFileSync(path.join(runtime, 'run-cofiring-period-v5.ps1'), 'utf8').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
 const baselines = require('./cofiring-startup-preservation-baselines.json');
+const { restoreWorkerForPreservation, restoreControllerForPreservation } = require('./helpers/cofiring-speed-preservation-v15-r2.cjs');
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
-function preservedPart(item) {
-  const source = item.source === 'worker' ? worker : controller;
+function preservedPart(item, source = item.source === 'worker' ? worker : controller) {
   const start = source.indexOf(item.start);
   assert.notEqual(start, -1);
   const end = source.indexOf(item.end, start);
@@ -24,14 +24,15 @@ test('startup budget patch preserves reviewed NativeOM attachment', () => {
 });
 test('startup budget patch preserves controller ownership, cleanup and execution acceptance', () => {
   const item = baselines[2];
-  assert.equal(sha(preservedPart(item)), item.sha256);
+  // Compare to the ORIGINAL baseline after reversing only the exact reviewed V1 delta in memory.
+  assert.equal(sha(preservedPart(item, restoreControllerForPreservation(controller))), item.sha256);
 });
 // Historical hashes 1/3 include later owned-handle retry and organic boundary
 // changes. Current behavior is executed in cofiring-worker-semantics.test.cjs;
 // keep the unchanged original hashes below and exact shipped byte pin.
 test('startup budget patch preserves worker cleanup and uncertainty failure', () => {
   const item = baselines[4];
-  assert.equal(sha(preservedPart(item)), item.sha256);
+  assert.equal(sha(preservedPart(item, restoreWorkerForPreservation(worker))), item.sha256);
 });
 test('controller integrity pin matches the worker actually shipped', () => {
   const pin = controller.match(/\$expectedWorkerSha256='([a-f0-9]{64})'/);

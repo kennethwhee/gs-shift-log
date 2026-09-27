@@ -1,0 +1,300 @@
+{
+  "worker": {
+    "marker": "COFIRING_WORKER_PROCESS_LOOKUP_V1",
+    "rules": [
+      {
+        "label": "initialize process and phase telemetry",
+        "from": "$workerReadyUtc = $null",
+        "to": "$workerReadyUtc = $null\n\n# COFIRING_WORKER_PROCESS_LOOKUP_V1\n$script:cofiringWorkerPhases = New-Object 'System.Collections.Generic.List[object]'\n$script:cofiringWorkerLookup = [ordered]@{calls=0;missing=0;errors=0;elapsedSeconds=0.0}\n\n# Telemetry never changes the success stream or the query/cleanup decision.\nfunction Start-CofiringWorkerPhase([string]$Name) {\n  try {\n    $at=[double]$script:workerClock.Elapsed.TotalSeconds\n    [void]$script:cofiringWorkerPhases.Add([ordered]@{\n      name=$Name;startedSeconds=[Math]::Round($at,6);finishedSeconds=$null\n      elapsedSeconds=$null;outcome='running'\n    })\n  } catch { }\n}\n\nfunction Complete-CofiringWorkerPhase([string]$Name,[string]$Outcome='complete') {\n  try {\n    for ($index=$script:cofiringWorkerPhases.Count-1;$index -ge 0;$index-=1) {\n      $phase=$script:cofiringWorkerPhases[$index]\n      if ($phase.name -eq $Name -and $phase.outcome -eq 'running') {\n        $at=[double]$script:workerClock.Elapsed.TotalSeconds\n        $phase.finishedSeconds=[Math]::Round($at,6)\n        $phase.elapsedSeconds=[Math]::Round([Math]::Max(0.0,$at-[double]$phase.startedSeconds),6)\n        $phase.outcome=$Outcome\n        return\n      }\n    }\n  } catch { }\n}\n\nfunction Complete-CofiringOpenWorkerPhases([string]$Outcome='interrupted') {\n  try {\n    foreach ($phase in $script:cofiringWorkerPhases) {\n      if ($phase.outcome -eq 'running') { Complete-CofiringWorkerPhase ([string]$phase.name) $Outcome }\n    }\n  } catch { }\n}\n\nfunction Get-CofiringWorkerPhaseSnapshot {\n  try { return @($script:cofiringWorkerPhases.ToArray()) }\n  catch { return @() }\n}\n\n# Only the OS API's absent-positive-PID ArgumentException proves absence.\n# Every poll performs a fresh lookup; no live checks or process identities are cached.\nfunction Get-CofiringWorkerNativeProcess([int]$ProcessId) {\n  return [Diagnostics.Process]::GetProcessById($ProcessId)\n}\n\nfunction Test-CofiringWorkerProcessPresent([int]$ProcessId) {\n  if ($ProcessId -le 0) { throw [ArgumentOutOfRangeException]::new('ProcessId') }\n  $lookupClock=[Diagnostics.Stopwatch]::StartNew()\n  $process=$null\n  try {\n    try { $script:cofiringWorkerLookup.calls+=1 } catch { }\n    try { $process=Get-CofiringWorkerNativeProcess $ProcessId }\n    catch {\n      $lookupException=$_.Exception\n      while ($null -ne $lookupException.InnerException -and\n        ($lookupException -is [System.Management.Automation.MethodInvocationException] -or\n         $lookupException -is [System.Reflection.TargetInvocationException])) {\n        $lookupException=$lookupException.InnerException\n      }\n      if ($lookupException -is [ArgumentException]) {\n        try { $script:cofiringWorkerLookup.missing+=1 } catch { }\n        return $false\n      }\n      try { $script:cofiringWorkerLookup.errors+=1 } catch { }\n      throw\n    }\n    if ($null -eq $process) { throw [InvalidOperationException]::new('Process lookup returned no process without an absence exception.') }\n    return $true\n  } finally {\n    try { if ($null -ne $process) { $process.Dispose() } }\n    finally {\n      try { $script:cofiringWorkerLookup.elapsedSeconds+=$lookupClock.Elapsed.TotalSeconds } catch { }\n    }\n  }\n}",
+        "count": 1
+      },
+      {
+        "label": "one initial host inventory snapshot",
+        "from": "  $baselineHosts = @(\n    Get-ProbeDataParcHosts | Where-Object {\n      [int]$_.SessionId -eq $currentSessionId -and\n      $baselineExcelPids -contains [int]$_.ParentProcessId\n    }\n  )\n  $unexpectedBaselineHosts = @(\n    Get-ProbeDataParcHosts | Where-Object {\n      [int]$_.SessionId -eq $currentSessionId -and\n      $baselineExcelPids -notcontains [int]$_.ParentProcessId\n    }\n  )",
+        "to": "  Start-CofiringWorkerPhase 'setupBaselineHostSnapshot'\n  # One initial snapshot is split into allowed and unexpected hosts.\n  # Later startup polls and final universe checks still query live processes.\n  $initialHostSnapshot = @(Get-ProbeDataParcHosts)\n  $baselineHosts = @(\n    $initialHostSnapshot | Where-Object {\n      [int]$_.SessionId -eq $currentSessionId -and\n      $baselineExcelPids -contains [int]$_.ParentProcessId\n    }\n  )\n  $unexpectedBaselineHosts = @(\n    $initialHostSnapshot | Where-Object {\n      [int]$_.SessionId -eq $currentSessionId -and\n      $baselineExcelPids -notcontains [int]$_.ParentProcessId\n    }\n  )\n  Complete-CofiringWorkerPhase 'setupBaselineHostSnapshot'",
+        "count": 1
+      },
+      {
+        "label": "fresh PID exit polling helper",
+        "from": "function Wait-ProbeProcessExit([int]$ProcessId, [datetime]$Deadline) {\n  do {\n    if ($null -eq (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue)) { return $true }\n    Start-Sleep -Milliseconds 250\n  } while ([datetime]::UtcNow -lt $Deadline)\n  return ($null -eq (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue))\n}",
+        "to": "function Wait-ProbeProcessExit([int]$ProcessId, [datetime]$Deadline) {\n  do {\n    if (-not (Test-CofiringWorkerProcessPresent $ProcessId)) { return $true }\n    Start-Sleep -Milliseconds 250\n  } while ([datetime]::UtcNow -lt $Deadline)\n  return (-not (Test-CofiringWorkerProcessPresent $ProcessId))\n}",
+        "count": 1
+      },
+      {
+        "label": "fresh host exit poll",
+        "from": "if ($null -eq (Get-Process -Id ([int]$ownedHostSnapshot.ProcessId) -ErrorAction SilentlyContinue)) { break }",
+        "to": "if (-not (Test-CofiringWorkerProcessPresent ([int]$ownedHostSnapshot.ProcessId))) { break }",
+        "count": 1
+      },
+      {
+        "label": "fresh host final existence check",
+        "from": "$hostExited = ($null -eq (Get-Process -Id ([int]$ownedHostSnapshot.ProcessId) -ErrorAction SilentlyContinue))",
+        "to": "$hostExited = (-not (Test-CofiringWorkerProcessPresent ([int]$ownedHostSnapshot.ProcessId)))",
+        "count": 1
+      },
+      {
+        "label": "time native compiler start",
+        "from": "if (-not (\"GsBlowerRuntimeNativeOmV1\" -as [type])) {",
+        "to": "Start-CofiringWorkerPhase 'setupNativeCompile'\nif (-not (\"GsBlowerRuntimeNativeOmV1\" -as [type])) {",
+        "count": 1
+      },
+      {
+        "label": "time native compiler completion",
+        "from": "function Get-ProbeExcelProcessId($ExcelApplication) {",
+        "to": "Complete-CofiringWorkerPhase 'setupNativeCompile'\n\nfunction Get-ProbeExcelProcessId($ExcelApplication) {",
+        "count": 1
+      },
+      {
+        "label": "time window guard start",
+        "from": "function Initialize-OwnedExcelWindowGuard {\n  if ($script:ownedExcelWindowGuardReady) { return }",
+        "to": "function Initialize-OwnedExcelWindowGuard {\n  if ($script:ownedExcelWindowGuardReady) { return }\n  Start-CofiringWorkerPhase 'setupWindowGuardCompile'",
+        "count": 1
+      },
+      {
+        "label": "time window guard completion",
+        "from": "  $script:ownedExcelWindowGuardReady = $true",
+        "to": "  $script:ownedExcelWindowGuardReady = $true\n  Complete-CofiringWorkerPhase 'setupWindowGuardCompile'",
+        "count": 1
+      },
+      {
+        "label": "time native COM attachment",
+        "from": "    $excel = Wait-OwnedProbeExcelNativeObject $ownedExcelPid ([datetime]::UtcNow.AddSeconds(20)) $baselineExcelPids",
+        "to": "    Start-CofiringWorkerPhase 'setupComAttach'\n    $excel = Wait-OwnedProbeExcelNativeObject $ownedExcelPid ([datetime]::UtcNow.AddSeconds(20)) $baselineExcelPids\n    Complete-CofiringWorkerPhase 'setupComAttach' $(if ($null -ne $excel) { 'complete' } else { 'not_ready' })",
+        "count": 1
+      },
+      {
+        "label": "time Excel options start",
+        "from": "  Write-ProbeStage \"Excel COM 연결 완료\"",
+        "to": "  Write-ProbeStage \"Excel COM 연결 완료\"\n  Start-CofiringWorkerPhase 'setupExcelOptions'",
+        "count": 1
+      },
+      {
+        "label": "time Excel options completion",
+        "from": "  Write-ProbeStage \"Excel 옵션 설정 완료\"",
+        "to": "  Write-ProbeStage \"Excel 옵션 설정 완료\"\n  Complete-CofiringWorkerPhase 'setupExcelOptions'",
+        "count": 1
+      },
+      {
+        "label": "time startup workbook cleanup start",
+        "from": "  $startupWorkbooks = $null",
+        "to": "  Start-CofiringWorkerPhase 'setupStartupWorkbookClose'\n  $startupWorkbooks = $null",
+        "count": 1
+      },
+      {
+        "label": "time startup workbook cleanup completion",
+        "from": "  Write-ProbeStage \"초기 통합문서 정리 완료\"",
+        "to": "  Write-ProbeStage \"초기 통합문서 정리 완료\"\n  Complete-CofiringWorkerPhase 'setupStartupWorkbookClose'",
+        "count": 1
+      },
+      {
+        "label": "time DataPARC host wait",
+        "from": "  $ownedHostCim = Wait-OwnedProbeDataParcHost $ownedExcelPid $baselineExcelPids ([datetime]::UtcNow.AddSeconds(60))",
+        "to": "  Start-CofiringWorkerPhase 'setupHostWait'\n  $ownedHostCim = Wait-OwnedProbeDataParcHost $ownedExcelPid $baselineExcelPids ([datetime]::UtcNow.AddSeconds(60))\n  Complete-CofiringWorkerPhase 'setupHostWait' $(if ($null -ne $ownedHostCim) { 'complete' } else { 'not_ready' })",
+        "count": 1
+      },
+      {
+        "label": "time query workbook and formula setup start",
+        "from": "  Write-ProbeStage \"조회용 임시 통합문서 생성\"",
+        "to": "  Start-CofiringWorkerPhase 'setupQueryWorkbookAndFormulas'\n  Write-ProbeStage \"조회용 임시 통합문서 생성\"",
+        "count": 1
+      },
+      {
+        "label": "time query workbook and formula setup completion",
+        "from": "    [void](Invoke-CofiringExcelCall -Operation 'Fast.Formula' -Action { $queryRange.Formula=$formulasFast })",
+        "to": "    [void](Invoke-CofiringExcelCall -Operation 'Fast.Formula' -Action { $queryRange.Formula=$formulasFast })\n    Complete-CofiringWorkerPhase 'setupQueryWorkbookAndFormulas'",
+        "count": 1
+      },
+      {
+        "label": "record incomplete setup on failure",
+        "from": "  $script:cofiringInCleanup=$true",
+        "to": "  $script:cofiringInCleanup=$true\n  Complete-CofiringOpenWorkerPhases 'interrupted'",
+        "count": 1
+      },
+      {
+        "label": "time cleanup COM identity and close/quit start",
+        "from": "  $canCloseOwnedCom=$false",
+        "to": "  Start-CofiringWorkerPhase 'cleanupCloseQuit'\n  $canCloseOwnedCom=$false",
+        "count": 1
+      },
+      {
+        "label": "time COM release and GC start",
+        "from": "  foreach ($comObject in @(\n    $queryRange,",
+        "to": "  Complete-CofiringWorkerPhase 'cleanupCloseQuit'\n  Start-CofiringWorkerPhase 'cleanupComReleaseAndGc'\n  foreach ($comObject in @(\n    $queryRange,",
+        "count": 1
+      },
+      {
+        "label": "time GC completion and Excel exit start",
+        "from": "  [GC]::Collect()\n  [GC]::WaitForPendingFinalizers()\n  [GC]::Collect()\n  [GC]::WaitForPendingFinalizers()",
+        "to": "  [GC]::Collect()\n  [GC]::WaitForPendingFinalizers()\n  [GC]::Collect()\n  [GC]::WaitForPendingFinalizers()\n  Complete-CofiringWorkerPhase 'cleanupComReleaseAndGc'\n  Start-CofiringWorkerPhase 'cleanupExcelExit'",
+        "count": 1
+      },
+      {
+        "label": "time Excel exit completion and host exit start",
+        "from": "  if ($null -eq $ownedHostSnapshot -and $ownedExcelPid -gt 0) {",
+        "to": "  Complete-CofiringWorkerPhase 'cleanupExcelExit'\n  Start-CofiringWorkerPhase 'cleanupHostExit'\n  if ($null -eq $ownedHostSnapshot -and $ownedExcelPid -gt 0) {",
+        "count": 1
+      },
+      {
+        "label": "time host exit completion and final universe start",
+        "from": "  try {\n    $finalExcelPids = @(",
+        "to": "  Complete-CofiringWorkerPhase 'cleanupHostExit'\n  Start-CofiringWorkerPhase 'cleanupFinalUniverse'\n  try {\n    $finalExcelPids = @(",
+        "count": 1
+      },
+      {
+        "label": "time final universe completion",
+        "from": "  if ($deferredExcelTeardownErrors.Count -gt 0) {",
+        "to": "  Complete-CofiringWorkerPhase 'cleanupFinalUniverse'\n  if ($deferredExcelTeardownErrors.Count -gt 0) {",
+        "count": 1
+      },
+      {
+        "label": "attach worker phases to final timing",
+        "from": "  elapsedBasis='monotonic_since_first_worker_statement'",
+        "to": "  elapsedBasis='monotonic_since_first_worker_statement'\n  workerPhases=@(Get-CofiringWorkerPhaseSnapshot)\n  workerProcessLookup=$script:cofiringWorkerLookup",
+        "count": 1
+      }
+    ]
+  },
+  "controller": {
+    "marker": "COFIRING_CONTROLLER_PROCESS_LOOKUP_V1",
+    "rules": [
+      {
+        "label": "start monotonic controller clock",
+        "from": "$ErrorActionPreference='Stop'",
+        "to": "$controllerClock=[Diagnostics.Stopwatch]::StartNew()\n$ErrorActionPreference='Stop'",
+        "count": 1
+      },
+      {
+        "label": "initialize timing state",
+        "from": "$resultZipPath=$null\n",
+        "to": "$resultZipPath=$null\n$controllerTimingMarks=[ordered]@{controller_entered=0.0}\n$controllerTimingDurations=[ordered]@{}\n$controllerProcessLookup=[ordered]@{nativeCalls=0;missing=0;fallbackCalls=0}\n$workerExitUtc=$null\n$archiveSucceeded=$null\n",
+        "count": 1
+      },
+      {
+        "label": "insert read-only process helper and telemetry",
+        "from": "function New-ControllerSignature($ProcessObject) {",
+        "to": "# COFIRING_CONTROLLER_PROCESS_LOOKUP_V1\n# Use a fresh PID lookup on every call. Only the API's missing-positive-PID\n# ArgumentException means absence; all other failures keep the legacy fallback.\n# Callers retain every handle, identity, parent/session and path check.\nfunction Get-ControllerNativeProcessById([int]$ProcessId) {\n  return [Diagnostics.Process]::GetProcessById($ProcessId)\n}\n\nfunction Get-ControllerLegacyProcessById([int]$ProcessId) {\n  try { return Get-Process -Id $ProcessId -ErrorAction Stop }\n  catch {\n    if ($_.FullyQualifiedErrorId -eq 'NoProcessFoundForGivenId,Microsoft.PowerShell.Commands.GetProcessCommand' -and\n        $_.CategoryInfo.Category -eq [System.Management.Automation.ErrorCategory]::ObjectNotFound -and\n        [string]$_.TargetObject -eq [string]$ProcessId) { return $null }\n    throw\n  }\n}\n\nfunction Add-ControllerLookupCount([string]$Name) {\n  try {\n    if ($null -ne $script:controllerProcessLookup) {\n      $script:controllerProcessLookup[$Name]=[int]$script:controllerProcessLookup[$Name]+1\n    }\n  } catch { }\n}\n\nfunction Get-ControllerProcessById([int]$ProcessId) {\n  if ($ProcessId -le 0) { return $null }\n  Add-ControllerLookupCount 'nativeCalls'\n  try {\n    $nativeProcess=Get-ControllerNativeProcessById $ProcessId\n    if ($null -eq $nativeProcess) { throw [InvalidOperationException]::new('Native process lookup returned no process object.') }\n    return $nativeProcess\n  }\n  catch {\n    $lookupException=$_.Exception\n    while ($null -ne $lookupException.InnerException -and\n      ($lookupException -is [System.Management.Automation.MethodInvocationException] -or\n       $lookupException -is [System.Reflection.TargetInvocationException])) {\n      $lookupException=$lookupException.InnerException\n    }\n    if ($lookupException -is [ArgumentException]) {\n      Add-ControllerLookupCount 'missing'\n      return $null\n    }\n    Add-ControllerLookupCount 'fallbackCalls'\n    return Get-ControllerLegacyProcessById $ProcessId\n  }\n}\n\nfunction Set-ControllerTimingMark([string]$Name) {\n  try {\n    if ($null -ne $script:controllerClock -and -not $script:controllerTimingMarks.Contains($Name)) {\n      $script:controllerTimingMarks[$Name]=[Math]::Round($script:controllerClock.Elapsed.TotalSeconds,6)\n    }\n  } catch { }\n}\n\nfunction Add-ControllerTimingDuration([string]$Name,[double]$Seconds) {\n  try {\n    if (-not [double]::IsNaN($Seconds) -and -not [double]::IsInfinity($Seconds) -and $Seconds -ge 0) {\n      $script:controllerTimingDurations[$Name]=[Math]::Round($Seconds,6)\n    }\n  } catch { }\n}\n\nfunction Get-ControllerTimingSnapshot {\n  try {\n  $marks=[ordered]@{};$durations=[ordered]@{};$lookups=[ordered]@{}\n  foreach ($key in $script:controllerTimingMarks.Keys) { $marks[$key]=$script:controllerTimingMarks[$key] }\n  foreach ($key in $script:controllerTimingDurations.Keys) { $durations[$key]=$script:controllerTimingDurations[$key] }\n  foreach ($key in $script:controllerProcessLookup.Keys) { $lookups[$key]=$script:controllerProcessLookup[$key] }\n  return [pscustomobject][ordered]@{\n    schemaVersion=1;revision='controller-process-lookup-v1'\n    elapsedBasis='monotonic_since_first_controller_statement'\n    marksSeconds=$marks;durationsSeconds=$durations;processLookup=$lookups\n    workerExitUtc=$script:workerExitUtc;archiveSucceeded=$script:archiveSucceeded\n  }\n  } catch { return $null }\n}\n\nfunction Write-ControllerTimingDiagnostic {\n  # Optional evidence must never alter query success or cleanup decisions.\n  try {\n    if ($outputReady -and [IO.Directory]::Exists($OutputDirectory)) {\n      $timingDiagnostic=[ordered]@{\n        kind='cofiring_controller_timing';schemaVersion=1;runId=$runId\n        startLocal=$StartLocal;endLocal=$EndLocal;completedAtUtc=[datetime]::UtcNow.ToString('o')\n        timing=(Get-ControllerTimingSnapshot)\n      }\n      [IO.File]::WriteAllText((Join-Path $OutputDirectory 'controller-timing.json'),(ConvertTo-Json -InputObject $timingDiagnostic -Depth 8),$utf8)\n    }\n  } catch { }\n}\n\nfunction New-ControllerSignature($ProcessObject) {",
+        "count": 1
+      },
+      {
+        "label": "signature and stop lookups",
+        "from": "$process = Get-Process -Id ([int]$Signature.ProcessId) -ErrorAction SilentlyContinue",
+        "to": "$process = Get-ControllerProcessById ([int]$Signature.ProcessId)",
+        "count": 2
+      },
+      {
+        "label": "candidate lookups",
+        "from": "$process = Get-Process -Id ([int]$candidate.ProcessId) -ErrorAction SilentlyContinue",
+        "to": "$process = Get-ControllerProcessById ([int]$candidate.ProcessId)",
+        "count": 2
+      },
+      {
+        "label": "owned Excel lookup",
+        "from": "$candidateProcess = Get-Process -Id ([int]$script:ownedExcel.ProcessId) -ErrorAction SilentlyContinue",
+        "to": "$candidateProcess = Get-ControllerProcessById ([int]$script:ownedExcel.ProcessId)",
+        "count": 1
+      },
+      {
+        "label": "ownership_before_cancel",
+        "from": "  try { Update-ControllerOwnership } catch { $cleanupErrors.Add('소유 프로세스 확인: '+$_.Exception.Message) }",
+        "to": "  $ownershipPassClock=[Diagnostics.Stopwatch]::StartNew()\n  try { Update-ControllerOwnership } catch { $cleanupErrors.Add('소유 프로세스 확인: '+$_.Exception.Message) } finally { Add-ControllerTimingDuration 'ownership_before_cancel' $ownershipPassClock.Elapsed.TotalSeconds }",
+        "count": 1
+      },
+      {
+        "label": "ownership_after_worker_exit",
+        "from": "  try { Update-ControllerOwnership } catch { $cleanupErrors.Add('종료 후 소유 프로세스 확인: '+$_.Exception.Message) }",
+        "to": "  $ownershipPassClock=[Diagnostics.Stopwatch]::StartNew()\n  try { Update-ControllerOwnership } catch { $cleanupErrors.Add('종료 후 소유 프로세스 확인: '+$_.Exception.Message) } finally { Add-ControllerTimingDuration 'ownership_after_worker_exit' $ownershipPassClock.Elapsed.TotalSeconds }",
+        "count": 1
+      },
+      {
+        "label": "ownership_after_forced_cleanup",
+        "from": "  try { Update-ControllerOwnership } catch { $cleanupErrors.Add('지연 소유 프로세스 확인: '+$_.Exception.Message) }",
+        "to": "  $ownershipPassClock=[Diagnostics.Stopwatch]::StartNew()\n  try { Update-ControllerOwnership } catch { $cleanupErrors.Add('지연 소유 프로세스 확인: '+$_.Exception.Message) } finally { Add-ControllerTimingDuration 'ownership_after_forced_cleanup' $ownershipPassClock.Elapsed.TotalSeconds }",
+        "count": 1
+      },
+      {
+        "label": "report assembly mark",
+        "from": "    $report=[ordered]@{\n",
+        "to": "    Set-ControllerTimingMark 'report_assembled'\n    $report=[ordered]@{\n",
+        "count": 1
+      },
+      {
+        "label": "report telemetry snapshot",
+        "from": ";worker=$(if($rawResult){$rawResult.timing}else{$null})}",
+        "to": ";worker=$(if($rawResult){$rawResult.timing}else{$null});controllerPhases=(Get-ControllerTimingSnapshot)}",
+        "count": 1
+      },
+      {
+        "label": "report JSON written mark",
+        "from": "    [IO.File]::WriteAllText((Join-Path $OutputDirectory 'period-report.json'),($report | ConvertTo-Json -Depth 12),$utf8)",
+        "to": "    [IO.File]::WriteAllText((Join-Path $OutputDirectory 'period-report.json'),($report | ConvertTo-Json -Depth 12),$utf8)\n    Set-ControllerTimingMark 'report_json_written'",
+        "count": 1
+      },
+      {
+        "label": "worker launch mark",
+        "from": "    $executionClock=[Diagnostics.Stopwatch]::StartNew()",
+        "to": "    Set-ControllerTimingMark 'worker_launch_begin'\n    $executionClock=[Diagnostics.Stopwatch]::StartNew()",
+        "count": 1
+      },
+      {
+        "label": "worker signature mark",
+        "from": "    $workerSignature | Add-Member -NotePropertyName ParentProcessId -NotePropertyValue ([int]$controllerSignature.ProcessId)",
+        "to": "    $workerSignature | Add-Member -NotePropertyName ParentProcessId -NotePropertyValue ([int]$controllerSignature.ProcessId)\n    Set-ControllerTimingMark 'worker_signature_ready'",
+        "count": 1
+      },
+      {
+        "label": "worker exit evidence",
+        "from": "  [void]$worker.WaitForExit(1000)\n  $workerExitCode=[int]$worker.ExitCode",
+        "to": "  Set-ControllerTimingMark 'worker_exit_observed'\n  try { $workerExitUtc=$worker.ExitTime.ToUniversalTime().ToString('o') } catch { }\n  [void]$worker.WaitForExit(1000)\n  $workerExitCode=[int]$worker.ExitCode",
+        "count": 1
+      },
+      {
+        "label": "cleanup timing",
+        "from": "    Invoke-ControllerCleanup\n    foreach ($signature in @($baselineExcel)+@($baselineHosts)) {",
+        "to": "    Set-ControllerTimingMark 'controller_cleanup_begin'\n    try { Invoke-ControllerCleanup } finally { Set-ControllerTimingMark 'controller_cleanup_end' }\n    Set-ControllerTimingMark 'baseline_verification_begin'\n    foreach ($signature in @($baselineExcel)+@($baselineHosts)) {",
+        "count": 1
+      },
+      {
+        "label": "baseline verification timing",
+        "from": "    $script:processCleanupVerified=($cleanupErrors.Count -eq 0 -and $null -ne $workerSignature -and $null -ne $ownedExcel)",
+        "to": "    Set-ControllerTimingMark 'baseline_verification_end'\n    $script:processCleanupVerified=($cleanupErrors.Count -eq 0 -and $null -ne $workerSignature -and $null -ne $ownedExcel)\n    Set-ControllerTimingMark 'cleanup_diagnostics_begin'",
+        "count": 1
+      },
+      {
+        "label": "diagnostics timing",
+        "from": "    if ($worker -and $worker.HasExited) { $workerExitCode=[int]$worker.ExitCode }",
+        "to": "    if ($worker -and $worker.HasExited) {\n      $workerExitCode=[int]$worker.ExitCode\n      if ($null -eq $workerExitUtc) { try { $workerExitUtc=$worker.ExitTime.ToUniversalTime().ToString('o') } catch { } }\n      Set-ControllerTimingMark 'worker_exit_observed'\n    }\n    Set-ControllerTimingMark 'cleanup_diagnostics_end'",
+        "count": 1
+      },
+      {
+        "label": "release resources timing",
+        "from": "    if ($controllerMutex) { if ($controllerMutexAcquired)",
+        "to": "    Set-ControllerTimingMark 'resource_release_begin'\n    if ($controllerMutex) { if ($controllerMutexAcquired)",
+        "count": 1
+      },
+      {
+        "label": "temporary directory timing",
+        "from": "    if ($temporaryDirectory -and [IO.Directory]::Exists($temporaryDirectory)) { try { [IO.Directory]::Delete($temporaryDirectory,$true) } catch { $cleanupErrors.Add('조회 임시 폴더 제거 실패: '+$_.Exception.Message) } }\n    Save-FastControllerReport",
+        "to": "    Set-ControllerTimingMark 'resource_release_end'\n    Set-ControllerTimingMark 'temporary_directory_cleanup_begin'\n    if ($temporaryDirectory -and [IO.Directory]::Exists($temporaryDirectory)) { try { [IO.Directory]::Delete($temporaryDirectory,$true) } catch { $cleanupErrors.Add('조회 임시 폴더 제거 실패: '+$_.Exception.Message) } }\n    Set-ControllerTimingMark 'temporary_directory_cleanup_end'\n    Set-ControllerTimingMark 'report_build_begin'\n    Save-FastControllerReport\n    Set-ControllerTimingMark 'report_write_end'",
+        "count": 1
+      },
+      {
+        "label": "archive start timing",
+        "from": "        $resultZipPath=$OutputDirectory+'.zip'",
+        "to": "        Set-ControllerTimingMark 'archive_begin'\n        $archiveSucceeded=$false\n        $resultZipPath=$OutputDirectory+'.zip'",
+        "count": 1
+      },
+      {
+        "label": "archive success timing",
+        "from": "        [Console]::WriteLine('결과 ZIP: '+$resultZipPath)",
+        "to": "        $archiveSucceeded=$true\n        [Console]::WriteLine('결과 ZIP: '+$resultZipPath)",
+        "count": 1
+      },
+      {
+        "label": "archive end and optional diagnostic",
+        "from": "      } catch { [Console]::WriteLine('[경고] 결과 ZIP 생성 실패: '+$_.Exception.Message) }\n    }\n  }\n}\nif ($success)",
+        "to": "      } catch { [Console]::WriteLine('[경고] 결과 ZIP 생성 실패: '+$_.Exception.Message) }\n      finally { Set-ControllerTimingMark 'archive_end' }\n    }\n    Write-ControllerTimingDiagnostic\n  }\n}\nif ($success)",
+        "count": 1
+      }
+    ]
+  }
+}
