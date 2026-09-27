@@ -167201,10 +167201,13 @@ function applyMorningMeetingDailyDataValues(
   dailyData,
   options = {}
 ) {
-  const source =
+  const closedSource =
     typeof window.morningMeetingClosedCofiring?.valuesForWorkbook === "function"
       ? window.morningMeetingClosedCofiring.valuesForWorkbook(dailyData, options)
       : dailyData && typeof dailyData === "object" ? dailyData : {};
+  const source = typeof window.toNightPower?.valuesForWorkbook === "function"
+    ? window.toNightPower.valuesForWorkbook(closedSource, options)
+    : closedSource;
 
 
   /* =====================================================
@@ -168638,6 +168641,16 @@ if (
     {};
 }
 
+
+// TO power is a saved, date-scoped source, not a browser-only display overlay.
+if (!suppressAutomaticWorkbookValues) {
+  if (typeof window.toNightPower?.ensureForWorkbook !== "function") {
+    throw new Error("전력 입력 기능을 불러오지 못했습니다. Ctrl+F5 후 최종 엑셀을 다시 생성해 주세요.");
+  }
+  await window.toNightPower.ensureForWorkbook(closedValuesTargetDate);
+  suppressAutomaticWorkbookValues = mustSuppressSelectedAutomaticDate();
+  if (suppressAutomaticWorkbookValues) dailyDataForWorkbook = {};
+}
 
 const dailyDataResult =
   applyMorningMeetingDailyDataValues(
@@ -219640,6 +219653,7 @@ if (
 
     window.morningMeetingClosedCofiring?.renderOrganic();
     window.morningMeetingQuerySources?.render();
+    window.toNightPower?.renderMeeting();
   }
 
   /* =====================================================
@@ -246805,6 +246819,9 @@ function initializeDailyControls() {
 
 
   async function refreshDailyData(item) {
+    if (item?.section === "power" && window.toNightPower) {
+      return window.toNightPower.refreshMeeting({ force: true });
+    }
     if (item?.section === "organic" && window.morningMeetingClosedCofiring) {
       return window.morningMeetingClosedCofiring.refresh({ force: true });
     }

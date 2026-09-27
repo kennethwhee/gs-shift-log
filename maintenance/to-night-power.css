@@ -1,0 +1,45 @@
+/* Scoped styles: preserve all other duty cards and their log status badges. */
+#shiftMemberGrid .shift-member-card.has-to-night-power { position: relative; }
+#shiftMemberGrid .to-night-power-button {
+  position: absolute; top: 10px; right: 10px; z-index: 2; margin: 0;
+  min-height: 25px; padding: 4px 8px; border: 1px solid #3989ce; border-radius: 4px;
+  background: #337fc2; color: #fff; font: 700 11px/1.3 system-ui, sans-serif; font-family: inherit;
+  font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+#shiftMemberGrid .to-night-power-button[hidden] { display: none !important; }
+#shiftMemberGrid .to-night-power-button:hover { background: #4390d1; }
+#shiftMemberGrid .to-night-power-button:focus-visible { outline: 2px solid #bfddff; outline-offset: 3px; }
+.to-night-power-dialog {
+  box-sizing: border-box; width: min(460px, calc(100vw - 28px)); max-height: calc(100dvh - 32px);
+  overflow-y: auto; padding: 22px; border: 1px solid #3b506a; border-radius: 12px;
+  background: #1b293a; color: #eef4ff; font: 14px/1.55 system-ui, sans-serif;
+  box-shadow: 0 24px 80px #0008;
+}
+.to-night-power-dialog::backdrop { background: #07111dc2; }
+.to-night-power-dialog *, .to-night-power-dialog *::before, .to-night-power-dialog *::after { box-sizing: border-box; }
+.to-night-power-dialog header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 18px; }
+.to-night-power-dialog h2 { margin: 3px 0 0; font-size: 21px; color: #fff; }
+.to-night-power-eyebrow { color: #a3caff; font-size: 12px; font-weight: 700; }
+.to-night-power-dialog button { padding: 7px 11px; border: 1px solid #496078; border-radius: 6px; background: #26394c; color: #e5efff; font: inherit; cursor: pointer; }
+.to-night-power-dialog button:disabled { opacity: .55; cursor: wait; }
+.to-night-power-dialog .to-night-power-close { padding: 0 8px; border: 0; background: transparent; font-size: 26px; line-height: 1.1; }
+.to-night-power-date { display: flex; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 6px; background: #24384c; }
+.to-night-power-date strong { font-size: 16px; font-variant-numeric: tabular-nums; }
+.to-night-power-help { margin: 8px 0 20px; font-size: 12px; color: #bac9da; }
+.to-night-power-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 15px 14px; }
+.to-night-power-fields label { min-width: 0; font-size: 13px; color: #d8e5f5; }
+.to-night-power-input { display: flex; align-items: center; gap: 5px; margin-top: 6px; }
+.to-night-power-input input { min-width: 0; width: 100%; padding: 10px 8px; background: #122134; color: #fff; border: 1px solid #4a5c71; border-radius: 6px; font: 600 17px/1.3 system-ui, sans-serif; text-align: right; font-variant-numeric: tabular-nums; }
+.to-night-power-input input:focus { outline: 2px solid #72b7f7; outline-offset: 1px; }
+.to-night-power-input input[aria-invalid="true"] { border-color: #ff9a9a; }
+.to-night-power-input > span { color: #a8bbd2; font-size: 11px; }
+.to-night-power-message { min-height: 44px; margin: 16px 0 10px; color: #a9cbe9; font-size: 12px; overflow-wrap: anywhere; }
+.to-night-power-message.is-error { color: #ffb8af; }
+.to-night-power-dialog footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.to-night-power-dialog footer > div { display: flex; gap: 7px; margin-left: auto; }
+.to-night-power-dialog #toNightPowerReload { border: 0; padding-left: 0; background: transparent; color: #b7cce0; font-size: 11px; }
+.to-night-power-dialog #toNightPowerSave { background: #337fc2; border-color: #469adb; font-weight: 700; }
+@media (max-width: 380px) {
+  .to-night-power-dialog { padding: 17px; }
+  .to-night-power-fields { grid-template-columns: 1fr; gap: 12px; }
+}
