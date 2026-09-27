@@ -128,8 +128,22 @@ test('every retired asset remains excluded and cannot be referenced by published
   }
 });
 
-test('PC script and mobile preload/execution URLs identify the cleaned runtime consistently', () => {
-  assert.match(read('index.html'), /src="script\.js\?v=20260925-structure-v12&amp;limestone=20260925-v1"/);
+test('PC search installer loads before the runtime and mobile preload/execution URLs remain consistent', () => {
+  const scripts = [...read('index.html').matchAll(/<script\b[^>]*>/gi)]
+    .map(match => ({ tag: match[0], src: /\bsrc="([^"]+)"/.exec(match[0])?.[1] || '' }));
+  const runtime = scripts.filter(item => /^script\.js\?/.test(item.src));
+  const installer = scripts.filter(item => /^maintenance\/shift-log-search-matched-items\.js\?/.test(item.src));
+  assert.equal(runtime.length, 1); assert.equal(installer.length, 1);
+  assert.equal(scripts.indexOf(installer[0]) + 1, scripts.indexOf(runtime[0]));
+  for (const item of [installer[0], runtime[0]]) {
+    assert.match(item.tag, /\bdefer\b/);
+    assert.doesNotMatch(item.tag, /\basync\b|\btype\s*=/);
+  }
+  const runtimeUrl = new URL(runtime[0].src.replaceAll('&amp;', '&'), 'https://example.invalid/');
+  const installerUrl = new URL(installer[0].src, 'https://example.invalid/');
+  assert.ok(runtimeUrl.searchParams.get('v'));
+  assert.equal(installerUrl.searchParams.get('v'), runtimeUrl.searchParams.get('v'));
+  assert.equal(runtimeUrl.searchParams.get('limestone'), '20260925-v1');
   const mobile = read('mobile-app/index.html');
   const urls = [...mobile.matchAll(/(?:src|href)="(\/mobile-app\/mobile-runtime-v14\.js\?[^"\s]+)"/g)].map(m => m[1]);
   assert.equal(urls.length, 2); assert.equal(urls[0], urls[1]);
