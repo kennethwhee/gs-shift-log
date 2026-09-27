@@ -216640,85 +216640,61 @@ function formatRate(
 
 
     /* ===================================================
-      전력 현황
+      전력 현황 · Structure V17 existing-provider render core
     ==================================================== */
 
-    if (
-      elements.solarDailyGeneration
-    ) {
-      elements.solarDailyGeneration.textContent =
-        hideValues
-          ? "-"
-          : formatAmount(
-              solarDailyGeneration,
-              "kWh"
-            );
-    }
-
+    const renderDailyPowerV17 =
+      window.GSToNightPowerRenderCore
+        ?.renderDailyPower;
 
     if (
-      elements.solarMonthlyCumulative
+      typeof renderDailyPowerV17 ===
+        "function"
     ) {
-      elements.solarMonthlyCumulative.textContent =
-        hideValues
-          ? "-"
-          : formatAmount(
-              solarMonthlyCumulative,
-              "kWh"
-            );
+      renderDailyPowerV17({
+        elements,
+        hideValues,
+        formatAmount,
+        solarDailyGeneration,
+        solarMonthlyCumulative,
+        solarYearlyCumulative,
+        generatorEcmsGen1,
+        ismartReception,
+        epowerTransmission
+      });
+
+    } else {
+      /*
+        Compatibility fallback for early main / isolated VM execution.
+        Same six values and same kWh formatting as the reviewed block.
+      */
+      const powerRowsV17 = [
+        [elements.solarDailyGeneration, solarDailyGeneration],
+        [elements.solarMonthlyCumulative, solarMonthlyCumulative],
+        [elements.solarYearlyCumulative, solarYearlyCumulative],
+        [elements.generatorEcmsGen1, generatorEcmsGen1],
+        [elements.ismartReception, ismartReception],
+        [elements.epowerTransmission, epowerTransmission]
+      ];
+
+      for (
+        const [powerElement, powerValue] of
+          powerRowsV17
+      ) {
+        if (
+          powerElement
+        ) {
+          powerElement.textContent =
+            hideValues
+              ? "-"
+              : formatAmount(
+                  powerValue,
+                  "kWh"
+                );
+        }
+      }
     }
 
-
-    if (
-      elements.solarYearlyCumulative
-    ) {
-      elements.solarYearlyCumulative.textContent =
-        hideValues
-          ? "-"
-          : formatAmount(
-              solarYearlyCumulative,
-              "kWh"
-            );
-    }
-
-
-    if (
-      elements.generatorEcmsGen1
-    ) {
-      elements.generatorEcmsGen1.textContent =
-        hideValues
-          ? "-"
-          : formatAmount(
-              generatorEcmsGen1,
-              "kWh"
-            );
-    }
-
-
-    if (
-      elements.ismartReception
-    ) {
-      elements.ismartReception.textContent =
-        hideValues
-          ? "-"
-          : formatAmount(
-              ismartReception,
-              "kWh"
-            );
-    }
-
-
-    if (
-      elements.epowerTransmission
-    ) {
-      elements.epowerTransmission.textContent =
-        hideValues
-          ? "-"
-          : formatAmount(
-              epowerTransmission,
-              "kWh"
-            );
-    }
 
 
     /* ===================================================

@@ -1,3 +1,110 @@
+/* STRUCTURE V17 TO POWER RENDER CORE R3 START */
+/* Pure Morning Meeting power-card renderer extracted from script.js.
+ * No fetch, auth, storage, DB, workbook, Agent or Excel ownership lives here.
+ * Reviewed original block SHA256 (LF-normalized): 8bd09c6e384e25e2afaa788a5d8a50c84a45cd51a325ee0293b67b34f7db3400
+ */
+(function installGSToNightPowerRenderCore(global){
+  if(!global) return;
+  const version='20260927-structure-v17-r3';
+  if(global.GSToNightPowerRenderCore?.version===version) return;
+  function renderDailyPower(input){
+    if(!input||typeof input!=='object') throw new TypeError('TO power render input is required.');
+    const {
+      elements,
+      hideValues,
+      formatAmount,
+      solarDailyGeneration,
+      solarMonthlyCumulative,
+      solarYearlyCumulative,
+      generatorEcmsGen1,
+      ismartReception,
+      epowerTransmission
+    }=input;
+    if(!elements||typeof elements!=='object') throw new TypeError('TO power render elements are required.');
+    if(typeof formatAmount!=='function') throw new TypeError('TO power formatAmount is required.');
+
+        if (
+          elements.solarDailyGeneration
+        ) {
+          elements.solarDailyGeneration.textContent =
+            hideValues
+              ? "-"
+              : formatAmount(
+                  solarDailyGeneration,
+                  "kWh"
+                );
+        }
+
+
+        if (
+          elements.solarMonthlyCumulative
+        ) {
+          elements.solarMonthlyCumulative.textContent =
+            hideValues
+              ? "-"
+              : formatAmount(
+                  solarMonthlyCumulative,
+                  "kWh"
+                );
+        }
+
+
+        if (
+          elements.solarYearlyCumulative
+        ) {
+          elements.solarYearlyCumulative.textContent =
+            hideValues
+              ? "-"
+              : formatAmount(
+                  solarYearlyCumulative,
+                  "kWh"
+                );
+        }
+
+
+        if (
+          elements.generatorEcmsGen1
+        ) {
+          elements.generatorEcmsGen1.textContent =
+            hideValues
+              ? "-"
+              : formatAmount(
+                  generatorEcmsGen1,
+                  "kWh"
+                );
+        }
+
+
+        if (
+          elements.ismartReception
+        ) {
+          elements.ismartReception.textContent =
+            hideValues
+              ? "-"
+              : formatAmount(
+                  ismartReception,
+                  "kWh"
+                );
+        }
+
+
+        if (
+          elements.epowerTransmission
+        ) {
+          elements.epowerTransmission.textContent =
+            hideValues
+              ? "-"
+              : formatAmount(
+                  epowerTransmission,
+                  "kWh"
+                );
+        }
+  }
+  const api=Object.freeze({version,renderDailyPower,reviewedBlockSha256:'8bd09c6e384e25e2afaa788a5d8a50c84a45cd51a325ee0293b67b34f7db3400'});
+  Object.defineProperty(global,'GSToNightPowerRenderCore',{configurable:true,enumerable:false,writable:false,value:api});
+})(typeof window!=='undefined'?window:globalThis);
+/* STRUCTURE V17 TO POWER RENDER CORE R3 END */
+
 /* Night TO power entry + read-only morning-meeting provider. No Excel/Agent call.
  * R5: keep the last confirmed date/session-scoped manual record through legacy
  * synchronization, background refresh and transient errors. Never POST from sync.
