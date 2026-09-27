@@ -1,0 +1,307 @@
+/* SOLID_FUEL_COMPACT_READABILITY_V1_R2
+   Approved UI-only readability pass for GS Shift Log Solid Fuel Management.
+   Scope: query controls, KPI readability, unloading table readability, record/edit modals.
+   No runtime/API/Agent/database/co-firing behavior is changed. */
+
+@media (min-width: 761px){
+  /* Compact query row without changing controls or query behavior. */
+  .query-card{
+    gap:7px !important;
+    padding:8px 10px !important;
+  }
+  #queryMode.query-mode{gap:4px !important;}
+  #queryMode .query-mode__button{
+    height:34px !important;
+    min-height:34px !important;
+    padding:0 9px !important;
+    border-radius:7px !important;
+    font-size:12px !important;
+    line-height:1 !important;
+  }
+  #filterForm.filters{gap:7px !important;}
+  #filterForm.filters label{gap:3px !important;}
+  #filterForm.filters label > span{
+    margin:0 0 1px 1px !important;
+    color:#60758b !important;
+    font-size:10px !important;
+    font-weight:850 !important;
+    line-height:1.1 !important;
+  }
+  #filterForm.filters input,
+  #filterForm.filters select{
+    height:34px !important;
+    min-height:34px !important;
+    padding:0 9px !important;
+    border-radius:7px !important;
+    font-size:12px !important;
+  }
+  #filterForm .filter-buttons{gap:6px !important;}
+  #filterForm .filter-buttons .btn{
+    height:34px !important;
+    min-height:34px !important;
+    padding:0 11px !important;
+    border-radius:7px !important;
+    font-size:12px !important;
+  }
+
+  /* KPI values read as five small cards rather than one heavy strip. */
+  .summary-strip{
+    display:grid !important;
+    grid-template-columns:repeat(5,minmax(0,1fr)) !important;
+    gap:8px !important;
+    margin-bottom:10px !important;
+    border:0 !important;
+    border-radius:0 !important;
+    background:transparent !important;
+    overflow:visible !important;
+  }
+  .summary-strip article{
+    display:block !important;
+    min-height:70px !important;
+    padding:9px 11px !important;
+    border:1px solid #dbe5ef !important;
+    border-radius:9px !important;
+    background:#fff !important;
+  }
+  .summary-strip article:last-child{border-right:1px solid #dbe5ef !important;}
+  .summary-strip span{
+    display:block !important;
+    margin:0 0 4px !important;
+    color:#66798c !important;
+    font-size:10px !important;
+    font-weight:850 !important;
+    line-height:1.2 !important;
+  }
+  .summary-strip strong{
+    display:inline-block !important;
+    margin:0 !important;
+    color:#173b5d !important;
+    font-size:24px !important;
+    font-weight:900 !important;
+    line-height:1 !important;
+    letter-spacing:-.03em !important;
+    font-variant-numeric:tabular-nums !important;
+  }
+  .summary-strip small{
+    display:inline-block !important;
+    margin-left:4px !important;
+    color:#6c7b8c !important;
+    font-size:11px !important;
+    font-weight:750 !important;
+  }
+
+  /* Unloading table: compact row height, stronger key numbers, quiet badges. */
+  #unloadPanel .table-wrap{
+    border-radius:9px !important;
+    background:#fff !important;
+  }
+  #unloadPanel .unload-table thead th{
+    height:34px !important;
+    padding:0 6px !important;
+    background:#f2f6fa !important;
+    color:#4b6379 !important;
+    font-size:10px !important;
+    font-weight:850 !important;
+    line-height:1.1 !important;
+    vertical-align:middle !important;
+    white-space:nowrap !important;
+  }
+  #unloadPanel .unload-table tbody td{
+    min-height:42px !important;
+    padding:6px 7px !important;
+    color:#263f56 !important;
+    font-size:11.5px !important;
+    line-height:1.35 !important;
+    vertical-align:middle !important;
+  }
+  #unloadPanel .unload-table td.receipt-ton{
+    color:#173b5d !important;
+    font-size:14px !important;
+    font-weight:900 !important;
+    font-variant-numeric:tabular-nums !important;
+    white-space:nowrap !important;
+  }
+  #unloadPanel .duration-badge{
+    display:inline-flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    min-width:48px !important;
+    min-height:24px !important;
+    padding:3px 6px !important;
+    border-radius:12px !important;
+    background:#eff5fa !important;
+    color:#315675 !important;
+    font-size:11px !important;
+    font-weight:850 !important;
+    line-height:1 !important;
+  }
+  #unloadPanel .duration-badge.is-long{
+    background:#fff6df !important;
+    color:#a86800 !important;
+  }
+  #unloadPanel .duration-badge.is-very-long{
+    background:#fff0f1 !important;
+    color:#b63e49 !important;
+  }
+  #unloadPanel .fuel-pill{
+    display:inline-flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    min-height:24px !important;
+    padding:3px 7px !important;
+    border-radius:6px !important;
+    background:#eef5ff !important;
+    color:#1b5e9d !important;
+    font-size:10px !important;
+    font-weight:850 !important;
+    line-height:1 !important;
+  }
+  #unloadPanel .silo-pill{
+    color:#46657e !important;
+    font-size:11px !important;
+    font-weight:850 !important;
+  }
+  #unloadPanel .unload-table td.company,
+  #unloadPanel .unload-table td.vehicle{
+    color:#29455f !important;
+    font-weight:700 !important;
+  }
+  #unloadPanel .unload-table td.unload-note{
+    font-size:11px !important;
+    line-height:1.35 !important;
+  }
+  #unloadPanel .unload-table td.actions .btn{
+    min-height:27px !important;
+    padding:0 6px !important;
+    border-radius:6px !important;
+    font-size:10px !important;
+    font-weight:800 !important;
+  }
+
+  /* Approved PC editor: two-column form, compact controls, no behavior changes. */
+  #recordModal .record-editor-card,
+  #unloadModal .unload-editor-card{
+    width:min(760px,96vw) !important;
+    max-height:92vh !important;
+    border-radius:15px !important;
+  }
+  #recordModal .modal-head,
+  #unloadModal .modal-head{
+    padding:15px 18px !important;
+  }
+  #recordModal .modal-head h2,
+  #unloadModal .modal-head h2{
+    margin-top:3px !important;
+    font-size:18px !important;
+    line-height:1.2 !important;
+  }
+  #recordModal .editor,
+  #unloadModal .editor{
+    gap:12px !important;
+    padding:14px 18px 16px !important;
+  }
+  #recordModal .record-grid.receipt-enabled-grid,
+  #unloadModal .unload-editor-grid.receipt-enabled-grid{
+    display:grid !important;
+    grid-template-columns:1fr 1fr !important;
+    gap:11px 12px !important;
+    width:100% !important;
+    align-items:end !important;
+  }
+  #recordModal .record-grid.receipt-enabled-grid > label,
+  #unloadModal .unload-editor-grid.receipt-enabled-grid > label{
+    min-width:0 !important;
+  }
+  #recordModal .editor label > span,
+  #unloadModal .editor label > span{
+    margin-bottom:0 !important;
+    color:#60758b !important;
+    font-size:10px !important;
+    font-weight:850 !important;
+  }
+  #recordModal .editor input,
+  #recordModal .editor select,
+  #unloadModal .editor input,
+  #unloadModal .editor select{
+    height:39px !important;
+    min-height:39px !important;
+    padding:0 10px !important;
+    border-radius:7px !important;
+    font-size:13px !important;
+  }
+  #recordModal .editor textarea,
+  #unloadModal .editor textarea{
+    min-height:72px !important;
+    height:72px !important;
+    padding:9px 10px !important;
+    border-radius:7px !important;
+    font-size:13px !important;
+    line-height:1.45 !important;
+  }
+  #recordDurationPreview,
+  #unloadDurationPreview{
+    border:1px dashed #bad0e4 !important;
+    background:#f8fbfe !important;
+    color:#315675 !important;
+    font-weight:850 !important;
+  }
+  #recordModal .modal-foot,
+  #unloadModal .modal-foot{
+    gap:7px !important;
+    padding:12px 0 0 !important;
+  }
+  #recordModal .modal-foot .btn,
+  #unloadModal .modal-foot .btn{
+    min-height:36px !important;
+    padding:0 13px !important;
+    border-radius:7px !important;
+    font-size:12px !important;
+  }
+}
+
+@media (max-width: 760px){
+  .summary-strip{
+    grid-template-columns:1fr 1fr !important;
+    gap:7px !important;
+    border:0 !important;
+    background:transparent !important;
+    overflow:visible !important;
+  }
+  .summary-strip article{
+    min-height:62px !important;
+    padding:9px 10px !important;
+    border:1px solid #dbe5ef !important;
+    border-radius:9px !important;
+    background:#fff !important;
+  }
+  .summary-strip article:last-child{
+    grid-column:1 / -1 !important;
+    border-right:1px solid #dbe5ef !important;
+  }
+  .summary-strip span{display:block !important;margin:0 0 4px !important;font-size:10px !important;}
+  .summary-strip strong{font-size:21px !important;}
+
+  #recordModal .record-editor-card,
+  #unloadModal .unload-editor-card{
+    width:100% !important;
+    max-height:95vh !important;
+  }
+  #recordModal .record-grid.receipt-enabled-grid,
+  #unloadModal .unload-editor-grid.receipt-enabled-grid{
+    grid-template-columns:1fr !important;
+    gap:9px !important;
+  }
+  #recordModal .editor input,
+  #recordModal .editor select,
+  #unloadModal .editor input,
+  #unloadModal .editor select{
+    min-height:39px !important;
+    font-size:13px !important;
+  }
+  #recordModal .editor textarea,
+  #unloadModal .editor textarea{
+    min-height:72px !important;
+  }
+}
+
+/* SOLID_FUEL_COMPACT_READABILITY_V1_R2_END */
