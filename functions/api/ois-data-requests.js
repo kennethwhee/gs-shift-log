@@ -12423,7 +12423,6 @@ const MORNING_MEETING_AUTO_HISTORY_RESET_REQUEST_TYPES =
     "limestone_stock",
     "turbine_gear_pinion",
     "silo_level",
-    "daily_data_excel",
     "organic_silo_dataparc",
     "steam_status"
   ]);
@@ -13886,9 +13885,7 @@ async function findMorningMeetingAutoHistoryActiveRequestTypes(
             'water_environment',
             'limestone_stock',
             'turbine_gear_pinion',
-            'silo_level',
-            'daily_data_excel'
-          )
+            'silo_level',)
           AND (
             expires_at IS NULL
             OR expires_at >= ?
@@ -13940,8 +13937,7 @@ const MORNING_MEETING_AUTO_HISTORY_RESET_FRESH_GROUPS =
     Object.freeze([
       "silo_level"
     ]),
-    Object.freeze([
-      "daily_data_excel",
+    Object.freeze([,
       "steam_status"
     ])
   ]);
@@ -13969,7 +13965,6 @@ async function findMorningMeetingAutoHistoryMissingFreshGroups(
             'limestone_stock',
             'turbine_gear_pinion',
             'silo_level',
-            'daily_data_excel',
             'steam_status'
           )
           AND COALESCE(
@@ -14176,9 +14171,7 @@ async function retireStaleMorningMeetingAutoHistoryActiveRequests(
           'water_environment',
           'limestone_stock',
           'turbine_gear_pinion',
-          'silo_level',
-          'daily_data_excel'
-        )
+          'silo_level',)
         AND COALESCE(
           NULLIF(updated_at, ''),
           NULLIF(started_at, ''),
@@ -14439,9 +14432,7 @@ async function resetMorningMeetingAutoHistory(
                   'water_environment',
                   'limestone_stock',
                   'turbine_gear_pinion',
-                  'silo_level',
-                  'daily_data_excel'
-                )
+                  'silo_level',)
                 AND (
                   expires_at IS NULL
                   OR expires_at >= ?
@@ -14518,9 +14509,7 @@ async function resetMorningMeetingAutoHistory(
                 'water_environment',
                 'limestone_stock',
                 'turbine_gear_pinion',
-                'silo_level',
-                'daily_data_excel'
-              )
+                'silo_level',)
               AND (
                 expires_at IS NULL
                 OR expires_at >= ?
@@ -15102,8 +15091,7 @@ async function releaseMorningMeetingAutoHistoryReset(
             SELECT 1 FROM ois_data_requests
             WHERE target_date = ?
               AND status = 'complete'
-              AND request_type IN (
-                'daily_data_excel',
+              AND request_type IN (,
                 'steam_status'
               )
               AND COALESCE(NULLIF(completed_at, ''), updated_at, '') > ?
@@ -15583,14 +15571,10 @@ async function handleCompletedHistoryGet(
       }
 
       /*
-        기존 steam_status 자료도
-        현재 daily_data_excel 자료로 취급한다.
+        오전회의 저장이력은 실제 자료원을 그대로 유지한다.
+        steam_status를 Daily DATA Excel로 합치지 않는다.
       */
-      const requestType =
-        convertedItem.requestType ===
-          "steam_status"
-          ? "daily_data_excel"
-          : convertedItem.requestType;
+      const requestType = convertedItem.requestType;
 
       const savedKey =
         [

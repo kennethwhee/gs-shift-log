@@ -1,4 +1,4 @@
-/* Explicit morning meeting actions: operations, open workbook, or both. */
+/* Explicit morning meeting actions: current operational sources only; no Daily DATA Excel. */
 (function installMorningMeetingQuerySources() {
   "use strict";
   if (window.morningMeetingQuerySources) return;
@@ -16,20 +16,14 @@
   });
   const CARD_IDS = ["efficiencyMorningMeetingAutoDailyPowerCard", "efficiencyMorningMeetingAutoSteamCard",
     "efficiencyMorningMeetingAutoCofiringCard", "efficiencyMorningMeetingAutoDailySludgeCard"];
-  const QUERY_BUTTONS = { all: "morningMeetingAllQueryButton", operations: "morningMeetingOperationsQueryButton", workbook: "morningMeetingWorkbookQueryButton" };
-  const BUTTON_LABELS = { all: "전체자료", operations: "운영정보조회", workbook: "엑셀 조회하기" };
-  const BUTTON_IDS = ["morningMeetingAllQueryButton", "morningMeetingOperationsQueryButton", "morningMeetingWorkbookQueryButton", "morningMeetingCofiringRefreshButton",
+  const QUERY_BUTTONS = { all: "morningMeetingAllQueryButton", operations: "morningMeetingOperationsQueryButton" };
+  const BUTTON_LABELS = { all: "전체자료", operations: "운영정보조회" };
+  const BUTTON_IDS = ["morningMeetingAllQueryButton", "morningMeetingOperationsQueryButton", "morningMeetingCofiringRefreshButton",
     "efficiencyMorningMeetingAutoDailyPowerRefreshButton", "efficiencyMorningMeetingAutoSteamRefreshButton",
     "efficiencyMorningMeetingAutoDailySludgeRefreshButton", "efficiencyMorningMeetingAutoRetry-water",
     "efficiencyMorningMeetingAutoRetry-limestone", "efficiencyMorningMeetingAutoRetry-gear-pinion",
     "efficiencyMorningMeetingAutoRetry-silo-level", "efficiencyMorningMeetingAutoSmpRefreshButton",
     "efficiencyMorningMeetingAutoWeatherRefreshButton"];
-  const VALUE_KEYS = ["generatorEcmsGen1", "powerGeneration", "ismartReception", "electricityReceived",
-    "epowerTransmission", "electricityTransmitted", "solarDailyGeneration", "solarDaily",
-    "solarMonthlyCumulative", "solarYearlyCumulative", "steamSalesLowPressure", "steamSalesHighPressure",
-    "steamSales", "unitOneProduction", "unitTwoProduction", "sludgeTotal", "sludgeTruckCount",
-    "organicDaySilo", "organicStorageSiloA", "organicStorageSiloB", "organicSiloTotal",
-    "coalUsageUnitOne", "coalUsageUnitTwo", "bioUsageUnitOne", "bioUsageUnitTwo", "organicUsageUnitOne", "organicUsageUnitTwo"];
   const localStates = new Map();
   const resetStates = new Map();
   const resetStatusRequests = new Map();
@@ -130,7 +124,6 @@
     resetStates.set(item.targetDate, { loaded: true, loading: false, error: "", item });
     if (item.active) {
       setSourceState(item.targetDate, "operations", { status: "idle", error: "" });
-      setSourceState(item.targetDate, "workbook", { status: "idle", error: "" });
     }
     if (applySelectedState && typeof window.applyMorningMeetingSelectedDateResetState === "function") {
       try { window.applyMorningMeetingSelectedDateResetState(item); } catch (error) { console.error(error); }
@@ -202,24 +195,6 @@
     return storeResetItem(payload.item, date, true);
   }
 
-  function workbookState(date) {
-    const local = localStates.get(date)?.workbook || {};
-    const state = window.efficiencyMorningMeetingUploadState || {};
-    const panel = byId(PANEL_ID);
-    const result = state.steamStatus;
-    const resultDate = text(result?.sourceDate || result?.targetDate);
-    const keys = window.morningMeetingClosedCofiring
-      ? VALUE_KEYS.filter(key => !/^(sludge|organic|coalUsage|bioUsage)/.test(key)) : VALUE_KEYS;
-    const hasValues = resultDate === date && keys.some(key =>
-      typeof result?.[key] === "number" && Number.isFinite(result[key]));
-    const status = text(panel?.dataset.steamStatusTargetDate) === date ? text(panel?.dataset.steamStatusStatus) : "";
-    const error = text(panel?.dataset.steamStatusTargetDate) === date ? text(state.steamStatusError) : "";
-    const loading = local.busy || ["loading", "pending", "processing"].includes(status);
-    const failed = !loading && (["error", "failed"].includes(status) || local.status === "error");
-    return { status: loading ? "loading" : failed ? "error" : hasValues ? "complete" : "idle",
-      hasValues, error: error || local.error || "", result: resultDate === date ? result : null };
-  }
-
   function operationsState(date) {
     return localStates.get(date)?.operations || { status: "idle", error: "" };
   }
@@ -228,6 +203,7 @@
 
   function externalQueryBusy() {
     return Boolean(window.__efficiencyMorningMeetingBulkLookupPromise) ||
+      window.isEfficiencyMorningMeetingSteamOisBusy?.() === true ||
       ["loading", "pending", "processing"].includes(text(byId(PANEL_ID)?.dataset.steamStatusStatus));
   }
 
@@ -289,12 +265,12 @@
       toolbar = makeElement("div", "morning-meeting-workbook-query");
       toolbar.id = TOOLBAR_ID;
       toolbar.setAttribute("aria-label", "오전회의 자료 조회");
-      const caption = makeElement("span", "morning-meeting-workbook-query__caption", "열린 대상 월 파일에서 4개 카드 조회");
+      const caption = makeElement("span", "morning-meeting-workbook-query__caption", "운영정보 · TO 전력 · 증기 OIS · 혼소/유기성 마감자료");
       caption.id = "morningMeetingWorkbookSource";
       const statuses = makeElement("div", "morning-meeting-workbook-query__statuses");
-      for (const source of ["operations", "workbook"]) {
+      for (const source of ["operations"]) {
         const group = makeElement("span", "morning-meeting-workbook-query__source-status");
-        group.append(makeElement("span", "morning-meeting-workbook-query__source-label", source === "operations" ? "운영정보" : "엑셀"));
+        group.append(makeElement("span", "morning-meeting-workbook-query__source-label", "운영정보"));
         const status = makeElement("span", "morning-meeting-workbook-query__status");
         status.id = `morningMeetingQuerySourceStatus-${source}`;
         status.setAttribute("role", "status");
@@ -303,7 +279,7 @@
         statuses.append(group);
       }
       const actions = makeElement("div", "morning-meeting-workbook-query__actions");
-      for (const source of ["all", "operations", "workbook"]) {
+      for (const source of ["all", "operations"]) {
         const button = makeElement("button", `morning-meeting-workbook-query__button${source === "all" ? " is-primary" : ""}`, BUTTON_LABELS[source]);
         button.id = QUERY_BUTTONS[source];
         button.type = "button";
@@ -343,42 +319,41 @@
     const reset = resetState(date);
     const resetActive = reset.active === true;
     const resetStatusUnavailable = Boolean(requestFetch && (!reset.loaded || reset.error));
-    const storedView = workbookState(date);
-    const view = resetActive && localStates.get(date)?.workbook?.status === "idle"
-      ? { status: "idle", hasValues: false, error: "", result: null }
-      : storedView;
     const operations = operationsState(date);
     const busy = isBusy() || externalQueryBusy();
     toolbar.dataset.resetActive = resetActive ? "true" : "false";
     toolbar.dataset.resetTargetDate = date;
-    for (const [source, state] of [["operations", operations], ["workbook", view]]) {
-      const badge = byId(`morningMeetingQuerySourceStatus-${source}`);
-      setText(badge, state.status === "loading" ? "조회 중" : state.status === "error" ? "조회 실패" :
-        state.status === "partial" ? "일부 실패" : state.status === "complete" ? "조회 완료" : state.status === "ended" ? "조회 종료" : "조회 전");
-      for (const status of ["loading", "error", "partial", "complete"]) badge.classList.toggle(`is-${status}`, state.status === status);
-      badge.title = state.error || (source === "workbook" ? (view.hasValues ? `${date} 엑셀 조회값` : "선택일에 저장된 엑셀 조회값이 없습니다.") : `${date} 운영정보 조회 상태`);
-      if (source === "workbook" && state.status === "error" && view.hasValues) badge.title += " · 기존 저장값을 유지합니다.";
+
+    const badge = byId("morningMeetingQuerySourceStatus-operations");
+    if (badge) {
+      setText(badge, operations.status === "loading" ? "조회 중" : operations.status === "error" ? "조회 실패" :
+        operations.status === "partial" ? "일부 실패" : operations.status === "complete" ? "조회 완료" :
+        operations.status === "ended" ? "조회 종료" : "조회 전");
+      for (const status of ["loading", "error", "partial", "complete"]) {
+        badge.classList.toggle(`is-${status}`, operations.status === status);
+      }
+      badge.title = operations.error || `${date} 운영정보 조회 상태`;
     }
-    const file = text(view.result?.workbook).split(/[\\/]/).pop();
+
     const caption = byId("morningMeetingWorkbookSource");
-    setText(caption, file ? `${file}${view.result?.workbookSource === "open_workbook" ? " · 열린 파일에서 조회" : ""}`
-      : window.morningMeetingClosedCofiring ? "전력·증기: 엑셀 · 혼소율·유기성: 마감자료" : "열린 대상 월 파일에서 4개 카드 조회");
-    caption.title = [text(view.result?.workbookFullName), text(view.result?.collectedAt)].filter(Boolean).join(" · ") ||
-      "조회할 날짜에 해당하는 일일DATA관리 엑셀을 회사 PC에서 열어 주세요.";
+    setText(caption, "운영정보 · TO 전력 · 증기 OIS · 혼소/유기성 마감자료");
+    if (caption) caption.title = "오전회의 카드는 일일 DATA Excel을 조회하지 않습니다.";
+
     for (const id of BUTTON_IDS) {
       const control = byId(id);
       if (!control) continue;
-      if (window.morningMeetingClosedCofiring && ["morningMeetingCofiringRefreshButton", "efficiencyMorningMeetingAutoDailySludgeRefreshButton"].includes(id)) continue;
+      if (["morningMeetingCofiringRefreshButton", "efficiencyMorningMeetingAutoDailySludgeRefreshButton"].includes(id)) continue;
       control.hidden = !allowed;
       const isAllControl = id === QUERY_BUTTONS.all;
       control.disabled = !allowed || !isDate(date) || busy || reset.loading || resetStatusUnavailable ||
         (resetActive && !isAllControl) || control.dataset.morningBulkLocked === "true";
-      const source = Object.keys(QUERY_BUTTONS).find(key => QUERY_BUTTONS[key] === id) || "workbook";
+      const source = Object.keys(QUERY_BUTTONS).find(key => QUERY_BUTTONS[key] === id) || "current";
       control.title = !isDate(date) ? "자료 기준일을 선택해 주세요." : reset.loading ? "선택일의 초기화 상태를 확인하고 있습니다." :
         resetStatusUnavailable ? (reset.error || "선택일의 초기화 상태를 확인하지 못했습니다.") :
-        resetActive && source !== "all" ? "초기화된 날짜는 전체자료로 운영정보와 엑셀을 함께 다시 조회해 주세요." :
-        source === "all" ? (resetActive ? "운영정보와 열린 월간 엑셀을 강제로 다시 조회한 뒤 초기화를 해제합니다." : "운영정보와 열린 월간 엑셀을 함께 조회합니다.") :
-        source === "operations" ? "수처리·석회석·터빈·Silo·SMP·날씨를 조회합니다." : (window.morningMeetingClosedCofiring ? `${date.slice(0, 7)} 일일DATA관리 엑셀에서 전력·증기 값을 읽습니다.` : `${date.slice(0, 7)} 일일DATA관리 엑셀에서 혼소·전력·증기·유기성 값을 읽습니다.`);
+        resetActive && source !== "all" ? "초기화된 날짜는 전체자료로 현재 운영 자료원을 다시 조회해 주세요." :
+        source === "all" ? (resetActive ? "운영정보·TO 전력·증기 OIS·마감자료를 다시 조회한 뒤 초기화를 해제합니다." :
+          "운영정보·TO 전력·증기 OIS·마감자료를 함께 조회합니다.") :
+        source === "operations" ? "수처리·석회석·터빈·Silo·SMP·날씨를 조회합니다." : control.title;
     }
     for (const [source, id] of Object.entries(QUERY_BUTTONS)) {
       setText(byId(id), activeRequest?.date === date && activeRequest.source === source ? "조회 중…" : BUTTON_LABELS[source]);
@@ -395,15 +370,13 @@
         reset.error ? `${reset.error} 버튼을 누르면 상태를 다시 확인합니다.` : resetActive ? `${date} 자료 초기화를 취소하고 저장된 원본을 다시 표시합니다.` :
         `${date} 조회 자료를 비웁니다. 원본 자료와 다른 날짜는 삭제하지 않습니다.`;
     }
-    if (typeof window.runEfficiencyMorningMeetingBulkLookup === "function" &&
-        typeof window.loadEfficiencyMorningMeetingDailyData === "function") {
+    if (typeof window.runEfficiencyMorningMeetingBulkLookup === "function") {
       for (const id of ["loadEfficiencyMorningMeetingWaterButton", "efficiencyMorningMeetingAutoPreviewStatus"]) {
         const legacyControl = byId(id);
         if (legacyControl) legacyControl.hidden = true;
       }
     }
   }
-
   async function ensureResetStateForAction(date, expectedRevision) {
     const known = resetState(date);
     if (known.loaded || Number.isSafeInteger(expectedRevision)) return known;
@@ -495,53 +468,56 @@
       reset = resetState(date);
     }
     if (activeRequest || activeResetRequest || externalQueryBusy() || (reset.active && source !== "all")) return null;
-    const sources = source === "all" ? ["operations", "workbook"] : [source];
+
     const releaseAfterSuccess = source === "all" && reset.active;
     const resetRevision = reset.revision;
-    const sourceSucceeded = new Map();
     const current = { date, source };
     activeRequest = current;
-    for (const selected of sources) setSourceState(date, selected, { status: "loading", busy: true });
+    setSourceState(date, "operations", { status: "loading", busy: true });
     notifyQueryState();
     render();
-    const run = async selected => {
-      try {
-        const loader = selected === "operations" ? window.runEfficiencyMorningMeetingBulkLookup : window.loadEfficiencyMorningMeetingDailyData;
-        if (typeof loader !== "function") throw new Error(`${selected === "operations" ? "운영정보" : "엑셀"} 조회 기능을 불러오지 못했습니다. 새로고침해 주세요.`);
-        const result = await loader(selected === "operations" ? { userInitiated: true, targetDate: date,
-          ...(releaseAfterSuccess ? { forceRefresh: true } : {}) } :
-          { userInitiated: true, forceRefresh: true, querySource: "daily_data_excel" });
-        if (targetDate() !== date) {
-          setSourceState(date, selected, { status: "idle" });
-          return result;
-        }
-        if (selected === "operations") {
-          const outcome = operationsOutcome(result, date);
-          setSourceState(date, selected, outcome);
-          sourceSucceeded.set(selected, outcome.status === "complete");
-        } else {
-          const panel = byId(PANEL_ID);
-          const failed = text(panel?.dataset.steamStatusTargetDate) === date && ["error", "failed"].includes(text(panel?.dataset.steamStatusStatus));
-          if (result === null || result === false || failed) throw new Error(text(window.efficiencyMorningMeetingUploadState?.steamStatusError) || "엑셀 조회 결과를 가져오지 못했습니다.");
-          setSourceState(date, selected, {});
-          sourceSucceeded.set(selected, true);
-        }
-        return result;
-      } catch (error) {
-        sourceSucceeded.set(selected, false);
-        setSourceState(date, selected, { status: "error", error: text(error?.message) || "자료 조회에 실패했습니다." });
-        throw error;
-      } finally {
-        render();
-      }
-    };
+
+    let operationsSucceeded = false;
+    let steamSucceeded = source !== "all";
+    const results = [];
+
     try {
-      // Each async invocation catches a synchronous loader error so the other source still starts.
-      const closedRefresh = source === "all" ? window.morningMeetingClosedCofiring?.refresh({ force: true }) : null;
-      const results = await Promise.allSettled(sources.map(run));
-      if (closedRefresh) await closedRefresh;
-      if (releaseAfterSuccess && results.every(result => result.status === "fulfilled") &&
-          sourceSucceeded.get("operations") === true && sourceSucceeded.get("workbook") === true) {
+      const loader = window.runEfficiencyMorningMeetingBulkLookup;
+      if (typeof loader !== "function") throw new Error("운영정보 조회 기능을 불러오지 못했습니다. 새로고침해 주세요.");
+      try {
+        const result = await loader({
+          userInitiated: true,
+          targetDate: date,
+          ...(releaseAfterSuccess ? { forceRefresh: true } : {})
+        });
+        results.push({ source: "operations", status: "fulfilled", value: result });
+        if (targetDate() === date) {
+          const outcome = operationsOutcome(result, date);
+          setSourceState(date, "operations", outcome);
+          operationsSucceeded = outcome.status === "complete";
+        }
+      } catch (error) {
+        results.push({ source: "operations", status: "rejected", reason: error });
+        setSourceState(date, "operations", { status: "error", error: text(error?.message) || "운영정보 조회에 실패했습니다." });
+      }
+
+      if (source === "all") {
+        const currentSourceTasks = [
+          ["power", () => window.toNightPower?.refreshMeeting?.()],
+          ["steam", () => window.loadEfficiencyMorningMeetingSteamOis?.({ userInitiated: true })],
+          ["closed", () => window.morningMeetingClosedCofiring?.refresh?.({ force: true })]
+        ];
+        const currentResults = await Promise.allSettled(
+          currentSourceTasks.map(([, task]) => Promise.resolve().then(task))
+        );
+        currentResults.forEach((result, index) => {
+          const name = currentSourceTasks[index][0];
+          results.push({ source: name, ...result });
+          if (name === "steam") steamSucceeded = result.status === "fulfilled" && result.value !== null && result.value !== false;
+        });
+      }
+
+      if (releaseAfterSuccess && operationsSucceeded && steamSucceeded) {
         let releasedItem = null;
         try {
           releasedItem = await postResetAction(RESET_ACTIONS.release, date, resetRevision);
@@ -554,39 +530,35 @@
           try {
             smpPersisted = typeof window.persistEfficiencyMorningMeetingFreshSmpAfterReset === "function" &&
               await window.persistEfficiencyMorningMeetingFreshSmpAfterReset(date, releasedItem.revision) === true;
-            if (!smpPersisted) {
-              throw new Error("SMP 저장을 완료하지 못했습니다.");
-            }
+            if (!smpPersisted) throw new Error("SMP 저장을 완료하지 못했습니다.");
           } catch (error) {
             followupErrors.push(text(error?.message) || "SMP 저장을 완료하지 못했습니다.");
           }
-
           const latestReset = await loadResetStatus(date, { force: true });
           if (!latestReset) followupErrors.push("초기화 상태를 다시 확인하지 못했습니다.");
-
           if (smpPersisted) {
             try {
               const historyRefreshResult = await window.refreshEfficiencyMorningMeetingAutoHistory?.();
-              if (historyRefreshResult === false) {
-                throw new Error("자동수치 기록을 다시 불러오지 못했습니다.");
-              }
+              if (historyRefreshResult === false) throw new Error("자동수치 기록을 다시 불러오지 못했습니다.");
             } catch (error) {
               followupErrors.push(text(error?.message) || "자동수치 기록을 다시 불러오지 못했습니다.");
             }
           }
           showResetMessage(followupErrors.length
             ? `${date} 초기화 해제는 완료됐지만 SMP 저장 또는 자동수치 기록 갱신을 완료하지 못했습니다. ${followupErrors.join(" ")}`
-            : `${date} 전체자료를 다시 조회하고 초기화를 해제했습니다.`, followupErrors.length ? "error" : "");
+            : `${date} 현재 자료원을 다시 조회하고 초기화를 해제했습니다.`, followupErrors.length ? "error" : "");
         }
+      } else if (releaseAfterSuccess && (!operationsSucceeded || !steamSucceeded)) {
+        showResetMessage(`${date} 초기화 해제 조건을 충족하지 못했습니다. 운영정보와 증기 OIS 상태를 확인해 주세요.`, "error");
       }
-      return source === "all" ? results : results[0].status === "fulfilled" ? results[0].value : null;
+
+      return source === "all" ? results : results.find(item => item.source === "operations")?.value ?? null;
     } finally {
       if (activeRequest === current) activeRequest = null;
       notifyQueryState();
       render();
     }
   }
-
   function scheduleRender() {
     if (renderTimer !== null) return;
     renderTimer = window.setTimeout(() => { renderTimer = null; render(); }, 0);

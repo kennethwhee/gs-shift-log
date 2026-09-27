@@ -6,8 +6,7 @@
   Steam card source ownership:
   - Sales: OIS > LOG SHEET > daily steam sales (8Bar / 34Bar / subtotal, TON)
   - Production: OIS > LOG SHEET query > BCO1/BCO2 MAIN STM FLOW 01~24 sum
-  - The legacy daily_data_excel client may continue serving the other cards,
-    but its DOM writes are not allowed to remain visible in the steam card.
+  - No Daily DATA Excel client or fallback is used by the morning-meeting cards.
 */
 (function installMorningMeetingSteamOisSourceOwnerV2() {
   if (window.__morningMeetingSteamOisSourceOwnerV2Installed === true) return;
@@ -35,9 +34,16 @@
   let lastResult = null;
   let syncing = false;
   let activePromise = null;
-  let routeInstallTimer = null;
 
   const text = value => String(value ?? "").trim();
+
+  function sharedState() {
+    if (!window.efficiencyMorningMeetingUploadState ||
+        typeof window.efficiencyMorningMeetingUploadState !== "object") {
+      window.efficiencyMorningMeetingUploadState = {};
+    }
+    return window.efficiencyMorningMeetingUploadState;
+  }
 
   function isDate(value) {
     return /^\d{4}-\d{2}-\d{2}$/.test(text(value));
@@ -308,28 +314,54 @@
     }
   }
 
-  function installSectionRouter() {
-    const current = window.refreshEfficiencyMorningMeetingDailyDataSection;
-    if (typeof current !== "function") return;
-    if (current.__steamOisSourceOwnerV2 === true) return;
 
-    const legacy = current.__steamOisLegacy || current;
 
-    async function routedRefresh(section, ...args) {
-      if (text(section).toLowerCase() === "steam") {
-        return await run(document.getElementById(BUTTON_ID));
-      }
-      return await legacy.apply(this, [section, ...args]);
+  function commitOisState(result, nextPhase, error = null) {
+    const state = sharedState();
+    const panel = document.getElementById(PANEL_ID);
+    const targetDate = resolveTargetDate();
+    phase = nextPhase;
+
+    if (result && typeof result === "object") {
+      lastResult = {
+        ...result,
+        requestType: "steam_status",
+        sourceRequestType: "steam_status"
+      };
+      state.steamStatus = { ...lastResult };
+      delete state.steamStatusError;
+    } else if (nextPhase === "error") {
+      lastResult = null;
+      state.steamStatusError = error instanceof Error ? error.message : text(error);
+    } else if (nextPhase === "loading") {
+      lastResult = null;
+      delete state.steamStatusError;
     }
 
-    Object.defineProperty(routedRefresh, "__steamOisSourceOwnerV2", {
-      value: true
-    });
-    Object.defineProperty(routedRefresh, "__steamOisLegacy", {
-      value: legacy
-    });
+    if (panel) {
+      panel.dataset.steamStatusStatus = nextPhase;
+      if (targetDate) panel.dataset.steamStatusTargetDate = targetDate;
+      if (lastResult?.requestId) panel.dataset.steamStatusRequestId = lastResult.requestId;
+    }
+    applySourceOwnership();
+  }
 
-    window.refreshEfficiencyMorningMeetingDailyDataSection = routedRefresh;
+  function adoptStoredSteamResult(detail) {
+    const targetDate = resolveTargetDate();
+    const sourceType = text(detail?.requestType || detail?.sourceRequestType);
+    const sourceDate = text(detail?.sourceDate || detail?.targetDate);
+    if (sourceType !== "steam_status" || !targetDate || sourceDate !== targetDate) return false;
+    try {
+      const normalized = normalizeResult(
+        { id: detail?.requestId, targetDate, result: detail },
+        targetDate
+      );
+      commitOisState(normalized, "complete");
+      return true;
+    } catch (error) {
+      console.warn("저장된 증기 OIS 결과 복원 실패:", error);
+      return false;
+    }
   }
 
   async function run(button) {
@@ -341,9 +373,7 @@
         throw new Error("오전회의 증기 조회 기준일을 확인하지 못했습니다.");
       }
 
-      lastResult = null;
-      phase = "loading";
-      applySourceOwnership();
+      commitOisState(null, "loading");
 
       try {
         const id = await createRequest(targetDate);
@@ -354,16 +384,15 @@
 
         window.__morningMeetingSteamOisProbeLastResult = lastResult;
         document.dispatchEvent(
-          new CustomEvent("morningMeetingSteamOisProbeLoaded", {
-            detail: lastResult
-          })
+          new CustomEvent("morningMeetingSteamOisProbeLoaded", { detail: lastResult })
+        );
+        document.dispatchEvent(
+          new CustomEvent("efficiencyMorningMeetingSteamStatusLoaded", { detail: lastResult })
         );
         console.log("오전회의 증기 생산·판매 OIS 확인 완료:", lastResult);
         return lastResult;
       } catch (error) {
-        lastResult = null;
-        phase = "error";
-        applySourceOwnership();
+        commitOisState(null, "error", error);
         console.error("오전회의 증기 생산·판매 OIS 조회 실패:", error);
         window.alert?.(
           error instanceof Error
@@ -385,22 +414,18 @@
   }
 
   function initializeOwnership() {
+    const stored = sharedState().steamStatus;
+    if (stored) adoptStoredSteamResult(stored);
     applySourceOwnership();
-    installSectionRouter();
-
-    if (routeInstallTimer === null) {
-      let attempts = 0;
-      routeInstallTimer = window.setInterval(() => {
-        attempts += 1;
-        installSectionRouter();
-        applySourceOwnership();
-        if (attempts >= 30) {
-          window.clearInterval(routeInstallTimer);
-          routeInstallTimer = null;
-        }
-      }, 1000);
-    }
   }
+
+  document.addEventListener(
+    "efficiencyMorningMeetingSteamStatusLoaded",
+    event => {
+      if (event?.detail === lastResult) return;
+      adoptStoredSteamResult(event?.detail);
+    }
+  );
 
   document.addEventListener(
     "click",
@@ -421,7 +446,6 @@
 
   const observer = new MutationObserver(() => {
     applySourceOwnership();
-    installSectionRouter();
   });
 
   observer.observe(document.documentElement, {
@@ -433,6 +457,14 @@
       "data-steam-status-target-date"
     ]
   });
+
+  window.getEfficiencyMorningMeetingSteamOisValues = () => {
+    const targetDate = resolveTargetDate();
+    return lastResult && (!targetDate || lastResult.sourceDate === targetDate)
+      ? { ...lastResult }
+      : null;
+  };
+  window.isEfficiencyMorningMeetingSteamOisBusy = () => Boolean(activePromise);
 
   window.loadEfficiencyMorningMeetingSteamOis = options => {
     void options;

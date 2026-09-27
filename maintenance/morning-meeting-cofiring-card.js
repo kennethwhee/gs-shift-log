@@ -11,7 +11,6 @@
   const SOURCE_CARD_ID = "efficiencyMorningMeetingAutoSiloCard";
   const SETTINGS_MODAL_ID = "morningMeetingCofiringSettingsModal";
   const SETTINGS_API_URL = "/api/morning-meeting-cofiring-settings";
-  const OIS_REQUEST_API_URL = "/api/ois-data-requests";
 
   const VALUE_IDS = {
     unitOneCoal: "efficiencyMorningMeetingCofiringUnit1CoalUsage",
@@ -218,10 +217,8 @@
 
     if (dateElement instanceof HTMLElement) {
       dateElement.textContent =
-        targetDate
-          ? `${targetDate}\n${closedProvider() ? "마감자료" : "일일DATA"}`
-          : "-";
-      dateElement.title = closedProvider() ? "혼소율 메뉴에서 저장한 선택일의 마감자료" : "일일DATA";
+        targetDate ? `${targetDate}\n마감자료` : "-";
+      dateElement.title = "혼소율 메뉴에서 저장한 선택일의 마감자료";
     }
   }
 
@@ -538,7 +535,7 @@
     const targetDate = getTargetDate();
 
     if (!targetDate) {
-      window.alert("혼소율 계산 기준일을 확인하지 못했습니다. 일일DATA 조회 후 다시 시도해 주세요.");
+      window.alert("혼소율 계산 기준일을 확인하지 못했습니다. 기준일을 선택한 뒤 다시 시도해 주세요.");
       return;
     }
 
@@ -646,32 +643,6 @@
         }
       }
     });
-  }
-
-  async function fetchDailyData(targetDate) {
-    const requestUrl = new URL(OIS_REQUEST_API_URL, window.location.origin);
-    requestUrl.searchParams.set("action", "completed_history");
-    requestUrl.searchParams.set("startDate", targetDate);
-    requestUrl.searchParams.set("endDate", targetDate);
-    requestUrl.searchParams.set("_", String(Date.now()));
-
-    const response = await fetch(requestUrl, {
-      method: "GET",
-      headers: getAuthHeaders(false),
-      cache: "no-store"
-    });
-
-    const payload = await readJsonResponse(response, "저장된 일일DATA를 불러오지 못했습니다.");
-    const items = Array.isArray(payload.items) ? payload.items : [];
-
-    const item = items.find((candidate) => {
-      const requestType = String(candidate?.requestType || candidate?.sourceRequestType || "").trim();
-      const dateValue = String(candidate?.targetDate || "").trim();
-
-      return dateValue === targetDate && ["daily_data_excel", "steam_status"].includes(requestType);
-    });
-
-    return item?.result && typeof item.result === "object" ? item.result : null;
   }
 
   async function fetchCalorificSettings(targetDate) {
@@ -806,60 +777,9 @@
     button.setAttribute("aria-busy", isLoading ? "true" : "false");
   }
 
-  function waitForMilliseconds(delayMs) {
-    return new Promise((resolve) => {
-      window.setTimeout(resolve, delayMs);
-    });
-  }
-
-  async function fetchOisRequestStatus(requestId) {
-    const requestUrl = new URL(OIS_REQUEST_API_URL, window.location.origin);
-    requestUrl.searchParams.set("id", requestId);
-    requestUrl.searchParams.set("_", String(Date.now()));
-
-    const response = await fetch(requestUrl, {
-      method: "GET",
-      headers: getAuthHeaders(false),
-      cache: "no-store"
-    });
-
-    const payload = await readJsonResponse(
-      response,
-      "OIS 재조회 상태를 확인하지 못했습니다."
-    );
-
-    return payload.item && typeof payload.item === "object"
-      ? payload.item
-      : null;
-  }
-
-  async function waitForDailyDataRequest(requestId) {
-    for (let attempt = 0; attempt < 90; attempt += 1) {
-      const item = await fetchOisRequestStatus(requestId);
-      const status = String(item?.status || "").trim().toLowerCase();
-
-      if (status === "complete") {
-        return item;
-      }
-
-      if (status === "failed" || status === "expired") {
-        throw new Error(
-          item?.errorMessage ||
-          "일일DATA 재조회에 실패했습니다."
-        );
-      }
-
-      await waitForMilliseconds(1000);
-    }
-
-    throw new Error("일일DATA 재조회 시간이 초과되었습니다.");
-  }
-
   async function forceRefreshDailyData() {
-    if (closedProvider()) return refreshCard({ force: true });
-    return window.morningMeetingQuerySources?.query("workbook", { userInitiated: true });
+    return refreshCard({ force: true });
   }
-
   function handleCofiringRefreshClick(event) {
     const target =
       event.target instanceof Element
@@ -909,135 +829,63 @@
 
   async function refreshCard(options = {}) {
     const card = ensureCard();
-
-    if (!(card instanceof HTMLElement)) {
-      return;
-    }
+    if (!(card instanceof HTMLElement)) return;
 
     const targetDate = getTargetDate();
     const refreshToken = ++activeRefreshToken;
     const dateChanged = currentTargetDate !== targetDate;
-
     currentTargetDate = targetDate;
     currentSettings = null;
     setRefreshButtonLoading(false);
     setCardDate(targetDate);
 
-    if (dateChanged) {
-      clearAllValues();
-    }
-
+    if (dateChanged) clearAllValues();
     if (!targetDate) {
       setStatus("idle", "조회 대기");
       return;
     }
-
     if (isSelectedDateResetActive(targetDate)) {
       clearAllValues();
       setStatus("idle", "조회 대기");
       return;
     }
 
-    if (closedProvider()) {
-      const provider = closedProvider();
+    const provider = closedProvider();
+    if (!provider) {
       clearAllValues();
-      setStatus("loading", "마감자료 조회 중");
-      setRefreshButtonLoading(true);
-      try {
-        const snapshot = await provider.load(targetDate, { force: options.force === true });
-        if (refreshToken !== activeRefreshToken || getTargetDate() !== targetDate) return;
-        if (isSelectedDateResetActive(targetDate)) {
-          clearAllValues();
-          setStatus("idle", "조회 대기");
-          return;
-        }
-        if (snapshot?.targetDate === targetDate) {
-          renderClosedSnapshot(snapshot);
-        } else {
-          clearAllValues();
-          setStatus("idle", "마감자료 없음");
-        }
-      } catch (error) {
-        if (refreshToken !== activeRefreshToken || getTargetDate() !== targetDate) return;
-        clearAllValues();
-        setStatus(isSelectedDateResetActive(targetDate) ? "idle" : "error",
-          isSelectedDateResetActive(targetDate) ? "조회 대기" : "마감자료 조회 실패");
-        console.warn("오전회의 혼소율 마감자료 조회 실패:", error);
-      } finally {
-        if (refreshToken === activeRefreshToken) setRefreshButtonLoading(false);
-      }
+      setStatus("error", "마감자료 모듈 없음");
       return;
     }
 
+    clearAllValues();
+    setStatus("loading", "마감자료 조회 중");
+    setRefreshButtonLoading(true);
     try {
-      const [dailyResult, settings] = await Promise.all([
-        fetchDailyData(targetDate),
-        fetchCalorificSettings(targetDate)
-      ]);
-
-      if (refreshToken !== activeRefreshToken || closedProvider() || getTargetDate() !== targetDate) {
-        return;
-      }
-
+      const snapshot = await provider.load(targetDate, { force: options.force === true });
+      if (refreshToken !== activeRefreshToken || getTargetDate() !== targetDate) return;
       if (isSelectedDateResetActive(targetDate)) {
         clearAllValues();
         setStatus("idle", "조회 대기");
         return;
       }
-
-      currentSettings = settings;
-
-      if (!dailyResult || !hasCofiringFields(dailyResult)) {
+      if (snapshot?.targetDate === targetDate) {
+        renderClosedSnapshot(snapshot);
+      } else {
         clearAllValues();
-        setStatus("idle", "조회 대기");
-        return;
+        setStatus("idle", "마감자료 없음");
       }
-
-      const fuelData = normalizeFuelData(dailyResult);
-      renderFuelUsage(fuelData);
-
-      const allFuelValuesPresent = [
-        fuelData.unitOne.coal,
-        fuelData.unitOne.bio,
-        fuelData.unitOne.organic,
-        fuelData.unitTwo.coal,
-        fuelData.unitTwo.bio,
-        fuelData.unitTwo.organic
-      ].every((value) => value !== null && value >= 0);
-
-      if (!allFuelValuesPresent) {
-        clearRatios();
-        setStatus("error", "조회 실패");
-        return;
-      }
-
-      if (!settings) {
-        clearRatios();
-        setStatus("complete", "조회 완료");
-        return;
-      }
-
-      renderCalculatedRatios(fuelData, settings);
-
-      const settingsButton =
-        document.getElementById("morningMeetingCofiringCalorificButton");
-
-      if (settingsButton instanceof HTMLButtonElement) {
-        settingsButton.title =
-          `발열량 · ${settings.effectiveDate}부터 · Coal ${settings.coalKcalPerKg} / Bio ${settings.bioKcalPerKg} / 유기성 ${settings.organicKcalPerKg} / 축분 ${settings.manureKcalPerKg} kcal/kg`;
-      }
-
-      setStatus("complete", "조회 완료");
     } catch (error) {
-      if (refreshToken !== activeRefreshToken || closedProvider() || getTargetDate() !== targetDate) {
-        return;
-      }
-
-      console.error("오전회의 혼소율 카드 갱신 실패:", error);
+      if (refreshToken !== activeRefreshToken || getTargetDate() !== targetDate) return;
       clearAllValues();
-      setStatus("error", "조회 실패");
+      setStatus(isSelectedDateResetActive(targetDate) ? "idle" : "error",
+        isSelectedDateResetActive(targetDate) ? "조회 대기" : "마감자료 조회 실패");
+      console.warn("오전회의 혼소율 마감자료 조회 실패:", error);
+    } finally {
+      if (refreshToken === activeRefreshToken) setRefreshButtonLoading(false);
     }
   }
+
+
 
   function scheduleRefresh(delay = 180) {
     window.clearTimeout(refreshTimerId);

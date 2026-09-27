@@ -71,7 +71,7 @@
     if (
       groupText.includes("전체자료") &&
       groupText.includes("운영정보조회") &&
-      groupText.includes("엑셀 조회하기")
+      groupText.includes()
     ) {
       return true;
     }
@@ -276,7 +276,7 @@
       `${date} 오전회의 조회 데이터를 삭제하시겠습니까?`,
       "",
       "[확인]을 누르면 선택일의 저장된 조회 결과를 삭제합니다.",
-      "수처리 · 석회석 · Turbine · Silo Level · 일일DATA Excel · 유기성 Silo",
+      "수처리 · 석회석 · Turbine · Silo Level · 레거시 일일DATA 기록 · 유기성 Silo",
       "",
       "삭제 후에는 기존 값을 복원할 수 없습니다. 취소하려면 [취소]를 눌러주세요.",
       "다른 날짜와 혼소율 기간 계산 이력은 삭제하지 않습니다."
