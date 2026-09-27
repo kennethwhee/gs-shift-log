@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="/maintenance/solid-fuel-silo-row-align-v2.css?v=20260920-silo-row-align-v2">
   <link rel="stylesheet" href="/maintenance/solid-fuel-silo-cell-align-v3.css?v=20260920-silo-cell-align-v3">
   <style id="sf-silo-cell-hard-align-v4">
-    /* Final iframe-local override: exact 3-cell table row, centered on both axes. */
+    /* SILO_HEADER_BODY_ALIGN_V5: one column rule for the header and every data row. */
     #siloStats{
       width:100%!important;
       min-height:0!important;
@@ -20,6 +20,7 @@
     }
 
     #siloStats .silo-summary{
+      box-sizing:border-box!important;
       display:block!important;
       width:100%!important;
       min-height:0!important;
@@ -27,8 +28,12 @@
       margin:0!important;
       padding:0!important;
       gap:0!important;
+      border:1px solid #dbe4ed!important;
+      border-radius:7px!important;
+      overflow:hidden!important;
     }
 
+    #siloStats .sfr24-silo-header,
     #siloStats .silo-summary__row{
       box-sizing:border-box!important;
       display:grid!important;
@@ -43,11 +48,21 @@
       padding:0!important;
       gap:0!important;
       overflow:hidden!important;
-      border:1px solid #dbe4ed!important;
-      border-radius:6px!important;
+      border:0!important;
+      border-bottom:1px solid #dbe4ed!important;
+      border-radius:0!important;
       background:#fff!important;
     }
 
+    #siloStats .sfr24-silo-header{
+      background:#f1f6fb!important;
+    }
+
+    #siloStats .silo-summary__row:last-child{
+      border-bottom:0!important;
+    }
+
+    #siloStats .sfr24-silo-header > span,
     #siloStats .silo-summary__row > span,
     #siloStats .silo-summary__row > strong,
     #siloStats .silo-summary__row > small{
@@ -59,9 +74,9 @@
       justify-self:stretch!important;
       width:100%!important;
       min-width:0!important;
-      min-height:28px!important;
-      height:28px!important;
-      max-height:28px!important;
+      min-height:0!important;
+      height:100%!important;
+      max-height:none!important;
       margin:0!important;
       padding:0 4px!important;
       position:static!important;
@@ -72,9 +87,11 @@
       vertical-align:middle!important;
       white-space:nowrap!important;
       border:0!important;
+      border-radius:0!important;
       border-right:1px solid #dbe4ed!important;
     }
 
+    #siloStats .sfr24-silo-header > span:last-child,
     #siloStats .silo-summary__row > small{
       border-right:0!important;
     }
