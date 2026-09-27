@@ -21,11 +21,17 @@ const hash = value => createHash('sha256').update(value).digest('hex');
 function fixture() {
   const sql = new DatabaseSync(':memory:');
   sql.exec(`CREATE TABLE users(employee_no TEXT PRIMARY KEY,name TEXT,role TEXT,is_active INTEGER);
+    CREATE TABLE employees(employee_no TEXT PRIMARY KEY,name TEXT,default_role TEXT,position TEXT,is_allowed INTEGER);
     CREATE TABLE shift_log_sessions(token_hash TEXT PRIMARY KEY,employee_no TEXT,expires_at TEXT);
     CREATE TABLE shift_logs(id TEXT PRIMARY KEY,work_date TEXT,shift TEXT,role TEXT,author TEXT,author_id TEXT,
       revision INTEGER,updated_at TEXT,created_at TEXT);`);
-  for (const [id, name, role] of [['to', 'TEST TO', 'user'], ['other', 'TEST OTHER', 'user'], ['admin', 'TEST ADMIN', 'super_admin'], ['same-name', 'TEST TO', 'user']]) {
+  for (const [id, name, role, position] of [
+    ['to', 'TEST TO', 'user', 'TO'], ['other', 'TEST OTHER', 'user', 'BCO1'],
+    ['admin', 'TEST ADMIN', 'super_admin', 'BCO1'], ['same-name', 'TEST TO', 'user', 'BCO2'],
+    ['to-admin', 'TEST TO ADMIN', 'super_admin', 'TO']
+  ]) {
     sql.prepare('INSERT INTO users VALUES (?, ?, ?, 1)').run(id, name, role);
+    sql.prepare('INSERT INTO employees VALUES (?, ?, ?, ?, 1)').run(id, name, role, position);
     sql.prepare('INSERT INTO shift_log_sessions VALUES (?, ?, ?)').run(hash(tokenFor(id)), id, new Date(Date.now() + 3600000).toISOString());
   }
   sql.prepare('INSERT INTO shift_logs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run('log-ns-to', DATE, 'NS', 'TO', 'TEST TO', 'to', 2, '2026-09-26T20:00:00Z', '2026-09-26T19:00:00Z');
@@ -51,7 +57,7 @@ function fixture() {
     } catch (error) { sql.exec('ROLLBACK'); throw error; }
   }};
   const body = () => ({targetDate: DATE, shift: 'NS', role: 'TO', values: {...VALUES}, expectedRevision: 0,
-    sourceLogId: 'log-ns-to', sourceLogRevision: 2});
+    sourceLogId: 'employee-position:to', sourceLogRevision: 1});
   async function call(method = 'GET', content = body(), user = 'to', options = {}) {
     const headers = {...(user ? {Authorization: 'Bearer ' + tokenFor(user)} : {}),
       ...(method === 'POST' ? {'Content-Type': 'application/json', Origin: 'https://example.test'} : {}), ...options.headers};
@@ -65,8 +71,10 @@ function fixture() {
   return {sql, db, call, body, count};
 }
 function run(name, fn) { test(name, async t => { const f = fixture(); t.after(() => f.sql.close()); await fn(f); }); }
-run('GET: saved NS TO author is allowed; read causes no schema writes', async f => {
+run('GET: registered TO position is allowed before any TO log is written; read causes no schema writes', async f => {
+  f.sql.exec('DELETE FROM shift_logs');
   const r = await f.call(); assert.equal(r.status, 200); assert.equal(r.data.canEdit, true); assert.equal(r.data.item, null);
+  assert.equal(r.data.sourceLog.id, 'employee-position:to'); assert.equal(r.data.sourceLog.revision, 1);
   assert.equal(f.sql.prepare("SELECT count(*) n FROM sqlite_master WHERE name LIKE 'to_night_power_%'").get().n, 0);
   assert.match(r.headers.get('Cache-Control'), /no-store/);
 });
@@ -74,9 +82,18 @@ for (const user of ['other', 'admin', 'same-name']) run(`GET/POST: ${user} has n
   assert.equal((await f.call('GET', null, user)).data.canEdit, false);
   assert.equal((await f.call('POST', f.body(), user)).status, 403); assert.equal(f.count('to_night_power_daily'), 0);
 });
-run('missing saved duty does not grant input permission', async f => {
-  f.sql.exec('DELETE FROM shift_logs'); assert.equal((await f.call()).data.canEdit, false);
-  assert.equal((await f.call('POST')).status, 403);
+run('missing saved duty does not remove registered TO input permission', async f => {
+  f.sql.exec('DELETE FROM shift_logs'); assert.equal((await f.call()).data.canEdit, true);
+  assert.equal((await f.call('POST')).status, 200);
+});
+run('account privilege does not matter: super-admin with TO position is allowed', async f => {
+  const r = await f.call('GET', null, 'to-admin'); assert.equal(r.data.canEdit, true);
+  const body = f.body(); body.sourceLogId = 'employee-position:to-admin';
+  assert.equal((await f.call('POST', body, 'to-admin')).status, 200);
+});
+run('employee login-allow flag is also required for TO input', async f => {
+  f.sql.exec("UPDATE employees SET is_allowed = 0 WHERE employee_no = 'to'");
+  assert.equal((await f.call()).data.canEdit, false); assert.equal((await f.call('POST')).status, 403);
 });
 for (const [name, modify] of [
   ['missing login', f => null], ['unknown token', f => 'missing'],
@@ -89,8 +106,8 @@ for (const [name, modify] of [
 for (const date of ['2026-02-30', '2026-13-01', '2026-9-26', '2026-09-26T00:00', "2026-09-26'", '']) run(`invalid date: ${date}`, async f => {
   assert.equal((await f.call('GET', null, 'to', {date})).status, 400);
 });
-run('leap day is accepted; ownership is still required', async f => {
-  const r = await f.call('GET', null, 'to', {date: '2024-02-29'}); assert.equal(r.status, 200); assert.equal(r.data.canEdit, false);
+run('leap day is accepted; registered TO permission is date-independent', async f => {
+  const r = await f.call('GET', null, 'to', {date: '2024-02-29'}); assert.equal(r.status, 200); assert.equal(r.data.canEdit, true);
 });
 for (const [key, value] of [['shift', 'DS'], ['shift', 'N/S'], ['role', 'BCO1'], ['role', 'admin']]) run(`reject duty spoof: ${key}=${value}`, async f => {
   const body = f.body(); body[key] = value; assert.equal((await f.call('POST', body)).status, 403); assert.equal(f.count('to_night_power_daily'), 0);
@@ -143,24 +160,30 @@ run('stale revision cannot overwrite a newer record', async f => {
   assert.equal((await f.call('POST', body)).status, 409);
   assert.equal((await f.call()).data.item.values.ismartReception, 0); assert.equal(f.count('to_night_power_audit'), 1);
 });
-run('source log changed after opening dialog requires reloading', async f => {
-  f.sql.exec('UPDATE shift_logs SET revision = 3'); assert.equal((await f.call('POST')).status, 409);
+run('spoofed or stale account-position authority requires reloading', async f => {
+  const body = f.body(); body.sourceLogId = 'log-ns-to'; assert.equal((await f.call('POST', body)).status, 409);
 });
-run('a saved DS TO log alone does not authorize NS entry', async f => {
-  f.sql.exec("UPDATE shift_logs SET shift = 'DS'"); assert.equal((await f.call('POST')).status, 403);
+run('saved shift-log contents do not control registered TO authorization', async f => {
+  f.sql.exec("UPDATE shift_logs SET shift = 'DS', author_id = 'other', revision = 9");
+  assert.equal((await f.call()).data.canEdit, true); assert.equal((await f.call('POST')).status, 200);
 });
-run('latest NS TO owner overrides an older matching-author log', async f => {
+run('a newer TO log by another employee cannot steal account-position authorization', async f => {
   f.sql.prepare('INSERT INTO shift_logs SELECT ?,work_date,shift,role,author,?,revision,?,created_at FROM shift_logs').run('new-log', 'other', '2026-09-27T01:00:00Z');
-  assert.equal((await f.call('POST')).status, 403);
+  assert.equal((await f.call('POST')).status, 200);
 });
 for (const [name, mutation] of [
-  ['duty reassignment', f => f.sql.exec("UPDATE shift_logs SET author_id = 'other'")],
-  ['source revision', f => f.sql.exec('UPDATE shift_logs SET revision = 3')],
+  ['position reassignment', f => f.sql.exec("UPDATE employees SET position = 'BCO1' WHERE employee_no = 'to'")],
+  ['employee disabled', f => f.sql.exec("UPDATE employees SET is_allowed = 0 WHERE employee_no = 'to'")],
   ['session revoked', f => f.sql.exec('DELETE FROM shift_log_sessions')],
   ['user disabled', f => f.sql.exec("UPDATE users SET is_active = 0 WHERE employee_no = 'to'")]
 ]) run(`atomic write guard: ${name}`, async f => {
   f.db.beforeWriteBatch = () => mutation(f);
   assert.equal((await f.call('POST')).status, 409); assert.equal(f.count('to_night_power_daily'), 0); assert.equal(f.count('to_night_power_audit'), 0);
+});
+run('position changed after opening blocks save without erasing existing data', async f => {
+  await f.call('POST'); const before = powerSnapshot(f); const body = f.body(); body.expectedRevision = 1;
+  f.sql.exec("UPDATE employees SET position = 'BCO1' WHERE employee_no = 'to'");
+  assert.equal((await f.call('POST', body)).status, 403); assert.deepEqual(powerSnapshot(f), before);
 });
 run('audit failure rolls back the saved values', async f => {
   await f.call('POST'); f.db.failAudit = true; const body = f.body(); body.expectedRevision = 1; body.values.ismartReception = 17;
@@ -211,24 +234,24 @@ run('legacy-style repeated overwrite with absent, blank, null or zero fields pre
     assert.deepEqual(powerSnapshot(f), before);
   }
 });
-run('changing the synchronized TO log ID preserves manual values by date, not by log ID', async f => {
+run('changing the synchronized TO log ID preserves manual values and account-position authority', async f => {
   await f.call('POST'); const before = powerSnapshot(f);
   f.sql.prepare('UPDATE shift_logs SET id = ?, revision = revision + 1').run('replacement-log');
   const result = await f.call();
-  assert.deepEqual(result.data.item.values, VALUES); assert.equal(result.data.sourceLog.id, 'replacement-log');
-  assert.equal(result.data.item.sourceLogId, 'log-ns-to'); assert.deepEqual(powerSnapshot(f), before);
+  assert.deepEqual(result.data.item.values, VALUES); assert.equal(result.data.sourceLog.id, 'employee-position:to');
+  assert.equal(result.data.item.sourceLogId, 'employee-position:to'); assert.deepEqual(powerSnapshot(f), before);
 });
-run('temporary missing TO log during synchronization retains the record but grants no write permission', async f => {
+run('temporary missing TO log during synchronization retains record and TO-position write permission', async f => {
   await f.call('POST'); const before = powerSnapshot(f); f.sql.exec('DELETE FROM shift_logs');
-  const result = await f.call(); assert.equal(result.status, 200); assert.equal(result.data.canEdit, false);
-  assert.equal(result.data.sourceLog, null); assert.deepEqual(result.data.item.values, VALUES);
+  const result = await f.call(); assert.equal(result.status, 200); assert.equal(result.data.canEdit, true);
+  assert.equal(result.data.sourceLog.id, 'employee-position:to'); assert.deepEqual(result.data.item.values, VALUES);
   assert.deepEqual(powerSnapshot(f), before);
 });
-run('reassigning the synchronized author changes permission only, not existing manual data', async f => {
+run('reassigning synchronized log author has no effect on account-position permission or manual data', async f => {
   await f.call('POST'); const before = powerSnapshot(f);
   f.sql.exec("UPDATE shift_logs SET author_id = 'other', author = 'TEST OTHER', revision = 3");
-  assert.equal((await f.call()).data.canEdit, false);
-  const result = await f.call('GET', null, 'other'); assert.equal(result.data.canEdit, true);
+  assert.equal((await f.call()).data.canEdit, true);
+  const result = await f.call('GET', null, 'other'); assert.equal(result.data.canEdit, false);
   assert.deepEqual(result.data.item.values, VALUES); assert.deepEqual(powerSnapshot(f), before);
 });
 run('power and audit tables have no log foreign key or cascade dependency', async f => {
@@ -238,17 +261,19 @@ run('power and audit tables have no log foreign key or cascade dependency', asyn
   }
   const before = powerSnapshot(f); f.sql.exec('DELETE FROM shift_logs'); assert.deepEqual(powerSnapshot(f), before);
 });
-run('sync invalidates an open source revision without erasing the last successful save', async f => {
-  await f.call('POST'); const before = powerSnapshot(f);
+run('sync cannot invalidate an open TO-position save or erase the last successful record', async f => {
+  await f.call('POST');
   const draft = f.body(); draft.expectedRevision = 1; draft.values.ismartReception = 99;
   f.sql.exec('UPDATE shift_logs SET revision = revision + 1');
-  assert.equal((await f.call('POST', draft)).status, 409); assert.deepEqual(powerSnapshot(f), before);
+  const result = await f.call('POST', draft); assert.equal(result.status, 200); assert.equal(result.data.item.revision, 2);
+  assert.equal(result.data.item.values.ismartReception, 99);
 });
-run('sync races with explicit save: transaction stops without erasing saved values or audit', async f => {
-  await f.call('POST'); const before = powerSnapshot(f); const draft = f.body();
+run('sync racing with explicit save cannot block or erase account-position power data', async f => {
+  await f.call('POST'); const draft = f.body();
   draft.expectedRevision = 1; draft.values.ismartReception = 25;
   f.db.beforeWriteBatch = () => f.sql.exec('UPDATE shift_logs SET revision = revision + 1');
-  assert.equal((await f.call('POST', draft)).status, 409); assert.deepEqual(powerSnapshot(f), before);
+  const result = await f.call('POST', draft); assert.equal(result.status, 200);
+  assert.equal(result.data.item.revision, 2); assert.equal(result.data.item.values.ismartReception, 25);
 });
 run('empty automated-looking POST cannot clear an existing manual record', async f => {
   await f.call('POST'); const before = powerSnapshot(f);
@@ -259,7 +284,7 @@ run('empty automated-looking POST cannot clear an existing manual record', async
 });
 run('explicit authorized correction to all zeros remains valid after synchronization', async f => {
   await f.call('POST'); f.sql.exec('UPDATE shift_logs SET revision = 3');
-  const body = f.body(); body.expectedRevision = 1; body.sourceLogRevision = 3;
+  const body = f.body(); body.expectedRevision = 1;
   body.values = Object.fromEntries(Object.keys(VALUES).map(key => [key, 0]));
   const result = await f.call('POST', body); assert.equal(result.status, 200);
   assert.equal(result.data.item.revision, 2); assert.deepEqual(result.data.item.values, body.values);

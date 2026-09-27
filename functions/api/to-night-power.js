@@ -1,6 +1,8 @@
 /* TO night-duty daily electricity. All four values are kWh, not kW/MWh.
  * Separate additive tables; no writes to shift logs, OIS results or closing data.
- * Duty ownership is checked against the saved NS/TO shift log, not a client role.
+ * R4 authorization uses the registered employee position (employees.position='TO').
+ * The browser still receives a sourceLog-shaped authority token for backward
+ * compatibility, but no saved 업무일지 is required to show or save the input.
  */
 const FIELDS = Object.freeze(['generatorEcmsGen1', 'ismartReception', 'epowerTransmission', 'solarDailyGeneration']);
 const TABLE = 'to_night_power_daily';
@@ -27,24 +29,24 @@ async function authenticate(context) {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(match[1]));
   const tokenHash = [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
   const user = await context.env.DB.prepare(`SELECT session.employee_no, session.expires_at,
-    user.name, user.role, user.is_active FROM shift_log_sessions AS session
+    user.name, user.role, user.is_active, employee.position, employee.is_allowed
+    FROM shift_log_sessions AS session
     INNER JOIN users AS user ON user.employee_no = session.employee_no
+    LEFT JOIN employees AS employee ON employee.employee_no = session.employee_no
     WHERE session.token_hash = ? LIMIT 1`).bind(tokenHash).first();
   if (!user || Number(user.is_active) !== 1 || !Number.isFinite(Date.parse(user.expires_at)) ||
       Date.parse(user.expires_at) <= Date.now()) {
     throw new InputError('로그인 세션이 만료되었습니다. 다시 로그인해 주세요.', 401, 'SESSION_EXPIRED');
   }
-  // No admin/super-admin exception: only the saved NS/TO author may write.
   return {...user, employee_no: String(user.employee_no).trim(), tokenHash};
 }
-async function latestDuty(db, date) {
-  return db.prepare(`SELECT id, author, author_id, revision FROM shift_logs
-    WHERE work_date = ? AND shift = 'NS' AND role = 'TO'
-    ORDER BY updated_at DESC, created_at DESC, id DESC LIMIT 1`).bind(date).first();
+function isRegisteredTo(user) {
+  return Boolean(user && Number(user.is_allowed) === 1 && String(user.position || '').trim().toUpperCase() === 'TO');
 }
-function ownsDuty(user, duty) { return Boolean(duty && String(duty.author_id || '').trim() === user.employee_no); }
-function publicDuty(duty) {
-  return duty ? {id: String(duty.id), revision: Number(duty.revision), author: String(duty.author || '')} : null;
+function accountAuthority(user) {
+  return isRegisteredTo(user)
+    ? {id: `employee-position:${user.employee_no}`, revision: 1, author: String(user.name || '')}
+    : null;
 }
 function itemFromRow(row, date) {
   if (!row) return null;
@@ -84,10 +86,10 @@ export async function onRequestGet(context) {
     const user = await authenticate(context), db = context.env.DB;
     const date = new URL(context.request.url).searchParams.get('date');
     if (!validDate(date)) throw new InputError('올바른 실적 기준일을 선택해 주세요.');
-    const duty = await latestDuty(db, date);
+    const authority = accountAuthority(user);
     const row = await tableExists(db) ? await db.prepare(`SELECT * FROM ${TABLE} WHERE target_date = ?`).bind(date).first() : null;
     return response({ok: true, targetDate: date, shift: 'NS', role: 'TO', unit: 'kWh',
-      canEdit: ownsDuty(user, duty), sourceLog: publicDuty(duty), item: itemFromRow(row, date)});
+      canEdit: Boolean(authority), sourceLog: authority, item: itemFromRow(row, date)});
   } catch (error) { return handleError(error); }
 }
 export async function onRequestPost(context) {
@@ -111,10 +113,10 @@ export async function onRequestPost(context) {
         body.sourceLogRevision < 1 || typeof body.sourceLogId !== 'string' || !body.sourceLogId) {
       throw new InputError('자료 버전을 확인해 주세요. 입력창을 다시 열어 주세요.');
     }
-    const date = body.targetDate, duty = await latestDuty(db, date);
-    if (!ownsDuty(user, duty)) throw new InputError('해당 날짜 N/S TO 업무일지를 저장한 담당자만 입력·수정할 수 있습니다.', 403, 'DUTY_AUTHOR_REQUIRED');
-    if (String(duty.id) !== body.sourceLogId || Number(duty.revision) !== body.sourceLogRevision) {
-      throw new InputError('TO 업무일지가 변경되었습니다. 입력값을 확인한 뒤 저장자료를 다시 불러와 주세요.', 409, 'DUTY_CHANGED');
+    const date = body.targetDate, authority = accountAuthority(user);
+    if (!authority) throw new InputError('직원 정보의 보직이 TO인 계정만 N/S 전력 실적을 입력·수정할 수 있습니다.', 403, 'TO_POSITION_REQUIRED');
+    if (authority.id !== body.sourceLogId || authority.revision !== body.sourceLogRevision) {
+      throw new InputError('TO 보직 정보가 변경되었습니다. 입력값을 확인한 뒤 저장자료를 다시 불러와 주세요.', 409, 'TO_POSITION_CHANGED');
     }
     const exists = await tableExists(db);
     const previous = exists ? await db.prepare(`SELECT revision FROM ${TABLE} WHERE target_date = ?`).bind(date).first() : null;
@@ -123,19 +125,18 @@ export async function onRequestPost(context) {
     }
     await ensureSchema(db);
     const now = new Date().toISOString(), json = JSON.stringify(Object.fromEntries(FIELDS.map(key => [key, body.values[key]])));
-    // Recheck the author, source log revision, session, and power revision IN the
-    // write transaction. Invalid JSON deliberately aborts/rolls back the batch.
+    // Recheck the session, registered TO position and power revision IN the write
+    // transaction. 업무일지 synchronization has no authority over this record.
+    // Invalid JSON deliberately aborts/rolls back the batch on any conflict.
     const guard = db.prepare(`SELECT json(CASE WHEN
-      EXISTS (SELECT 1 FROM shift_logs WHERE id = ? AND author_id = ? AND revision = ?
-        AND work_date = ? AND shift = 'NS' AND role = 'TO'
-        AND id = (SELECT id FROM shift_logs WHERE work_date = ? AND shift = 'NS' AND role = 'TO'
-          ORDER BY updated_at DESC, created_at DESC, id DESC LIMIT 1))
-      AND COALESCE((SELECT revision FROM ${TABLE} WHERE target_date = ?), 0) = ?
-      AND EXISTS (SELECT 1 FROM shift_log_sessions AS s INNER JOIN users AS u ON u.employee_no = s.employee_no
-        WHERE s.token_hash = ? AND s.employee_no = ? AND u.is_active = 1 AND julianday(s.expires_at) > julianday(?))
+      COALESCE((SELECT revision FROM ${TABLE} WHERE target_date = ?), 0) = ?
+      AND EXISTS (SELECT 1 FROM shift_log_sessions AS s
+        INNER JOIN users AS u ON u.employee_no = s.employee_no
+        INNER JOIN employees AS e ON e.employee_no = s.employee_no
+        WHERE s.token_hash = ? AND s.employee_no = ? AND u.is_active = 1 AND e.is_allowed = 1
+          AND UPPER(TRIM(e.position)) = 'TO' AND julianday(s.expires_at) > julianday(?))
       THEN 'true' ELSE 'TO_POWER_CONFLICT' END) AS allowed`)
-      .bind(String(duty.id), user.employee_no, Number(duty.revision), date, date, date, body.expectedRevision,
-        user.tokenHash, user.employee_no, now);
+      .bind(date, body.expectedRevision, user.tokenHash, user.employee_no, now);
     const upsert = db.prepare(`INSERT INTO ${TABLE}
       (target_date, values_json, revision, source_log_id, source_log_revision,
        created_by_id, created_by_name, created_at, updated_by_id, updated_by_name, updated_at)
@@ -144,7 +145,7 @@ export async function onRequestPost(context) {
         revision = ${TABLE}.revision + 1, source_log_id = excluded.source_log_id,
         source_log_revision = excluded.source_log_revision, updated_by_id = excluded.updated_by_id,
         updated_by_name = excluded.updated_by_name, updated_at = excluded.updated_at`)
-      .bind(date, json, String(duty.id), Number(duty.revision), user.employee_no, String(user.name || ''), now,
+      .bind(date, json, authority.id, authority.revision, user.employee_no, String(user.name || ''), now,
         user.employee_no, String(user.name || ''), now);
     const audit = db.prepare(`INSERT INTO ${AUDIT}
       (target_date, revision, values_json, source_log_id, source_log_revision, updated_by_id, updated_by_name, updated_at)
@@ -154,13 +155,13 @@ export async function onRequestPost(context) {
     try { results = await db.batch([guard, upsert, audit, db.prepare(`SELECT * FROM ${TABLE} WHERE target_date = ?`).bind(date)]); }
     catch (error) {
       if (/malformed JSON/i.test(String(error?.message || '') + ' ' + String(error?.cause?.message || ''))) {
-        throw new InputError('근무 담당자 또는 저장자료가 변경되었습니다. 입력값을 보관한 뒤 저장자료를 다시 불러와 주세요.', 409, 'POWER_WRITE_CONFLICT');
+        throw new InputError('TO 보직 또는 저장자료가 변경되었습니다. 입력값을 보관한 뒤 저장자료를 다시 불러와 주세요.', 409, 'POWER_WRITE_CONFLICT');
       }
       throw error;
     }
     const item = itemFromRow(results[3]?.results?.[0], date);
     if (!item) throw new Error('Saved power record missing');
     return response({ok: true, targetDate: date, shift: 'NS', role: 'TO', unit: 'kWh', canEdit: true,
-      sourceLog: publicDuty(duty), item});
+      sourceLog: authority, item});
   } catch (error) { return handleError(error); }
 }
