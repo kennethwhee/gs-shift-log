@@ -71,6 +71,52 @@
   const boundFrameDocuments =
     new WeakSet();
 
+  let compactToolbarDocument = null;
+  let releaseCompactToolbar = () => {};
+
+  // Keep the original form controls and their handlers in the child document.
+  // Only replace the duplicated navigation header after its own toolbar is ready.
+  function bindCompactToolbar(frameDocument) {
+    const source = viewerFrame?.getAttribute("src") || "";
+    const isSootPage = /(?:^|\/)weekly\/soot-blower\/soot-blower-weekly\.html(?:[?#]|$)/.test(source);
+    if (!isSootPage || compactToolbarDocument !== frameDocument) {
+      releaseCompactToolbar();
+      compactToolbarDocument = null;
+      releaseCompactToolbar = () => {};
+    }
+    if (!isSootPage || !frameDocument || compactToolbarDocument === frameDocument) return;
+
+    const writeView = frameDocument.getElementById("sootWriteView");
+    const toolbar = writeView?.querySelector(".soot-check-toolbar");
+    const back = document.getElementById("inspectionLogBackButton");
+    const rows = frameDocument.getElementById("sootCheckRows");
+    // An incomplete or failed frame keeps the original, working parent header.
+    if (!toolbar || !back || !rows?.children.length ||
+        !frameDocument.getElementById("sootCheckSaveButton")) return;
+
+    const button = frameDocument.createElement("button");
+    button.type = "button";
+    button.className = "soot-compact-back screen-only";
+    button.textContent = "\u2190 \ubaa9\ub85d";
+    button.addEventListener("click", () => back.click());
+    toolbar.prepend(button);
+    frameDocument.documentElement.classList.add("inspection-compact-embedded");
+
+    const update = () => {
+      viewer.classList.toggle("inspection-compact-soot", !writeView.hidden);
+    };
+    const observer = new MutationObserver(update);
+    observer.observe(writeView, { attributes: true, attributeFilter: ["hidden"] });
+    compactToolbarDocument = frameDocument;
+    releaseCompactToolbar = () => {
+      observer.disconnect();
+      button.remove();
+      frameDocument.documentElement?.classList.remove("inspection-compact-embedded");
+      viewer?.classList.remove("inspection-compact-soot");
+    };
+    update();
+  }
+
 
   function clampZoom(
     value
@@ -329,7 +375,7 @@
       getViewerDocument();
 
     if (
-      !frameDocument
+      !frameDocument?.documentElement
     ) {
       return;
     }
@@ -536,6 +582,8 @@
     const frameDocument =
       getViewerDocument();
 
+    bindCompactToolbar(frameDocument);
+
     if (
       !frameDocument ||
       boundFrameDocuments.has(
@@ -632,7 +680,9 @@
         aria-pressed="false"
         title="크게 보기"
       >
-        ⛶
+        <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5" />
+        </svg>
       </button>
     `;
 

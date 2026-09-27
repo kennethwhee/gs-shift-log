@@ -675,3 +675,148 @@ body.inspection-focus-mode .inspection-schedule-table-panel {
     display: none !important;
   }
 }
+
+/* Compact light inspection navigation. Paper and print rules are unchanged. */
+@media screen {
+  #inspectionLogViewer.inspection-compact-soot > .inspection-log-viewer__header {
+    display: none !important;
+  }
+  .inspection-view-tools {
+    border-color: #ccd6df;
+    border-radius: 9px;
+    background: #fff;
+    box-shadow: 0 3px 12px rgba(24, 39, 56, .09);
+  }
+  .inspection-view-tools__button,
+  .inspection-view-tools__zoom {
+    background: #fff;
+    color: #253647;
+    font-weight: 700;
+  }
+  .inspection-view-tools__zoom { font-size: 12px; }
+  .inspection-view-tools__button.is-fullscreen[aria-pressed="true"] {
+    background: #e5f3ed;
+    border-color: #a6cdbf;
+    color: #155b4b;
+  }
+}
+@media screen and (min-width: 769px) {
+  :root { --inv2-sidebar-width: 240px; --inv2-gap: 14px; }
+  html, body { background: #f5f7f9 !important; }
+  .inspection-log-hub { padding: 14px 16px 16px !important; }
+  .inspection-nav-v2 {
+    gap: 12px;
+    padding: 6px 8px 48px 0;
+    border-right: 1px solid #dbe2e8;
+    background: #fff;
+  }
+  .inspection-nav-v2__section {
+    padding: 0 4px;
+    border: 0;
+    border-radius: 0;
+    background: #fff;
+    box-shadow: none;
+  }
+  .inspection-nav-v2__section + .inspection-nav-v2__section {
+    padding-top: 8px;
+    border-top: 1px solid #e1e6eb;
+  }
+  .inspection-nav-v2__section-header {
+    min-height: 42px;
+    padding: 4px 42px 8px 10px;
+    border: 0;
+  }
+  .inspection-nav-v2__section-header > span {
+    color: #576a7c;
+    font-size: 9px;
+    font-weight: 700;
+  }
+  .inspection-nav-v2__section-header > strong {
+    color: #1e2c3c;
+    font-size: 14px;
+    font-weight: 750;
+  }
+  .inspection-nav-v2__groups { gap: 2px; padding-top: 2px; }
+  .inspection-nav-v2__group,
+  .inspection-nav-v2__sheet-group,
+  .inspection-nav-v2__sheet-branch {
+    border: 0;
+    border-radius: 0;
+    background: #fff;
+  }
+  .inspection-nav-v2__group > summary,
+  .inspection-nav-v2__sheet-group > summary {
+    min-height: 40px;
+    grid-template-columns: 22px minmax(0, 1fr) 10px;
+    column-gap: 8px;
+    padding: 7px 10px;
+    background: #fff;
+    color: #253647;
+    font-size: 13px;
+    font-weight: 750;
+  }
+  .inspection-nav-v2__group > summary::before,
+  .inspection-nav-v2__sheet-group > summary::before {
+    width: 21px;
+    height: 21px;
+    border: 0;
+    border-radius: 0;
+    background-color: transparent;
+    background-size: 18px 18px;
+  }
+  .inspection-nav-v2__group[open] > summary,
+  .inspection-nav-v2__sheet-group[open] > summary { background: #fff; color: #253647; }
+  .inspection-nav-v2__submenu,
+  .inspection-nav-v2__sheet-menu,
+  .inspection-nav-v2__sheet-branches {
+    gap: 2px;
+    padding: 1px 0 5px;
+    border: 0;
+    background: #fff;
+  }
+  .inspection-nav-v2__submenu button,
+  .inspection-nav-v2__sheet-menu button,
+  .inspection-nav-v2__sheet-direct button,
+  .inspection-nav-v2__empty,
+  .inspection-nav-v2__sheet-branch > summary {
+    min-height: 36px;
+    padding: 7px 24px 7px 14px;
+    border: 0;
+    border-radius: 5px;
+    background: #fff;
+    color: #34485b;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.45;
+  }
+  .inspection-nav-v2__submenu button:hover,
+  .inspection-nav-v2__sheet-menu button:hover,
+  .inspection-nav-v2__sheet-direct button:hover { background: #f3f6f8; color: #1e3549; }
+  .inspection-nav-v2__sheet-direct > button { padding-left: 40px; }
+  .inspection-nav-v2__sheet-direct > button::before {
+    width: 21px;
+    height: 21px;
+    border: 0;
+    border-radius: 0;
+    background-color: transparent;
+    background-size: 18px 18px;
+  }
+  .inspection-nav-v2__submenu button.is-active,
+  .inspection-nav-v2__sheet-menu button.is-active,
+  .inspection-nav-v2__sheet-direct button.is-active {
+    background: #e9f5f0;
+    color: #174e43;
+    box-shadow: inset 3px 0 0 #358b76;
+  }
+  .inspection-nav-v2 button:focus-visible,
+  .inspection-nav-v2 summary:focus-visible {
+    outline: 2px solid #357b68;
+    outline-offset: -2px;
+  }
+  .inspection-log-viewer {
+    border-color: #d5dee6;
+    border-radius: 9px;
+    box-shadow: none;
+    background: #fff;
+  }
+}

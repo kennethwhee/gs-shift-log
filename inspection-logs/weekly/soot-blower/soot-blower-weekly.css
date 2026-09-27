@@ -1096,3 +1096,98 @@ button {
     background: #fff200 !important;
   }
 }
+
+/* Embedded screen toolbar only: the A4 sheet and all print styles stay intact. */
+@media screen {
+  html.inspection-compact-embedded body { background: #f1f4f6; }
+  .inspection-compact-embedded .soot-check-app {
+    padding: 0 0 64px;
+  }
+  .inspection-compact-embedded .soot-write-view {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+  .inspection-compact-embedded .soot-check-toolbar {
+    width: 100%;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 14px;
+    margin: 0;
+    padding: 14px 18px;
+    border: 0;
+    border-bottom: 1px solid #dce3e9;
+    border-radius: 0;
+    background: #fff;
+    box-shadow: none;
+  }
+  .inspection-compact-embedded .soot-check-toolbar__eyebrow { display: none; }
+  .inspection-compact-embedded .soot-check-toolbar h1 {
+    color: #1b2c3d;
+    font-size: 19px;
+    font-weight: 750;
+    line-height: 1.35;
+  }
+  .inspection-compact-embedded .soot-check-toolbar__schedule {
+    display: inline-block;
+    margin: 4px 8px 0 0;
+    color: #526679;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .inspection-compact-embedded .soot-check-toolbar__save-state {
+    min-height: 20px;
+    margin: 4px 0 0;
+    padding: 2px 7px;
+    border-radius: 4px;
+    color: #526174;
+    font-size: 11px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .inspection-compact-embedded .soot-check-toolbar__save-state.is-saved { color: #206044; }
+  .inspection-compact-embedded .soot-check-toolbar__save-state.is-saving { color: #285c8e; }
+  .inspection-compact-embedded .soot-check-toolbar__save-state.is-error { color: #a32b2b; }
+  .inspection-compact-embedded .soot-check-toolbar__actions { gap: 6px; }
+  .inspection-compact-embedded .soot-check-toolbar__actions button,
+  .inspection-compact-embedded .soot-compact-back {
+    min-height: 34px;
+    padding: 0 12px;
+    border: 1px solid #c8d4de;
+    border-radius: 6px;
+    background: #fff;
+    color: #294357;
+    font-size: 13px;
+    font-weight: 650;
+    white-space: nowrap;
+  }
+  .inspection-compact-embedded #sootCheckSaveButton {
+    border-color: #a6ccbf;
+    background: #e5f3ed;
+    color: #165947;
+  }
+  .inspection-compact-embedded #sootArchiveOpenButton,
+  .inspection-compact-embedded #sootCheckPreviewButton {
+    border-color: #c8d4de;
+    background: #fff;
+    color: #294357;
+  }
+  .inspection-compact-embedded .soot-check-toolbar button:focus-visible {
+    outline: 2px solid #357b68;
+    outline-offset: 2px;
+  }
+}
+@media screen and (max-width: 850px) {
+  .inspection-compact-embedded .soot-check-toolbar {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px 12px;
+    padding: 12px;
+  }
+  .inspection-compact-embedded .soot-check-toolbar__actions {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
+}
+@media screen and (max-width: 430px) {
+  .inspection-compact-embedded .soot-check-toolbar__actions { grid-column: 1 / -1; }
+  .inspection-compact-embedded .soot-check-toolbar h1 { font-size: 16px; }
+  .inspection-compact-embedded .soot-check-toolbar__actions button { padding: 0 9px; }
+}
