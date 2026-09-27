@@ -1,0 +1,265 @@
+/* BLOWER READABLE COMPACT V1 — design proposal, not a production installation.
+   Append after existing Blower styles. Does not calculate or overwrite values,
+   status attributes, alert thresholds, permissions, or acquisition behavior.
+   Reviewed against the archived 2026-09-15 markup only. */
+
+.page-shell { padding-top: 12px; padding-bottom: 18px; }
+.page-header { margin-bottom: 8px; gap: 16px; }
+.page-header h1 { font-size: 25px; line-height: 1.3; }
+.page-description { margin-top: 4px; font-size: 12px; line-height: 1.4; }
+.type-tabs { gap: 6px; padding-bottom: 6px; }
+.type-tab { min-height: 36px; padding-inline: 12px; }
+.sub-tabs { min-height: 38px; padding-block: 3px; }
+.sub-tab { min-height: 30px; }
+.subview { padding: 9px; }
+.status-toolbar { gap: 6px; margin-bottom: 6px; }
+.status-filter { min-height: 28px; }
+.settings-strip { padding: 6px 9px; margin-top: 4px; }
+.asset-section { margin-top: 6px; }
+
+/* Keep the timestamp readable without a three-line oversized heading. */
+.overview-refresh-panel {
+  gap: 14px; padding: 8px 12px; margin-bottom: 8px; border-radius: 8px;
+}
+.overview-refresh-latest {
+  display: grid; grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline; column-gap: 10px; row-gap: 3px;
+}
+.overview-refresh-latest > span { font-size: 11px; }
+.overview-refresh-latest > strong {
+  margin-top: 0; font-size: 19px; letter-spacing: -.02em;
+  line-height: 1.25; white-space: normal; overflow-wrap: anywhere;
+}
+.overview-refresh-latest > small {
+  grid-column: 1 / -1; margin-top: 0; font-size: 11px; line-height: 1.4;
+}
+.overview-refresh-action { min-width: 230px; gap: 9px; }
+#refreshButton.overview-refresh-button {
+  flex-basis: 40px; width: 40px; height: 40px; min-width: 40px; border-radius: 10px;
+}
+.overview-refresh-icon { width: 24px; height: 24px; }
+.overview-refresh-progress-head strong { font-size: 17px; }
+.overview-refresh-progress-head span { font-size: 11px; }
+.overview-refresh-progress-track { height: 5px; margin-top: 4px; }
+
+/* Preserve all groups and unit identities. The two final categories share
+   one desktop row instead of leaving an empty half beside the Silo group. */
+.all-overview-dashboard { gap: 8px; margin-top: 6px; }
+.all-overview-summary { gap: 6px; }
+.all-overview-summary > div {
+  align-items: center; padding: 5px 10px; gap: 8px; border-radius: 7px;
+}
+.all-overview-summary span { font-size: 11px; line-height: 1.3; }
+.all-overview-summary strong { font-size: 21px; line-height: 1.3; }
+.all-overview-group { padding: 7px; border-radius: 8px; }
+.all-overview-group > header { margin-bottom: 5px; }
+.all-overview-group > header h3 { font-size: 14px; line-height: 1.35; }
+.all-overview-group > header span { font-size: 11px; }
+.all-overview-unit-layout { gap: 7px; }
+.all-overview-unit-panel { padding: 4px; border-radius: 7px; }
+.all-overview-unit-header {
+  min-height: 23px; margin: 0 0 4px; padding: 2px 5px;
+  background: transparent; border-radius: 0;
+}
+.all-overview-unit-header strong { font-size: 12px; }
+.all-overview-unit-header span { font-size: 10px; }
+.all-overview-unit-card-grid { gap: 5px; }
+.all-overview-card {
+  min-height: 118px; gap: 5px; padding: 7px;
+  border-radius: 6px;
+}
+.all-overview-card-head { gap: 4px; }
+.all-overview-identity strong {
+  font-size: 13px; line-height: 1.2; white-space: normal;
+  overflow: visible; text-overflow: clip; word-break: keep-all;
+}
+.all-overview-identity small {
+  margin-top: 3px; font-size: 10px; line-height: 1.2;
+  white-space: normal; overflow: visible; overflow-wrap: anywhere; text-overflow: clip;
+}
+.all-overview-card .operation-pill,
+.all-overview-card .operation-mode-pill {
+  min-height: 20px; font-size: 10px; padding-inline: 5px;
+}
+.all-overview-metrics { grid-template-columns: minmax(0, 1fr); gap: 3px; }
+.all-overview-metrics > span {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 5px; padding: 0; background: transparent; border-radius: 0;
+}
+.all-overview-metrics small,
+.all-overview-query-period small { font-size: 10px; line-height: 1.3; }
+.all-overview-metrics small { flex: 0 0 auto; }
+.all-overview-metrics strong {
+  min-width: 0; margin-top: 0; font-size: 12px; line-height: 1.25;
+  white-space: normal; overflow: visible; text-overflow: clip;
+  overflow-wrap: anywhere; text-align: right; font-variant-numeric: tabular-nums;
+}
+.all-overview-metrics > span:first-child strong { font-size: 18px; font-weight: 850; }
+.all-overview-card[data-operation-state="unknown"] .all-overview-metrics > span:first-child strong,
+.all-overview-card[data-operation-state="unconfirmed"] .all-overview-metrics > span:first-child strong {
+  font-size: 12px; line-height: 1.35;
+}
+.all-overview-query-period { padding-top: 3px; border-top: 1px solid rgba(112,130,147,.16); }
+.all-overview-query-period strong {
+  margin-top: 2px; font-size: 11px; line-height: 1.3;
+  white-space: normal; overflow: visible; text-overflow: clip;
+  overflow-wrap: anywhere; font-variant-numeric: tabular-nums;
+}
+.all-overview-missing { font-size: 11px; }
+/* Keep the original left-border alert colors also when hovering/focusing. */
+button.all-overview-card[data-severity="warning"]:hover { border-left-color: var(--warning); }
+button.all-overview-card[data-severity="critical"]:hover { border-left-color: var(--critical); }
+button.all-overview-card[data-severity="overdue"]:hover { border-left-color: var(--overdue); }
+
+/* Per-type cards: larger metrics, no clipping of a valid zero or long value. */
+.unit-group + .unit-group { margin-top: 8px; }
+.unit-heading { margin-bottom: 4px; }
+.asset-grid { gap: 8px; }
+.asset-card { padding: 8px; }
+.asset-tag { font-size: 11px; }
+.asset-card .dataparc-runtime-row { margin-top: 6px; padding: 6px 8px; }
+.asset-card[data-run-view] .run-source-row { min-height: 0; }
+.asset-card .dataparc-runtime-basis > span { font-size: 11px; }
+.asset-card .dataparc-runtime-basis strong {
+  font-size: 13px; line-height: 1.4; font-variant-numeric: tabular-nums;
+  white-space: normal; overflow-wrap: anywhere;
+}
+.asset-card .dataparc-runtime-basis small { font-size: 11px; line-height: 1.4; }
+.asset-card .cycle-overview { margin-top: 6px; gap: 5px; }
+.cycle-primary-metric, .cycle-deadline-metric, .cycle-usage-metric { padding: 6px 8px; }
+.asset-card .cycle-primary-metric > strong {
+  font-size: 28px; line-height: 1.2; letter-spacing: -.025em;
+  overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.asset-card .cycle-deadline-metric > strong,
+.asset-card .cycle-usage-metric > strong {
+  font-size: 23px; line-height: 1.3; font-variant-numeric: tabular-nums;
+}
+.asset-card .cycle-date-line { margin-top: 5px; padding: 5px 7px; font-variant-numeric: tabular-nums; }
+.asset-card .asset-evidence { margin-top: 5px; }
+.asset-card .asset-evidence > summary { padding-block: 5px; min-height: 28px; }
+.asset-card .asset-actions { margin-top: 6px; gap: 5px; }
+.asset-card .asset-actions .button { min-height: 32px; }
+
+/* History stays readable, including the event date and runtime evidence. */
+.history-table { font-size: 13px; }
+.history-table th { padding: 8px 9px; }
+.history-table td { padding: 8px 9px; line-height: 1.45; }
+.history-table td:first-child,
+.history-table td:nth-child(4) { font-variant-numeric: tabular-nums; }
+.history-dialog { width: min(820px, calc(100vw - 24px)); }
+.history-dialog-shell { max-height: calc(100dvh - 24px); }
+.asset-history-item { gap: 10px; padding: 9px 10px; }
+.asset-history-date { font-size: 12px; font-variant-numeric: tabular-nums; }
+.asset-history-heading strong { font-size: 12px; }
+.asset-history-content p { font-size: 13px; }
+.asset-history-content small { font-size: 11px; }
+.asset-history-edit, .asset-history-reset, .button.asset-history-delete { font-size: 11px; min-height: 28px; }
+
+@media (min-width: 1181px) {
+  .all-overview-dashboard { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .all-overview-summary,
+  .all-overview-group { grid-column: 1 / -1; }
+  .all-overview-group[data-overview-type="flyash_bag"] { grid-column: span 2; }
+  .all-overview-group[data-overview-type="flyash_silo"] { grid-column: span 1; }
+  .all-overview-group[data-overview-type="flyash_silo"] .all-overview-unit-layout[data-unit-count="1"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .all-overview-group[data-overview-type="flyash_silo"] .all-overview-unit-panel { grid-column: auto; }
+}
+@media (min-width: 1181px) and (max-width: 1400px) {
+  .all-overview-metrics > span:first-child strong { font-size: 16px; }
+  .all-overview-card .operation-pill,
+  .all-overview-card .operation-mode-pill { padding-inline: 4px; font-size: 9px; }
+  .all-overview-identity strong { font-size: 12px; }
+  .all-overview-identity small { font-size: 9px; }
+  .all-overview-metrics small { font-size: 9px; }
+}
+@media (max-width: 1180px) and (min-width: 701px) {
+  .overview-refresh-action { min-width: 200px; }
+  .all-overview-metrics > span:first-child strong { font-size: 18px; }
+  .asset-card .cycle-primary-metric > strong { font-size: 23px; }
+  .asset-card .cycle-deadline-metric > strong,
+  .asset-card .cycle-usage-metric > strong { font-size: 20px; }
+}
+@media (max-width: 700px), (max-width: 1024px) and (hover: none) and (pointer: coarse) {
+  .page-shell { padding-top: 10px; }
+  .page-header h1 { font-size: 20px; }
+  .page-description { font-size: 11px; }
+  .type-tab { min-height: 36px; }
+  .status-filter { min-height: 30px; }
+  .overview-refresh-panel { padding: 8px 9px; }
+  .overview-refresh-latest { column-gap: 8px; }
+  .overview-refresh-latest > strong { font-size: 17px; }
+  .overview-refresh-latest > small { font-size: 10px; }
+  /* Mobile remains read-only: the original hidden refresh action is not changed. */
+  .all-overview-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; overflow: visible; padding-bottom: 0; }
+  .all-overview-summary > div { display: flex; padding: 5px 7px; gap: 3px; }
+  .all-overview-summary span { font-size: 10px; }
+  .all-overview-summary strong { margin-top: 0; font-size: 17px; }
+  .all-overview-group { padding: 5px; }
+  .all-overview-group > header h3 { font-size: 12px; }
+  .all-overview-unit-panel { padding: 3px; }
+  .all-overview-unit-header { min-height: 24px; padding: 3px 4px; }
+  .all-overview-unit-header strong { font-size: 11px; }
+  .all-overview-unit-header span { font-size: 10px; }
+  .all-overview-card { min-height: 128px; padding: 6px; gap: 5px; }
+  .all-overview-card-head { flex-wrap: wrap; }
+  .all-overview-identity { flex: 1 1 80px; }
+  .all-overview-identity strong { font-size: 12px; }
+  .all-overview-identity small { font-size: 9px; }
+  .all-overview-status-badges { margin-left: auto; }
+  .all-overview-card .operation-pill,
+  .all-overview-card .operation-mode-pill { min-height: 19px; font-size: 9px; padding-inline: 4px; }
+  .all-overview-metrics > span:first-child { display: block; }
+  .all-overview-metrics > span:first-child strong { margin-top: 2px; font-size: 18px; text-align: left; }
+  .all-overview-metrics > span:nth-child(2) { display: block; }
+  .all-overview-metrics > span:nth-child(2) strong { margin-top: 2px; text-align: left; font-size: 11px; }
+  .all-overview-metrics small, .all-overview-query-period small { font-size: 9px; }
+  .all-overview-query-period strong { font-size: 10px; }
+  .all-overview-card[data-operation-state="unknown"] .all-overview-metrics > span:first-child strong,
+  .all-overview-card[data-operation-state="unconfirmed"] .all-overview-metrics > span:first-child strong { font-size: 12px; }
+  .asset-card .dataparc-runtime-row { padding: 5px 6px; }
+  .asset-card[data-run-view] .run-source-mobile { font-size: 11px; }
+  .asset-card[data-run-view] .run-source-mobile small { font-size: 10px; }
+  .asset-card[data-run-view] .cycle-primary-metric > strong { font-size: 19px !important; }
+  .asset-card .cycle-deadline-metric > strong,
+  .asset-card .cycle-usage-metric > strong { font-size: 17px; }
+  .history-table { font-size: 12px; }
+  .history-table td { padding: 5px 6px; }
+  .history-table td::before { font-size: 10px; }
+  .asset-history-item { gap: 7px; padding: 8px; }
+  .asset-history-date { font-size: 12px; }
+  .asset-history-content p { font-size: 12px; }
+  .history-dialog-footer [data-close-dialog] { min-height: 40px; }
+}
+
+/* In the history dialog, use a full-width provenance row rather than
+   squeezing the full query range into a fifth narrow column. */
+.history-cycle-summary { grid-template-columns: auto repeat(3, minmax(0, 1fr)); gap: 8px; padding: 10px; }
+.history-cycle-summary div > span { font-size: 11px; }
+.history-cycle-summary > div:not(.history-unknown):not(.run-history-note) > strong {
+  font-size: 16px; line-height: 1.35; font-variant-numeric: tabular-nums;
+}
+.history-cycle-summary > .run-history-note {
+  grid-column: 1 / -1; display: flex; flex-direction: row; align-items: baseline;
+  flex-wrap: wrap; gap: 4px 12px; padding: 6px 0 0 !important;
+  border-left: 0 !important; border-top: 1px solid #e2e7eb;
+}
+.history-cycle-summary > .run-history-note > strong { font-size: 12px; }
+.history-cycle-summary > .run-history-note > small { font-size: 12px; font-variant-numeric: tabular-nums; }
+.history-cycle-summary > .run-history-note > span { font-size: 11px; }
+@media (max-width: 700px), (max-width: 1024px) and (hover: none) and (pointer: coarse) {
+  .history-cycle-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .history-cycle-summary > .status-pill { grid-column: 1 / -1; }
+}
+@media (max-width: 700px) {
+  /* Two readable cards instead of three columns with broken hour units. */
+  .asset-grid, .asset-grid.is-unit-grid, .asset-grid.is-two, .asset-grid.is-single {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .asset-card[data-run-view] .cycle-primary-metric > strong {
+    font-size: clamp(17px, 4.6vw, 20px) !important;
+  }
+}
