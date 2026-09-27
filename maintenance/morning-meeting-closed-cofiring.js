@@ -217,8 +217,26 @@
     return result;
   }
 
+  function renderLegacySavedOrganic(date) {
+    const fallback = root.morningMeetingLegacySavedDailyData;
+    if (!date || !fallback || typeof fallback.peek !== 'function') return false;
+    let saved = null;
+    try { saved = fallback.peek(date); } catch { saved = null; }
+    if (!saved) return false;
+    try { fallback.render?.(date); return true; }
+    catch (error) { console.warn('오전회의 유기성 기존 저장값 표시 실패:', error); return false; }
+  }
   function renderOrganic() {
     const date = targetDate(), entry = state(date), saved = peek(date);
+    if (!saved && date && !isBlocked(date) && renderLegacySavedOrganic(date)) {
+      const fallbackButton = byId(PREFIX + 'SludgeRefreshButton');
+      if (fallbackButton) {
+        fallbackButton.disabled = !session || entry.status === 'loading';
+        fallbackButton.title = '선택일의 혼소율 마감자료 다시 불러오기 · 기존 저장값 표시 유지';
+        fallbackButton.setAttribute('aria-busy', entry.status === 'loading' ? 'true' : 'false');
+      }
+      return;
+    }
     const data = saved?.organic || emptyOrganic();
     const card = byId(PREFIX + 'SludgeCard');
     if (card) { card.dataset.source = 'cofiring-closed-history'; card.title = '선택일의 혼소율 마감자료 · 재고는 마감 계산의 종료값'; }

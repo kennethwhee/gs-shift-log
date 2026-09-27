@@ -794,6 +794,24 @@
     forceRefreshDailyData();
   }
 
+  function renderLegacySavedFallback(targetDate) {
+    const fallback = window.morningMeetingLegacySavedDailyData;
+    if (!targetDate || !fallback || typeof fallback.peek !== "function") return false;
+    let saved = null;
+    try {
+      saved = fallback.peek(targetDate);
+    } catch {
+      saved = null;
+    }
+    if (!saved) return false;
+    try {
+      fallback.render?.(targetDate);
+      return true;
+    } catch (error) {
+      console.warn("오전회의 기존 저장값 표시 실패:", error);
+      return false;
+    }
+  }
   function renderClosedSnapshot(snapshot) {
     renderFuelUsage(snapshot);
     for (const [unit, prefix] of [["unitOne", "unitOne"], ["unitTwo", "unitTwo"]]) {
@@ -809,16 +827,21 @@
     if (!provider || !ensureCard()) return;
     const date = provider.targetDate();
     setCardDate(date);
-    clearAllValues();
     if (!date || isSelectedDateResetActive(date)) {
+      clearAllValues();
       setStatus("idle", "조회 대기");
       return;
     }
     const state = provider.state(date);
     const snapshot = provider.peek(date);
     if (state.status === "complete" && snapshot?.targetDate === date) {
+      clearAllValues();
       renderClosedSnapshot(snapshot);
-    } else if (state.status === "loading") {
+      return;
+    }
+    if (renderLegacySavedFallback(date)) return;
+    clearAllValues();
+    if (state.status === "loading") {
       setStatus("loading", "마감자료 조회 중");
     } else if (state.status === "error") {
       setStatus("error", "마감자료 조회 실패");
@@ -856,9 +879,11 @@
       setStatus("error", "마감자료 모듈 없음");
       return;
     }
-
-    clearAllValues();
-    setStatus("loading", "마감자료 조회 중");
+    const hasLegacySaved = renderLegacySavedFallback(targetDate);
+    if (!hasLegacySaved) {
+      clearAllValues();
+      setStatus("loading", "마감자료 조회 중");
+    }
     setRefreshButtonLoading(true);
     try {
       const snapshot = await provider.load(targetDate, { force: options.force === true });
@@ -869,16 +894,21 @@
         return;
       }
       if (snapshot?.targetDate === targetDate) {
+        clearAllValues();
         renderClosedSnapshot(snapshot);
-      } else {
+      } else if (!renderLegacySavedFallback(targetDate)) {
         clearAllValues();
         setStatus("idle", "마감자료 없음");
       }
     } catch (error) {
       if (refreshToken !== activeRefreshToken || getTargetDate() !== targetDate) return;
-      clearAllValues();
-      setStatus(isSelectedDateResetActive(targetDate) ? "idle" : "error",
-        isSelectedDateResetActive(targetDate) ? "조회 대기" : "마감자료 조회 실패");
+      if (isSelectedDateResetActive(targetDate)) {
+        clearAllValues();
+        setStatus("idle", "조회 대기");
+      } else if (!renderLegacySavedFallback(targetDate)) {
+        clearAllValues();
+        setStatus("error", "마감자료 조회 실패");
+      }
       console.warn("오전회의 혼소율 마감자료 조회 실패:", error);
     } finally {
       if (refreshToken === activeRefreshToken) setRefreshButtonLoading(false);
