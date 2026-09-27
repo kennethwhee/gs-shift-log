@@ -86,6 +86,9 @@
   }
 
   function getReferenceDate() {
+    if (window.morningMeetingClosedCofiring) {
+      return window.morningMeetingClosedCofiring.targetDate();
+    }
     const ids = [
       "efficiencyMorningMeetingAutoDailyPowerDate",
       "efficiencyMorningMeetingAutoSteamDate",
@@ -122,14 +125,28 @@
       unitTwoOrganic: normalizeNumber(unitTwo.organic),
       unitOneOrganicRatio: normalizeNumber(unitOne.organicRatio),
       unitTwoOrganicRatio: normalizeNumber(unitTwo.organicRatio),
+      bioAverageRatio: normalizeNumber(snapshot.combined?.bioRatio),
+      organicAverageRatio: normalizeNumber(snapshot.combined?.organicRatio),
       adjustmentApplied: snapshot.adjustmentApplied === true,
-      source: "effective-snapshot"
+      source: snapshot.source === "cofiring-closed-history" ? snapshot.source : "effective-snapshot"
     };
   }
 
   function getDisplayedValues() {
     const cardDate = readDate("efficiencyMorningMeetingCofiringDate");
     const referenceDate = getReferenceDate();
+
+    const provider = window.morningMeetingClosedCofiring;
+    if (provider) {
+      // Never fall back to displayed/Excel values when a closed record is absent,
+      // being replaced, or invalidated by the selected-date reset.
+      const empty = { targetDate: referenceDate, referenceDate, source: "cofiring-closed-history" };
+      if (!referenceDate || provider.isBlocked(referenceDate) ||
+          window.isMorningMeetingSelectedDateResetActive?.(referenceDate) === true ||
+          provider.state(referenceDate).status !== "complete") return empty;
+      const snapshot = normalizeSnapshot(provider.peek(referenceDate));
+      return snapshot?.targetDate === referenceDate ? { ...snapshot, referenceDate } : empty;
+    }
 
     const snapshotGetter = window.getMorningMeetingCofiringEffectiveValues;
     if (typeof snapshotGetter === "function") {
@@ -174,6 +191,13 @@
   }
 
   function withDerivedAverages(values) {
+    if (values?.source === "cofiring-closed-history") {
+      return {
+        ...values,
+        bioAverageRatio: normalizeNumber(values.bioAverageRatio),
+        organicAverageRatio: normalizeNumber(values.organicAverageRatio)
+      };
+    }
     const unitOneBioRatio = normalizeNumber(values?.unitOneBioRatio);
     const unitTwoBioRatio = normalizeNumber(values?.unitTwoBioRatio);
     const unitOneOrganicRatio = normalizeNumber(values?.unitOneOrganicRatio);
@@ -297,13 +321,26 @@
     return { found: true, written: true, cleared: false };
   }
 
-  function applyValuesToWorksheet(worksheetDocument) {
+  function applyValuesToWorksheet(worksheetDocument, options = {}) {
     const writer =
       typeof window.setMorningMeetingNumericCellValue === "function"
         ? window.setMorningMeetingNumericCellValue
         : setNumericCellValueFallback;
 
-    const values = getExcelValues();
+    const referenceDate = getReferenceDate();
+    const requestedDate = String(options.targetDate || "").trim();
+    const dateMismatch = Boolean(requestedDate && requestedDate !== referenceDate);
+    // The export captures this guard before any asynchronous worksheet work.
+    // Keep the original reset/date restriction even if UI state changes meanwhile.
+    const values = options.suppressClosedValues === true || dateMismatch
+      ? {
+          targetDate: requestedDate || referenceDate,
+          referenceDate,
+          source: "cofiring-closed-history",
+          dateMismatch,
+          suppressed: options.suppressClosedValues === true
+        }
+      : getExcelValues();
     const results = [];
     const missingAddresses = [];
 
@@ -336,6 +373,7 @@
       targetDate: values?.targetDate || "",
       referenceDate: values?.referenceDate || "",
       dateMismatch: values?.dateMismatch === true,
+      suppressed: values?.suppressed === true,
       adjustmentApplied: values?.adjustmentApplied === true,
       appliedCount: results.filter((item) => item.written).length,
       clearedCount: results.filter((item) => item.cleared).length,
@@ -360,7 +398,7 @@
       const baseResult = current.apply(this, args);
 
       const appendCofiringResult = (resolvedBaseResult) => {
-        const cofiringResult = applyValuesToWorksheet(args[0]);
+        const cofiringResult = applyValuesToWorksheet(args[0], args[2] || {});
 
         console.log("최종 Excel 혼소율·연료 사용량 반영 완료:", cofiringResult);
 

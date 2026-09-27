@@ -213,3 +213,40 @@ test('the observer ignores its own controls and coalesces date changes without s
   assert.equal(h.timers.size, 1);
   h.flush(); assert.equal(h.timers.size, 0); assert.equal(h.calls.length, 0);
 });
+
+test('closed-card mode explains separate sources and leaves their refresh controls to the provider', () => {
+  const h = harness();
+  const closed = h.make('morningMeetingCofiringRefreshButton');
+  closed.disabled = false; closed.title = 'saved closing';
+  h.window.morningMeetingClosedCofiring = {};
+  h.window.efficiencyMorningMeetingUploadState.steamStatus = {sourceDate:'2026-09-01',powerGeneration:4};
+  h.panel.dataset.steamStatusTargetDate = '2026-09-01';
+  h.panel.dataset.steamStatusStatus = 'loading';
+  h.api.render();
+  assert.match(h.byId('morningMeetingWorkbookSource').textContent, /혼소율·유기성: 마감자료/);
+  assert.equal(closed.disabled, false);
+  assert.equal(closed.title, 'saved closing');
+});
+
+test('authenticated narrow-screen reader may check reset state without starting any company-PC work', async () => {
+  const h = harness(), requests = [];
+  h.mobile(true);
+  h.window.fetch = async (url, options) => {
+    requests.push({url, options});
+    return {ok:true,json:async()=>({ok:true,item:{targetDate:'2026-09-01',active:false,revision:0}})};
+  };
+  const reset = await h.api.loadResetStatus('2026-09-01');
+  assert.equal(reset.active, false);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].options.method, 'GET');
+  assert.match(requests[0].url, /morning_meeting_auto_history_reset_status/);
+  assert.equal(await h.api.query('workbook',{userInitiated:true}),null);
+  assert.equal(h.calls.length, 0);
+});
+test('workbook status excludes obsolete co-firing and organic values when closed cards are active', () => {
+  const h=harness();h.window.morningMeetingClosedCofiring={};
+  h.window.efficiencyMorningMeetingUploadState.steamStatus={sourceDate:'2026-09-01',sludgeTotal:30,coalUsageUnitOne:123};
+  h.api.render();assert.equal(h.byId('morningMeetingQuerySourceStatus-workbook').textContent,'조회 전');
+  h.window.efficiencyMorningMeetingUploadState.steamStatus.powerGeneration=0;
+  h.api.render();assert.equal(h.byId('morningMeetingQuerySourceStatus-workbook').textContent,'조회 완료');
+});

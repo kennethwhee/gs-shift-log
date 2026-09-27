@@ -167488,10 +167488,13 @@ return {
 
 function applyMorningMeetingDailyDataValues(
   worksheetDocument,
-  dailyData
+  dailyData,
+  options = {}
 ) {
   const source =
-    dailyData && typeof dailyData === "object" ? dailyData : {};
+    typeof window.morningMeetingClosedCofiring?.valuesForWorkbook === "function"
+      ? window.morningMeetingClosedCofiring.valuesForWorkbook(dailyData, options)
+      : dailyData && typeof dailyData === "object" ? dailyData : {};
 
 
   /* =====================================================
@@ -168495,6 +168498,9 @@ const expectedWaterSourceDate =
       10
     );
 
+const closedValuesTargetDate =
+  window.morningMeetingClosedCofiring?.targetDate() || expectedWaterSourceDate;
+
 
 const isSelectedAutomaticDateReset =
   window
@@ -168926,7 +168932,11 @@ if (
 const dailyDataResult =
   applyMorningMeetingDailyDataValues(
     worksheetDocument,
-    dailyDataForWorkbook
+    dailyDataForWorkbook,
+    {
+      suppressClosedValues: suppressAutomaticWorkbookValues,
+      targetDate: closedValuesTargetDate
+    }
   );
 
 
@@ -169251,7 +169261,11 @@ if (
 const cofiringFinalExcelResult =
   window
     .applyMorningMeetingCofiringExcelValues(
-      worksheetDocument
+      worksheetDocument,
+      {
+        suppressClosedValues: suppressAutomaticWorkbookValues,
+        targetDate: closedValuesTargetDate
+      }
     );
 
 
@@ -219914,6 +219928,7 @@ if (
       }
     );
 
+    window.morningMeetingClosedCofiring?.renderOrganic();
     window.morningMeetingQuerySources?.render();
   }
 
@@ -247079,8 +247094,11 @@ function initializeDailyControls() {
   }
 
 
-  async function refreshDailyData() {
-    // Every card reads the same selected-month workbook through one guarded request.
+  async function refreshDailyData(item) {
+    if (item?.section === "organic" && window.morningMeetingClosedCofiring) {
+      return window.morningMeetingClosedCofiring.refresh({ force: true });
+    }
+    // Power and steam share the selected-month workbook request.
     return window.morningMeetingQuerySources?.query("workbook", { userInitiated: true });
   }
 

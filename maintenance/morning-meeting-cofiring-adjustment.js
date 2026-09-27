@@ -37,6 +37,16 @@
   let currentMode = "manual_transfer";
   let previewResult = null;
 
+  function usingClosedHistory() {
+    return Boolean(window.morningMeetingClosedCofiring);
+  }
+
+  function requireLegacyMode() {
+    if (usingClosedHistory()) {
+      throw new Error("혼소 조정은 혼소율 메뉴에서 변경한 뒤 마감자료를 다시 저장해 주세요.");
+    }
+  }
+
   function normalizeNumber(value) {
     if (value === null || value === undefined || String(value).trim() === "") {
       return null;
@@ -646,7 +656,7 @@ function showMorningMeetingCofiringCoalReviewV1() {
     );
 }
 function renderAdjustedValues(result) {
-    if (!result?.ok) {
+    if (usingClosedHistory() || !result?.ok) {
       return;
     }
     const fuelData = result.fuelData;
@@ -665,6 +675,7 @@ function renderAdjustedValues(result) {
   }
 
   async function fetchDailyData(targetDate) {
+    requireLegacyMode();
     const requestUrl = new URL(OIS_REQUEST_API_URL, window.location.origin);
     requestUrl.searchParams.set("action", "completed_history");
     requestUrl.searchParams.set("startDate", targetDate);
@@ -686,6 +697,7 @@ function renderAdjustedValues(result) {
   }
 
   async function fetchSettings(targetDate) {
+    requireLegacyMode();
     const requestUrl = new URL(SETTINGS_API_URL, window.location.origin);
     requestUrl.searchParams.set("targetDate", targetDate);
     requestUrl.searchParams.set("_", String(Date.now()));
@@ -699,6 +711,7 @@ function renderAdjustedValues(result) {
   }
 
   async function fetchAdjustmentBundle(targetDate) {
+    requireLegacyMode();
     const requestUrl = new URL(ADJUSTMENT_API_URL, window.location.origin);
     requestUrl.searchParams.set("targetDate", targetDate);
     requestUrl.searchParams.set("_", String(Date.now()));
@@ -715,6 +728,7 @@ function renderAdjustedValues(result) {
   }
 
   async function saveAdjustment(targetDate, result) {
+    requireLegacyMode();
     const body = {
       targetDate,
       mode: result.mode || currentMode,
@@ -737,6 +751,7 @@ function renderAdjustedValues(result) {
   }
 
   async function saveMaxBioLimit(maxBioLimit) {
+    requireLegacyMode();
     const response = await fetch(ADJUSTMENT_API_URL, {
       method: "POST",
       headers: getAuthHeaders(true),
@@ -748,6 +763,7 @@ function renderAdjustedValues(result) {
   }
 
   async function clearAdjustment(targetDate) {
+    requireLegacyMode();
     const response = await fetch(ADJUSTMENT_API_URL, {
       method: "POST",
       headers: getAuthHeaders(true),
@@ -758,6 +774,7 @@ function renderAdjustedValues(result) {
   }
 
   async function loadContext(targetDate) {
+    requireLegacyMode();
     const [dailyResult, settings, adjustmentBundle] = await Promise.all([
       fetchDailyData(targetDate),
       fetchSettings(targetDate),
@@ -811,6 +828,12 @@ function renderAdjustedValues(result) {
     if (!(button instanceof HTMLButtonElement)) {
       return;
     }
+    if (usingClosedHistory()) {
+      button.disabled = true;
+      button.classList.remove("is-active");
+      button.title = "혼소 조정은 혼소율 메뉴에서 변경한 뒤 마감자료를 다시 저장해 주세요.";
+      return;
+    }
     const active = Boolean(adjustment && result?.ok);
     button.classList.toggle("is-active", active);
     if (!active) {
@@ -830,6 +853,13 @@ function renderAdjustedValues(result) {
   }
 
   async function refreshAdjustment() {
+    if (usingClosedHistory()) {
+      currentContext = null;
+      previewResult = null;
+      setAdjustmentButtonState(null, null);
+      closeModal();
+      return;
+    }
     const targetDate = getTargetDate();
     if (!targetDate) {
       setAdjustmentButtonState(null, null);
@@ -838,6 +868,8 @@ function renderAdjustedValues(result) {
     }
     try {
       const context = await loadContext(targetDate);
+      if (usingClosedHistory() || getTargetDate() !== targetDate ||
+          window.isMorningMeetingSelectedDateResetActive?.(targetDate) === true) return;
       currentContext = context;
       if (!context.adjustment) {
         setAdjustmentButtonState(null, null);
@@ -857,6 +889,13 @@ function renderAdjustedValues(result) {
 
   function scheduleRefresh(delay = 220) {
     window.clearTimeout(refreshTimer);
+    if (usingClosedHistory()) {
+      currentContext = null;
+      previewResult = null;
+      setAdjustmentButtonState(null, null);
+      closeModal();
+      return;
+    }
     refreshTimer = window.setTimeout(refreshAdjustment, delay);
   }
 
@@ -1148,6 +1187,10 @@ function renderAdjustedValues(result) {
   }
 
   async function openModal() {
+    if (usingClosedHistory()) {
+      closeModal();
+      return;
+    }
     const targetDate = getTargetDate();
     if (!targetDate) {
       window.alert("혼소율 계산 기준일을 확인하지 못했습니다. 일일DATA 조회 후 다시 시도해 주세요.");
@@ -1164,7 +1207,9 @@ function renderAdjustedValues(result) {
     hideFinalEditor();
     setSaveEnabled(false);
     try {
-      currentContext = await loadContext(targetDate);
+      const context = await loadContext(targetDate);
+      if (usingClosedHistory() || getTargetDate() !== targetDate) return;
+      currentContext = context;
       if (!currentContext.baseFuelData || !allRequiredFuelValuesPresent(currentContext.baseFuelData)) {
         throw new Error("Coal / Bio / 유기성 사용량을 모두 확인해 주세요.");
       }
@@ -1287,6 +1332,10 @@ function renderAdjustedValues(result) {
     const form = modal.querySelector("#morningMeetingCofiringAdjustmentForm");
     form?.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (usingClosedHistory()) {
+        closeModal();
+        return;
+      }
       const targetDate = getTargetDate();
       if (!targetDate || !previewResult?.ok || !currentContext?.baseFuelData || !currentContext?.settings) {
         window.alert("적용할 최종 조정값을 먼저 확인해 주세요.");
@@ -1300,6 +1349,7 @@ function renderAdjustedValues(result) {
       try {
         previewResult.mode = currentMode;
         const adjustment = await saveAdjustment(targetDate, previewResult);
+        if (usingClosedHistory() || getTargetDate() !== targetDate || !currentContext) return;
         currentContext.adjustment = adjustment;
         renderAdjustedValues(previewResult);
         setAdjustmentButtonState(adjustment, previewResult);
@@ -1320,6 +1370,7 @@ function renderAdjustedValues(result) {
 
     const resetButton = modal.querySelector("#morningMeetingCofiringAdjustmentReset");
     resetButton?.addEventListener("click", async () => {
+      if (usingClosedHistory()) return;
       const targetDate = getTargetDate();
       if (!targetDate) {
         return;
@@ -1375,7 +1426,10 @@ function renderAdjustedValues(result) {
         meta.appendChild(button);
       }
     }
-    if (!(document.getElementById(MODAL_ID) instanceof HTMLElement)) {
+    if (usingClosedHistory()) {
+      setAdjustmentButtonState(null, null);
+      closeModal();
+    } else if (!(document.getElementById(MODAL_ID) instanceof HTMLElement)) {
       createModal();
     }
     return true;
@@ -1411,6 +1465,12 @@ function renderAdjustedValues(result) {
   }
 
   function initialize() {
+    document.addEventListener("morningMeetingClosedCofiringChanged", () => {
+      if (usingClosedHistory()) {
+        ensureUi();
+        scheduleRefresh(0);
+      }
+    });
     const ready = ensureUi();
     observe();
     if (ready) {

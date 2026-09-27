@@ -827,6 +827,7 @@
             if(!expected.expectedRevision)throw new Error('마감 목록을 새로고침하고 다시 확인해 주세요.');
             const query=new URLSearchParams({targetDate:date,...expected});
             await api('?'+query.toString(),{method:'DELETE'});
+            changed(date);
             await loadList();
           }catch(error){
             root.alert?.(error.message);

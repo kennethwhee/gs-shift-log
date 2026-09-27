@@ -141,7 +141,14 @@
     return "";
   }
 
+  function closedProvider() {
+    return window.morningMeetingClosedCofiring || null;
+  }
+
   function getTargetDate() {
+    if (closedProvider()) {
+      return closedProvider().targetDate();
+    }
     const preferredIds = [
       "efficiencyMorningMeetingAutoDailyPowerDate",
       "efficiencyMorningMeetingAutoSteamDate",
@@ -162,7 +169,8 @@
   function isSelectedDateResetActive(targetDate) {
     return (
       Boolean(targetDate) &&
-      window.isMorningMeetingSelectedDateResetActive?.(targetDate) === true
+      (closedProvider()?.isBlocked(targetDate) === true ||
+        window.isMorningMeetingSelectedDateResetActive?.(targetDate) === true)
     );
   }
 
@@ -211,8 +219,9 @@
     if (dateElement instanceof HTMLElement) {
       dateElement.textContent =
         targetDate
-          ? `${targetDate}\n일일DATA`
+          ? `${targetDate}\n${closedProvider() ? "마감자료" : "일일DATA"}`
           : "-";
+      dateElement.title = closedProvider() ? "혼소율 메뉴에서 저장한 선택일의 마감자료" : "일일DATA";
     }
   }
 
@@ -284,7 +293,7 @@
           <div class="morning-meeting-cofiring-table__head" aria-hidden="true">
             <span></span>
             <span>유기성 투입량</span>
-            <span>유기성 혼소율</span>
+            <span>유기성·축분 혼소율</span>
             <span>종합 혼소율</span>
           </div>
           <div class="morning-meeting-cofiring-table__row">
@@ -437,7 +446,7 @@
 
     let modal = document.getElementById(SETTINGS_MODAL_ID);
 
-    if (!(modal instanceof HTMLElement)) {
+    if (!(modal instanceof HTMLElement) && !closedProvider()) {
       modal = createSettingsModal();
     }
 
@@ -446,6 +455,12 @@
     if (settingsButton instanceof HTMLButtonElement && settingsButton.dataset.bound !== "true") {
       settingsButton.addEventListener("click", openSettingsModal);
       settingsButton.dataset.bound = "true";
+    }
+
+    if (settingsButton instanceof HTMLButtonElement && closedProvider()) {
+      settingsButton.disabled = true;
+      settingsButton.title = "발열량은 혼소율 메뉴에서 변경한 뒤 마감자료를 다시 저장해 주세요.";
+      closeSettingsModal();
     }
 
     return card;
@@ -514,6 +529,10 @@
   }
 
   async function openSettingsModal() {
+    if (closedProvider()) {
+      closeSettingsModal();
+      return;
+    }
     ensureCard();
 
     const targetDate = getTargetDate();
@@ -535,6 +554,7 @@
 
     try {
       const settings = await fetchCalorificSettings(targetDate);
+      if (closedProvider() || getTargetDate() !== targetDate) return;
       populateSettingsForm(targetDate, settings);
     } catch (error) {
       console.warn("혼소율 발열량 설정 조회 실패:", error);
@@ -556,6 +576,10 @@
 
     form?.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (closedProvider()) {
+        closeSettingsModal();
+        return;
+      }
 
       const effectiveDate = String(document.getElementById("morningMeetingCofiringEffectiveDate")?.value || "").trim();
       const coalKcalPerKg = normalizeNumber(document.getElementById("morningMeetingCofiringCoalHv")?.value);
@@ -832,6 +856,7 @@
   }
 
   async function forceRefreshDailyData() {
+    if (closedProvider()) return refreshCard({ force: true });
     return window.morningMeetingQuerySources?.query("workbook", { userInitiated: true });
   }
 
@@ -849,7 +874,40 @@
     forceRefreshDailyData();
   }
 
-  async function refreshCard() {
+  function renderClosedSnapshot(snapshot) {
+    renderFuelUsage(snapshot);
+    for (const [unit, prefix] of [["unitOne", "unitOne"], ["unitTwo", "unitTwo"]]) {
+      for (const [field, suffix] of [["bioRatio", "BioRatio"], ["organicRatio", "OrganicRatio"], ["totalRatio", "TotalRatio"]]) {
+        setValue(VALUE_IDS[prefix + suffix], formatRatio(snapshot[unit][field]));
+      }
+    }
+    setStatus("complete", "마감자료");
+  }
+
+  function renderClosedState() {
+    const provider = closedProvider();
+    if (!provider || !ensureCard()) return;
+    const date = provider.targetDate();
+    setCardDate(date);
+    clearAllValues();
+    if (!date || isSelectedDateResetActive(date)) {
+      setStatus("idle", "조회 대기");
+      return;
+    }
+    const state = provider.state(date);
+    const snapshot = provider.peek(date);
+    if (state.status === "complete" && snapshot?.targetDate === date) {
+      renderClosedSnapshot(snapshot);
+    } else if (state.status === "loading") {
+      setStatus("loading", "마감자료 조회 중");
+    } else if (state.status === "error") {
+      setStatus("error", "마감자료 조회 실패");
+    } else {
+      setStatus("idle", "마감자료 없음");
+    }
+  }
+
+  async function refreshCard(options = {}) {
     const card = ensureCard();
 
     if (!(card instanceof HTMLElement)) {
@@ -862,6 +920,7 @@
 
     currentTargetDate = targetDate;
     currentSettings = null;
+    setRefreshButtonLoading(false);
     setCardDate(targetDate);
 
     if (dateChanged) {
@@ -879,13 +938,44 @@
       return;
     }
 
+    if (closedProvider()) {
+      const provider = closedProvider();
+      clearAllValues();
+      setStatus("loading", "마감자료 조회 중");
+      setRefreshButtonLoading(true);
+      try {
+        const snapshot = await provider.load(targetDate, { force: options.force === true });
+        if (refreshToken !== activeRefreshToken || getTargetDate() !== targetDate) return;
+        if (isSelectedDateResetActive(targetDate)) {
+          clearAllValues();
+          setStatus("idle", "조회 대기");
+          return;
+        }
+        if (snapshot?.targetDate === targetDate) {
+          renderClosedSnapshot(snapshot);
+        } else {
+          clearAllValues();
+          setStatus("idle", "마감자료 없음");
+        }
+      } catch (error) {
+        if (refreshToken !== activeRefreshToken || getTargetDate() !== targetDate) return;
+        clearAllValues();
+        setStatus(isSelectedDateResetActive(targetDate) ? "idle" : "error",
+          isSelectedDateResetActive(targetDate) ? "조회 대기" : "마감자료 조회 실패");
+        console.warn("오전회의 혼소율 마감자료 조회 실패:", error);
+      } finally {
+        if (refreshToken === activeRefreshToken) setRefreshButtonLoading(false);
+      }
+      return;
+    }
+
     try {
       const [dailyResult, settings] = await Promise.all([
         fetchDailyData(targetDate),
         fetchCalorificSettings(targetDate)
       ]);
 
-      if (refreshToken !== activeRefreshToken) {
+      if (refreshToken !== activeRefreshToken || closedProvider() || getTargetDate() !== targetDate) {
         return;
       }
 
@@ -939,11 +1029,12 @@
 
       setStatus("complete", "조회 완료");
     } catch (error) {
-      if (refreshToken !== activeRefreshToken) {
+      if (refreshToken !== activeRefreshToken || closedProvider() || getTargetDate() !== targetDate) {
         return;
       }
 
       console.error("오전회의 혼소율 카드 갱신 실패:", error);
+      clearAllValues();
       setStatus("error", "조회 실패");
     }
   }
@@ -964,6 +1055,7 @@
     activeRefreshToken += 1;
     window.clearTimeout(refreshTimerId);
     refreshTimerId = null;
+    setRefreshButtonLoading(false);
 
     if (
       event?.detail?.active === true ||
@@ -1066,6 +1158,8 @@
       handleSelectedDateResetStateChanged
     );
 
+    document.addEventListener("morningMeetingClosedCofiringChanged", renderClosedState);
+
     const card = ensureCard();
 
     bindWatchedElements();
@@ -1096,6 +1190,14 @@
     }, 250);
   }
 
+  window.getMorningMeetingCofiringEffectiveValues = function () {
+    const provider = closedProvider();
+    if (!provider) return null;
+    const targetDate = provider.targetDate();
+    if (!targetDate || isSelectedDateResetActive(targetDate) || provider.state(targetDate).status !== "complete") return null;
+    const snapshot = provider.peek(targetDate);
+    return snapshot?.targetDate === targetDate ? snapshot : null;
+  };
   window.refreshMorningMeetingCofiringCard = refreshCard;
   window.calculateMorningMeetingCofiring = calculateCofiring;
 

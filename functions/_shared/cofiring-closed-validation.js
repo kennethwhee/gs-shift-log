@@ -14,6 +14,31 @@ export function validDate(value) {
   return Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === value;
 }
 
+// Read-only projection for morning-meeting cards. Inventory must belong to the
+// same closed accounting day; a current or unrelated source is never a fallback.
+export function readClosedOrganicInventory(snapshot, targetDate, sourceRequestId, inventory = snapshot?.organicInventory) {
+  try {
+    if (!object(snapshot) || snapshot.schemaVersion !== 1 || !validDate(targetDate) ||
+        snapshot.targetDate !== targetDate || !sourceRequestId || snapshot.sourceRequestId !== sourceRequestId) return null;
+    const day = core.dailyRange(targetDate);
+    const spec = core.periodRange(day.start.slice(0, 16), day.end.slice(0, 16), 'minute', 1);
+    if (Date.now() < Date.parse(day.queryEnd) ||
+        ['startLocal', 'endLocal', 'stepUnit', 'stepValue'].some(key => snapshot.period?.[key] !== spec[key])) return null;
+    const canonical = contract.validateOrganicInventory(inventory, contract.period(spec, Number.MAX_SAFE_INTEGER));
+    if (!canonical) return null;
+    if (snapshot.manual?.inputMode !== 'manual') {
+      const usage = snapshot.organicUsage;
+      if (usage?.ok !== true || usage.basis !== 'dataparc-inventory-balance-v1' ||
+          !finite(usage.startTotal) || !finite(usage.endTotal) ||
+          Math.abs(usage.startTotal - canonical.start.total) > 0.001 ||
+          Math.abs(usage.endTotal - canonical.end.total) > 0.001) return null;
+    }
+    return canonical;
+  } catch {
+    return null;
+  }
+}
+
 export function validateClosedSnapshot(body, source, now = Date.now()) {
   const snapshot = body.snapshot;
   if (!object(snapshot) || snapshot.schemaVersion !== 1 || snapshot.targetDate !== body.targetDate ||
@@ -148,7 +173,8 @@ export function validateClosedSnapshot(body, source, now = Date.now()) {
   return { summary, snapshot: {
     schemaVersion: 1, validationVersion: 5, saveId: crypto.randomUUID(),
     targetDate: body.targetDate, period: spec, sourceRequestId: body.sourceRequestId,
-    settings, manual, organicUsage, manualBlankPolicy: inputMode==='manual'?'organic-explicit-manure-blank-zero':'organic-inventory-required-manure-blank-zero',
+    settings, manual, organicUsage, organicInventory: saved.report.reference.organicInventory ?? null,
+    manualBlankPolicy: inputMode==='manual'?'organic-explicit-manure-blank-zero':'organic-inventory-required-manure-blank-zero',
     result, summary, capturedAt: new Date(now).toISOString()
   } };
 }

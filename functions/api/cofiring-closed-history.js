@@ -1,4 +1,4 @@
-import { validateClosedSnapshot, validDate } from '../_shared/cofiring-closed-validation.js';
+import { validateClosedSnapshot, validDate, readClosedOrganicInventory } from '../_shared/cofiring-closed-validation.js';
 
 const json=(body,status=200)=>new Response(JSON.stringify(body),{
   status,
@@ -112,6 +112,28 @@ async function publicRow(row,{includeSnapshot=false}={}){
     createdAt:String(row.created_at||''),updatedAt:String(row.updated_at||''),
     ...(includeSnapshot?{snapshot}:{})};
 }
+
+async function closedInventory(db,item){
+  if(!item?.snapshot)return null;
+  const {snapshot,targetDate,sourceRequestId}=item;
+  if(Object.hasOwn(snapshot,'organicInventory')){
+    return readClosedOrganicInventory(snapshot,targetDate,sourceRequestId);
+  }
+  try{
+    // Older snapshots retained only aggregate stocks. Recover individual silos
+    // from their original completed request without querying Excel or rewriting
+    // the closed row, its summary, revision or version.
+    const source=await db.prepare(`SELECT id,target_date,status,result_json FROM ois_data_requests
+      WHERE id=? AND target_date=? AND request_type='cofiring_period' AND status='complete' LIMIT 1`)
+      .bind(sourceRequestId,targetDate).first();
+    if(!source)return null;
+    const canonical=validateClosedSnapshot({targetDate,sourceRequestId,snapshot},source);
+    return readClosedOrganicInventory(snapshot,targetDate,sourceRequestId,canonical.snapshot.organicInventory);
+  }catch{
+    // Missing/old source contracts must not prevent reading saved closed data.
+    return null;
+  }
+}
 const MAX_BODY_BYTES=1500000;
 const versioned=(revision,version)=>Number.isSafeInteger(revision)&&revision>=0&&
   (revision===0?version===null:typeof version==='string'&&/^[a-f0-9]{64}$/.test(version));
@@ -143,7 +165,11 @@ export async function onRequestGet(context){
     if(targetDate&&!validDate(targetDate))return json({ok:false,message:'날짜 형식이 올바르지 않습니다.'},400);
     if(month&&!/^20\d{2}-(0[1-9]|1[0-2])$/.test(month))return json({ok:false,message:'조회 월을 확인해 주세요.'},400);
     await ensureSchema(db);
-    if(targetDate)return json({ok:true,item:await publicRow(await currentRow(db,targetDate),{includeSnapshot:true})});
+    if(targetDate){
+      const item=await publicRow(await currentRow(db,targetDate),{includeSnapshot:true});
+      if(item)item.organicInventory=await closedInventory(db,item);
+      return json({ok:true,item});
+    }
     const requested=Number.parseInt(url.searchParams.get('limit')||'120',10);
     const limit=month?31:Math.min(366,Math.max(1,Number.isFinite(requested)?requested:120));
     const columns=`target_date,revision,source_request_id,summary_json,saved_by_id,saved_by_name,created_at,updated_at,

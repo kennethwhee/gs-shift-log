@@ -53,11 +53,15 @@
       .map(text).find(isDate) || "";
   }
 
+  function hasSession() {
+    return typeof getShiftLogSessionToken === "function" && Boolean(text(getShiftLogSessionToken()));
+  }
+
   function canQuery() {
     if (window.matchMedia?.("(max-width: 900px)").matches ||
         /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator?.userAgent || "") ||
         (window.navigator?.platform === "MacIntel" && Number(window.navigator?.maxTouchPoints) > 0)) return false;
-    return typeof getShiftLogSessionToken === "function" && Boolean(text(getShiftLogSessionToken()));
+    return hasSession();
   }
 
   function fetcher() {
@@ -159,7 +163,8 @@
   async function loadResetStatus(date = targetDate(), options = {}) {
     const selectedDate = text(date);
     const requestFetch = fetcher();
-    if (!isDate(selectedDate) || !canQuery() || !requestFetch) return null;
+    // Saved-card readers may inspect reset status on mobile; only new company-PC queries require canQuery().
+    if (!isDate(selectedDate) || !hasSession() || !requestFetch) return null;
     const current = resetStates.get(selectedDate);
     if (current?.loaded && options.force !== true) return normalizeResetItem(current.item, selectedDate);
     if (resetStatusRequests.has(selectedDate)) return resetStatusRequests.get(selectedDate);
@@ -203,7 +208,9 @@
     const panel = byId(PANEL_ID);
     const result = state.steamStatus;
     const resultDate = text(result?.sourceDate || result?.targetDate);
-    const hasValues = resultDate === date && VALUE_KEYS.some(key =>
+    const keys = window.morningMeetingClosedCofiring
+      ? VALUE_KEYS.filter(key => !/^(sludge|organic|coalUsage|bioUsage)/.test(key)) : VALUE_KEYS;
+    const hasValues = resultDate === date && keys.some(key =>
       typeof result?.[key] === "number" && Number.isFinite(result[key]));
     const status = text(panel?.dataset.steamStatusTargetDate) === date ? text(panel?.dataset.steamStatusStatus) : "";
     const error = text(panel?.dataset.steamStatusTargetDate) === date ? text(state.steamStatusError) : "";
@@ -355,12 +362,13 @@
     const file = text(view.result?.workbook).split(/[\\/]/).pop();
     const caption = byId("morningMeetingWorkbookSource");
     setText(caption, file ? `${file}${view.result?.workbookSource === "open_workbook" ? " · 열린 파일에서 조회" : ""}`
-      : "열린 대상 월 파일에서 4개 카드 조회");
+      : window.morningMeetingClosedCofiring ? "전력·증기: 엑셀 · 혼소율·유기성: 마감자료" : "열린 대상 월 파일에서 4개 카드 조회");
     caption.title = [text(view.result?.workbookFullName), text(view.result?.collectedAt)].filter(Boolean).join(" · ") ||
       "조회할 날짜에 해당하는 일일DATA관리 엑셀을 회사 PC에서 열어 주세요.";
     for (const id of BUTTON_IDS) {
       const control = byId(id);
       if (!control) continue;
+      if (window.morningMeetingClosedCofiring && ["morningMeetingCofiringRefreshButton", "efficiencyMorningMeetingAutoDailySludgeRefreshButton"].includes(id)) continue;
       control.hidden = !allowed;
       const isAllControl = id === QUERY_BUTTONS.all;
       control.disabled = !allowed || !isDate(date) || busy || reset.loading || resetStatusUnavailable ||
@@ -370,7 +378,7 @@
         resetStatusUnavailable ? (reset.error || "선택일의 초기화 상태를 확인하지 못했습니다.") :
         resetActive && source !== "all" ? "초기화된 날짜는 전체자료로 운영정보와 엑셀을 함께 다시 조회해 주세요." :
         source === "all" ? (resetActive ? "운영정보와 열린 월간 엑셀을 강제로 다시 조회한 뒤 초기화를 해제합니다." : "운영정보와 열린 월간 엑셀을 함께 조회합니다.") :
-        source === "operations" ? "수처리·석회석·터빈·Silo·SMP·날씨를 조회합니다." : `${date.slice(0, 7)} 일일DATA관리 엑셀에서 혼소·전력·증기·유기성 값을 읽습니다.`;
+        source === "operations" ? "수처리·석회석·터빈·Silo·SMP·날씨를 조회합니다." : (window.morningMeetingClosedCofiring ? `${date.slice(0, 7)} 일일DATA관리 엑셀에서 전력·증기 값을 읽습니다.` : `${date.slice(0, 7)} 일일DATA관리 엑셀에서 혼소·전력·증기·유기성 값을 읽습니다.`);
     }
     for (const [source, id] of Object.entries(QUERY_BUTTONS)) {
       setText(byId(id), activeRequest?.date === date && activeRequest.source === source ? "조회 중…" : BUTTON_LABELS[source]);
@@ -529,7 +537,9 @@
     };
     try {
       // Each async invocation catches a synchronous loader error so the other source still starts.
+      const closedRefresh = source === "all" ? window.morningMeetingClosedCofiring?.refresh({ force: true }) : null;
       const results = await Promise.allSettled(sources.map(run));
+      if (closedRefresh) await closedRefresh;
       if (releaseAfterSuccess && results.every(result => result.status === "fulfilled") &&
           sourceSucceeded.get("operations") === true && sourceSucceeded.get("workbook") === true) {
         let releasedItem = null;
