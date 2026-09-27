@@ -11043,15 +11043,12 @@ async function getNextOisAgentRequest(
   config
 ) {
   const excelRequestTypes = [
-    "cofiring_daily",
-    "cofiring_period",
-    "daily_data_excel",
-    "steam_status",
-    BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
-    ORGANIC_SILO_REQUEST_TYPE,
-    "logsheet_pdf",
-    "open_final_excel_folder"
-];
+      "cofiring_daily",
+      "cofiring_period",
+      "daily_data_excel",
+      "logsheet_pdf",
+      "open_final_excel_folder"
+    ];
 
 
   const morningMeetingRequestTypes = [
@@ -11262,28 +11259,26 @@ async function getNextOisAgentLaneRequests(
 
 
   const oisRequestTypes = [
-    "water_environment",
-    "limestone_stock",
-    "turbine_gear_pinion",
-    "silo_level",
-    "bed_ash_level",
-    "auxiliary_materials",
-    "logsheet_approval",
-    "fbhe_vibration",
-    "seal_pot_runtime"
-  ];
+      "water_environment",
+      "limestone_stock",
+      "turbine_gear_pinion",
+      "silo_level",
+      "bed_ash_level",
+      "auxiliary_materials",
+      "logsheet_approval",
+      "fbhe_vibration",
+      "seal_pot_runtime",
+      "steam_status"
+    ];
 
 
   const excelRequestTypes = [
-    "cofiring_daily",
-    "cofiring_period",
-    "daily_data_excel",
-    "steam_status",
-    BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
-    ORGANIC_SILO_REQUEST_TYPE,
-    "logsheet_pdf",
-    "open_final_excel_folder"
-];
+      "cofiring_daily",
+      "cofiring_period",
+      "daily_data_excel",
+      "logsheet_pdf",
+      "open_final_excel_folder"
+    ];
 
 
   const oisStartIndex =
@@ -11626,21 +11621,9 @@ function getOisAgentRequestType(
 function isDailyDataExcelRequestType(
   requestType
 ) {
-  const normalizedRequestType =
-    normalizeOisAgentText(
-      requestType
-    )
-      .toLowerCase();
-
-
-  return [
-    "daily_data_excel",
-    "steam_status"
-  ].includes(
-    normalizedRequestType
-  );
+  const normalizedRequestType = normalizeOisAgentText(requestType).toLowerCase();
+  return normalizedRequestType === "daily_data_excel";
 }
-
 
 function isExcelComRequestType(
   requestType
@@ -11786,7 +11769,11 @@ if (
     return "Log Sheet PDF";
   }
 
-  if (
+    if (requestType === "steam_status") {
+    return "증기 생산·판매";
+  }
+
+if (
     isDailyDataExcelRequestType(
       requestType
     )
@@ -19505,19 +19492,384 @@ async function collectDailyDataWorkbookValues(
   OIS 일별 증기 판매량 조회는 사용하지 않는다.
 ========================================================= */
 
+async function openOisSteamDailySales(
+  page
+) {
+  // MORNING_MEETING_STEAM_OIS_SURFACE_V7
+  const browserContext = page.context();
+  const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+
+  const findSalesSurface = async (timeoutMilliseconds = OIS_QUERY_TIMEOUT) => {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMilliseconds) {
+      for (const candidatePage of browserContext.pages()) {
+        for (const frame of candidatePage.frames()) {
+          const bodyText = normalizeOisAgentText(
+            await frame.locator("body").innerText().catch(() => "")
+          );
+          const compactText = bodyText.replace(/\s+/g, "");
+          if (compactText.includes("증기구분") && compactText.includes("증기사용량")) {
+            return frame;
+          }
+        }
+      }
+      await sleep(250);
+    }
+    return null;
+  };
+
+  const existingSurface = await findSalesSurface(1500);
+  if (existingSurface) return existingSurface;
+
+  let menuFrame = await findOisNavigationFrame(page, OIS_QUERY_TIMEOUT);
+  if (!menuFrame) throw new Error("OIS 왼쪽 메뉴 영역을 찾지 못했습니다.");
+  const menuNames = ["일별 증기 판매량", "일별증기판매량"];
+  let salesMenu = await findVisibleOisNavigationItem(menuFrame, menuNames, 1000);
+
+  if (!salesMenu) {
+    const operationMenu = await findVisibleOisNavigationItem(menuFrame, "운영정보", 1500);
+    if (operationMenu) {
+      await clickOisNavigationItem(menuFrame, "운영정보", "운영정보");
+      menuFrame = await findOisNavigationFrame(page, OIS_QUERY_TIMEOUT);
+    }
+  }
+  if (!menuFrame) throw new Error("운영정보 메뉴를 연 뒤 왼쪽 메뉴를 찾지 못했습니다.");
+
+  salesMenu = await findVisibleOisNavigationItem(menuFrame, menuNames, 1000);
+  if (!salesMenu) {
+    const logSheetMenu = await findVisibleOisNavigationItem(menuFrame, "LOG SHEET", 3000);
+    if (logSheetMenu) {
+      await clickOisNavigationItem(menuFrame, "LOG SHEET", "LOG SHEET");
+      menuFrame = await findOisNavigationFrame(page, OIS_QUERY_TIMEOUT);
+    }
+  }
+  if (!menuFrame) throw new Error("LOG SHEET 메뉴를 연 뒤 왼쪽 메뉴를 찾지 못했습니다.");
+
+  salesMenu = await findVisibleOisNavigationItem(menuFrame, menuNames, 10000);
+  if (!salesMenu) throw new Error("OIS의 일별 증기 판매량 메뉴를 찾지 못했습니다.");
+  const clicked = await clickOisNavigationItem(menuFrame, menuNames, "일별 증기 판매량");
+  if (!clicked) throw new Error("OIS의 일별 증기 판매량 메뉴를 클릭하지 못했습니다.");
+
+  const salesSurface = await findSalesSurface(OIS_QUERY_TIMEOUT);
+  if (!salesSurface) {
+    const diagnostics = browserContext.pages().map(candidatePage => ({
+      url: String(candidatePage.url() || ""), frameCount: candidatePage.frames().length
+    }));
+    console.warn("OIS 일별 증기 판매량 화면 탐색 진단:", diagnostics);
+    throw new Error("OIS 일별 증기 판매량 화면이 열리지 않았습니다.");
+  }
+
+  console.log("OIS 일별 증기 판매량 화면을 열었습니다.");
+  return salesSurface;
+}
+
+/* MORNING_MEETING_STEAM_PRODUCTION_CAPTURE_V7 */
+async function captureOisSteamProductionFromApi(
+  page,
+  unitDefinition,
+  triggerSearch
+) {
+  const normalizedTargetTag = normalizeOisAgentText(unitDefinition.tag).toUpperCase();
+
+  return await new Promise((resolve, reject) => {
+    let isSettled = false;
+    let timeoutId = null;
+
+    const cleanup = () => {
+      if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
+      page.off("response", handleResponse);
+    };
+    const finishResolve = value => { if (isSettled) return; isSettled = true; cleanup(); resolve(value); };
+    const finishReject = error => { if (isSettled) return; isSettled = true; cleanup(); reject(error); };
+
+    const handleResponse = async response => {
+      try {
+        const responseUrl = String(response.url() || "");
+        const request = response.request();
+        const requestMethod = String(request.method() || "").toUpperCase();
+        const requestBody = String(request.postData() || "");
+
+        if (
+          !responseUrl.includes("/ajax/data") ||
+          requestMethod !== "POST" ||
+          !requestBody.includes("oi.LogSheetService.listLogSheetSearch")
+        ) return;
+
+        const responseText = await response.text();
+        if (!responseText.trim()) return;
+
+        let responseData = {};
+        try { responseData = JSON.parse(responseText); } catch { return; }
+        const resultRows = Array.isArray(responseData.result) ? responseData.result : [];
+
+        let targetRow = resultRows.find(row =>
+          normalizeOisAgentText(row?.tag_no).toUpperCase() === normalizedTargetTag
+        ) || null;
+
+        if (!targetRow) {
+          targetRow = resultRows.find(row => {
+            const itemName = normalizeOisAgentText(row?.mid_name).toUpperCase();
+            return itemName.includes("STM FLOW") && (
+              itemName.includes(`#${unitDefinition.unit}UNIT`) ||
+              itemName.includes(`${unitDefinition.unit}UNIT`)
+            );
+          }) || null;
+        }
+        if (!targetRow) return;
+
+        const parseHourlyNumber = value => {
+          const text = normalizeOisAgentText(value).replace(/,/g, "");
+          if (!/^-?\d+(?:\.\d+)?$/.test(text)) return null;
+          const number = Number(text);
+          return Number.isFinite(number) ? number : null;
+        };
+
+        const hourlyValues = [];
+        const missingHours = [];
+        for (let hour = 1; hour <= 24; hour += 1) {
+          const paddedHour = String(hour).padStart(2, "0");
+          const candidates = [
+            `hd_${paddedHour}`, `hd_${hour}`, `h_${paddedHour}`, `h_${hour}`,
+            `hour_${paddedHour}`, `hour_${hour}`
+          ];
+          let capturedValue = null;
+          let capturedField = "";
+          for (const fieldName of candidates) {
+            const parsedValue = parseHourlyNumber(targetRow[fieldName]);
+            if (parsedValue !== null) { capturedValue = parsedValue; capturedField = fieldName; break; }
+          }
+          if (capturedValue === null) { missingHours.push(paddedHour); continue; }
+          hourlyValues.push({ hour: paddedHour, field: capturedField, value: capturedValue });
+        }
+
+        if (missingHours.length > 0) {
+          finishReject(new Error(
+            `${unitDefinition.unit}호기 MAIN STM FLOW 24시간 자료가 완전하지 않습니다. 누락: ${missingHours.join(", ")}시`
+          ));
+          return;
+        }
+
+        const productionTotal = Math.round(
+          hourlyValues.reduce((sum, item) => sum + item.value, 0) * 1000
+        ) / 1000;
+
+        const capturedResult = {
+          unit: unitDefinition.unit,
+          sheetLabel: unitDefinition.sheetLabel,
+          tag: normalizeOisAgentText(targetRow.tag_no) || unitDefinition.tag,
+          itemName: normalizeOisAgentText(targetRow.mid_name),
+          unitCode: normalizeOisAgentText(targetRow.unit_code),
+          hourCount: hourlyValues.length,
+          hourlyValues,
+          productionTotal
+        };
+
+        console.log("OIS MAIN STM FLOW 24시간 합산 완료:", {
+          unit: capturedResult.unit, tag: capturedResult.tag,
+          hourCount: capturedResult.hourCount, productionTotal: capturedResult.productionTotal
+        });
+        finishResolve(capturedResult);
+      } catch (error) { finishReject(error); }
+    };
+
+    page.on("response", handleResponse);
+    timeoutId = setTimeout(() => {
+      finishReject(new Error(`${unitDefinition.unit}호기 MAIN STM FLOW 응답을 받지 못했습니다.`));
+    }, OIS_QUERY_TIMEOUT);
+    Promise.resolve().then(triggerSearch).catch(finishReject);
+  });
+}
+
+async function readOisSteamDailySalesBreakdown(
+  frame,
+  targetDate
+) {
+  // MORNING_MEETING_STEAM_OIS_BREAKDOWN_V7
+  if (!isValidOisAgentDate(targetDate)) {
+    throw new Error("증기 판매량 조회 날짜가 올바르지 않습니다.");
+  }
+  const targetSlashDate = targetDate.replace(/-/g, "/");
+  const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < OIS_QUERY_TIMEOUT) {
+    const captured = await frame.evaluate(targetDateText => {
+      const normalizeText = value => String(value ?? "")
+        .replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
+      const compact = value => normalizeText(value).replace(/\s+/g, "").toLowerCase();
+      const normalizeDateText = value => normalizeText(value)
+        .replace(/[.-]/g, "/").replace(/\s+/g, "");
+      const parseNumber = value => {
+        const normalized = normalizeText(value).replace(/,/g, "");
+        if (!/^-?\d+(?:\.\d+)?$/.test(normalized)) return null;
+        const number = Number(normalized);
+        return Number.isFinite(number) ? number : null;
+      };
+      const isVisible = element => {
+        const rectangle = element.getBoundingClientRect();
+        const style = window.getComputedStyle(element);
+        return rectangle.width > 0 && rectangle.height > 0 &&
+          style.display !== "none" && style.visibility !== "hidden";
+      };
+      const getCellText = cell => {
+        const values = [cell.innerText, cell.getAttribute("data-value"), cell.getAttribute("data-text")];
+        for (const input of cell.querySelectorAll("input, textarea, select")) values.push(input.value);
+        return normalizeText(values.filter(Boolean).join(" "));
+      };
+
+      const allVisibleCells = [...document.querySelectorAll("th, td")].filter(isVisible);
+      const usageHeaders = allVisibleCells.filter(cell => compact(getCellText(cell)) === "증기사용량");
+      let usageTonCenterX = null;
+      for (const usageHeader of usageHeaders) {
+        const usageRectangle = usageHeader.getBoundingClientRect();
+        const tonHeaders = allVisibleCells.filter(cell => {
+          if (compact(getCellText(cell)) !== "ton") return false;
+          const rectangle = cell.getBoundingClientRect();
+          const centerX = rectangle.left + rectangle.width / 2;
+          return centerX >= usageRectangle.left - 2 && centerX <= usageRectangle.right + 2;
+        });
+        if (tonHeaders.length > 0) {
+          const rectangle = tonHeaders[0].getBoundingClientRect();
+          usageTonCenterX = rectangle.left + rectangle.width / 2;
+          break;
+        }
+        usageTonCenterX = usageRectangle.left + usageRectangle.width / 4;
+      }
+
+      const found = { low: null, high: null, total: null, rows: [] };
+      for (const table of document.querySelectorAll("table")) {
+        if (!isVisible(table)) continue;
+        let activeDate = "";
+        for (const row of table.querySelectorAll("tr")) {
+          if (!isVisible(row)) continue;
+          const cells = [...row.children].filter(element => element.tagName === "TH" || element.tagName === "TD");
+          const cellItems = cells.map(cell => {
+            const rectangle = cell.getBoundingClientRect();
+            const text = getCellText(cell);
+            return { text, compact: compact(text), value: parseNumber(text), centerX: rectangle.left + rectangle.width / 2 };
+          });
+          const rowDate = cellItems.map(item => normalizeDateText(item.text))
+            .find(text => /^\d{4}\/\d{2}\/\d{2}$/.test(text));
+          if (rowDate) activeDate = rowDate;
+          if (activeDate !== targetDateText) continue;
+
+          const rowText = cellItems.map(item => item.compact).join("|");
+          const isLow = rowText.includes("8bar") || rowText.includes("저압");
+          const isHigh = rowText.includes("34bar") || rowText.includes("고압");
+          const isSubtotal = rowText.includes("소계");
+          if (!isLow && !isHigh && !isSubtotal) continue;
+          const numericItems = cellItems.filter(item => item.value !== null);
+          if (numericItems.length === 0) continue;
+          let targetItem = null;
+          if (usageTonCenterX !== null) {
+            targetItem = numericItems.slice().sort((left, right) =>
+              Math.abs(left.centerX - usageTonCenterX) - Math.abs(right.centerX - usageTonCenterX)
+            )[0] || null;
+          }
+          if (!targetItem) targetItem = numericItems[numericItems.length - 1];
+          found.rows.push(cellItems.map(item => item.text));
+          if (isLow && found.low === null) found.low = targetItem.value;
+          if (isHigh && found.high === null) found.high = targetItem.value;
+          if (isSubtotal && found.total === null) found.total = targetItem.value;
+        }
+      }
+      return found.low !== null && found.high !== null ? found : null;
+    }, targetSlashDate);
+
+    if (captured) {
+      const round = value => Math.round(Number(value) * 1000) / 1000;
+      const steamSalesLowPressure = round(captured.low);
+      const steamSalesHighPressure = round(captured.high);
+      const calculatedTotal = round(steamSalesLowPressure + steamSalesHighPressure);
+      const steamSales = captured.total === null ? calculatedTotal : round(captured.total);
+      if (steamSalesLowPressure < 0 || steamSalesHighPressure < 0 || steamSales < 0) {
+        throw new Error("OIS 증기 판매량에 0 미만 값이 있습니다.");
+      }
+      if (captured.total !== null && Math.abs(calculatedTotal - steamSales) > 0.1) {
+        throw new Error(
+          `OIS 증기 판매량 합계가 일치하지 않습니다. 8Bar ${steamSalesLowPressure} + 34Bar ${steamSalesHighPressure} = ${calculatedTotal}, 소계 ${steamSales}`
+        );
+      }
+      console.log("OIS 일별 증기 판매량 확인:", {
+        targetDate, steamSalesLowPressure, steamSalesHighPressure, steamSales, rows: captured.rows
+      });
+      return { steamSalesLowPressure, steamSalesHighPressure, steamSales };
+    }
+    await sleep(300);
+  }
+  throw new Error(`${targetSlashDate}의 8Bar·34Bar 증기 판매량을 찾지 못했습니다.`);
+}
+
 async function collectOisSteamStatusValues(
   page,
   config,
   targetDate
 ) {
-  return await collectDailyDataWorkbookValues(
-    targetDate
-  );
-}
+  // MORNING_MEETING_STEAM_OIS_COLLECTOR_V7
+  if (!isValidOisAgentDate(targetDate)) {
+    throw new Error("증기 현황 조회 날짜가 올바르지 않습니다.");
+  }
+  await ensureOisAgentLoggedIn(page, config);
+  const capturedUnits = {};
 
-/* =========================================================
-  요청 유형별 OIS 자료 수집
-========================================================= */
+  for (const unitDefinition of OIS_STEAM_PRODUCTION_DEFINITIONS) {
+    let frame = await openOisLogSheetLookup(page);
+    await selectOisOptionByLabel(frame, "설비운영팀", false);
+    frame = await findOisLogSheetFrame(page) || frame;
+    await selectOisOptionByLabel(frame, unitDefinition.sheetLabel, true);
+    await page.waitForTimeout(500);
+    frame = await findOisLogSheetFrame(page) || frame;
+    await selectOisOptionByLabel(frame, "1시간", false);
+    await setOisLogSheetDate(frame, targetDate);
+    await page.waitForTimeout(200);
+    capturedUnits[unitDefinition.resultKey] = await captureOisSteamProductionFromApi(
+      page, unitDefinition, async () => { await clickOisLogSheetSearchButton(frame); }
+    );
+  }
+
+  const unitOne = capturedUnits.unitOne;
+  const unitTwo = capturedUnits.unitTwo;
+  if (!unitOne || !unitTwo) throw new Error("1·2호기 증기생산량을 모두 확인하지 못했습니다.");
+
+  const round = value => Math.round(Number(value) * 1000) / 1000;
+  const unitOneProduction = round(unitOne.productionTotal);
+  const unitTwoProduction = round(unitTwo.productionTotal);
+  const totalProduction = round(unitOneProduction + unitTwoProduction);
+
+  const salesFrame = await openOisSteamDailySales(page);
+  await selectOisOptionByLabel(salesFrame, "전체", false);
+  await new Promise(resolve => setTimeout(resolve, 700));
+  const sales = await readOisSteamDailySalesBreakdown(salesFrame, targetDate);
+
+  if (totalProduction <= 0) throw new Error("총 증기생산량이 0 이하이므로 판매율을 계산할 수 없습니다.");
+  const averageSteamSales = round(sales.steamSales / 24);
+  const salesRate = round(sales.steamSales / totalProduction * 100);
+
+  const result = {
+    source: "OIS BOARD LOGSHEET / 일별 증기 판매량",
+    productionSource: "OIS BOARD LOGSHEET BCO1/BCO2 MAIN STM FLOW 01~24",
+    salesSource: "OIS 일별 증기 판매량 8Bar/34Bar",
+    targetDate, sourceDate: targetDate, outputInterval: "1시간", hourRange: "01~24", hourCount: 24,
+    unit: "ton", salesUnit: "TON",
+    steamSalesLowPressure: sales.steamSalesLowPressure,
+    steamSalesHighPressure: sales.steamSalesHighPressure,
+    steamSales: sales.steamSales, averageSteamSales,
+    unitOneProduction, unitTwoProduction, totalProduction, salesRate,
+    productionComplete: true, salesComplete: true, complete: true,
+    unitOne, unitTwo, collectedAt: new Date().toISOString()
+  };
+
+  console.log([
+    "OIS 증기 생산·판매 조회 완료", targetDate,
+    `저압 ${result.steamSalesLowPressure} ton`,
+    `고압 ${result.steamSalesHighPressure} ton`,
+    `총판매 ${result.steamSales} ton`,
+    `1호기 ${result.unitOneProduction} ton`,
+    `2호기 ${result.unitTwoProduction} ton`,
+    `총생산 ${result.totalProduction} ton`
+  ].join(" · "));
+  return result;
+}
 
 async function collectOisAgentRequestResult(
   page,
@@ -19684,20 +20036,16 @@ if (
     );
   }
 
-  if (
-    isDailyDataExcelRequestType(
-      requestType
-    )
-  ) {
-    return await collectOisSteamStatusValues(
-      page,
-      config,
-      targetDate
-    );
+  if (isDailyDataExcelRequestType(requestType)) {
+    return await collectDailyDataWorkbookValues(targetDate);
   }
 
 
-  if (
+    if (requestType === "steam_status") {
+    return await collectOisSteamStatusValues(page, config, targetDate);
+  }
+
+if (
     requestType ===
       "logsheet_approval"
   ) {
@@ -19990,7 +20338,20 @@ function printOisAgentRequestResult(
   }
 
 
-  if (
+    if (requestType === "steam_status") {
+    console.table({
+      "조회일": result.targetDate,
+      "저압(8Bar) 판매량": result.steamSalesLowPressure,
+      "고압(34Bar) 판매량": result.steamSalesHighPressure,
+      "총 증기 판매량": result.steamSales,
+      "1호기 증기생산량": result.unitOneProduction,
+      "2호기 증기생산량": result.unitTwoProduction,
+      "총 증기생산량": result.totalProduction
+    });
+    return;
+  }
+
+if (
     isDailyDataExcelRequestType(
       requestType
     )
