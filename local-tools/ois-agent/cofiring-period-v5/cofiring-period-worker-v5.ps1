@@ -15,6 +15,200 @@ $workerClock = [Diagnostics.Stopwatch]::StartNew()
 $workerProcessStartUtc = $null
 $workerStartupDelaySeconds = $null
 $workerReadyUtc = $null
+
+# COFIRING_WORKER_PROCESS_LOOKUP_V1
+$script:cofiringWorkerPhases = New-Object 'System.Collections.Generic.List[object]'
+$script:cofiringWorkerLookup = [ordered]@{calls=0;missing=0;errors=0;elapsedSeconds=0.0}
+
+# Telemetry never changes the success stream or the query/cleanup decision.
+function Start-CofiringWorkerPhase([string]$Name) {
+  try {
+    $at=[double]$script:workerClock.Elapsed.TotalSeconds
+    [void]$script:cofiringWorkerPhases.Add([ordered]@{
+      name=$Name;startedSeconds=[Math]::Round($at,6);finishedSeconds=$null
+      elapsedSeconds=$null;outcome='running'
+    })
+  } catch { }
+}
+
+function Complete-CofiringWorkerPhase([string]$Name,[string]$Outcome='complete') {
+  try {
+    for ($index=$script:cofiringWorkerPhases.Count-1;$index -ge 0;$index-=1) {
+      $phase=$script:cofiringWorkerPhases[$index]
+      if ($phase.name -eq $Name -and $phase.outcome -eq 'running') {
+        $at=[double]$script:workerClock.Elapsed.TotalSeconds
+        $phase.finishedSeconds=[Math]::Round($at,6)
+        $phase.elapsedSeconds=[Math]::Round([Math]::Max(0.0,$at-[double]$phase.startedSeconds),6)
+        $phase.outcome=$Outcome
+        return
+      }
+    }
+  } catch { }
+}
+
+function Complete-CofiringOpenWorkerPhases([string]$Outcome='interrupted') {
+  try {
+    foreach ($phase in $script:cofiringWorkerPhases) {
+      if ($phase.outcome -eq 'running') { Complete-CofiringWorkerPhase ([string]$phase.name) $Outcome }
+    }
+  } catch { }
+}
+
+function Get-CofiringWorkerPhaseSnapshot {
+  try { return @($script:cofiringWorkerPhases.ToArray()) }
+  catch { return @() }
+}
+
+# Only the OS API's absent-positive-PID ArgumentException proves absence.
+# Every poll performs a fresh lookup; no live checks or process identities are cached.
+function Get-CofiringWorkerNativeProcess([int]$ProcessId) {
+  return [Diagnostics.Process]::GetProcessById($ProcessId)
+}
+
+function Test-CofiringWorkerProcessPresent([int]$ProcessId) {
+  if ($ProcessId -le 0) { throw [ArgumentOutOfRangeException]::new('ProcessId') }
+  $lookupClock=[Diagnostics.Stopwatch]::StartNew()
+  $process=$null
+  try {
+    try { $script:cofiringWorkerLookup.calls+=1 } catch { }
+    try { $process=Get-CofiringWorkerNativeProcess $ProcessId }
+    catch {
+      $lookupException=$_.Exception
+      while ($null -ne $lookupException.InnerException -and
+        ($lookupException -is [System.Management.Automation.MethodInvocationException] -or
+         $lookupException -is [System.Reflection.TargetInvocationException])) {
+        $lookupException=$lookupException.InnerException
+      }
+      if ($lookupException -is [ArgumentException]) {
+        try { $script:cofiringWorkerLookup.missing+=1 } catch { }
+        return $false
+      }
+      try { $script:cofiringWorkerLookup.errors+=1 } catch { }
+      throw
+    }
+    if ($null -eq $process) { throw [InvalidOperationException]::new('Process lookup returned no process without an absence exception.') }
+    return $true
+  } finally {
+    try { if ($null -ne $process) { $process.Dispose() } }
+    finally {
+      try { $script:cofiringWorkerLookup.elapsedSeconds+=$lookupClock.Elapsed.TotalSeconds } catch { }
+    }
+  }
+}
+# COFIRING_NATIVEOM_DOCUMENT_FIRST_V2
+# Diagnostics are bounded and best effort; they never decide query validity or ownership.
+$script:cofiringNativeOmEvents=New-Object 'System.Collections.Generic.List[object]'
+$script:cofiringNativeOmTotals=[ordered]@{}
+$script:cofiringNativeOmDropped=0
+function Start-CofiringNativeOmSpan([string]$Name,[int]$Attempt,[int]$Scan,[long]$Handle=0,[string]$WindowClass='') {
+  try {
+    $span=[ordered]@{
+      name=$Name;attachAttempt=$Attempt;scan=$Scan;handle=[string]$Handle;windowClass=$WindowClass
+      startedSeconds=[double]$script:workerClock.Elapsed.TotalSeconds
+      finishedSeconds=$null;elapsedSeconds=$null;outcome='running'
+    }
+    if ($script:cofiringNativeOmEvents.Count -lt 128) { [void]$script:cofiringNativeOmEvents.Add($span) }
+    else { $script:cofiringNativeOmDropped+=1 }
+    try { Write-CofiringComTrace ('Attach.'+$Name) 'begin' $Attempt @{scan=$Scan;handle=[string]$Handle;windowClass=$WindowClass;startedSeconds=$span.startedSeconds} } catch { }
+    return $span
+  } catch { return $null }
+}
+function Complete-CofiringNativeOmSpan($Span,[string]$Outcome='returned') {
+  if ($null -eq $Span) { return }
+  try {
+    $Span.finishedSeconds=[double]$script:workerClock.Elapsed.TotalSeconds
+    $Span.elapsedSeconds=[Math]::Max(0.0,$Span.finishedSeconds-$Span.startedSeconds)
+    $Span.outcome=$Outcome
+    if (-not $script:cofiringNativeOmTotals.Contains($Span.name)) {
+      $script:cofiringNativeOmTotals[$Span.name]=[ordered]@{calls=0;elapsedSeconds=0.0}
+    }
+    $total=$script:cofiringNativeOmTotals[$Span.name]
+    $total.calls+=1
+    $total.elapsedSeconds+=$Span.elapsedSeconds
+    try { Write-CofiringComTrace ('Attach.'+$Span.name) $Outcome $Span.attachAttempt @{scan=$Span.scan;handle=$Span.handle;windowClass=$Span.windowClass;elapsedMs=[Math]::Round($Span.elapsedSeconds*1000,3)} } catch { }
+  } catch { }
+}
+function Get-CofiringNativeOmSnapshot {
+  try {
+    return [ordered]@{
+      schemaVersion=3;revision='nativeom-document-grace-v3'
+      elapsedBasis='monotonic_since_first_worker_statement'
+      totals=$script:cofiringNativeOmTotals
+      events=@($script:cofiringNativeOmEvents.ToArray())
+      droppedEvents=$script:cofiringNativeOmDropped
+    }
+  } catch { return $null }
+}
+# COFIRING_NATIVEOM_GRACE_QUERY_TIMING_V3
+# At most three short initial rescans, never a replacement for owned-PID checks.
+function Get-CofiringNativeOmGraceDelay([bool]$HasDocument,[bool]$ClassesKnown,[double]$ElapsedMilliseconds,[int]$DeferredScans,[double]$RemainingMilliseconds) {
+  if ($HasDocument -or -not $ClassesKnown -or $DeferredScans -lt 0 -or $DeferredScans -ge 3) { return 0 }
+  if ([double]::IsNaN($ElapsedMilliseconds) -or [double]::IsInfinity($ElapsedMilliseconds) -or $ElapsedMilliseconds -lt 0 -or
+      [double]::IsNaN($RemainingMilliseconds) -or [double]::IsInfinity($RemainingMilliseconds)) { return 0 }
+  # Leave at least one second of the existing deadline for the legacy fallback.
+  $budget=[Math]::Min(900.0-$ElapsedMilliseconds,$RemainingMilliseconds-1000.0)
+  if ($budget -lt 1.0) { return 0 }
+  return [int][Math]::Floor([Math]::Min(300.0,$budget))
+}
+
+# Telemetry is best effort: no values, formulas, ownership decisions or retries change.
+$script:cofiringQueryEvents=New-Object 'System.Collections.Generic.List[object]'
+$script:cofiringQueryPolls=New-Object 'System.Collections.Generic.List[object]'
+$script:cofiringQueryTotals=[ordered]@{}
+$script:cofiringQueryOpen=@{}
+$script:cofiringQueryDropped=0
+$script:cofiringQueryPollsDropped=0
+$script:cofiringQueryWindow=[ordered]@{startedSeconds=$null;finishedSeconds=$null}
+function Set-CofiringQueryBoundary([string]$Boundary) {
+  try {
+    if ($Boundary -eq 'begin') { $script:cofiringQueryWindow.startedSeconds=[double]$script:workerClock.Elapsed.TotalSeconds }
+    elseif ($Boundary -eq 'end') { $script:cofiringQueryWindow.finishedSeconds=[double]$script:workerClock.Elapsed.TotalSeconds }
+  } catch { }
+}
+function Start-CofiringQuerySpan([string]$Name,[int]$Poll=0) {
+  try {
+    $span=[ordered]@{name=$Name;poll=$Poll;startedSeconds=[double]$script:workerClock.Elapsed.TotalSeconds;finishedSeconds=$null;elapsedSeconds=$null;outcome='running'}
+    $script:cofiringQueryOpen[$Name]=$span
+    if ($script:cofiringQueryEvents.Count -lt 256) { [void]$script:cofiringQueryEvents.Add($span) }
+    else { $script:cofiringQueryDropped+=1 }
+    # Persist starts only for potentially blocking COM calls, not every in-memory step.
+    if ($Name -in @('enableCalculation','valueRead','freezeCalculation')) {
+      try { Write-CofiringComTrace ('Query.'+$Name) 'begin' 1 @{poll=$Poll;startedSeconds=$span.startedSeconds} } catch { }
+    }
+    return $span
+  } catch { return $null }
+}
+function Complete-CofiringQuerySpan($Span,[string]$Outcome='returned') {
+  if ($null -eq $Span) { return }
+  try {
+    if ($Span.outcome -ne 'running') { return }
+    $Span.finishedSeconds=[double]$script:workerClock.Elapsed.TotalSeconds
+    $Span.elapsedSeconds=[Math]::Max(0.0,$Span.finishedSeconds-$Span.startedSeconds)
+    $Span.outcome=$Outcome
+    if (-not $script:cofiringQueryTotals.Contains($Span.name)) { $script:cofiringQueryTotals[$Span.name]=[ordered]@{calls=0;elapsedSeconds=0.0} }
+    $total=$script:cofiringQueryTotals[$Span.name];$total.calls+=1;$total.elapsedSeconds+=$Span.elapsedSeconds
+    if ($script:cofiringQueryOpen.ContainsKey($Span.name) -and [object]::ReferenceEquals($script:cofiringQueryOpen[$Span.name],$Span)) { [void]$script:cofiringQueryOpen.Remove($Span.name) }
+    if ($Span.name -in @('enableCalculation','valueRead','freezeCalculation')) {
+      try { Write-CofiringComTrace ('Query.'+$Span.name) $Outcome 1 @{poll=$Span.poll;elapsedMs=[Math]::Round($Span.elapsedSeconds*1000,3)} } catch { }
+    }
+  } catch { }
+}
+function Add-CofiringQueryPoll([int]$Poll,$State,[int]$StableReads) {
+  try {
+    $row=[ordered]@{poll=$Poll;atSeconds=[double]$script:workerClock.Elapsed.TotalSeconds;complete=[bool]$State.complete;stableReads=$StableReads;valueCells=[int]$State.valueCells;pendingCells=[int]$State.pendingCells;invalidCells=[int]$State.invalidCells;errorCells=[int]$State.errorCells;cells=[int]$State.cells}
+    if ($script:cofiringQueryPolls.Count -lt 128) { [void]$script:cofiringQueryPolls.Add($row) }
+    else { $script:cofiringQueryPollsDropped+=1 }
+  } catch { }
+}
+function Complete-CofiringOpenQuerySpans {
+  try { foreach ($span in @($script:cofiringQueryOpen.Values)) { Complete-CofiringQuerySpan $span 'interrupted' } } catch { }
+}
+function Get-CofiringQuerySnapshot {
+  try {
+    # COFIRING_INITIAL_POLL_BYPASS_V4
+    return [ordered]@{schemaVersion=1;revision='query-internal-stages-v4';elapsedBasis='monotonic_since_first_worker_statement';window=$script:cofiringQueryWindow;totals=$script:cofiringQueryTotals;events=@($script:cofiringQueryEvents.ToArray());polls=@($script:cofiringQueryPolls.ToArray());droppedEvents=$script:cofiringQueryDropped;droppedPolls=$script:cofiringQueryPollsDropped}
+  } catch { return $null }
+}
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
@@ -653,6 +847,15 @@ function Convert-ProbeNumber($Value) {
   return $number
 }
 
+# COFIRING_ORGANIC_NEGATIVE_TO_ZERO_V1
+# Only organic inventory boundaries use this operator-approved normalization.
+# Missing, invalid and nonfinite numbers remain missing; quality/time gates follow.
+function Convert-CofiringOrganicInventoryValue($Value) {
+  $number=Convert-ProbeNumber $Value
+  if ($null -eq $number) { return $null }
+  return [Math]::Max(0.0,[double]$number)
+}
+
 function Read-ProbeCellNumber($Cell) {
   try {
     $text = [string](Get-CofiringExcelProperty -Target $Cell -Member 'Text' -Operation 'Cell.Text' -AllowNullValue).Value
@@ -777,20 +980,102 @@ function Assert-CofiringCompilerTemp {
   return $expected
 }
 
-$compilerTempPath = Assert-CofiringCompilerTemp
-$runtimeTemp = [Environment]::GetEnvironmentVariable("TEMP", "Process")
-$runtimeTmp = [Environment]::GetEnvironmentVariable("TMP", "Process")
-try {
-  [Environment]::SetEnvironmentVariable("TEMP", $compilerTempPath, "Process")
-  [Environment]::SetEnvironmentVariable("TMP", $compilerTempPath, "Process")
-  $activeCompilerTemp = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')
-  if (-not [string]::Equals($activeCompilerTemp, $compilerTempPath, [StringComparison]::OrdinalIgnoreCase)) {
-    throw ("Add-Type 전용 TEMP/TMP 격리가 적용되지 않았습니다. expected=" + $compilerTempPath + " / actual=" + $activeCompilerTemp)
+# COFIRING_COMPILER_RETRY_V10
+# CodeDOM and its child compiler tools share one private directory per attempt.
+# No security settings, query arithmetic, process ownership or cleanup gates change.
+function Test-CofiringCompilerRetry([object[]]$Records, [string]$CompileDirectory) {
+  $messages = New-Object System.Collections.Generic.List[string]
+  foreach ($record in @($Records)) {
+    if ($null -eq $record) { continue }
+    $messages.Add([string]$record)
+    if ($record -is [Management.Automation.ErrorRecord]) {
+      if ($null -ne $record.ErrorDetails) { $messages.Add([string]$record.ErrorDetails.Message) }
+      $exception = $record.Exception
+      while ($null -ne $exception) {
+        $messages.Add([string]$exception.Message)
+        $exception = $exception.InnerException
+      }
+      $target = $record.TargetObject
+      if ($null -ne $target) {
+        foreach ($property in @("ErrorNumber", "ErrorText")) {
+          if ($null -ne $target.PSObject.Properties[$property]) { $messages.Add([string]$target.$property) }
+        }
+      }
+    }
   }
+  $diagnostic = $messages -join " "
+  # A compiler resource file may report no CS number. Retry only a direct child
+  # of this attempt's private directory; never accept the shared temp root.
+  $resourcePrefix = [IO.Path]::GetFullPath($CompileDirectory).TrimEnd([char[]]'\/') + [IO.Path]::DirectorySeparatorChar
+  $resourcePattern = '(?i)\bcannot\s+open\s+["'']?' + [regex]::Escape($resourcePrefix) + 'RES[0-9a-f]{1,4}\.tmp["'']?\s+for\s+writing\b'
+  if ($diagnostic -match $resourcePattern) {
+    $resourceCodes = @([regex]::Matches($diagnostic, '(?i)\b(?:CS|CVT|AL)[0-9]{4}\b') | ForEach-Object { $_.Value.ToUpperInvariant() })
+    if (@($resourceCodes | Where-Object { $_ -ne "CS0016" }).Count -gt 0) { return $false }
+    if ($diagnostic -match '(?i)access\s+(?:is\s+)?denied|permission\s+denied|unauthori[sz]ed|blocked\s+by|group\s+policy|security\s+policy|보안[^.]*차단|정책[^.]*차단|액세스[^.]*거부|권한[^.]*없|권한[^.]*거부|disk\s+(?:is\s+)?full|not\s+enough\s+(?:space|disk)|no\s+space\s+left|디스크[^.]*부족|공간[^.]*부족') { return $false }
+    return $true
+  }
+  return $false
+}
 
-  if (-not ("GsBlowerRuntimeNativeOmV1" -as [type])) {
+function Invoke-CofiringCompiler([string]$TypeDefinition) {
+  $compileTempRoot = Assert-CofiringCompilerTemp
+  $createdDirectories = New-Object System.Collections.Generic.List[string]
+  $retryWaits = @(1000, 2000)
   try {
-    Add-Type -TypeDefinition @"
+    for ($attempt = 0; $attempt -lt 3; $attempt += 1) {
+      $compilerTempPath = Join-Path $compileTempRoot ("attempt-" + [Guid]::NewGuid().ToString("N"))
+      if (Test-Path -LiteralPath $compilerTempPath) { throw "Excel 연결모듈 임시 폴더가 이미 존재합니다." }
+      [void][IO.Directory]::CreateDirectory($compilerTempPath)
+      $createdDirectories.Add($compilerTempPath)
+      $parameters = New-Object System.CodeDom.Compiler.CompilerParameters
+      $parameters.GenerateInMemory = $true
+      $parameters.GenerateExecutable = $false
+      $parameters.IncludeDebugInformation = $false
+      $parameters.TempFiles = [System.CodeDom.Compiler.TempFileCollection]::new($compilerTempPath, $false)
+      [void]$parameters.ReferencedAssemblies.Add("System.dll")
+      $compileErrors = @()
+      try {
+        Write-ProbeStage ("Excel 연결모듈 준비 · " + [string]($attempt + 1) + "/3")
+        # CodeDOM child tools inherit the PowerShell process environment.
+        # Scope both temp variables to compilation and restore before COM use.
+        $runtimeTemp = [Environment]::GetEnvironmentVariable("TEMP", "Process")
+        $runtimeTmp = [Environment]::GetEnvironmentVariable("TMP", "Process")
+        try {
+          [Environment]::SetEnvironmentVariable("TEMP", $compilerTempPath, "Process")
+          [Environment]::SetEnvironmentVariable("TMP", $compilerTempPath, "Process")
+          $activeCompilerTemp = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd([char[]]'\/')
+          if (-not [string]::Equals($activeCompilerTemp, $compilerTempPath.TrimEnd([char[]]'\/'), [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Add-Type compiler TEMP/TMP did not match the owned attempt directory.'
+          }
+          Add-Type -TypeDefinition $TypeDefinition -CompilerParameters $parameters -ErrorVariable +compileErrors -ErrorAction Stop
+        } finally {
+          try {
+            [Environment]::SetEnvironmentVariable("TEMP", $runtimeTemp, "Process")
+          } finally {
+            [Environment]::SetEnvironmentVariable("TMP", $runtimeTmp, "Process")
+          }
+        }
+        return
+      } catch {
+        if ($attempt -ge 2 -or -not (Test-CofiringCompilerRetry (@($compileErrors) + @($_)) $compilerTempPath)) { throw }
+        Write-ProbeStage "Excel 연결모듈 임시 파일 준비 재시도 · 잠시 후 다시 준비"
+        Start-Sleep -Milliseconds $retryWaits[$attempt]
+      }
+    }
+  } finally {
+    foreach ($directory in $createdDirectories) {
+      try {
+        if (Test-Path -LiteralPath $directory) { Remove-Item -LiteralPath $directory -Recurse -Force -ErrorAction Stop }
+      } catch {
+        try { Write-ProbeStage ("Excel 연결모듈 임시 폴더 정리 대기: " + $directory) } catch {}
+      }
+    }
+  }
+}
+
+Start-CofiringWorkerPhase 'setupNativeCompile'
+if (-not ("GsBlowerRuntimeNativeOmV1" -as [type])) {
+  $nativeOmTypeDefinition = @"
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
@@ -821,7 +1106,7 @@ public static class GsBlowerRuntimeNativeOmV1
         [MarshalAs(UnmanagedType.Interface)] out object ppvObject
     );
 
-    private static string WindowClass(IntPtr hwnd)
+    public static string WindowClass(IntPtr hwnd)
     {
         StringBuilder builder = new StringBuilder(256);
         int length = GetClassName(hwnd, builder, builder.Capacity);
@@ -830,7 +1115,9 @@ public static class GsBlowerRuntimeNativeOmV1
 
     public static IntPtr[] FindNativeObjectWindows(int processId)
     {
+        // Collect every EXCEL7 before any XLMAIN, including multi-window instances.
         List<IntPtr> result = new List<IntPtr>();
+        List<IntPtr> fallback = new List<IntPtr>();
 
         EnumWindows(
             delegate(IntPtr top, IntPtr state)
@@ -840,7 +1127,7 @@ public static class GsBlowerRuntimeNativeOmV1
                 if (topPid != (uint)processId) return true;
 
                 if (String.Equals(WindowClass(top), "XLMAIN", StringComparison.OrdinalIgnoreCase)) {
-                    result.Add(top);
+                    fallback.Add(top);
                 }
 
                 EnumChildWindows(
@@ -865,6 +1152,7 @@ public static class GsBlowerRuntimeNativeOmV1
             IntPtr.Zero
         );
 
+        result.AddRange(fallback);
         return result.ToArray();
     }
 
@@ -877,23 +1165,14 @@ public static class GsBlowerRuntimeNativeOmV1
     }
 }
 "@
-  } catch {
-    throw ("NativeOM Add-Type 컴파일 실패: " + $_.Exception.Message + " / TEMP=" + [string]$env:TEMP)
-  }
-  }
-} finally {
   try {
-    [Environment]::SetEnvironmentVariable("TEMP", $runtimeTemp, "Process")
-  } finally {
-    [Environment]::SetEnvironmentVariable("TMP", $runtimeTmp, "Process")
+    Invoke-CofiringCompiler -TypeDefinition $nativeOmTypeDefinition
+  } catch {
+    throw ("NativeOM Add-Type 컴파일 실패: " + $_.Exception.Message)
   }
 }
-$restoredTemp = [Environment]::GetEnvironmentVariable("TEMP", "Process")
-$restoredTmp = [Environment]::GetEnvironmentVariable("TMP", "Process")
-if (-not [string]::Equals([string]$restoredTemp, [string]$runtimeTemp, [StringComparison]::OrdinalIgnoreCase) -or
-    -not [string]::Equals([string]$restoredTmp, [string]$runtimeTmp, [StringComparison]::OrdinalIgnoreCase)) {
-  throw "NativeOM Add-Type 이후 TEMP/TMP 복원에 실패했습니다."
-}
+
+Complete-CofiringWorkerPhase 'setupNativeCompile'
 
 function Get-ProbeExcelProcessId($ExcelApplication) {
   if ($null -eq $ExcelApplication) { return 0 }
@@ -1171,12 +1450,10 @@ public sealed class GsCofiringOwnedExcelWindowGuardV1 : IDisposable
 
 function Initialize-OwnedExcelWindowGuard {
   if ($script:ownedExcelWindowGuardReady) { return }
+  Start-CofiringWorkerPhase 'setupWindowGuardCompile'
 
   try {
-    Add-Type `
-      -TypeDefinition $script:ownedExcelWindowGuardSource `
-      -Language CSharp `
-      -ErrorAction Stop
+    Invoke-CofiringCompiler -TypeDefinition $script:ownedExcelWindowGuardSource
   }
   catch {
     if (-not ('GsCofiringOwnedExcelWindowGuardV1' -as [type])) {
@@ -1185,6 +1462,7 @@ function Initialize-OwnedExcelWindowGuard {
   }
 
   $script:ownedExcelWindowGuardReady = $true
+  Complete-CofiringWorkerPhase 'setupWindowGuardCompile'
 }
 
 function Stop-OwnedExcelWindowGuard {
@@ -1227,50 +1505,115 @@ function Wait-OwnedProbeExcelNativeObject {
     [int[]]$AllowedBaselineExcelPids
   )
 
+  $nativeOmScan=0
+  $nativeOmGraceClock=[Diagnostics.Stopwatch]::StartNew()
+  $nativeOmDeferredScans=0
+  $nativeOmGraceActive=$true
   do {
-    $runningExcel = @(Get-Process -Name "EXCEL" -ErrorAction SilentlyContinue | Where-Object { [int]$_.SessionId -eq $ownedExcelSessionId })
-    $unexpected = @(
-      $runningExcel | Where-Object {
-        [int]$_.Id -ne $ExcelProcessId -and
-        $AllowedBaselineExcelPids -notcontains [int]$_.Id
-      }
-    )
-    if ($unexpected.Count -gt 0) {
-      throw (
-        "DataPARC 조회 중 등록되지 않은 Excel 인스턴스가 시작되었습니다. PID=" +
-        (($unexpected | Select-Object -ExpandProperty Id) -join ", ")
+    $nativeOmScan+=1
+    $inventorySpan=Start-CofiringNativeOmSpan 'processInventory' $excelAttachAttempt $nativeOmScan
+    $inventoryOutcome='failed'
+    try {
+      $runningExcel = @(Get-Process -Name "EXCEL" -ErrorAction SilentlyContinue | Where-Object { [int]$_.SessionId -eq $ownedExcelSessionId })
+      $unexpected = @(
+        $runningExcel | Where-Object {
+          [int]$_.Id -ne $ExcelProcessId -and
+          $AllowedBaselineExcelPids -notcontains [int]$_.Id
+        }
       )
-    }
+      if ($unexpected.Count -gt 0) {
+        throw (
+          "DataPARC 조회 중 등록되지 않은 Excel 인스턴스가 시작되었습니다. PID=" +
+          (($unexpected | Select-Object -ExpandProperty Id) -join ", ")
+        )
+      }
+      if ($null -eq (Get-Process -Id $ExcelProcessId -ErrorAction SilentlyContinue)) {
+        throw "자동조회용 Excel이 COM 연결 전에 종료되었습니다."
+      }
+      $inventoryOutcome='returned'
+    } finally { Complete-CofiringNativeOmSpan $inventorySpan $inventoryOutcome }
 
-    if ($null -eq (Get-Process -Id $ExcelProcessId -ErrorAction SilentlyContinue)) {
-      throw "자동조회용 Excel이 COM 연결 전에 종료되었습니다."
+    $windowsSpan=Start-CofiringNativeOmSpan 'windowEnumeration' $excelAttachAttempt $nativeOmScan
+    $windowsOutcome='failed'
+    try {
+      $nativeWindows=@([GsBlowerRuntimeNativeOmV1]::FindNativeObjectWindows($ExcelProcessId))
+      $nativeHasDocument=$false
+      $nativeClassesKnown=$true
+      foreach ($candidateWindow in $nativeWindows) {
+        try {
+          $candidateClass=[GsBlowerRuntimeNativeOmV1]::WindowClass([IntPtr]$candidateWindow)
+          if ($candidateClass -eq 'EXCEL7') { $nativeHasDocument=$true }
+          elseif ($candidateClass -ne 'XLMAIN') { $nativeClassesKnown=$false }
+        } catch { $nativeClassesKnown=$false }
+      }
+      $windowsOutcome=$(if ($nativeWindows.Count -gt 0) { 'returned' } else { 'empty' })
+    } finally { Complete-CofiringNativeOmSpan $windowsSpan $windowsOutcome }
+    if ($nativeOmGraceActive) {
+      $graceDelay=Get-CofiringNativeOmGraceDelay $nativeHasDocument $nativeClassesKnown $nativeOmGraceClock.Elapsed.TotalMilliseconds $nativeOmDeferredScans (($Deadline-[datetime]::UtcNow).TotalMilliseconds)
+      if ($graceDelay -gt 0) {
+        Assert-CofiringNotCancelled
+        $nativeOmDeferredScans+=1
+        $graceSpan=Start-CofiringNativeOmSpan 'documentGraceSleep' $excelAttachAttempt $nativeOmScan
+        $graceOutcome='failed'
+        try { Start-Sleep -Milliseconds $graceDelay; $graceOutcome='returned' }
+        finally { Complete-CofiringNativeOmSpan $graceSpan $graceOutcome }
+        continue
+      }
+      $nativeOmGraceActive=$false
     }
-
-    foreach ($nativeWindow in @([GsBlowerRuntimeNativeOmV1]::FindNativeObjectWindows($ExcelProcessId))) {
+    foreach ($nativeWindow in $nativeWindows) {
       $nativeObject = $null
       $candidateApplication = $null
       $keep = $false
-
+      $nativeWindowClass=''
+      # This non-COM label is diagnostic only. Failure cannot reject a candidate.
+      try { $nativeWindowClass=[GsBlowerRuntimeNativeOmV1]::WindowClass([IntPtr]$nativeWindow) } catch { }
       try {
-        $nativeObject = [GsBlowerRuntimeNativeOmV1]::GetNativeObject([IntPtr]$nativeWindow)
+        $nativeSpan=Start-CofiringNativeOmSpan 'nativeObject' $excelAttachAttempt $nativeOmScan (([IntPtr]$nativeWindow).ToInt64()) $nativeWindowClass
+        $nativeOutcome='failed'
+        try {
+          $nativeObject = [GsBlowerRuntimeNativeOmV1]::GetNativeObject([IntPtr]$nativeWindow)
+          $nativeOutcome=$(if ($null -ne $nativeObject) { 'returned' } else { 'empty' })
+        } finally { Complete-CofiringNativeOmSpan $nativeSpan $nativeOutcome }
         if ($null -eq $nativeObject) { continue }
-        try { $candidateApplication = (Get-CofiringExcelProperty -Target $nativeObject -Member 'Application' -Operation 'NativeOM.Application' -TimeoutMilliseconds 1000).Value } catch { $candidateApplication = $null }
+
+        $applicationSpan=Start-CofiringNativeOmSpan 'application' $excelAttachAttempt $nativeOmScan (([IntPtr]$nativeWindow).ToInt64()) $nativeWindowClass
+        $applicationOutcome='failed'
+        try {
+          $candidateApplication = (Get-CofiringExcelProperty -Target $nativeObject -Member 'Application' -Operation 'NativeOM.Application' -TimeoutMilliseconds 1000).Value
+          $applicationOutcome=$(if ($null -ne $candidateApplication) { 'returned' } else { 'empty' })
+        } catch { $candidateApplication = $null }
+        finally { Complete-CofiringNativeOmSpan $applicationSpan $applicationOutcome }
         if ($null -eq $candidateApplication) { continue }
 
-        if ((Get-ProbeExcelProcessId $candidateApplication) -eq $ExcelProcessId) {
+        $identitySpan=Start-CofiringNativeOmSpan 'pidVerification' $excelAttachAttempt $nativeOmScan (([IntPtr]$nativeWindow).ToInt64()) $nativeWindowClass
+        $identityOutcome='failed'
+        try {
+          $nativePidMatches=((Get-ProbeExcelProcessId $candidateApplication) -eq $ExcelProcessId)
+          $identityOutcome=$(if ($nativePidMatches) { 'matched' } else { 'mismatch' })
+        } finally { Complete-CofiringNativeOmSpan $identitySpan $identityOutcome }
+        if ($nativePidMatches) {
           $keep = $true
           return $candidateApplication
         }
       } catch {
       } finally {
-        Release-ProbeCom $nativeObject
-        if (-not $keep -and $null -ne $candidateApplication) {
-          Release-ProbeCom $candidateApplication
-        }
+        $releaseSpan=Start-CofiringNativeOmSpan 'comRelease' $excelAttachAttempt $nativeOmScan (([IntPtr]$nativeWindow).ToInt64()) $nativeWindowClass
+        $releaseOutcome='failed'
+        try {
+          Release-ProbeCom $nativeObject
+          if (-not $keep -and $null -ne $candidateApplication) {
+            Release-ProbeCom $candidateApplication
+          }
+          $releaseOutcome='returned'
+        } finally { Complete-CofiringNativeOmSpan $releaseSpan $releaseOutcome }
       }
     }
 
-    Start-Sleep -Milliseconds 300
+    $sleepSpan=Start-CofiringNativeOmSpan 'retrySleep' $excelAttachAttempt $nativeOmScan
+    $sleepOutcome='failed'
+    try { Start-Sleep -Milliseconds 300; $sleepOutcome='returned' }
+    finally { Complete-CofiringNativeOmSpan $sleepSpan $sleepOutcome }
   } while ([datetime]::UtcNow -lt $Deadline)
 
   return $null
@@ -1410,10 +1753,10 @@ function Wait-OwnedProbeDataParcHost {
 
 function Wait-ProbeProcessExit([int]$ProcessId, [datetime]$Deadline) {
   do {
-    if ($null -eq (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue)) { return $true }
+    if (-not (Test-CofiringWorkerProcessPresent $ProcessId)) { return $true }
     Start-Sleep -Milliseconds 250
   } while ([datetime]::UtcNow -lt $Deadline)
-  return ($null -eq (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue))
+  return (-not (Test-CofiringWorkerProcessPresent $ProcessId))
 }
 
 function Complete-OwnedProbeExcelExit {
@@ -1647,18 +1990,23 @@ try {
   )
   $baselineExcelPids = @($baselineExcelSignatures | ForEach-Object { [int]$_.ProcessId })
 
+  Start-CofiringWorkerPhase 'setupBaselineHostSnapshot'
+  # One initial snapshot is split into allowed and unexpected hosts.
+  # Later startup polls and final universe checks still query live processes.
+  $initialHostSnapshot = @(Get-ProbeDataParcHosts)
   $baselineHosts = @(
-    Get-ProbeDataParcHosts | Where-Object {
+    $initialHostSnapshot | Where-Object {
       [int]$_.SessionId -eq $currentSessionId -and
       $baselineExcelPids -contains [int]$_.ParentProcessId
     }
   )
   $unexpectedBaselineHosts = @(
-    Get-ProbeDataParcHosts | Where-Object {
+    $initialHostSnapshot | Where-Object {
       [int]$_.SessionId -eq $currentSessionId -and
       $baselineExcelPids -notcontains [int]$_.ParentProcessId
     }
   )
+  Complete-CofiringWorkerPhase 'setupBaselineHostSnapshot'
   if ($unexpectedBaselineHosts.Count -gt 0) {
     throw (
       "기존 DataPARC Host의 부모 Excel을 확인할 수 없습니다. PID=" +
@@ -1722,7 +2070,9 @@ try {
   Hide-OwnedExcelWindowNow
   Write-ProbeOwnership
     Write-ProbeStage ("PID 고유 창에서 Excel COM 직접 연결 · 시도 " + [string]$excelAttachAttempt + "/2")
+    Start-CofiringWorkerPhase 'setupComAttach'
     $excel = Wait-OwnedProbeExcelNativeObject $ownedExcelPid ([datetime]::UtcNow.AddSeconds(20)) $baselineExcelPids
+    Complete-CofiringWorkerPhase 'setupComAttach' $(if ($null -ne $excel) { 'complete' } else { 'not_ready' })
     if ($null -ne $excel) { break }
 
     if ($excelAttachAttempt -ge 2) {
@@ -1751,6 +2101,7 @@ try {
     throw "연결한 Excel COM PID가 자동조회용 PID와 다릅니다."
   }
   Write-ProbeStage "Excel COM 연결 완료"
+  Start-CofiringWorkerPhase 'setupExcelOptions'
 
   [void](Invoke-CofiringExcelCall -Operation 'Application.Visible=False' -Action { $excel.Visible=$false })
   [void](Invoke-CofiringExcelCall -Operation 'Application.DisplayAlerts=False' -Action { $excel.DisplayAlerts=$false })
@@ -1758,7 +2109,9 @@ try {
   [void](Invoke-CofiringExcelCall -Operation 'Application.ScreenUpdating=False' -Action { $excel.ScreenUpdating=$false })
   [void](Invoke-CofiringExcelCall -Operation 'Application.EnableEvents=False' -Action { $excel.EnableEvents=$false })
   Write-ProbeStage "Excel 옵션 설정 완료"
+  Complete-CofiringWorkerPhase 'setupExcelOptions'
 
+  Start-CofiringWorkerPhase 'setupStartupWorkbookClose'
   $startupWorkbooks = $null
   try {
     $startupWorkbooks = (Get-CofiringExcelProperty -Target $excel -Member 'Workbooks' -Operation 'Startup.Workbooks').Value
@@ -1777,9 +2130,12 @@ try {
     Release-ProbeCom $startupWorkbooks
   }
   Write-ProbeStage "초기 통합문서 정리 완료"
+  Complete-CofiringWorkerPhase 'setupStartupWorkbookClose'
 
   Write-ProbeStage "DataPARC Add-In 자동 시작 확인"
+  Start-CofiringWorkerPhase 'setupHostWait'
   $ownedHostCim = Wait-OwnedProbeDataParcHost $ownedExcelPid $baselineExcelPids ([datetime]::UtcNow.AddSeconds(60))
+  Complete-CofiringWorkerPhase 'setupHostWait' $(if ($null -ne $ownedHostCim) { 'complete' } else { 'not_ready' })
   if ($null -eq $ownedHostCim) {
     throw "자동조회용 숨김 Excel에서 DataPARC Add-In Host가 시작되지 않았습니다."
   }
@@ -1788,6 +2144,7 @@ try {
   [void](Invoke-CofiringExcelCall -Operation 'Application.Visible=False.AfterDataParcHost' -Action { $excel.Visible=$false })
   Hide-OwnedExcelWindowNow
 
+  Start-CofiringWorkerPhase 'setupQueryWorkbookAndFormulas'
   Write-ProbeStage "조회용 임시 통합문서 생성"
   $workbooks = (Get-CofiringExcelProperty -Target $excel -Member 'Workbooks' -Operation 'Query.Workbooks').Value
   # Creation is non-idempotent; never blindly replay it.
@@ -1927,42 +2284,93 @@ try {
     Write-ProbeStage ('고속 요약 조회 준비 · 13 TAG x 11 통계 = '+[string]($rowsFast*$columnsFast)+'개 수식 동시 계산')
     Write-CofiringProgress 'QUERY_START'
     [void](Invoke-CofiringExcelCall -Operation 'Fast.Formula' -Action { $queryRange.Formula=$formulasFast })
+    Complete-CofiringWorkerPhase 'setupQueryWorkbookAndFormulas'
     $formulasFast=$null
     $fastClock=[Diagnostics.Stopwatch]::StartNew()
+    Set-CofiringQueryBoundary 'begin'
+    $cofiringQueryPoll=0
     $fastDeadlineSeconds=60.0
     $stableReads=0;$previousFast=$null;$lastLog=[datetime]::MinValue;$fastState=$null
     $diagnostics.activeBatch=[ordered]@{phase='WAIT_RESPONSE';stableReads=0;elapsedSeconds=0;response=$null}
-    [void](Invoke-CofiringExcelCall -Operation 'Fast.EnableCalculation=True' -Action { $querySheet.EnableCalculation=$true })
+    $querySpan=Start-CofiringQuerySpan 'enableCalculation' 0
+    $querySpanOutcome='failed'
+    try {
+      [void](Invoke-CofiringExcelCall -Operation 'Fast.EnableCalculation=True' -Action { $querySheet.EnableCalculation=$true })
+      $querySpanOutcome='returned'
+    } finally { Complete-CofiringQuerySpan $querySpan $querySpanOutcome }
+    # Skip only the first fixed wait when the existing EnableCalculation call itself
+    # already consumed at least 500 ms. Three stable reads and every later 500 ms wait remain.
+    $cofiringSkipInitialPollSleep=($null -ne $querySpan -and $null -ne $querySpan.elapsedSeconds -and [double]$querySpan.elapsedSeconds -ge 0.5)
     do {
       Assert-CofiringNotCancelled
       if ($fastClock.Elapsed.TotalSeconds -ge $fastDeadlineSeconds) { throw '고속 요약 통계가 60초 안에 완료되지 않았습니다.' }
-      Start-Sleep -Milliseconds 500
+      $cofiringQueryPoll+=1
+      if ($cofiringSkipInitialPollSleep -and $cofiringQueryPoll -eq 1) {
+        $cofiringSkipInitialPollSleep=$false
+        $querySpan=Start-CofiringQuerySpan 'pollSleepBypass' $cofiringQueryPoll
+        $querySpanOutcome='failed'
+        try { $querySpanOutcome='returned' }
+        finally { Complete-CofiringQuerySpan $querySpan $querySpanOutcome }
+      } else {
+        $querySpan=Start-CofiringQuerySpan 'pollSleep' $cofiringQueryPoll
+        $querySpanOutcome='failed'
+        try { Start-Sleep -Milliseconds 500; $querySpanOutcome='returned' }
+        finally { Complete-CofiringQuerySpan $querySpan $querySpanOutcome }
+      }
       $remaining=$fastDeadlineSeconds-$fastClock.Elapsed.TotalSeconds
       $readBudget=[int][Math]::Max(1.0,[Math]::Min(30000.0,[Math]::Floor($remaining*1000.0)))
-      $matrix=(Get-CofiringExcelProperty -Target $queryRange -Member 'Value2' -Operation 'Fast.Value2' -TimeoutMilliseconds $readBudget -MaxAttempts 100).Value
-      $fastState=Get-CofiringFastMatrixState $matrix $rowsFast $columnsFast $columnKinds
-      if (-not $fastState.shapeValid) {
-        $shape=Get-CofiringReturnShape $matrix
-        throw ('고속 요약 배열 크기가 '+[string]$rowsFast+'x'+[string]$columnsFast+'가 아닙니다: '+($shape | ConvertTo-Json -Compress))
-      }
-      if ($fastState.errorCells -gt 0) { throw ('고속 요약 수식 오류: '+[string]$fastState.firstProblem) }
-      if ($fastState.complete) {
-        if ($null -ne $previousFast -and (Test-CofiringFastSnapshotEqual $matrix $previousFast $rowsFast $columnsFast)) { $stableReads+=1 } else { $stableReads=1 }
-        $previousFast=$matrix.Clone()
-      } else {
-        $stableReads=0;$previousFast=$null
-      }
-      $diagnostics.activeBatch=[ordered]@{phase=$(if($fastState.complete){'VERIFY_STABLE'}else{'WAIT_RESPONSE'});stableReads=$stableReads;elapsedSeconds=[Math]::Round($fastClock.Elapsed.TotalSeconds,3);response=$fastState}
-      if (([datetime]::UtcNow-$lastLog).TotalSeconds -ge 2 -or $stableReads -ge 3) {
-        Write-ProbeStage ('고속 요약 응답 '+[string]$fastState.valueCells+'/'+[string]$fastState.cells+' · invalid '+[string]$fastState.invalidCells+' · pending '+[string]$fastState.pendingCells+' · 동일 응답 '+[string]$stableReads+'/3 · '+[string][Math]::Round($fastClock.Elapsed.TotalSeconds,1)+'초')
-        $lastLog=[datetime]::UtcNow
-      }
+      $querySpan=Start-CofiringQuerySpan 'valueRead' $cofiringQueryPoll
+      $querySpanOutcome='failed'
+      try {
+        $matrix=(Get-CofiringExcelProperty -Target $queryRange -Member 'Value2' -Operation 'Fast.Value2' -TimeoutMilliseconds $readBudget -MaxAttempts 100).Value
+        $querySpanOutcome='returned'
+      } finally { Complete-CofiringQuerySpan $querySpan $querySpanOutcome }
+      $querySpan=Start-CofiringQuerySpan 'matrixValidation' $cofiringQueryPoll
+      $querySpanOutcome='failed'
+      try {
+        $fastState=Get-CofiringFastMatrixState $matrix $rowsFast $columnsFast $columnKinds
+        if (-not $fastState.shapeValid) {
+          $shape=Get-CofiringReturnShape $matrix
+          throw ('고속 요약 배열 크기가 '+[string]$rowsFast+'x'+[string]$columnsFast+'가 아닙니다: '+($shape | ConvertTo-Json -Compress))
+        }
+        if ($fastState.errorCells -gt 0) { throw ('고속 요약 수식 오류: '+[string]$fastState.firstProblem) }
+        $querySpanOutcome='returned'
+      } finally { Complete-CofiringQuerySpan $querySpan $querySpanOutcome }
+      $querySpan=Start-CofiringQuerySpan 'stabilityCheck' $cofiringQueryPoll
+      $querySpanOutcome='failed'
+      try {
+        if ($fastState.complete) {
+          if ($null -ne $previousFast -and (Test-CofiringFastSnapshotEqual $matrix $previousFast $rowsFast $columnsFast)) { $stableReads+=1 } else { $stableReads=1 }
+          $previousFast=$matrix.Clone()
+        } else {
+          $stableReads=0;$previousFast=$null
+        }
+        $querySpanOutcome='returned'
+      } finally { Complete-CofiringQuerySpan $querySpan $querySpanOutcome }
+      $querySpan=Start-CofiringQuerySpan 'progressReporting' $cofiringQueryPoll
+      $querySpanOutcome='failed'
+      try {
+        $diagnostics.activeBatch=[ordered]@{phase=$(if($fastState.complete){'VERIFY_STABLE'}else{'WAIT_RESPONSE'});stableReads=$stableReads;elapsedSeconds=[Math]::Round($fastClock.Elapsed.TotalSeconds,3);response=$fastState}
+        if (([datetime]::UtcNow-$lastLog).TotalSeconds -ge 2 -or $stableReads -ge 3) {
+          Write-ProbeStage ('고속 요약 응답 '+[string]$fastState.valueCells+'/'+[string]$fastState.cells+' · invalid '+[string]$fastState.invalidCells+' · pending '+[string]$fastState.pendingCells+' · 동일 응답 '+[string]$stableReads+'/3 · '+[string][Math]::Round($fastClock.Elapsed.TotalSeconds,1)+'초')
+          $lastLog=[datetime]::UtcNow
+        }
+        $querySpanOutcome='returned'
+      } finally { Complete-CofiringQuerySpan $querySpan $querySpanOutcome }
+      Add-CofiringQueryPoll $cofiringQueryPoll $fastState $stableReads
     } while ($stableReads -lt 3)
-    [void](Invoke-CofiringExcelCall -Operation 'Fast.FreezeCalculation' -Action { $querySheet.EnableCalculation=$false })
+    $querySpan=Start-CofiringQuerySpan 'freezeCalculation' 0
+    $querySpanOutcome='failed'
+    try {
+      [void](Invoke-CofiringExcelCall -Operation 'Fast.FreezeCalculation' -Action { $querySheet.EnableCalculation=$false })
+      $querySpanOutcome='returned'
+    } finally { Complete-CofiringQuerySpan $querySpan $querySpanOutcome }
     $diagnostics.response=$fastState
     $diagnostics.queryElapsedSeconds=[Math]::Round($fastClock.Elapsed.TotalSeconds,3)
+    Set-CofiringQueryBoundary 'end'
     $diagnostics.batches=@([ordered]@{mode='parallel-summary';formulaCells=($rowsFast*$columnsFast);response=$fastState;elapsedSeconds=$diagnostics.queryElapsedSeconds})
 
+    $fuelAggregationSpan=Start-CofiringQuerySpan 'fuelAggregation'
     $referenceByDate=@{
       '2026-09-07'=@{
         unit1CoalA1=172.412109375;unit1CoalA2=172.609375;unit1CoalB1=127.197265625;unit1CoalB2=126.4111328125;unit1Bio=379.390625
@@ -2050,6 +2458,8 @@ try {
         referenceExpectedTon=$referenceExpected;referenceMatched=$referenceMatch
       })
     }
+    Complete-CofiringQuerySpan $fuelAggregationSpan
+    $inventoryAggregationSpan=Start-CofiringQuerySpan 'inventoryAggregation'
     # Organic SDF inventory is a stock level, not a cumulative counter.
     # Only the two period boundaries are used for mass balance; an increase or
     # decrease inside the interval is valid and must not be treated as counter reset.
@@ -2061,10 +2471,12 @@ try {
     for ($ir=0;$ir -lt $cofiringInventoryTags.Count;$ir+=1) {
       $r=$cofiringTags.Count+$ir
       $tag=$cofiringInventoryTags[$ir]
-      $startValue=Convert-ProbeNumber ($matrix.GetValue($rb+$r,$cb+0))
+      $rawStartValue=Convert-ProbeNumber ($matrix.GetValue($rb+$r,$cb+0))
+      $startValue=Convert-CofiringOrganicInventoryValue $rawStartValue
       $startQuality=[string]($matrix.GetValue($rb+$r,$cb+1))
       $startTime=Convert-CofiringTimestamp ($matrix.GetValue($rb+$r,$cb+2))
-      $endValue=Convert-ProbeNumber ($matrix.GetValue($rb+$r,$cb+3))
+      $rawEndValue=Convert-ProbeNumber ($matrix.GetValue($rb+$r,$cb+3))
+      $endValue=Convert-CofiringOrganicInventoryValue $rawEndValue
       $endQuality=[string]($matrix.GetValue($rb+$r,$cb+4))
       $endTime=Convert-CofiringTimestamp ($matrix.GetValue($rb+$r,$cb+5))
       $minValue=Convert-ProbeNumber ($matrix.GetValue($rb+$r,$cb+6))
@@ -2086,6 +2498,7 @@ try {
       }
       $inventorySamples.Add([pscustomobject][ordered]@{
         key=[string]$tag.key;label=[string]$tag.label;tag=[string]$tag.tag
+        normalization='negative-inventory-to-zero-v1';rawStartValue=$rawStartValue;rawEndValue=$rawEndValue
         startValue=$startValue;startQuality=$startQuality;startTime=$(if($null -ne $startTime){$startTime.ToString('yyyy-MM-ddTHH:mm:ss')+'+09:00'}else{$null})
         endValue=$endValue;endQuality=$endQuality;endTime=$(if($null -ne $endTime){$endTime.ToString('yyyy-MM-ddTHH:mm:ss')+'+09:00'}else{$null})
         min=$minValue;max=$maxValue;delta=$deltaValue
@@ -2093,6 +2506,8 @@ try {
         boundaryValid=$boundaryValid;dataComplete=$inventoryDataComplete
       })
     }
+    # Preserve returned samples even if a later quality/time/coverage gate rejects them.
+    $diagnostics.organicInventorySamples=@($inventorySamples.ToArray())
     $organicInventory=$null
     if ($organicInventoryReady) {
       $inventoryStartTotal=0.0
@@ -2102,7 +2517,7 @@ try {
         $inventoryEndTotal+=[double]$inventoryEndByKey[[string]$tag.key]
       }
       $organicInventory=[ordered]@{
-        schemaVersion=1;basis='dataparc_period_boundary'
+        schemaVersion=1;basis='dataparc_period_boundary';normalization='negative-inventory-to-zero-v1'
         startLocal=$cofiringStart.ToString('yyyy-MM-ddTHH:mm');endLocal=$cofiringEnd.ToString('yyyy-MM-ddTHH:mm')
         start=[ordered]@{
           organicDaySilo=[double]$inventoryStartByKey['organicDaySilo']
@@ -2121,6 +2536,8 @@ try {
     }
 
     $summariesArray=@($summaries.ToArray())
+    Complete-CofiringQuerySpan $inventoryAggregationSpan
+    $resultAssemblySpan=Start-CofiringQuerySpan 'resultAssembly'
     function Get-CofiringFastUsageSum([string[]]$Keys) {
       $total=0.0
       foreach ($key in $Keys) {
@@ -2159,6 +2576,7 @@ try {
       organicInventoryReady=[bool]$organicInventoryReady;organicInventory=$organicInventory
       failure=[string]$diagnostics.failure;cleanupVerified=$false
     }
+    Complete-CofiringQuerySpan $resultAssemblySpan
     Write-CofiringJsonAtomic ([string]$env:GS_COFIRING_RESULT_PATH) $finalResult
     Write-CofiringJsonAtomic $cofiringDiagnosticsPath $diagnostics
     Write-CofiringProgress 'QUERY_COMPLETE'
@@ -2179,9 +2597,12 @@ try {
   $queryComFailure = $script:cofiringLastComFailure
 } finally {
   $script:cofiringInCleanup=$true
+  Complete-CofiringOpenQuerySpans
+  Complete-CofiringOpenWorkerPhases 'interrupted'
   Write-ProbeStage "조회용 Excel·DataPARC Host 정리"
   Write-CofiringProgress 'CLEANUP'
 
+  Start-CofiringWorkerPhase 'cleanupCloseQuit'
   $canCloseOwnedCom=$false
   if ($excel -and $ownedExcelPid -gt 0) {
     if (Test-OwnedProbeExcelIdentity $ownedExcelPid $ownedExcelStartTicks $ownedExcelPath $ownedExcelSessionId) {
@@ -2207,6 +2628,8 @@ try {
     catch { $deferredExcelTeardownErrors.Add('소유 Excel Quit: '+$_.Exception.Message) }
   }
 
+  Complete-CofiringWorkerPhase 'cleanupCloseQuit'
+  Start-CofiringWorkerPhase 'cleanupComReleaseAndGc'
   foreach ($comObject in @(
     $queryRange,
     $cells,
@@ -2223,6 +2646,8 @@ try {
   [GC]::WaitForPendingFinalizers()
   [GC]::Collect()
   [GC]::WaitForPendingFinalizers()
+  Complete-CofiringWorkerPhase 'cleanupComReleaseAndGc'
+  Start-CofiringWorkerPhase 'cleanupExcelExit'
 
   if ($ownedExcelPid -gt 0) {
     try {
@@ -2239,6 +2664,8 @@ try {
     }
   }
 
+  Complete-CofiringWorkerPhase 'cleanupExcelExit'
+  Start-CofiringWorkerPhase 'cleanupHostExit'
   if ($null -eq $ownedHostSnapshot -and $ownedExcelPid -gt 0) {
     try {
       $lateOwnedHosts = @(
@@ -2261,11 +2688,11 @@ try {
     $hostExited = $false
     $hostExitDeadline = [datetime]::UtcNow.AddSeconds(25)
     do {
-      if ($null -eq (Get-Process -Id ([int]$ownedHostSnapshot.ProcessId) -ErrorAction SilentlyContinue)) { break }
+      if (-not (Test-CofiringWorkerProcessPresent ([int]$ownedHostSnapshot.ProcessId))) { break }
       Start-Sleep -Milliseconds 500
     } while ([datetime]::UtcNow -lt $hostExitDeadline)
 
-    $hostExited = ($null -eq (Get-Process -Id ([int]$ownedHostSnapshot.ProcessId) -ErrorAction SilentlyContinue))
+    $hostExited = (-not (Test-CofiringWorkerProcessPresent ([int]$ownedHostSnapshot.ProcessId)))
     if (-not $hostExited) {
       if (Test-ProbeHostSignature $ownedHostSnapshot) {
         $ownedHostProcess = $null
@@ -2314,6 +2741,8 @@ try {
     }
   }
 
+  Complete-CofiringWorkerPhase 'cleanupHostExit'
+  Start-CofiringWorkerPhase 'cleanupFinalUniverse'
   try {
     $finalExcelPids = @(
       Get-Process -Name "EXCEL" -ErrorAction SilentlyContinue |
@@ -2343,6 +2772,7 @@ try {
     $cleanupErrors.Add("최종 DataPARC Host 전수 확인: " + $_.Exception.Message)
   }
 
+  Complete-CofiringWorkerPhase 'cleanupFinalUniverse'
   if ($deferredExcelTeardownErrors.Count -gt 0) {
     if ($excelExitVerified -and $excelUniverseVerified -and $hostUniverseVerified) {
       $probeCleanupActions.Add(
@@ -2395,6 +2825,10 @@ $finalResult['timing']=[ordered]@{
   startupDelaySeconds=$workerStartupDelaySeconds
   readyAtUtc=$(if($null -ne $workerReadyUtc){$workerReadyUtc.ToString('o')}else{$null})
   elapsedBasis='monotonic_since_first_worker_statement'
+  workerPhases=@(Get-CofiringWorkerPhaseSnapshot)
+  workerProcessLookup=$script:cofiringWorkerLookup
+  nativeOmAttach=(Get-CofiringNativeOmSnapshot)
+  queryInternal=(Get-CofiringQuerySnapshot)
 }
 Write-CofiringJsonAtomic ([string]$env:GS_COFIRING_RESULT_PATH) $finalResult
 Write-ProbeStage ('조회 종료 · Excel 정리 확인 '+[string]$finalResult.cleanupVerified+' · 계산 유효 여부와 별도')

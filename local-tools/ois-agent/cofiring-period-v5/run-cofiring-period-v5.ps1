@@ -16,6 +16,7 @@ param(
   [string]$OutputDirectory = '',
   [switch]$ValidateOnly
 )
+$controllerClock=[Diagnostics.Stopwatch]::StartNew()
 $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
 [Console]::OutputEncoding=New-Object Text.UTF8Encoding($false)
@@ -57,8 +58,13 @@ $cleanupErrors=New-Object 'System.Collections.Generic.List[string]'
 $cleanupActions=New-Object 'System.Collections.Generic.List[string]'
 $logOffsets=@{}
 $utf8=New-Object Text.UTF8Encoding($false)
-$expectedWorkerSha256='d4577dd9abb8e806d9f49c104864381f1583d3ff64aea336babeb1a3c4cfae98'
+$expectedWorkerSha256='a84b83ea1f024e779414ac647d3ad3dda7b0bc19888e91a6b18f90b53d1413aa'
 $resultZipPath=$null
+$controllerTimingMarks=[ordered]@{controller_entered=0.0}
+$controllerTimingDurations=[ordered]@{}
+$controllerProcessLookup=[ordered]@{nativeCalls=0;missing=0;fallbackCalls=0}
+$workerExitUtc=$null
+$archiveSucceeded=$null
 function Resolve-CofiringPeriod([string]$StartText,[string]$EndText,[string]$Unit,[int]$Value) {
   $startValue=[datetime]::MinValue;$endValue=[datetime]::MinValue
   if (-not [datetime]::TryParseExact($StartText,'yyyy-MM-ddTHH:mm',[Globalization.CultureInfo]::InvariantCulture,[Globalization.DateTimeStyles]::None,[ref]$startValue) -or
@@ -116,6 +122,101 @@ function Assert-OrganicQualityClassifier {
 
 Assert-OrganicQualityClassifier
 
+# COFIRING_CONTROLLER_PROCESS_LOOKUP_V1
+# Use a fresh PID lookup on every call. Only the API's missing-positive-PID
+# ArgumentException means absence; all other failures keep the legacy fallback.
+# Callers retain every handle, identity, parent/session and path check.
+function Get-ControllerNativeProcessById([int]$ProcessId) {
+  return [Diagnostics.Process]::GetProcessById($ProcessId)
+}
+
+function Get-ControllerLegacyProcessById([int]$ProcessId) {
+  try { return Get-Process -Id $ProcessId -ErrorAction Stop }
+  catch {
+    if ($_.FullyQualifiedErrorId -eq 'NoProcessFoundForGivenId,Microsoft.PowerShell.Commands.GetProcessCommand' -and
+        $_.CategoryInfo.Category -eq [System.Management.Automation.ErrorCategory]::ObjectNotFound -and
+        [string]$_.TargetObject -eq [string]$ProcessId) { return $null }
+    throw
+  }
+}
+
+function Add-ControllerLookupCount([string]$Name) {
+  try {
+    if ($null -ne $script:controllerProcessLookup) {
+      $script:controllerProcessLookup[$Name]=[int]$script:controllerProcessLookup[$Name]+1
+    }
+  } catch { }
+}
+
+function Get-ControllerProcessById([int]$ProcessId) {
+  if ($ProcessId -le 0) { return $null }
+  Add-ControllerLookupCount 'nativeCalls'
+  try {
+    $nativeProcess=Get-ControllerNativeProcessById $ProcessId
+    if ($null -eq $nativeProcess) { throw [InvalidOperationException]::new('Native process lookup returned no process object.') }
+    return $nativeProcess
+  }
+  catch {
+    $lookupException=$_.Exception
+    while ($null -ne $lookupException.InnerException -and
+      ($lookupException -is [System.Management.Automation.MethodInvocationException] -or
+       $lookupException -is [System.Reflection.TargetInvocationException])) {
+      $lookupException=$lookupException.InnerException
+    }
+    if ($lookupException -is [ArgumentException]) {
+      Add-ControllerLookupCount 'missing'
+      return $null
+    }
+    Add-ControllerLookupCount 'fallbackCalls'
+    return Get-ControllerLegacyProcessById $ProcessId
+  }
+}
+
+function Set-ControllerTimingMark([string]$Name) {
+  try {
+    if ($null -ne $script:controllerClock -and -not $script:controllerTimingMarks.Contains($Name)) {
+      $script:controllerTimingMarks[$Name]=[Math]::Round($script:controllerClock.Elapsed.TotalSeconds,6)
+    }
+  } catch { }
+}
+
+function Add-ControllerTimingDuration([string]$Name,[double]$Seconds) {
+  try {
+    if (-not [double]::IsNaN($Seconds) -and -not [double]::IsInfinity($Seconds) -and $Seconds -ge 0) {
+      $script:controllerTimingDurations[$Name]=[Math]::Round($Seconds,6)
+    }
+  } catch { }
+}
+
+function Get-ControllerTimingSnapshot {
+  try {
+  $marks=[ordered]@{};$durations=[ordered]@{};$lookups=[ordered]@{}
+  foreach ($key in $script:controllerTimingMarks.Keys) { $marks[$key]=$script:controllerTimingMarks[$key] }
+  foreach ($key in $script:controllerTimingDurations.Keys) { $durations[$key]=$script:controllerTimingDurations[$key] }
+  foreach ($key in $script:controllerProcessLookup.Keys) { $lookups[$key]=$script:controllerProcessLookup[$key] }
+  return [pscustomobject][ordered]@{
+    schemaVersion=1;revision='controller-process-lookup-v1'
+    elapsedBasis='monotonic_since_first_controller_statement'
+    marksSeconds=$marks;durationsSeconds=$durations;processLookup=$lookups
+    workerExitUtc=$script:workerExitUtc;archiveSucceeded=$script:archiveSucceeded
+  }
+  } catch { return $null }
+}
+
+function Write-ControllerTimingDiagnostic {
+  # Optional evidence must never alter query success or cleanup decisions.
+  try {
+    if ($outputReady -and [IO.Directory]::Exists($OutputDirectory)) {
+      $timingDiagnostic=[ordered]@{
+        kind='cofiring_controller_timing';schemaVersion=1;runId=$runId
+        startLocal=$StartLocal;endLocal=$EndLocal;completedAtUtc=[datetime]::UtcNow.ToString('o')
+        timing=(Get-ControllerTimingSnapshot)
+      }
+      [IO.File]::WriteAllText((Join-Path $OutputDirectory 'controller-timing.json'),(ConvertTo-Json -InputObject $timingDiagnostic -Depth 8),$utf8)
+    }
+  } catch { }
+}
+
 function New-ControllerSignature($ProcessObject) {
   [void]$ProcessObject.Handle
   return [pscustomobject][ordered]@{
@@ -170,7 +271,7 @@ function Test-ControllerProcessObject($ProcessObject, $Signature) {
 
 function Test-ControllerSignature($Signature) {
   if ($null -eq $Signature) { return $false }
-  $process = Get-Process -Id ([int]$Signature.ProcessId) -ErrorAction SilentlyContinue
+  $process = Get-ControllerProcessById ([int]$Signature.ProcessId)
   if ($null -eq $process) { return $false }
   try { return Test-ControllerProcessObject $process $Signature } finally { $process.Dispose() }
 }
@@ -343,7 +444,7 @@ function Update-ControllerOwnership {
   # could write ownership.json. Parent PID, launch time, path and session must agree.
   if ($null -eq $script:ownedExcel) {
     foreach ($candidate in @(Get-ControllerCim ("Name='EXCEL.EXE' AND ParentProcessId=" + [string]$workerSignature.ProcessId))) {
-      $process = Get-Process -Id ([int]$candidate.ProcessId) -ErrorAction SilentlyContinue
+      $process = Get-ControllerProcessById ([int]$candidate.ProcessId)
       if ($null -eq $process) { continue }
       try {
         $signature = New-ControllerSignature $process
@@ -362,7 +463,7 @@ function Update-ControllerOwnership {
   # Retain the verified parent process handle until all forced cleanup ends. Windows
   # cannot recycle that process object/PID while this handle remains open.
   if ($null -eq $script:ownedExcelProcessPinned) {
-    $candidateProcess = Get-Process -Id ([int]$script:ownedExcel.ProcessId) -ErrorAction SilentlyContinue
+    $candidateProcess = Get-ControllerProcessById ([int]$script:ownedExcel.ProcessId)
     if ($null -ne $candidateProcess) {
       if (Test-ControllerProcessObject $candidateProcess $script:ownedExcel) {
         $script:ownedExcelProcessPinned = $candidateProcess
@@ -376,7 +477,7 @@ function Update-ControllerOwnership {
     $lateHosts = @(Get-ControllerCim ("Name='CTCExcelAddIn.PARCviewHost.exe' AND ParentProcessId=" + [string]$script:ownedExcel.ProcessId))
   }
   foreach ($candidate in $lateHosts) {
-    $process = Get-Process -Id ([int]$candidate.ProcessId) -ErrorAction SilentlyContinue
+    $process = Get-ControllerProcessById ([int]$candidate.ProcessId)
     if ($null -eq $process) { continue }
     try {
       $signature = New-ControllerSignature $process
@@ -400,7 +501,7 @@ function Update-ControllerOwnership {
 
 function Stop-ControllerSignature($Signature, [string]$Label, [switch]$CheckParent) {
   if ($null -eq $Signature) { return }
-  $process = Get-Process -Id ([int]$Signature.ProcessId) -ErrorAction SilentlyContinue
+  $process = Get-ControllerProcessById ([int]$Signature.ProcessId)
   if ($null -eq $process) { return }
   try {
     if (-not (Test-ControllerProcessObject $process $Signature)) {
@@ -426,7 +527,8 @@ function Stop-ControllerSignature($Signature, [string]$Label, [switch]$CheckPare
 
 function Invoke-ControllerCleanup {
   if ($null -eq $workerSignature) { return }
-  try { Update-ControllerOwnership } catch { $cleanupErrors.Add('소유 프로세스 확인: '+$_.Exception.Message) }
+  $ownershipPassClock=[Diagnostics.Stopwatch]::StartNew()
+  try { Update-ControllerOwnership } catch { $cleanupErrors.Add('소유 프로세스 확인: '+$_.Exception.Message) } finally { Add-ControllerTimingDuration 'ownership_before_cancel' $ownershipPassClock.Elapsed.TotalSeconds }
   if (Test-ControllerSignature $workerSignature) {
     # Request cooperative cancellation first. Never kill Excel underneath a live worker.
     if ($cancelPath) { [IO.File]::WriteAllText($cancelPath,'cancel',$utf8) }
@@ -440,11 +542,13 @@ function Invoke-ControllerCleanup {
     $cleanupErrors.Add('작업 프로세스가 살아 있어 Excel 선행 강제 종료를 차단했습니다.')
     return
   }
-  try { Update-ControllerOwnership } catch { $cleanupErrors.Add('종료 후 소유 프로세스 확인: '+$_.Exception.Message) }
+  $ownershipPassClock=[Diagnostics.Stopwatch]::StartNew()
+  try { Update-ControllerOwnership } catch { $cleanupErrors.Add('종료 후 소유 프로세스 확인: '+$_.Exception.Message) } finally { Add-ControllerTimingDuration 'ownership_after_worker_exit' $ownershipPassClock.Elapsed.TotalSeconds }
   # Worker is now stopped; only exact owned process identities are eligible.
   Stop-ControllerSignature $script:ownedExcel '조회용 Excel' -CheckParent
   foreach ($signature in @($script:ownedHosts)) { Stop-ControllerSignature $signature '조회용 DataPARC Host' -CheckParent }
-  try { Update-ControllerOwnership } catch { $cleanupErrors.Add('지연 소유 프로세스 확인: '+$_.Exception.Message) }
+  $ownershipPassClock=[Diagnostics.Stopwatch]::StartNew()
+  try { Update-ControllerOwnership } catch { $cleanupErrors.Add('지연 소유 프로세스 확인: '+$_.Exception.Message) } finally { Add-ControllerTimingDuration 'ownership_after_forced_cleanup' $ownershipPassClock.Elapsed.TotalSeconds }
   Stop-ControllerSignature $script:ownedExcel '조회용 Excel' -CheckParent
   foreach ($signature in @($script:ownedHosts)) { Stop-ControllerSignature $signature '조회용 DataPARC Host' -CheckParent }
   foreach ($signature in @($script:ownedExcel)+@($script:ownedHosts)+@($workerSignature)) {
@@ -511,6 +615,7 @@ function Save-FastControllerReport {
     if ($cleanupVerified -and $executionSucceeded -and $summaryReady -and $rawResult.anyBadDuration -eq $true) { $periodStatus='PERIOD_DATA_GAPS' }
     elseif ($cleanupVerified -and $executionSucceeded -and $summaryReady) { $periodStatus='PERIOD_READY' }
     $script:success=($periodStatus -in @('PERIOD_READY','PERIOD_DATA_GAPS'))
+    Set-ControllerTimingMark 'report_assembled'
     $report=[ordered]@{
       schemaVersion=1;kind='cofiring_dataparc_period_report';runId=$runId;status=$periodStatus
       targetDate=$period.TargetDate;startLocal=$StartLocal;endLocal=$EndLocal;stepUnit=$StepUnit;stepValue=$StepValue;queryEndLocal=$period.QueryEnd.ToString('yyyy-MM-ddTHH:mm')
@@ -518,7 +623,7 @@ function Save-FastControllerReport {
       executionSucceeded=[bool]$executionSucceeded;cleanupVerified=[bool]$cleanupVerified;processCleanupVerified=[bool]$processCleanupVerified
       timedOut=[bool]$timedOut;deadlinePhase=$deadlinePhase;controllerFailureCode=$controllerFailureCode;workerExitCode=$workerExitCode;controllerFailure=$controllerFailure;cleanupErrors=@($cleanupErrors.ToArray());cleanupActions=@($cleanupActions.ToArray())
       formulaCells=$(if($rawResult){$rawResult.formulaCells}else{143});queryElapsedSeconds=$(if($rawResult){$rawResult.queryElapsedSeconds}else{$null});workerElapsedSeconds=$workerElapsed
-      timing=[ordered]@{startupBudgetSeconds=$startupTimeoutSeconds;executionBudgetSeconds=$timeoutSeconds;outerBudgetSeconds=$outerTimeoutSeconds;cleanupGraceSeconds=$cleanupGraceSeconds;readyObservedSeconds=$readyObservedSeconds;controllerElapsedSeconds=$(if($executionClock){[Math]::Round($executionClock.Elapsed.TotalSeconds,3)}else{$null});workerProcessCreatedUtc=$(if($workerSignature){([datetime]::new([long]$workerSignature.StartTicks,[DateTimeKind]::Utc)).ToString('o')}else{$null});controllerProcessCreatedUtc=$(if($controllerSignature){([datetime]::new([long]$controllerSignature.StartTicks,[DateTimeKind]::Utc)).ToString('o')}else{$null});worker=$(if($rawResult){$rawResult.timing}else{$null})}
+      timing=[ordered]@{startupBudgetSeconds=$startupTimeoutSeconds;executionBudgetSeconds=$timeoutSeconds;outerBudgetSeconds=$outerTimeoutSeconds;cleanupGraceSeconds=$cleanupGraceSeconds;readyObservedSeconds=$readyObservedSeconds;controllerElapsedSeconds=$(if($executionClock){[Math]::Round($executionClock.Elapsed.TotalSeconds,3)}else{$null});workerProcessCreatedUtc=$(if($workerSignature){([datetime]::new([long]$workerSignature.StartTicks,[DateTimeKind]::Utc)).ToString('o')}else{$null});controllerProcessCreatedUtc=$(if($controllerSignature){([datetime]::new([long]$controllerSignature.StartTicks,[DateTimeKind]::Utc)).ToString('o')}else{$null});worker=$(if($rawResult){$rawResult.timing}else{$null});controllerPhases=(Get-ControllerTimingSnapshot)}
       summaryReady=$(if($rawResult){$rawResult.summaryReady}else{$false});anyBadDuration=$(if($rawResult){$rawResult.anyBadDuration}else{$null})
       referenceCompared=$(if($rawResult){$rawResult.referenceCompared}else{0});referenceMismatches=$(if($rawResult){$rawResult.referenceMismatches}else{0})
       unitUsage=$(if($rawResult){$rawResult.unitUsage}else{$null});summaries=$(if($rawResult){$rawResult.summaries}else{@()})
@@ -527,6 +632,7 @@ function Save-FastControllerReport {
       note='Coal/Bio는 누적계 시작/끝 경계 차이로 계산합니다. 유기성 재고는 Day Silo + Storage A + Storage B의 시작/종료 경계를 별도로 제공합니다.'
     }
     [IO.File]::WriteAllText((Join-Path $OutputDirectory 'period-report.json'),($report | ConvertTo-Json -Depth 12),$utf8)
+    Set-ControllerTimingMark 'report_json_written'
     $lines=New-Object 'System.Collections.Generic.List[string]'
     $lines.Add('===== COFIRING DATAPARC PERIOD V5 =====')
     $lines.Add('Status: '+$periodStatus)
@@ -650,10 +756,12 @@ try {
   $priorEnvironment=@{}
   try {
     foreach ($key in $workerEnvironment.Keys) { $priorEnvironment[$key]=[Environment]::GetEnvironmentVariable($key,'Process');[Environment]::SetEnvironmentVariable($key,[string]$workerEnvironment[$key],'Process') }
+    Set-ControllerTimingMark 'worker_launch_begin'
     $executionClock=[Diagnostics.Stopwatch]::StartNew()
     $worker=Start-Process -FilePath $powerShellPath -ArgumentList @('-NoProfile','-STA','-ExecutionPolicy','Bypass','-File',('"'+$workerPath+'"')) -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -PassThru
     $workerSignature=Get-CofiringStableWorkerSignature $worker
     $workerSignature | Add-Member -NotePropertyName ParentProcessId -NotePropertyValue ([int]$controllerSignature.ProcessId)
+    Set-ControllerTimingMark 'worker_signature_ready'
   } finally {
     foreach ($key in $priorEnvironment.Keys) { [Environment]::SetEnvironmentVariable($key,$priorEnvironment[$key],'Process') }
   }
@@ -687,6 +795,8 @@ try {
     }
     Start-Sleep -Milliseconds 300
   }
+  Set-ControllerTimingMark 'worker_exit_observed'
+  try { $workerExitUtc=$worker.ExitTime.ToUniversalTime().ToString('o') } catch { }
   [void]$worker.WaitForExit(1000)
   $workerExitCode=[int]$worker.ExitCode
 } catch {
@@ -694,11 +804,15 @@ try {
   [Console]::WriteLine('[실패] '+$controllerFailure)
 } finally {
   try {
-    Invoke-ControllerCleanup
+    Set-ControllerTimingMark 'controller_cleanup_begin'
+    try { Invoke-ControllerCleanup } finally { Set-ControllerTimingMark 'controller_cleanup_end' }
+    Set-ControllerTimingMark 'baseline_verification_begin'
     foreach ($signature in @($baselineExcel)+@($baselineHosts)) {
       if (-not (Test-ControllerSignature $signature)) { $cleanupErrors.Add('기존 사용자 프로세스가 조회 중 변경되거나 종료되었습니다. PID='+[string]$signature.ProcessId) }
     }
+    Set-ControllerTimingMark 'baseline_verification_end'
     $script:processCleanupVerified=($cleanupErrors.Count -eq 0 -and $null -ne $workerSignature -and $null -ne $ownedExcel)
+    Set-ControllerTimingMark 'cleanup_diagnostics_begin'
     if ($outputReady) {
       if ($readyEvidence) {
         try { [IO.File]::WriteAllText((Join-Path $OutputDirectory 'worker-ready.json'),(ConvertTo-Json -InputObject $readyEvidence -Depth 8),$utf8) }
@@ -709,22 +823,38 @@ try {
     }
     if ($stdoutPath) { Show-ControllerLog $stdoutPath -Final }
     if ($stderrPath) { Show-ControllerLog $stderrPath -Final }
-    if ($worker -and $worker.HasExited) { $workerExitCode=[int]$worker.ExitCode }
+    if ($worker -and $worker.HasExited) {
+      $workerExitCode=[int]$worker.ExitCode
+      if ($null -eq $workerExitUtc) { try { $workerExitUtc=$worker.ExitTime.ToUniversalTime().ToString('o') } catch { } }
+      Set-ControllerTimingMark 'worker_exit_observed'
+    }
+    Set-ControllerTimingMark 'cleanup_diagnostics_end'
   } catch { $cleanupErrors.Add('정리 관리 오류: '+$_.Exception.Message) }
   finally {
+    Set-ControllerTimingMark 'resource_release_begin'
     if ($controllerMutex) { if ($controllerMutexAcquired) { try { $controllerMutex.ReleaseMutex() } catch { } };$controllerMutex.Dispose() }
     if ($ownedExcelProcessPinned) { $ownedExcelProcessPinned.Dispose() }
     if ($worker) { $worker.Dispose() }
+    Set-ControllerTimingMark 'resource_release_end'
+    Set-ControllerTimingMark 'temporary_directory_cleanup_begin'
     if ($temporaryDirectory -and [IO.Directory]::Exists($temporaryDirectory)) { try { [IO.Directory]::Delete($temporaryDirectory,$true) } catch { $cleanupErrors.Add('조회 임시 폴더 제거 실패: '+$_.Exception.Message) } }
+    Set-ControllerTimingMark 'temporary_directory_cleanup_end'
+    Set-ControllerTimingMark 'report_build_begin'
     Save-FastControllerReport
+    Set-ControllerTimingMark 'report_write_end'
     if ($outputReady -and [IO.Directory]::Exists($OutputDirectory)) {
       try {
+        Set-ControllerTimingMark 'archive_begin'
+        $archiveSucceeded=$false
         $resultZipPath=$OutputDirectory+'.zip'
         if (Test-Path -LiteralPath $resultZipPath) { Remove-Item -LiteralPath $resultZipPath -Force }
         Compress-Archive -Path (Join-Path $OutputDirectory '*') -DestinationPath $resultZipPath -CompressionLevel Optimal
+        $archiveSucceeded=$true
         [Console]::WriteLine('결과 ZIP: '+$resultZipPath)
       } catch { [Console]::WriteLine('[경고] 결과 ZIP 생성 실패: '+$_.Exception.Message) }
+      finally { Set-ControllerTimingMark 'archive_end' }
     }
+    Write-ControllerTimingDiagnostic
   }
 }
 if ($success) { exit 0 }
