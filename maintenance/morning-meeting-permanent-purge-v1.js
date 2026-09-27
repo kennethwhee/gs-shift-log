@@ -366,7 +366,7 @@
       }));
 
       notify(
-        `${date} 오전회의 저장자료 ${Number(data.deletedRows || 0)}건을 삭제했습니다. 이제 [전체자료] 또는 [엑셀 조회하기]로 새로 조회할 수 있습니다.`
+        `${date} 오전회의 저장자료 ${Number(data.deletedRows || 0)}건을 삭제했습니다. 이제 [전체자료] 또는 [운영정보조회]로 새로 조회할 수 있습니다.`
       );
     } catch (error) {
       await refreshResetState(date);

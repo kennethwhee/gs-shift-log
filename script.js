@@ -147106,29 +147106,17 @@ async function analyzeAllMorningMeetingFiles() {
 
     window.setTimeout(
       () => {
-        const dailyDataLoader =
-          window
-            .loadEfficiencyMorningMeetingDailyData;
+        /* ===================================================
+          MORNING MEETING DAILY DATA EXCEL AUTOLOAD RETIRED V1
 
+          전력      : N/S TO 입력
+          혼소율    : 혼소율 계산/마감자료
+          유기성    : 혼소율 계산/마감자료
+          증기      : OIS
 
-        if (
-          typeof dailyDataLoader ===
-            "function"
-        ) {
-          void dailyDataLoader({
-            forceRefresh:
-              false,
-
-            userInitiated:
-              false
-          });
-
-        } else {
-          console.warn(
-            "오전회의 일일 DATA 조회 함수를 확인하지 못했습니다."
-          );
-        }
-
+          월간 일일 DATA Excel은 더 이상 오전회의 카드의
+          조회 원본이 아니므로 자동 조회하지 않는다.
+        ==================================================== */
 
         const weatherLoader =
           window
