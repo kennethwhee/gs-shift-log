@@ -263,3 +263,235 @@ button.all-overview-card[data-severity="overdue"]:hover { border-left-color: var
     font-size: clamp(17px, 4.6vw, 20px) !important;
   }
 }
+
+/* BLOWER DETAIL / HISTORY READABILITY V2
+   Design-only overrides for the approved Blower compact screen.
+   Does not alter runtime calculation, RUN/STOP state, event data, permissions,
+   OIS acquisition, refresh scheduling, API behavior, or form submission logic. */
+
+/* 1) Latest-query / refresh row: one compact operational strip. */
+.overview-refresh-panel {
+  min-height: 54px;
+  gap: 12px;
+  margin-bottom: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+.overview-refresh-latest {
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 9px;
+  row-gap: 1px;
+}
+.overview-refresh-latest > span {
+  align-self: center;
+  font-size: 10px;
+}
+.overview-refresh-latest > strong {
+  align-self: center;
+  font-size: 18px;
+  line-height: 1.2;
+}
+.overview-refresh-latest > small {
+  font-size: 10px;
+  line-height: 1.3;
+}
+.overview-refresh-action {
+  min-width: 210px;
+  gap: 8px;
+}
+#refreshButton.overview-refresh-button {
+  flex-basis: 36px;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 9px;
+}
+.overview-refresh-icon { width: 21px; height: 21px; }
+.overview-refresh-progress-head strong { font-size: 16px; }
+.overview-refresh-progress-head span { font-size: 10px; }
+.overview-refresh-progress-track { height: 4px; margin-top: 3px; }
+
+/* 2) Asset history dialog: larger facts, smaller dead space. */
+.history-dialog {
+  width: min(860px, calc(100vw - 24px));
+}
+.history-dialog .dialog-header {
+  align-items: center;
+  padding: 13px 16px 10px;
+}
+.history-dialog .dialog-header h2 {
+  font-size: 22px;
+  line-height: 1.25;
+}
+.history-dialog .dialog-header p {
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.history-dialog .dialog-body {
+  gap: 8px;
+  padding: 11px 14px;
+}
+.history-cycle-summary {
+  gap: 8px;
+  padding: 9px 10px;
+}
+.history-cycle-summary div > span {
+  font-size: 10px;
+  line-height: 1.25;
+}
+.history-cycle-summary div > strong {
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+.asset-history-list { gap: 6px; }
+.asset-history-item {
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 10px;
+  padding: 8px 10px;
+}
+.asset-history-date {
+  padding-top: 2px;
+  font-size: 12px;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+.asset-history-heading { gap: 5px; }
+.asset-history-heading strong {
+  font-size: 12px;
+  line-height: 1.35;
+}
+.asset-history-content p {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.42;
+}
+.asset-history-content small {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.asset-history-actions { gap: 4px; }
+.asset-history-edit,
+.asset-history-reset,
+.button.asset-history-delete {
+  min-height: 30px;
+  padding: 3px 10px;
+  font-size: 11px;
+}
+.event-edited { font-size: 9px; }
+.history-dialog-footer {
+  gap: 6px;
+  padding: 9px 14px 11px;
+}
+.history-dialog-footer .button {
+  min-height: 34px;
+  padding-inline: 11px;
+  font-size: 11px;
+}
+
+/* 3) Edit / registration dialog opened from [수정]. */
+#recordDialog {
+  width: min(650px, calc(100vw - 24px));
+}
+#recordDialog .dialog-header {
+  align-items: center;
+  padding: 13px 16px 10px;
+}
+#recordDialog .dialog-header h2 {
+  font-size: 21px;
+  line-height: 1.25;
+}
+#recordDialog .dialog-header p {
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+#recordDialog .dialog-body {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px 10px;
+  padding: 12px 16px;
+}
+#recordDialog .field { gap: 4px; }
+#recordDialog .field > span {
+  font-size: 13px;
+  line-height: 1.3;
+}
+#recordDialog .field small {
+  font-size: 11px;
+  line-height: 1.35;
+}
+#recordDialog input:not([type="checkbox"]),
+#recordDialog select {
+  min-height: 36px;
+}
+#recordDialog textarea {
+  min-height: 88px;
+  line-height: 1.45;
+}
+#recordDialog .runtime-edit-pending,
+#recordDialog .runtime-cycle-summary,
+#recordDialog .source-preview,
+#recordDialog .field:has(#replacementRunning),
+#recordDialog .field:has(#recordNote) {
+  grid-column: 1 / -1;
+}
+#recordDialog .runtime-edit-pending {
+  gap: 8px;
+  padding: 8px 9px;
+}
+#recordDialog .runtime-edit-pending small { font-size: 11px; }
+#recordDialog .dialog-footer {
+  gap: 6px;
+  padding: 9px 16px 11px;
+}
+#recordDialog .dialog-footer .button {
+  min-height: 34px;
+  padding-inline: 13px;
+}
+
+@media (max-width: 700px), (max-width: 1024px) and (hover: none) and (pointer: coarse) {
+  .overview-refresh-panel {
+    min-height: 0;
+    padding: 7px 9px;
+  }
+  .overview-refresh-latest > strong { font-size: 17px; }
+  /* Existing mobile policy keeps the refresh action hidden. */
+  .history-dialog,
+  #recordDialog { width: calc(100vw - 12px); }
+  .history-dialog .dialog-header,
+  #recordDialog .dialog-header { padding: 11px 12px 9px; }
+  .history-dialog .dialog-body,
+  #recordDialog .dialog-body { padding: 10px 12px; }
+  .asset-history-item {
+    grid-template-columns: 1fr;
+    gap: 4px;
+    padding: 8px 9px;
+  }
+  .asset-history-date { font-size: 11px; }
+  .asset-history-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+  .asset-history-actions .button { flex: 1 1 auto; }
+  .history-dialog-footer {
+    flex-wrap: wrap;
+    padding: 9px 12px 10px;
+  }
+  .history-dialog-footer .button { flex: 1 1 auto; }
+  #recordDialog .dialog-body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  #recordDialog .runtime-edit-pending,
+  #recordDialog .runtime-cycle-summary,
+  #recordDialog .source-preview,
+  #recordDialog .field:has(#replacementRunning),
+  #recordDialog .field:has(#recordNote) { grid-column: auto; }
+  #recordDialog .dialog-footer {
+    flex-wrap: wrap;
+    padding: 9px 12px 10px;
+  }
+}
