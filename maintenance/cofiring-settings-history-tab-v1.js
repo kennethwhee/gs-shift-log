@@ -65,135 +65,44 @@
   }
 
   function listMarkup(items){
-    /* COFIRING_SETTINGS_HISTORY_NATIVE_TWOUP_V11 */
-
+    // Native history table: render the final layout once, including empty states.
     if(!Array.isArray(items)||items.length===0){
-      return `
-        <div class="cfv12-empty">
-          <strong>저장된 발열량 이력이 없습니다.</strong>
-          <span>발열량을 저장하면 적용일별 이력이 표시됩니다.</span>
-        </div>
-      `;
+      return '<div class="cfv-cal-empty"><strong>저장된 발열량 이력이 없습니다.</strong><span>발열량을 저장하면 적용일별 이력이 표시됩니다.</span></div>';
     }
-
-    const weekdayNames=[
-      '일','월','화','수','목','금','토'
-    ];
 
     function dateLabel(value){
-      const text=String(value||'').trim();
-      const match=text.match(
-        /^(\d{4})-(\d{2})-(\d{2})$/
-      );
-
-      if(!match)return text||'-';
-
-      const year=Number(match[1]);
-      const month=Number(match[2]);
-      const day=Number(match[3]);
-
-      const date=new Date(
-        Date.UTC(
-          year,
-          month-1,
-          day
-        )
-      );
-
-      const weekday=
-        weekdayNames[
-          date.getUTCDay()
-        ]||'';
-
-      return `${month}/${day} (${weekday})`;
+      const raw=String(value||'');
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(raw))return escapeHtml(raw||'—');
+      const date=new Date(raw+'T00:00:00Z');
+      if(!Number.isFinite(date.getTime())||date.toISOString().slice(0,10)!==raw)return escapeHtml(raw);
+      const weekday=['일','월','화','수','목','금','토'][date.getUTCDay()];
+      return `<time datetime="${raw}">${raw.replaceAll('-','.')} <span>(${weekday})</span></time>`;
     }
 
-    function numberText(value){
-      const number=Number(value);
-
-      if(!Number.isFinite(number)){
-        return '-';
-      }
-
-      return number.toLocaleString(
-        'ko-KR',
-        {
-          maximumFractionDigits:2
-        }
-      );
+    function valueText(item,fuel){
+      const value=item?.settings?.unit1?.[fuel]?.calorific ?? item?.settings?.unit2?.[fuel]?.calorific;
+      if(value==null||value===''||!Number.isFinite(Number(value)))return '—';
+      return Number(value).toLocaleString('ko-KR',{maximumFractionDigits:2});
     }
 
-    function calorific(item,fuel){
-      const value=
-        item?.settings?.unit1?.[fuel]?.calorific ??
-        item?.settings?.unit2?.[fuel]?.calorific ??
-        null;
-
-      return numberText(value);
+    function savedTime(value){
+      const date=new Date(value||'');
+      if(!value||!Number.isFinite(date.getTime()))return '—';
+      const parts=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{
+        timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit',
+        hour:'2-digit',minute:'2-digit',hourCycle:'h23'
+      }).formatToParts(date).map(part=>[part.type,part.value]));
+      return `${parts.year}.${parts.month}.${parts.day} ${parts.hour}:${parts.minute}`;
     }
 
-    return `
-      <div class="cfsh11-history-grid">
-        ${items.map(item=>`
-          <article class="cfsh11-history-card">
-            <header class="cfsh11-history-card-head">
-              <strong>
-                ${escapeHtml(
-                  dateLabel(
-                    item.effectiveDate
-                  )
-                )}
-              </strong>
-              <span>데이터</span>
-            </header>
-
-            <div class="cfsh11-history-values">
-
-              <div class="cfsh11-history-value">
-                <span>Coal</span>
-                <strong>
-                  ${escapeHtml(
-                    calorific(item,'coal')
-                  )}
-                </strong>
-                <small>kcal/kg</small>
-              </div>
-
-              <div class="cfsh11-history-value">
-                <span>Bio</span>
-                <strong>
-                  ${escapeHtml(
-                    calorific(item,'bio')
-                  )}
-                </strong>
-                <small>kcal/kg</small>
-              </div>
-
-              <div class="cfsh11-history-value">
-                <span>유기성</span>
-                <strong>
-                  ${escapeHtml(
-                    calorific(item,'organic')
-                  )}
-                </strong>
-                <small>kcal/kg</small>
-              </div>
-
-              <div class="cfsh11-history-value">
-                <span>축분</span>
-                <strong>
-                  ${escapeHtml(
-                    calorific(item,'manure')
-                  )}
-                </strong>
-                <small>kcal/kg</small>
-              </div>
-
-            </div>
-          </article>
-        `).join('')}
-      </div>
-    `;
+    return `<div class="cfv-cal-history-meta"><span class="cfv-cal-common">1·2호기 공통</span><span>발열량 단위 <b>kcal/kg</b></span><span class="cfv-cal-history-count">${items.length}개 적용일</span></div>
+      <div class="cfv-cal-table-scroll" tabindex="0" role="region" aria-label="적용일별 발열량 이력">
+        <table class="cfv-cal-native-history">
+          <caption>적용일별 연료 발열량과 저장 시각. 발열량 단위 kcal/kg, 저장 시각 한국 시간.</caption>
+          <thead><tr><th scope="col">적용 시작일</th>${FUELS.map(([,label])=>`<th scope="col">${label}</th>`).join('')}<th scope="col">저장 시각 <span>· 한국 시간</span></th></tr></thead>
+          <tbody>${items.map(item=>`<tr><th scope="row">${dateLabel(item.effectiveDate)}</th>${FUELS.map(([fuel])=>`<td class="cfv-cal-value">${escapeHtml(valueText(item,fuel))}</td>`).join('')}<td class="cfv-cal-saved-time">${escapeHtml(savedTime(item.updatedAt))}</td></tr>`).join('')}</tbody>
+        </table>
+      </div>`;
   }
 
   function mount(){

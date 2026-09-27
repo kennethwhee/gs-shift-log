@@ -102,15 +102,17 @@ table.cfv-cal-history-fullwidth-v1
 }
 
 .cfv-cal-adjust-dialog-v1 {
-  width: min(650px, calc(100vw - 32px));
+  width: min(560px, calc(100vw - 32px));
   max-height: calc(100dvh - 44px);
   overflow: auto;
   box-sizing: border-box;
   border: 1px solid #d7dfea;
-  border-radius: 17px;
-  background: #fbfbfe;
+  border-radius: 12px;
+  background: #ffffff;
   box-shadow: 0 22px 60px rgba(21, 37, 56, .22);
-  color: #294258;
+  color: #182330;
+  color-scheme: only light;
+  font-family: 'Pretendard', 'Noto Sans KR', 'Malgun Gothic', system-ui, sans-serif;
 }
 
 .cfv-cal-adjust-head-v1 {
@@ -129,7 +131,7 @@ table.cfv-cal-history-fullwidth-v1
 }
 
 .cfv-cal-adjust-eyebrow-v1 {
-  color: #75609a;
+  color: #526174;
   font-size: 9px;
   font-weight: 900;
   letter-spacing: .12em;
@@ -137,17 +139,18 @@ table.cfv-cal-history-fullwidth-v1
 
 .cfv-cal-adjust-head-v1 h3 {
   margin: 0;
-  color: #273f57;
-  font-size: 20px;
-  font-weight: 900;
+  color: #182330;
+  font-size: 19px;
+  font-weight: 750;
   letter-spacing: -.025em;
 }
 
 .cfv-cal-adjust-head-v1 p {
   margin: 0;
-  color: #758596;
-  font-size: 10px;
-  font-weight: 700;
+  color: #526174;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
 }
 
 .cfv-cal-adjust-close-v1 {
@@ -177,35 +180,35 @@ table.cfv-cal-history-fullwidth-v1
 .cfv-cal-adjust-grid-v1 > label {
   display: grid;
   gap: 6px;
-  color: #526b7f;
-  font-size: 10px;
-  font-weight: 800;
+  color: #344556;
+  font-size: 12px;
+  font-weight: 650;
 }
 
 .cfv-cal-adjust-date-v1 input {
-  width: 100%;
+  width: 210px;
   height: 36px;
   padding: 6px 10px;
   box-sizing: border-box;
   border: 1px solid #c8d5e2;
   border-radius: 7px;
   background: #fff;
-  color: #2b465f;
-  font-size: 12px;
-  font-weight: 750;
+  color: #182330;
+  font-size: 14px;
+  font-weight: 650;
 }
 
 .cfv-cal-adjust-grid-v1 {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .cfv-cal-adjust-input-wrap-v1 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  height: 36px;
+  height: 40px;
   overflow: hidden;
   box-sizing: border-box;
   border: 1px solid #c8d5e2;
@@ -216,24 +219,35 @@ table.cfv-cal-history-fullwidth-v1
 .cfv-cal-adjust-input-wrap-v1 input {
   width: 100%;
   min-width: 0;
-  height: 34px;
+  height: 38px;
   padding: 6px 8px;
   box-sizing: border-box;
   border: 0;
   outline: 0;
   background: transparent;
-  color: #294660;
-  font-size: 13px;
-  font-weight: 900;
+  color: #182330;
+  font-size: 18px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
 .cfv-cal-adjust-input-wrap-v1 small {
   padding-right: 8px;
-  color: #8392a2;
-  font-size: 7px;
-  font-weight: 750;
+  color: #526174;
+  font-size: 11px;
+  font-weight: 400;
   white-space: nowrap;
+}
+
+.cfv-cal-adjust-input-wrap-v1:focus-within {
+  border-color: #117c70;
+  box-shadow: 0 0 0 2px #dceee6;
+}
+
+.cfv-cal-adjust-dialog-v1 button:focus-visible,
+.cfv-cal-adjust-date-v1 input:focus-visible {
+  outline: 2px solid #117c70;
+  outline-offset: 2px;
 }
 
 .cfv-cal-adjust-current-v1 {
@@ -242,10 +256,10 @@ table.cfv-cal-history-fullwidth-v1
   box-sizing: border-box;
   border-radius: 7px;
   background: #f0f3f7;
-  color: #667a8d;
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 1.35;
+  color: #526174;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.6;
 }
 
 .cfv-cal-adjust-error-v1 {
@@ -253,9 +267,9 @@ table.cfv-cal-history-fullwidth-v1
   border: 1px solid #efcaca;
   border-radius: 7px;
   background: #fff5f5;
-  color: #a64747;
-  font-size: 10px;
-  font-weight: 750;
+  color: #9f3333;
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .cfv-cal-adjust-actions-v1 {
@@ -272,21 +286,21 @@ table.cfv-cal-history-fullwidth-v1
   border: 1px solid #cbd7e2;
   border-radius: 7px;
   background: #fff;
-  color: #5d7183;
-  font-size: 10px;
-  font-weight: 850;
+  color: #344556;
+  font-size: 12px;
+  font-weight: 650;
   cursor: pointer;
 }
 
 .cfv-cal-adjust-actions-v1 button.is-primary {
-  border-color: #7d60a2;
-  background: #7d60a2;
-  color: #fff;
+  border-color: #a4ccbf;
+  background: #eaf5f0;
+  color: #195749;
 }
 
 .cfv-cal-adjust-actions-v1 button.is-primary:hover {
-  border-color: #6f5294;
-  background: #6f5294;
+  border-color: #8fb9ab;
+  background: #dceee6;
 }
 
 .cfv-cal-adjust-backdrop-v1.is-busy {
@@ -306,6 +320,10 @@ table.cfv-cal-history-fullwidth-v1
   [data-cofiring-draft-root] table.cfv-cal-history-fullwidth-v1 {
     min-width: 760px !important;
   }
+}
+
+@media (max-width: 360px) {
+  .cfv-cal-adjust-grid-v1 { grid-template-columns: minmax(0, 1fr); }
 }
 
 

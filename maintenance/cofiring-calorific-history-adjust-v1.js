@@ -132,7 +132,7 @@
     if (!panel) return;
 
     const table = panel.querySelector("table");
-    if (!table) return;
+    if (!table || table.classList.contains("cfv-cal-native-history")) return;
 
     table.classList.add(TABLE_CLASS);
     const wrap = table.parentElement;

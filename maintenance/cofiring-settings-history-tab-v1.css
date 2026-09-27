@@ -1,361 +1,72 @@
-/* Co-firing saved calorific-value history: compact common basis V3 */
-
-#efficiencyCofiringDraftView .cfv13-settings-tab{
-  min-width:142px;
+/* COFIRING_CALORIFIC_COMPACT_V1 — scoped to the calorific history panel. */
+#efficiencyCofiringDraftView .cfv13-settings-tab { min-width:142px; }
+#efficiencyCofiringDraftView .cfv13-settings-panel {
+  min-height:0; padding:16px; border:1px solid #cbd7e3; border-radius:10px;
+  background:#fff; color:#182330; color-scheme:only light;
 }
-
-#efficiencyCofiringDraftView .cfv14-history-table{
-  width:100%;
-  min-width:700px;
-  table-layout:auto;
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv12-history-head {
+  align-items:center; gap:16px; padding-bottom:14px; border-bottom:1px solid #e0e7ed;
 }
-
-#efficiencyCofiringDraftView .cfv14-history-table th,
-#efficiencyCofiringDraftView .cfv14-history-table td{
-  vertical-align:middle;
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv12-history-head strong.cfv-ref-title-v2 {
+  color:#182330!important; font-size:20px!important; font-weight:750!important; line-height:1.4!important;
 }
-
-#efficiencyCofiringDraftView .cfv14-history-table th small{
-  display:block;
-  margin-top:2px;
-  color:#93a2ad;
-  font-size:8px;
-  font-weight:700;
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv12-history-head .cfv-ref-subtitle-v2 {
+  margin-top:4px!important; color:#526174!important; font-size:12px!important; line-height:1.6!important; font-weight:400!important;
 }
-
-#efficiencyCofiringDraftView .cfv14-history-table th:nth-child(n+2):nth-child(-n+5),
-#efficiencyCofiringDraftView .cfv14-history-table td:nth-child(n+2):nth-child(-n+5){
-  text-align:center;
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv12-history-body { margin:0; padding:0; }
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-history-actions-v1 { gap:6px!important; }
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-history-actions-v1 > button {
+  height:34px!important; padding:0 12px!important; border:1px solid #cbd7e3!important;
+  border-radius:6px!important; background:#fff!important; color:#253b4b!important;
+  font-size:12px!important; font-weight:650!important; box-shadow:none!important; white-space:nowrap; cursor:pointer;
 }
-
-#efficiencyCofiringDraftView .cfv14-calorific{
-  color:#173d58;
-  font-size:11px;
-  font-weight:800;
-  white-space:nowrap;
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-history-actions-v1 > .cfv-cal-history-adjust-button-v1 {
+  border-color:#a4ccbf!important; background:#eaf5f0!important; color:#195749!important;
 }
-
-#efficiencyCofiringDraftView .cfv15-saved-time{
-  min-width:170px;
-  white-space:nowrap;
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-history-actions-v1 > button:hover { background:#f2f6f9!important; }
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-history-actions-v1 > .cfv-cal-history-adjust-button-v1:hover { background:#dceee6!important; }
+.cfv13-settings-panel .cfv-cal-history-meta {
+  display:flex; align-items:center; flex-wrap:wrap; gap:10px; padding:13px 0 10px; color:#526174; font-size:12px; line-height:1.5;
 }
-
-@media(max-width:900px){
-  #efficiencyCofiringDraftView .cfv13-settings-tab{
-    min-width:0;
-  }
-
-  #efficiencyCofiringDraftView .cfv14-history-table{
-    min-width:660px;
-  }
+.cfv13-settings-panel .cfv-cal-history-meta b { color:#344556; font-weight:600; }
+.cfv13-settings-panel .cfv-cal-common {
+  padding:3px 8px; border:1px solid #d2e6df; border-radius:5px; background:#f0f7f4; color:#236052; font-weight:650;
 }
-
-/* ===== COFIRING_SETTINGS_HISTORY_NATIVE_TWOUP_V11 ===== */
-
-/*
-  발열량 이력은 처음부터 2열 카드형으로 렌더링한다.
-  후처리 DOM 변환 없음.
-*/
-
-.cfsh11-history-grid {
-  display: grid;
-
-  grid-template-columns:
-    repeat(2, minmax(0, 1fr));
-
-  gap: 12px;
-
-  width: 100%;
-
-  margin: 10px 0 0;
-
-  box-sizing: border-box;
+.cfv13-settings-panel .cfv-cal-history-count { margin-left:auto; }
+.cfv13-settings-panel .cfv-cal-table-scroll {
+  width:100%; overflow:auto; border:1px solid #d4dee7; border-radius:7px;
 }
-
-
-/* 날짜별 데이터 카드 */
-.cfsh11-history-card {
-  min-width: 0;
-
-  padding: 14px;
-
-  border: 1px solid #d7e1eb;
-  border-radius: 12px;
-
-  background: #ffffff;
-
-  box-sizing: border-box;
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-native-history {
+  width:100%; min-width:670px; table-layout:fixed; border-collapse:collapse;
+  color:#182330; background:#fff; font-variant-numeric:tabular-nums;
 }
-
-
-/* 9/19 (토) 데이터 */
-.cfsh11-history-card-head {
-  display: flex;
-
-  align-items: center;
-
-  gap: 6px;
-
-  min-height: 30px;
-
-  padding: 0 2px 10px;
-
-  border-bottom: 1px solid #e4eaf1;
+.cfv-cal-native-history caption {
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap;
 }
-
-.cfsh11-history-card-head strong {
-  font-size: 17px;
-  line-height: 1.2;
-
-  font-weight: 800;
-
-  color: #153b62;
-
-  font-variant-numeric:
-    tabular-nums;
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-native-history th,
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-native-history td {
+  padding:13px 16px; border:0; border-bottom:1px solid #e1e7ed; background:transparent;
+  vertical-align:middle; line-height:1.5; white-space:nowrap; text-align:right;
 }
-
-.cfsh11-history-card-head span {
-  font-size: 12px;
-  line-height: 1.2;
-
-  font-weight: 700;
-
-  color: #6b7e94;
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-native-history thead th {
+  padding-top:10px; padding-bottom:10px; background:#f2f6f9; color:#526174; font-size:12px; font-weight:650;
 }
-
-
-/* Coal / Bio / 유기성 / 축분 */
-.cfsh11-history-values {
-  display: grid;
-
-  grid-template-columns:
-    repeat(4, minmax(0, 1fr));
-
-  gap: 8px;
-
-  padding-top: 10px;
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-native-history th:first-child { width:21%; text-align:left; }
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-native-history th:last-child { width:25%; }
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-native-history tbody th { color:#253b4b; font-size:13px; font-weight:650; }
+.cfv-cal-native-history time span { margin-left:3px; color:#526174; font-size:12px; font-weight:400; }
+.cfv-cal-native-history thead span { font-weight:400; }
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-native-history .cfv-cal-value { color:#182330; font-size:15px; font-weight:700; }
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-native-history .cfv-cal-saved-time { color:#526174; font-size:12px; font-weight:400; }
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-native-history tbody tr:last-child > * { border-bottom:0; }
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-native-history tbody tr:hover { background:#f6faf8; }
+.cfv13-settings-panel .cfv-cal-empty { display:grid; gap:6px; padding:36px 12px; text-align:center; color:#526174; font-size:12px; }
+.cfv13-settings-panel .cfv-cal-empty strong { color:#253b4b; font-size:14px; }
+.cfv13-settings-panel .cfv-cal-table-scroll:focus-visible,
+.cfv13-settings-panel button:focus-visible { outline:2px solid #117c70; outline-offset:3px; }
+@media(max-width:900px) {
+  #efficiencyCofiringDraftView .cfv13-settings-tab { min-width:0; }
+  #efficiencyCofiringDraftView .cfv13-settings-panel { padding:12px; }
+  #efficiencyCofiringDraftView .cfv13-settings-panel .cfv12-history-head { align-items:flex-start; flex-wrap:wrap; gap:10px; }
+  #efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-history-actions-v1 { margin-left:auto; }
 }
-
-.cfsh11-history-value {
-  min-width: 0;
-
-  padding: 10px 8px;
-
-  border: 1px solid #e2e8ef;
-  border-radius: 9px;
-
-  background: #f7f9fc;
-
-  text-align: center;
-
-  box-sizing: border-box;
-}
-
-.cfsh11-history-value > span {
-  display: block;
-
-  margin-bottom: 5px;
-
-  font-size: 11px;
-  line-height: 1.2;
-
-  font-weight: 700;
-
-  color: #62778f;
-}
-
-.cfsh11-history-value > strong {
-  display: block;
-
-  font-size: 19px;
-  line-height: 1.1;
-
-  font-weight: 800;
-
-  color: #143a60;
-
-  font-variant-numeric:
-    tabular-nums;
-}
-
-.cfsh11-history-value > small {
-  display: block;
-
-  margin-top: 4px;
-
-  font-size: 9px;
-  line-height: 1.1;
-
-  font-weight: 600;
-
-  color: #8191a3;
-}
-
-
-/*
-  좁은 화면에서는 카드 1개씩.
-*/
-@media screen and (max-width: 1050px) {
-
-  .cfsh11-history-grid {
-    grid-template-columns:
-      1fr;
-  }
-}
-
-
-/*
-  더 좁은 화면에서는 카드 내부 2열.
-*/
-@media screen and (max-width: 620px) {
-
-  .cfsh11-history-values {
-    grid-template-columns:
-      repeat(2, minmax(0, 1fr));
-  }
-}
-
-/* ===== /COFIRING_SETTINGS_HISTORY_NATIVE_TWOUP_V11 ===== */
-
-/* ===== COFIRING_SETTINGS_HISTORY_COMPACT_V12 ===== */
-
-/*
-  날짜별 카드 간격
-*/
-.cfsh11-history-grid {
-  gap: 10px !important;
-
-  margin-top: 8px !important;
-}
-
-
-/*
-  날짜별 카드 자체 압축
-*/
-.cfsh11-history-card {
-  padding: 9px 10px !important;
-
-  border-radius: 10px !important;
-}
-
-
-/*
-  9/19 (토) 데이터 헤더
-*/
-.cfsh11-history-card-head {
-  gap: 5px !important;
-
-  min-height: 22px !important;
-
-  padding:
-    0 1px 7px !important;
-}
-
-.cfsh11-history-card-head strong {
-  font-size: 15px !important;
-
-  line-height: 1.1 !important;
-
-  font-weight: 800 !important;
-}
-
-.cfsh11-history-card-head span {
-  font-size: 11px !important;
-
-  line-height: 1.1 !important;
-}
-
-
-/*
-  4개 연료 박스 영역
-*/
-.cfsh11-history-values {
-  gap: 6px !important;
-
-  padding-top: 7px !important;
-}
-
-
-/*
-  Coal / Bio / 유기성 / 축분 개별 박스
-*/
-.cfsh11-history-value {
-  padding:
-    6px 5px 5px !important;
-
-  border-radius: 8px !important;
-}
-
-
-/*
-  연료명
-*/
-.cfsh11-history-value > span {
-  margin-bottom: 3px !important;
-
-  font-size: 10px !important;
-
-  line-height: 1.1 !important;
-}
-
-
-/*
-  발열량 숫자
-*/
-.cfsh11-history-value > strong {
-  font-size: 17px !important;
-
-  line-height: 1.05 !important;
-
-  font-weight: 800 !important;
-}
-
-
-/*
-  kcal/kg
-*/
-.cfsh11-history-value > small {
-  margin-top: 2px !important;
-
-  font-size: 8px !important;
-
-  line-height: 1 !important;
-}
-
-
-/*
-  카드의 불필요한 최소 높이를 만들지 않도록 함.
-*/
-.cfsh11-history-card,
-.cfsh11-history-values,
-.cfsh11-history-value {
-  min-height: 0 !important;
-}
-
-
-/*
-  데스크톱에서는 계속 한 줄에 2개 유지.
-*/
-@media screen and (min-width: 1051px) {
-
-  .cfsh11-history-grid {
-    grid-template-columns:
-      repeat(2, minmax(0, 1fr)) !important;
-  }
-}
-
-
-/*
-  좁은 화면은 기존대로 1개씩.
-*/
-@media screen and (max-width: 1050px) {
-
-  .cfsh11-history-grid {
-    grid-template-columns:
-      1fr !important;
-  }
-}
-
-
-/* ===== /COFIRING_SETTINGS_HISTORY_COMPACT_V12 ===== */
