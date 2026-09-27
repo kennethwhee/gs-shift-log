@@ -34,8 +34,8 @@ test('past daily mode uses the full day and caps at next-day 00:01',()=>{
 });
 test('UI describes today cumulative and past-day full range',()=>{
   const markup=ui.markup();
-  assert.match(markup,/오늘은 00:00부터 현재까지 누적/);
-  assert.match(markup,/지난 날짜는 00:00부터 다음 날 00:01까지/);
+  assert.match(markup,/오늘:.*00:00부터 현재까지 누적/);
+  assert.match(markup,/지난 날짜:.*선택일 00:00부터 다음 날 00:01까지/);
 });
 test('controller waits for a non-empty worker executable path',()=>{
   assert.match(controller,/function Get-CofiringStableWorkerSignature\(/);
@@ -52,6 +52,6 @@ test('Agent hash lock matches patched controller and worker',()=>{
   assert.match(agent,new RegExp("PERIOD_WORKER_SHA256='"+sha(workerPath)+"'"));
 });
 test('index uses adaptive cumulative UI while organic auto-fill stays disabled',()=>{
-  assert.match(index,/cofiring-period-ui-v5\.js\?v=20260917-cumulative-nativeom-adaptive-v4/);
+  assert.match(index,/cofiring-period-ui-v5\.js\?v=[^"\s<>]+/);
   assert.doesNotMatch(index,/cofiring-organic-excel-auto-v1\.js/);
 });

@@ -14337,17 +14337,8 @@ async function resetMorningMeetingAutoHistory(
   }
 
 
-  /*
-    First expire normal queue timeouts, then retire only abandoned core
-    requests that have not changed for six minutes. This frees orphan rows
-    left behind by a timed-out browser/Agent run without bypassing a genuinely
-    current query from another user.
-  */
-  await expireOldRequests(
-    database
-  );
-
-
+  // Retire abandoned core requests only for this selected date. A reset is
+  // not a global queue-maintenance operation; other dates/features keep their state.
   const retiredStaleRequestCount =
     await retireStaleMorningMeetingAutoHistoryActiveRequests(
       database,

@@ -3,7 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const {cachedReference}=require('../maintenance/cofiring-period-ui-v5.js');
 const spec={startLocal:'2026-09-10T00:00',endLocal:'2026-09-11T00:00',stepUnit:'hour',stepValue:1};
 function ready(){const id='11111111-1111-4111-8111-111111111111';return {authenticated:true,canQuery:true,period:{...spec},item:{saved:{id},result:{requestId:id,report:{reference:{kind:'cofiring_period_summary_v1',...spec}}},active:null,loading:false,submitting:false,error:''}};}
-test('ready saved result exposes the same validated reference for immediate recalculation',()=>{const s=ready();assert.equal(cachedReference(s,spec),s.item.result.report.reference);});
+test('ready saved result copies the validated reference with explicit missing-inventory state for immediate recalculation',()=>{const s=ready();const original=structuredClone(s.item.result.report.reference);assert.deepEqual(cachedReference(s,spec),{...original,organicInventory:null,organicInventoryReady:false});assert.deepEqual(s.item.result.report.reference,original);});
 test('in-flight, failed and unavailable sessions cannot take the immediate calculation shortcut',()=>{
   for(const field of ['active','loading','submitting','error']){const s=ready();s.item[field]=field==='active'?{status:'processing'}:field==='error'?'조회 오류':true;assert.equal(cachedReference(s,spec),null,field);}
   for(const field of ['authenticated','canQuery']){const s=ready();s[field]=false;assert.equal(cachedReference(s,spec),null,field);}

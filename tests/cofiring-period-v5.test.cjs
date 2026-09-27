@@ -1,5 +1,6 @@
 ﻿'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const pollingContract=require('./helpers/ois-agent-poll-contract.cjs');
 const core=require('../maintenance/cofiring-core.js'),contract=require('../maintenance/cofiring-live-contract.js'),liveApi=require('../maintenance/cofiring-live.js'),ui=require('../maintenance/cofiring-period-ui-v5.js'),adjust=require('../maintenance/cofiring-period-adjustment-v56.js');
 const spec={startLocal:'2026-09-10T00:00',endLocal:'2026-09-10T13:00',stepUnit:'hour',stepValue:1};
 function report({bad=false}={}){
@@ -30,8 +31,8 @@ test('period calculation uses heat shares and period-bound manual organic/manure
  assert.ok(gapResult.units.unit1.coal.quantity>0);assert.ok(gapResult.units.unit1.bio.quantity>0);assert.equal(gapResult.qualityVerified,false);assert.ok(gapResult.combined.ratios.total>0);assert.match(gapResult.warnings.join(' '),/품질 공백/);
 });
 test('V5.2 markup is compact by default while keeping Excel detail tables',()=>{
- const html=ui.markup();for(const text of ['조회 시작','조회 종료','집계 간격','계산하기','Coal','Bio-SRF','유기성 고형연료','축분','계측 사용량','보정계수','실 사용량','주요 계산값','상세 계산표 보기'])assert.match(html,new RegExp(text));assert.match(html,/data-cfv52-summary-grid/);assert.match(html,/cfv52-manual-panel/);assert.doesNotMatch(html,/data-cfv5-load/);
- assert.match(html,/value="minute"/);assert.match(html,/value="hour" selected/);assert.match(html,/value="day"/);
+ const html=ui.markup();for(const text of ['계산 조건','혼소율 계산일','계산 시작','계산 종료','계산하기','Coal','Bio','유기성','축분','계측 사용량','보정계수','실 사용량','주요 계산값','상세 계산표 보기'])assert.match(html,new RegExp(text));assert.match(html,/data-cfv52-summary-grid/);assert.match(html,/cfv52-manual-panel/);assert.doesNotMatch(html,/data-cfv5-load/);
+ assert.match(html,/<option value="daily" selected>/);assert.match(html,/<option value="period">/);assert.doesNotMatch(html,/data-cfv5-step-unit/);
  const css=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.css'),'utf8');assert.match(css,/\.cofiring-period-v5/);assert.match(css,/tabular-nums/);assert.match(css,/@media/);
  for(const unit of ['unit1','unit2'])for(const fuel of ['organic','manure'])assert.equal((html.match(new RegExp('data-cfv5-manual="'+unit+':'+fuel+'"','g'))||[]).length,1);
 });
@@ -82,11 +83,11 @@ test('V5.4 Bio mix rate is calculated from Coal+Bio heat without waiting for org
  assert.ok(Math.abs(ui.combinedCoalBio(combined).ratio-26.625374866987112)<1e-9);
  const js=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.js'),'utf8');
  assert.match(js,/바이오 혼소율/);
- assert.match(ui.markup(),/Bio 혼소율<br><small>\(Coal\+Bio 기준\)<\/small>/);
+ assert.match(ui.markup(),/바이오 혼소율은 Coal\+Bio 열량 기준/);
 });
 
 
-test('V5.5 blank organic or manure fields are treated as zero for total co-firing calculation',()=>{
+test('blank manure uses zero when explicit organic usage is supplied',()=>{
  const normalized=ui.manualForCalculation({unit1:{organic:50,manure:null},unit2:{organic:50,manure:null}});
  assert.deepEqual(normalized,{unit1:{organic:50,manure:0},unit2:{organic:50,manure:0}});
  const ref=contract.validatePeriodReport(report(),spec).reference;
@@ -97,7 +98,7 @@ test('V5.5 blank organic or manure fields are treated as zero for total co-firin
  assert.match(ui.markup(),/빈칸=0t로 계산/);
  const js=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.js'),'utf8');
  assert.match(js,/manualForCalculation/);
- assert.match(js,/빈칸 유기성·축분은 0t로 계산/);
+ assert.match(js,/빈칸 축분은 0t로 계산/);
 });
 
 
@@ -131,10 +132,10 @@ test('V5.6.2 markup exposes read-only preparation and the integrated co-firing a
  const adj=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-adjustment-v56.js'),'utf8');assert.match(adj,/CO-FIRING ADJUSTMENT/);assert.match(adj,/1호기 → 2호기/);assert.match(adj,/최대혼소 자동 조정/);assert.match(adj,/Coal 자동 보정/);
 });
 
-test('V5.6.2 keeps one-second polling but does not auto-create a period request',()=>{
- const live=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-live.js'),'utf8');assert.match(live,/createPeriod[\s\S]*?setTimer\(\(\)=>\{timer=null;load\(\{force:true\}\);\},1000\)/);
- const agent=fs.readFileSync(path.join(__dirname,'../local-tools/ois-agent/ois-login.js'),'utf8');assert.match(agent,/const OIS_AGENT_POLL_INTERVAL =\s*1000;/);
- const js=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.js'),'utf8');assert.match(js,/function scheduleFastPrep/);assert.match(js,/자동 DataPARC 조회는 시작하지 않습니다/);assert.match(js,/queryWithBusyRetry/);
+test('V5.6.2 keeps one-second browser status polling, reviewed Agent idle polling and no automatic period request',()=>{
+ const live=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-live.js'),'utf8');assert.match(live,/timer=setTimer\(\(\)=>\{timer=null;return pollActive\(\);\},d\.statusFailures\?2000:1000\)/);
+ const agent=fs.readFileSync(path.join(__dirname,'../local-tools/ois-agent/ois-login.js'),'utf8');pollingContract.assertReviewedAgentPolling(agent);
+ const js=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.js'),'utf8');assert.match(js,/function scheduleFastPrep/);assert.match(js,/저장된 결과가 없습니다/);assert.match(js,/queryWithBusyRetry/);
 });
 
 
@@ -176,7 +177,7 @@ test('V5.6.2 fast preparation is read-only and never auto-starts a conflicting D
   const fast=/async function fastPrepare\(epoch\)\{([\s\S]*?)\n    function waitMs/.exec(source);
   assert.ok(fast,'fastPrepare block is present');
   assert.doesNotMatch(fast[1],/live\.query\s*\(/);
-  assert.match(fast[1],/저장된 결과가 없습니다\. 자동 DataPARC 조회는 시작하지 않습니다/);
+  assert.match(fast[1],/저장된 결과가 없습니다\. \[계산하기\]를 누르면 표시된 범위로 조회합니다/);
   assert.match(source,/queryWithBusyRetry/);
   assert.match(source,/이전 자동 준비 조회가 아직 종료되지 않았습니다/);
 });

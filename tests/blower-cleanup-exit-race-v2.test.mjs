@@ -135,7 +135,10 @@ test('current co-firing progress/startup worker preserves its Excel fix and hard
     periodWorker,
     /function Test-ProbeExactProcessUniverse[\s\S]*?\$actualIds\.Count -ne \$expectedIds\.Count[\s\S]*?\$actualIds -notcontains \[int\]\$expectedId[\s\S]*?Test-ProbeProcessSignatureSet \$Signatures/
   );
-  assert.ok(periodWorker.indexOf('$launchedExcelProcess.Dispose()') > periodWorker.indexOf('$finalHostPids = @('));
+  // Startup retry disposes its own completed attempt earlier; inspect final cleanup.
+  const census=periodWorker.indexOf('$finalHostPids = @(');
+  assert.ok(census>0);
+  assert.ok(periodWorker.indexOf('$launchedExcelProcess.Dispose()',census)>census);
   assert.match(
     periodWorker,
     /Get-ProbeDataParcHosts \|\s*Where-Object \{ \[int\]\$_\.SessionId -eq \$currentSessionId \} \|\s*ForEach-Object \{ \[int\]\$_\.ProcessId \}/

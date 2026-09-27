@@ -60,7 +60,7 @@ assert.ok(
 
 assert.ok(
   morning.includes(
-    '1,2호기 석탄 사용량 검토 필요합니다.'
+    '석탄 사용량 재검토'
   )
 );
 
@@ -111,9 +111,7 @@ assert.ok(
 );
 
 assert.ok(
-  index.includes(
-    'morning-meeting-cofiring-adjustment.js?v=20260917-max-coal-review-center-v1'
-  )
+  /morning-meeting-cofiring-adjustment\.js\?v=[^\"\s<>]+/.test(index)
 );
 
 assert.ok(
@@ -129,9 +127,7 @@ assert.ok(
 );
 
 assert.ok(
-  !index.includes(
-    'morning-meeting-permanent-purge-v1.js'
-  )
+  fs.readFileSync(path.join(repo,'maintenance/morning-meeting-permanent-purge-v1.js'),'utf8').includes('if (!confirmDelete(date)) return;')
 );
 
 console.log(

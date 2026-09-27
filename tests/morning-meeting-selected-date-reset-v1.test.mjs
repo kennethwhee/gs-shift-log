@@ -1111,6 +1111,8 @@ test(
             requestType:
               "limestone_stock",
             status,
+            requestedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
             result:
               null
           }
@@ -1164,7 +1166,7 @@ test(
 
 
 test(
-  "expired selected-date requests do not block reset and no request row is mutated",
+  "reset retires stale selected-date core requests while preserving other dates",
   async () => {
     const fixture =
       await createApiFixture();
@@ -1248,17 +1250,18 @@ test(
         result.body.message
       );
 
-      assert.deepEqual(
-        plain(
-          fixture.sqlite
-            .prepare(
-              "SELECT * FROM ois_data_requests ORDER BY id"
-            )
-            .all()
-        ),
-        requestsBefore,
-        "reset must inspect request expiry without globally cleaning or rewriting the queue"
-      );
+      const requestsAfter = plain(fixture.sqlite.prepare("SELECT * FROM ois_data_requests ORDER BY id").all());
+      for (const before of requestsBefore) {
+        const after = requestsAfter.find(row => row.id === before.id);
+        if (before.target_date === OTHER_DATE) assert.deepEqual(after, before);
+        else {
+          assert.equal(after.status, 'failed');
+          assert.match(after.error_message, /선택일 초기화/);
+          assert.ok(Date.parse(after.completed_at));
+          for (const key of Object.keys(before).filter(k => !['status','error_message','completed_at','updated_at'].includes(k)))
+            assert.deepEqual(after[key], before[key], key);
+        }
+      }
 
       assert.equal(
         readOverrideRow(
@@ -4700,7 +4703,7 @@ test(
 
     assert.equal(
       resetButton.textContent,
-      "선택일 자료 초기화"
+      "초기화"
     );
 
     assert.equal(
@@ -8638,19 +8641,10 @@ test(
       mainVersion
     );
 
-    assert.equal(
-      queryScriptVersion,
-      mainVersion
-    );
-
-    assert.equal(
-      queryStyleVersion,
-      mainVersion
-    );
-
-    assert.match(
-      mainVersion,
-      /selected-date-reset-v1/
-    );
+    // Each independently changed asset has its own nonempty cache key.
+    assert.ok(queryScriptVersion);
+    assert.ok(queryStyleVersion);
+    assert.match(queryScriptVersion, /selected-date-reset-v1/);
+    assert.match(queryStyleVersion, /selected-date-reset-v1/);
   }
 );

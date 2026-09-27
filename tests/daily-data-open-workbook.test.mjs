@@ -6,7 +6,10 @@ import { spawnSync } from 'node:child_process';
 
 const helperUrl = new URL('../local-tools/ois-agent/daily-data-open-workbook.ps1', import.meta.url);
 const helper = readFileSync(helperUrl, 'utf8').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
-const withoutComments = helper.replace(/<#.*?#>/gs, '').replace(/^\s*#.*$/gm, '').replace(/^\s*\/\/.*$/gm, '');
+// Scope discovery safety to the open-workbook module. The later explicit
+// hidden-readonly fallback has a separate ownership contract below.
+const discoveryHelper = helper.split('# [COFIRING_ORGANIC_HIDDEN_EXCEL_V1]')[0];
+const withoutComments = discoveryHelper.replace(/<#.*?#>/gs, '').replace(/^\s*#.*$/gm, '').replace(/^\s*\/\/.*$/gm, '');
 const section = (name, next) => {
   const begin = helper.indexOf(`function ${name}`);
   assert.ok(begin >= 0, `missing helper ${name}`);
@@ -26,8 +29,10 @@ test('daily workbook discovery enumerates all same-session Excel PIDs and priori
   assert.match(helper, /"XLMAIN"/);
   assert.match(helper, /children\.AddRange\(main\)/);
   assert.doesNotMatch(withoutComments, /GetActiveObject|GetObject\(|ActiveWorkbook|ActiveSheet/);
-  const attachment = section('Get-DailyDataProcessConnection', 'Resolve-DailyDataOpenWorkbook');
+  const attachment = section('Get-DailyDataProcessConnections', 'Get-DailyDataWorkbookCandidatesFromConnection');
   assert.match(attachment, /Get-DailyDataExcelProcessId \$application\) -ne \$ProcessId/);
+  assert.match(attachment, /Get-DailyDataComIdentity -Value \$application/);
+  assert.doesNotMatch(attachment, /return\s+\$connection\b/);
 });
 
 test('open workbook helper is read only and never saves, refreshes, recalculates or terminates any Excel', () => {
@@ -45,7 +50,9 @@ test('month selection uses the requested date and an exact normalized filename; 
   const selection = section('Select-DailyDataWorkbookMatch', 'Get-DailyDataExcelProcessId');
   assert.match(selection, /StringComparison\]::OrdinalIgnoreCase/);
   assert.match(selection, /NormalizationForm\]::FormC/);
-  assert.match(selection, /\$candidate\.ProcessId \+ '\|'/);
+  assert.match(selection, /ConnectionIdentity/);
+  assert.match(selection, /'PID:' \+ \[string\]\$candidate\.ProcessId/);
+  assert.match(selection, /\$identity = \$connectionIdentity \+ '\|'/);
   assert.match(selection, /\$matches\.Count -gt 1/);
   assert.match(selection, /\$matches\.Count -eq 0/);
   assert.doesNotMatch(selection, /-like|-match|Select-Object -First/);
@@ -70,12 +77,13 @@ test('COM retry and cleanup are bounded and transfer only the selected applicati
   assert.match(retry, /\$readAttempt -lt 3/);
   assert.match(retry, /-2147418111, -2147417846, -2146777998/);
   assert.match(retry, /Start-Sleep -Milliseconds 200/);
-  const attach = section('Get-DailyDataProcessConnection', 'Resolve-DailyDataOpenWorkbook');
+  const attach = section('Get-DailyDataProcessConnections', 'Get-DailyDataWorkbookCandidatesFromConnection');
   assert.match(attach, /\$attachAttempt -lt 2/);
   assert.match(attach, /finally \{/);
   assert.match(attach, /Release-DailyDataOpenCom \$nativeObject/);
+  const scan = section('Get-DailyDataWorkbookCandidatesFromConnection', 'Resolve-DailyDataOpenWorkbook');
+  assert.match(scan, /\$countBefore -ne \$countAfter/);
   const resolver = section('Resolve-DailyDataOpenWorkbook', 'Assert-DailyDataOpenWorkbookSelector');
-  assert.match(resolver, /\$countBefore -ne \$countAfter/);
   assert.match(resolver, /StartTime\.ToUniversalTime\(\)\.Ticks -ne \$startTicks/);
   assert.match(resolver, /\$currentFullName/);
   assert.match(resolver, /ReferenceEquals\(\$book, \$selected\.Workbook\)/);
@@ -89,7 +97,7 @@ test('validation compiles NativeOM in memory and runs month rollover and selecto
   const initializer = section('Initialize-DailyDataNativeOm', 'Release-DailyDataOpenCom');
   assert.match(initializer, /Add-Type -TypeDefinition \$script:DailyDataNativeOmSource/);
   assert.doesNotMatch(initializer, /OutputAssembly|OutputType|\.dll['"]/);
-  const validation = helper.slice(helper.lastIndexOf('if ($ValidateOnly)'));
+  const validation = discoveryHelper.slice(discoveryHelper.lastIndexOf('if ($ValidateOnly)'));
   assert.match(validation, /Parser\]::ParseFile/);
   assert.match(validation, /Initialize-DailyDataNativeOm/);
   assert.match(validation, /Assert-DailyDataOpenWorkbookSelector/);
@@ -97,6 +105,18 @@ test('validation compiles NativeOM in memory and runs month rollover and selecto
   for (const date of ['2026-08-31', '2026-09-01', '2026-12-31', '2027-01-01', '2028-02-29', '2026-02-29']) {
     assert.ok(helper.includes(date), `missing Windows semantic case ${date}`);
   }
+});
+
+test('hidden monthly fallback uses a separate read-only Excel and limits release to its owned window', () => {
+  const fallback=helper.slice(helper.indexOf('# [COFIRING_ORGANIC_HIDDEN_EXCEL_V1]'));
+  assert.match(fallback,/return \(& \$script:CofiringOrganicOriginalResolve -TargetDate \$TargetDate\)/);
+  assert.match(fallback,/\$paths\.Count -ne 1/);
+  assert.match(fallback,/\$excel = New-Object -ComObject Excel\.Application/);
+  assert.match(fallback,/\$workbooks\.Open\(\$paths\[0\], 0, \$true\)/);
+  assert.match(fallback,/\$excel\.AutomationSecurity = 3/);
+  assert.match(fallback,/\$workbook\.Close\(\$false\)/);
+  assert.match(fallback,/\$valueHwnd -eq \$script:CofiringOrganicOwnedExcelHwnd/);
+  assert.doesNotMatch(fallback,/Stop-Process|taskkill|\.Kill\(|\.Save(?:As|CopyAs)?\(/);
 });
 
 const powerShellNames = process.platform === 'win32' ? ['powershell.exe', 'pwsh.exe'] : ['pwsh'];

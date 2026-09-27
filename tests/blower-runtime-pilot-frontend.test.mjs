@@ -481,7 +481,7 @@ test("legacy 602 card keeps history without restoring a separate overview period
   assert.equal(ui.asset.cycleStartState, "legacy");
   assert.equal(ui.openDataParcRuntimeDialog(ui.asset.tagNumber), undefined);
   assert.equal(ui.elements.dataparcRuntimeDialog.open, true);
-  assert.equal(ui.elements.dataparcRuntimeStartAt.value, "");
+  assert.equal(ui.elements.dataparcRuntimeStartAt.value, "2026-05-04T00:00");
   assert.equal(ui.elements.dataparcRuntimeStartAt.min, "2026-05-04T00:00");
   assert.equal(ui.elements.dataparcRuntimeStartAt.max, "2026-09-08T19:30");
   assert.equal(ui.elements.dataparcRuntimePreviousBasis.hidden, true);
@@ -543,12 +543,13 @@ test("mobile and public views omit the DataPARC button and reject forced open or
 });
 
 
-test("startup pending and unconfirmed assets do not expose the period query", () => {
+test("pending RUN queries use the confirmed replacement; unconfirmed assets remain blocked", () => {
   for (const asset of [{ cycleStartState: "pending" }, { lastReplacementAt: "" }]) {
     const ui = runtimeUiFixture({ asset });
     assert.doesNotMatch(ui.renderAssetCard(ui.asset, null), /data-asset-action="dataparc_runtime_probe"/);
     ui.openDataParcRuntimeDialog(ui.asset.tagNumber);
-    assert.equal(ui.elements.dataparcRuntimeDialog.open, false);
+    assert.equal(ui.elements.dataparcRuntimeDialog.open, asset.cycleStartState === "pending");
+    assert.deepEqual(ui.calls, []);
   }
 });
 
@@ -582,7 +583,7 @@ test("old or unverifiable cycle baselines never label a new cycle or prefill its
     const markup = ui.renderAssetCard(ui.asset, null);
     assert.doesNotMatch(markup, /<strong>[^<]* → [^<]*<\/strong>/, "an invalid baseline must not render a query date range");
     ui.openDataParcRuntimeDialog(ui.asset.tagNumber);
-    assert.equal(ui.elements.dataparcRuntimeStartAt.value, "");
+    assert.equal(ui.elements.dataparcRuntimeStartAt.value, "2026-05-04T00:00");
     assert.equal(ui.elements.dataparcRuntimePreviousBasis.hidden, true);
   }
 });

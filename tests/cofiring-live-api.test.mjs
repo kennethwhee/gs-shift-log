@@ -4,9 +4,7 @@ import fs from 'node:fs';
 import crypto from 'node:crypto';
 import {gunzipSync} from 'node:zlib';
 import {DatabaseSync} from 'node:sqlite';
-const path=new URL('../functions/api/ois-data-requests.js',import.meta.url);
-let source=fs.readFileSync(path,'utf8').replace('"../_shared/blower-incremental.js"',JSON.stringify(new URL('../functions/_shared/blower-incremental.js',import.meta.url).href));
-const api=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
+const api=await import('../functions/api/ois-data-requests.js');
 const fixtures=JSON.parse(gunzipSync(fs.readFileSync(process.env.COFIRING_V7_TEST_FIXTURE || new URL('fixtures/cofiring-live-v7.json.gz',import.meta.url))));
 const clone=x=>JSON.parse(JSON.stringify(x)), token='local-test-only', key='local-agent-test-only';
 function database(){

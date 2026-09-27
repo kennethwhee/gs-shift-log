@@ -32,7 +32,7 @@ test('API exposes a deployment fingerprint without changing the organic contract
 
   assert.match(
     api,
-    /st<p\.startMs\|\|st>=p\.startMs\+120000/
+    /st<p\.startMs-86400000\|\|st>p\.startMs/
   );
 
   assert.match(

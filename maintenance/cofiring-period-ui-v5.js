@@ -316,7 +316,7 @@
     const targetEditor=container.querySelector('[data-cfv-target-control]');
     if(targetInput)targetInput.value=String(targetPercentFor(container));
     paintBioTarget(container);
-    const mobile=isMobile();let reference=null,lastResult=null,displayResult=null,periodGeneration=0,settingsDirty=false,manualDirty=false,disposed=false,fastPrepTimer=null,fastPrepGeneration=0,inputRecalcTimer=null,adjustmentActive=false,conflictRetrying=false,selectedStoreKey='';
+    const mobile=isMobile();let reference=null,lastResult=null,displayResult=null,periodGeneration=0,settingsDirty=false,manualDirty=false,manualTouched=false,disposed=false,fastPrepTimer=null,fastPrepGeneration=0,inputRecalcTimer=null,adjustmentActive=false,conflictRetrying=false,selectedStoreKey='';
     let clickTiming=null,clickToken=null,clickContext=null,clickBusy=false,renderedRequestId=null,dayBoundaryTimer=null,deadlineRefreshTimer=null,selectionEpoch=0,deadlineInputError='',pendingDailyDraft=null,restoringSaved=false;
     // The editing transaction is separate from the persisted manual/automatic mode.
     let usageEditSnapshot=null;
@@ -753,11 +753,13 @@
     function adjustmentContext(){return {result:lastResult,settings:readSettings(container),spec:currentSpec()};}
     let adjuster=null;
     function scheduleFastPrep(delay=900){if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}const epoch=++fastPrepGeneration;restoringSaved=false;if(disposed||mobile||!visible()||!live)return;prepLabel('고속 준비 예약');fastPrepTimer=root.setTimeout?.(()=>{fastPrepTimer=null;void fastPrepare(epoch);},delay);}
+    // Automatic balance refreshes are unsaved values, not operator edits. Only
+    // an operator edit may block restoring a successful result after a failed query.
     async function restoreLatestDaily(epoch){
       const date=container.querySelector('[data-cfv7-date]')?.value||'',item=live?.state()?.item;
-      if(!live?.readLatestDaily||queryMode(container)!=='daily'||date!==defaultCalculationDate()||reference||displayResult||item?.active||item?.submitting||manualDirty||settingsDirty||clickBusy)return true;
+      if(!live?.readLatestDaily||queryMode(container)!=='daily'||date!==defaultCalculationDate()||reference||displayResult||item?.active||item?.submitting||manualTouched||settingsDirty||clickBusy)return true;
       const auth=String(authHeaders().Authorization||authHeaders().authorization||''),selection=selectionEpoch;
-      const current=()=>!disposed&&visible()&&epoch===fastPrepGeneration&&selection===selectionEpoch&&!clickBusy&&!manualDirty&&!settingsDirty&&queryMode(container)==='daily'&&container.querySelector('[data-cfv7-date]')?.value===date&&date===defaultCalculationDate()&&String(authHeaders().Authorization||authHeaders().authorization||'')===auth;
+      const current=()=>!disposed&&visible()&&epoch===fastPrepGeneration&&selection===selectionEpoch&&!clickBusy&&!manualTouched&&!settingsDirty&&queryMode(container)==='daily'&&container.querySelector('[data-cfv7-date]')?.value===date&&date===defaultCalculationDate()&&String(authHeaders().Authorization||authHeaders().authorization||'')===auth;
       if(!auth)return true;
       restoringSaved=true;refreshStatusLine();
       try{
@@ -1038,7 +1040,7 @@
       if(next!==selectedStoreKey){
         const draft=pendingDailyDraft?.signature===JSON.stringify(currentSpec())&&pendingDailyDraft.auth===String(authHeaders().Authorization||authHeaders().authorization||'')?pendingDailyDraft:null;pendingDailyDraft=null;
         usageEditSnapshot=draft?.usageEditSnapshot||null;
-        selectedStoreKey=next;periodGeneration++;reference=null;lastResult=null;displayResult=null;adjustmentActive=false;settingsDirty=!!draft?.settings;manualDirty=!!draft?.manual;
+        selectedStoreKey=next;periodGeneration++;reference=null;lastResult=null;displayResult=null;adjustmentActive=false;settingsDirty=!!draft?.settings;manualDirty=!!draft?.manual;manualTouched=!!draft?.manualTouched;
         settings?.select(p.targetDate);manual?.select(p.startLocal,p.endLocal);resetReceiptAuto();writeManual(container,manualApi.blank());
         if(draft?.manual)container.dataset.cfvUsageInputMode=draft.inputMode==='manual'?'manual':'auto';
         for(const [selector,value] of [...(draft?.manual||[]),...(draft?.settings||[])]){const input=container.querySelector(selector);if(input)input.value=value;}
@@ -1146,7 +1148,7 @@
       calculate();
       return true;
     }
-    function bindManualInputs(){for(const el of container.querySelectorAll('[data-cfv5-manual],[data-cfv5-receipt]'))if(el.dataset.cfv5Bound!=='1'){el.dataset.cfv5Bound='1';el.addEventListener('input',()=>{if(el.readOnly||!usageEditSnapshot)return;const manualKey=el.getAttribute('data-cfv5-manual')||'';if(/^unit[12]:organic$/.test(manualKey)){morningOrganicTouched.add(manualKey);morningOrganicAuto.delete(manualKey);}manualDirty=true;const label=container.querySelector('[data-cfv5-manual-state]');if(label)label.textContent='수정됨 · 미저장';scheduleInputRecalc();});el.addEventListener('change',()=>{flushInputRecalc();});el.addEventListener('keydown',event=>{if(event.key==='Enter')flushInputRecalc();});}}
+    function bindManualInputs(){for(const el of container.querySelectorAll('[data-cfv5-manual],[data-cfv5-receipt]'))if(el.dataset.cfv5Bound!=='1'){el.dataset.cfv5Bound='1';el.addEventListener('input',()=>{if(el.readOnly||!usageEditSnapshot)return;const manualKey=el.getAttribute('data-cfv5-manual')||'';if(/^unit[12]:organic$/.test(manualKey)){morningOrganicTouched.add(manualKey);morningOrganicAuto.delete(manualKey);}manualDirty=true;manualTouched=true;const label=container.querySelector('[data-cfv5-manual-state]');if(label)label.textContent='수정됨 · 미저장';scheduleInputRecalc();});el.addEventListener('change',()=>{flushInputRecalc();});el.addEventListener('keydown',event=>{if(event.key==='Enter')flushInputRecalc();});}}
     // COFIRING_MANUAL_PROGRAMMATIC_RECALC_V1
     container.addEventListener('cofiring:manual-recalculate',()=>{clearInputRecalc();if(reference)calculate();});
     function paintLive(s){
@@ -1211,7 +1213,7 @@
       if(JSON.stringify(old)===JSON.stringify(spec))return;
       const inputDraft=(attribute)=>Array.from(container.querySelectorAll('['+attribute+']')).map(el=>['['+attribute+'="'+el.getAttribute(attribute)+'"]',el.value]);
       const sameDay=old.startLocal===spec.startLocal&&selectedStoreKey===storeKey(),draft={signature:JSON.stringify(spec),auth:String(authHeaders().Authorization||authHeaders().authorization||''),manual:null,settings:null};
-      if(sameDay&&(manualDirty||container.dataset.cfvUsageInputMode==='manual')){draft.manual=[...inputDraft('data-cfv5-manual'),...inputDraft('data-cfv5-receipt')];draft.inputMode=container.dataset.cfvUsageInputMode;draft.usageEditSnapshot=usageEditSnapshot;}
+      if(sameDay&&(manualDirty||container.dataset.cfvUsageInputMode==='manual')){draft.manual=[...inputDraft('data-cfv5-manual'),...inputDraft('data-cfv5-receipt')];draft.inputMode=container.dataset.cfvUsageInputMode;draft.usageEditSnapshot=usageEditSnapshot;draft.manualTouched=manualTouched;}
       if(sameDay&&settingsDirty)draft.settings=[...inputDraft('data-cfv5-calorific'),...inputDraft('data-cfv5-coefficient')];
       // Reset synchronously and defer all reads until the click timer is started.
       void periodChanged({deferReads:true,draft,capturedAt});
@@ -1229,7 +1231,7 @@
       if(mobile||!state?.canEdit||!state.loaded||state.loading||state.saving||usageEditSnapshot)return;
       clearInputRecalc();receiptSyncGeneration++;
       usageEditSnapshot={
-        mode:container.dataset.cfvUsageInputMode||'auto',dirty:manualDirty,
+        mode:container.dataset.cfvUsageInputMode||'auto',dirty:manualDirty,touched:manualTouched,
         fields:usageFields().map(input=>({
           selector:input.hasAttribute('data-cfv5-manual')?'[data-cfv5-manual="'+input.getAttribute('data-cfv5-manual')+'"]':'[data-cfv5-receipt="'+input.getAttribute('data-cfv5-receipt')+'"]',
           value:input.value,auto:input.dataset.cfv14Auto
@@ -1238,7 +1240,7 @@
         receiptText:container.querySelector('[data-cfv14-receipt-source]')?.textContent||'',
         receiptTone:container.querySelector('[data-cfv14-receipt-source]')?.dataset.tone||''
       };
-      container.dataset.cfvUsageInputMode='manual';manualDirty=true;
+      container.dataset.cfvUsageInputMode='manual';manualDirty=true;manualTouched=true;
       resetReceiptAuto();paintManual();
       container.querySelector('[data-cfv5-receipt="organic"]')?.focus?.();
     });
@@ -1246,7 +1248,7 @@
       const state=manual?.state(),snapshot=usageEditSnapshot;
       if(!snapshot||mobile||!state?.canEdit||state.loading||state.saving)return;
       clearInputRecalc();receiptSyncGeneration++;
-      usageEditSnapshot=null;manualDirty=snapshot.dirty;
+      usageEditSnapshot=null;manualDirty=snapshot.dirty;manualTouched=snapshot.touched;
       container.dataset.cfvUsageInputMode=snapshot.mode;
       receiptSyncState={...snapshot.receipt};
       for(const field of snapshot.fields){
@@ -1268,7 +1270,7 @@
         clearInputRecalc();updateOrganicInventoryUsage();
         const values=readManual(container);validateOrganicAllocationBeforeSave(values);
         const ok=await manual.save(values);
-        if(ok){usageEditSnapshot=null;manualDirty=false;paintManual(true);if(reference)calculate();}
+        if(ok){usageEditSnapshot=null;manualDirty=false;manualTouched=false;paintManual(true);if(reference)calculate();}
       }catch(e){setStatus(container,e.message,'error');}
     });
     container.querySelector('[data-cfv5-query]').addEventListener('click',async()=>{if(clickBusy)return;clickBusy=true;fastPrepGeneration++;restoringSaved=false;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}let token=null;try{

@@ -115,22 +115,15 @@ test('late response after navigation cannot overwrite current date; failed refre
   assert.equal(h.nodes.get('organicSiloDataParcStatus').textContent, '조회 실패');
 });
 
-test('script integration hooks run before manual history overrides and after base daily renderer', () => {
-  const script = readFileSync(new URL('../script.js', import.meta.url), 'utf8');
-  const history = script.slice(script.indexOf('function mergeSavedRows('));
-  assert.ok(history.indexOf('organicSiloDataParc?.mergeHistoryRows') < history.indexOf('const overrideItems'));
-  assert.match(script, /if \(window\.organicSiloDataParc\?\.restoreCompleted\(items, normalizedDate\)\)\s*\{\s*restored = true;/);
-  const renderer = script.slice(script.indexOf('function renderSteamStatus()'), script.indexOf('function scheduleRender()', script.indexOf('function renderSteamStatus()')));
-  assert.ok(renderer.indexOf('organicSiloDataParc?.render({ baseRendered: true })') > renderer.indexOf('elements.organicSiloTotal.textContent'));
-  assert.match(script, /organicSiloDataParc\.valuesForWorkbook\(dailyData\)/);
+test('the retired Silo overlay is not loaded by the current application', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  assert.doesNotMatch(html, /<script[^>]*src=["'][^"']*morning-meeting-organic-silo-dataparc\.js/);
+  const build = readFileSync(new URL('../scripts/build-web.mjs', import.meta.url), 'utf8');
+  assert.match(build, /morning-meeting-organic-silo-dataparc\.js/);
 });
 
-
-test('Silo-only export notice handles zero stock and preserves the existing confirmation flow', () => {
+test('legacy zero Silo export stays valid independently from the current workbook workflow', () => {
   const h = harness(); h.api.restoreCompleted([item('2026-09-01', [0, 0, 0])], '2026-09-01');
-  assert.equal(Number.isFinite(h.api.valuesForWorkbook({}).organicSiloTotal), true);
-  const script = readFileSync(new URL('../script.js', import.meta.url), 'utf8');
-  assert.match(script, /const hasOrganicSiloInventory = Number\.isFinite\(\s*window\.organicSiloDataParc\?\.valuesForWorkbook\(\{\}\)\?\.organicSiloTotal\s*\)/);
-  assert.match(script, /전력·태양광·증기·유기성 입고 자동수치가 없습니다\. 조회한 Silo 재고는 포함됩니다\./);
-  assert.match(script, /const missingDailyDataMessage = hasOrganicSiloInventory/);
+  assert.equal(h.api.valuesForWorkbook({}).organicSiloTotal, 0);
+  assert.equal(h.requests.length, 0);
 });

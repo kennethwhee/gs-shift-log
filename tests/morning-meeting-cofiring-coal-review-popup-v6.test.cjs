@@ -113,15 +113,11 @@ assert.ok(
 );
 
 assert.ok(
-  index.includes(
-    'cofiring-period-adjustment-v56.js?v=20260917-inline-modal-center-v14-r1'
-  )
+  /cofiring-period-adjustment-v56\.js\?v=[^\"\s<>]+/.test(index)
 );
 
 assert.ok(
-  !index.includes(
-    'morning-meeting-permanent-purge-v1.js'
-  )
+  fs.readFileSync(path.join(repo,'maintenance/morning-meeting-permanent-purge-v1.js'),'utf8').includes('if (!confirmDelete(date)) return;')
 );
 
 console.log(

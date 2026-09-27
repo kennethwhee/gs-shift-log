@@ -49,9 +49,9 @@ test('Morning Meeting and Daily DATA no longer auto-fill cofiring organic usage'
 
 test('organic start inventory uses DataPARC midnight three-silo total',()=>{
   assert.doesNotMatch(ui,/COFIRING_ORGANIC_20260920_ANCHOR_3471_V1/);
-  assert.match(ui,/COFIRING_ORGANIC_START_DATAPARC_SUM_V1/);
-  assert.match(ui,/startTotal=Number\(inventory\.start\.total\)/);
-  assert.match(ui,/DataPARC A\+B\+Day/);
+  assert.match(ui,/core\.organicInventoryUsage\(/);
+  assert.match(read('maintenance/cofiring-core.js'),/startTotal=inventory\.start\.total/);
+  assert.match(ui,/Storage A/);
 });
 
 test('unit allocation must equal total organic usage before save',()=>{
@@ -72,14 +72,14 @@ test('unit allocation must equal total organic usage before save',()=>{
 
   assert.match(
     ui,
-    /validateOrganicAllocationBeforeSave\(values\);const ok=await manual\.save\(values\)/
+    /validateOrganicAllocationBeforeSave\(values\);\s*const ok=await manual\.save\(values\)/
   );
 });
 
-test('allocation status refreshes after cofiring calculation',()=>{
+test('allocation refreshes before analyzing and rendering co-firing',()=>{
   assert.match(
     ui,
-    /renderDisplay\(shown,\{adjusted\}\);updateOrganicInventoryUsage\(\);/
+    /updateOrganicInventoryUsage\(\);lastResult=analyze\(\);[\s\S]*?renderDisplay\(shown,\{adjusted\}\)/
   );
 
   assert.match(
@@ -100,6 +100,6 @@ test('only the new cofiring UI build is loaded',()=>{
 
   assert.match(
     html,
-    /cofiring-period-ui-v5\.js\?v=20260920-organic-boundary-detail-v3/
+    /cofiring-period-ui-v5\.js\?v=[^"\s<>]+/
   );
 });

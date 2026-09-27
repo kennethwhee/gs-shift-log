@@ -30,11 +30,11 @@ test('displayed query range is a read-only daily range and calculation stays one
   assert.match(h.find('period').textContent,/24시간/);assert.match(h.find('period').textContent,/1,441/);
 });
 
-test('host navigation exposes the development label and loads V5 period worksheet assets',()=>{
+test('host navigation exposes the released co-firing label and loads V5 period worksheet assets',()=>{
   const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
   const button=html.match(/<button[^>]+id="efficiencyCofiringDraftTab"[\s\S]*?<\/button>/)?.[0]||'';
-  assert.match(button,/>혼소율 \(개발중\)<\/span>/);
-  assert.match(button,/aria-label="혼소율 \(개발중\)"/);
+  assert.match(button,/>혼소율<\/span>/);
+  assert.match(button,/aria-label="혼소율"/);
   assert.match(button,/data-efficiency-tab="cofiring-draft"/);
   for(const asset of ['cofiring-core.js','cofiring-period-manual-storage.js','cofiring-settings-storage.js','cofiring-live-contract.js','cofiring-period-adjustment-v56.js','cofiring-live.js','cofiring-period-ui-v5.js']){
     const urls=[...html.matchAll(/src="(\/maintenance\/[^" ]+)"/g)].map(m=>m[1]).filter(url=>url.split('?')[0]==='/maintenance/'+asset);

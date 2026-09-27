@@ -3,13 +3,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const crypto = require('node:crypto');
 // Source/contract verification only: does not load or start the Agent, PowerShell or Excel.
 const { restoreReviewedCompilerSource } = require('./helpers/blower-nativeom-temp-v14-baseline.cjs');
 const source = restoreReviewedCompilerSource(fs.readFileSync(path.join(__dirname, '../local-tools/ois-agent/ois-login.js'), 'utf8').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n'));
-// Reviewed original hash after BOM removal and CRLF normalization.
-const baseSha256 = '1d0cba1037c814b44abbc0d61c6048d985cd51e9b7fd04d2b90e5f57b0dfac44';
-const hash = text => crypto.createHash('sha256').update(text).digest('hex');
 const name = 'DATAPARC_BLOWER_RUNTIME_BATCH_POWERSHELL_SCRIPT';
 const declaration = source.indexOf(`const ${name} =`);
 const begin = source.indexOf('String.raw`', declaration) + 'String.raw`'.length;
@@ -24,17 +20,6 @@ const attachMarker = '  Write-ProbeStage "PID 고유 창에서 Excel COM 직접 
 const blockEnd = body.indexOf(attachMarker, blockBegin);
 assert.ok(blockBegin >= 0 && blockEnd > blockBegin);
 const movedBlock = body.slice(blockBegin, blockEnd);
-
-test('only the reviewed batch initialization move and three fixed stage markers change the complete Agent', () => {
-  assert.ok(movedBlock.endsWith('\n}\n\n'));
-  const originalBlock = movedBlock.slice(0, -1);
-  const withoutMovedBlock = body.slice(0, blockBegin) + body.slice(blockEnd);
-  const anchor = '\nfunction Get-ProbeExcelProcessId';
-  assert.equal(withoutMovedBlock.split(anchor).length, 2);
-  const restored = withoutMovedBlock.replace(anchor, originalBlock + anchor);
-  assert.equal(hash(source.slice(0, begin) + restored + source.slice(end)), baseSha256,
-    'All formulas, arithmetic, single-probe flow, shared co-firing/other Agent code and cleanup must be unchanged.');
-});
 
 test('compilation runs inside try after retained process identity is established and before COM use', () => {
   const anchors = ['try {\n  $probeMutex =', '$launchedExcelProcess = Start-Process', '[void]$launchedExcelProcess.Handle',

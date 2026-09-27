@@ -68,10 +68,12 @@ function harness() {
   const calls = []; const timers = new Map(); const observers = [];
   let timerId = 0; let token = 'signed-in'; let mobile = false;
   const inventory = new Map();
+  const completeOperations = [{ status:'fulfilled',value:{status:'fulfilled',result:{value:0}} }];
   const window = {
     efficiencyMorningMeetingUploadState: {}, navigator: { userAgent: 'Windows', platform: 'Win32' },
     matchMedia: () => ({ matches: mobile }), addEventListener() {},
     setTimeout: fn => { const id = ++timerId; timers.set(id, fn); return id; }, clearTimeout: id => timers.delete(id),
+    runEfficiencyMorningMeetingBulkLookup: async options => { calls.push({source:'operations',options}); return completeOperations; },
     organicSiloDataParc: {
       valuesForWorkbook: () => inventory.get(panel.dataset.morningMeetingAutoBaseDate) || {},
       load: async options => { calls.push({ source: 'dataparc', options }); return { organicSiloTotal: 0 }; }
@@ -90,41 +92,41 @@ function harness() {
     signedIn: value => { token = value; }, mobile: value => { mobile = value; } };
 }
 
-test('source controls mount after the date, label workbook rows and never query on render or navigation', () => {
+test('source controls mount once after the date without changing card contents or starting queries', () => {
   const h = harness();
   assert.equal(h.dateBar.nextSibling.id, 'morningMeetingQuerySources');
-  assert.equal(h.byId('efficiencyMorningMeetingAutoPreview').dataset.querySourcesReady, 'true');
-  assert.equal(h.byId('morningMeetingDataParcQueryButton').textContent, '조회하기');
-  assert.equal(h.byId('morningMeetingWorkbookQueryButton').textContent, '조회하기');
-  assert.match(h.byId('morningMeetingQuerySources').textContent, /DataPARC유기성 Silo 재고/);
-  assert.match(h.byId('morningMeetingQuerySources').textContent, /일일 DATA 엑셀전력·증기·혼소율·유기성 입고/);
+  assert.equal(h.byId('morningMeetingAllQueryButton').textContent, '전체자료');
+  assert.equal(h.byId('morningMeetingOperationsQueryButton').textContent, '운영정보조회');
+  assert.equal(h.byId('morningMeetingWorkbookQueryButton').textContent, '엑셀 조회하기');
+  assert.match(h.byId('morningMeetingQuerySources').textContent, /운영정보/);
+  assert.match(h.byId('morningMeetingQuerySources').textContent, /열린 대상 월 파일에서 4개 카드 조회/);
   for (const id of cardIds) {
     const body = h.byId(`${id}-body`);
-    assert.match(body.firstChild.textContent, /일일 DATA 엑셀/);
+    assert.equal(body.children.length, 1, 'rendering does not insert obsolete source labels');
     assert.equal(h.byId(`${id}-value`).textContent, 'unchanged');
   }
   for (let i = 0; i < 3; i += 1) h.api.render();
   h.panel.dataset.morningMeetingAutoBaseDate = '2026-09-02'; h.api.render();
   assert.equal(h.document.querySelectorAll('#morningMeetingQuerySources').length, 1);
-  assert.equal(h.document.querySelectorAll('.morning-meeting-workbook-source').length, 4);
+  assert.equal(h.document.querySelectorAll('.morning-meeting-workbook-source').length, 0);
   assert.equal(h.calls.length, 0);
 });
 
 test('explicit source buttons route only to the chosen loader with the workbook intent guard', async () => {
   const h = harness();
-  h.byId('morningMeetingDataParcQueryButton').click();
+  h.byId('morningMeetingOperationsQueryButton').click();
   await new Promise(resolve => setImmediate(resolve));
   h.byId('morningMeetingWorkbookQueryButton').click();
   await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual(JSON.parse(JSON.stringify(h.calls)), [
-    { source: 'dataparc', options: { userInitiated: true, forceRefresh: true } },
+    { source: 'operations', options: { userInitiated: true, targetDate:'2026-09-01' } },
     { source: 'workbook', options: { userInitiated: true, forceRefresh: true, querySource: 'daily_data_excel' } }
   ]);
 });
 
 test('automatic callers, signed-out/mobile callers and unavailable DataPARC dates cannot start work', async () => {
   const h = harness();
-  for (const sourceName of ['dataparc', 'workbook']) {
+  for (const sourceName of ['operations', 'workbook']) {
     await h.api.query(sourceName);
     h.signedIn(''); await h.api.query(sourceName, { userInitiated: true });
     h.signedIn('token'); h.mobile(true); await h.api.query(sourceName, { userInitiated: true });
@@ -138,23 +140,23 @@ test('automatic callers, signed-out/mobile callers and unavailable DataPARC date
   assert.equal(h.byId('morningMeetingWorkbookQueryButton').hidden, true);
 });
 
-test('DataPARC success is independent of workbook failure and zero inventory is a saved result', () => {
+test('operations success is independent of workbook failure, including a zero-valued result', async () => {
   const h = harness();
-  h.inventory.set('2026-09-01', { organicSiloTotal: 0 });
+  await h.api.query('operations', {userInitiated:true});
   h.panel.dataset.steamStatusTargetDate = '2026-09-01'; h.panel.dataset.steamStatusStatus = 'error';
   const original = { sourceDate: '2026-09-01', sludgeTotal: 0, generatorEcmsGen1: 4 };
   h.window.efficiencyMorningMeetingUploadState = { steamStatus: original, steamStatusError: 'workbook unavailable' };
   h.api.render();
-  assert.equal(h.byId('morningMeetingQuerySourceStatus-dataparc').textContent, '조회 완료');
+  assert.equal(h.byId('morningMeetingQuerySourceStatus-operations').textContent, '조회 완료');
   assert.equal(h.byId('morningMeetingQuerySourceStatus-workbook').textContent, '조회 실패');
   assert.match(h.byId('morningMeetingQuerySourceStatus-workbook').title, /기존 저장값을 유지/);
   assert.equal(h.window.efficiencyMorningMeetingUploadState.steamStatus, original);
   h.panel.dataset.morningMeetingAutoBaseDate = '2026-09-02'; h.api.render();
   assert.equal(h.byId('morningMeetingQuerySourceStatus-workbook').textContent, '조회 전');
-  assert.equal(h.byId('morningMeetingQuerySourceStatus-dataparc').textContent, '조회 전');
+  assert.equal(h.byId('morningMeetingQuerySourceStatus-operations').textContent, '조회 전');
 });
 
-test('workbook fallback inventory never marks DataPARC complete, and old DataPARC errors stay on their date', () => {
+test('workbook values cannot mark operations complete or reuse another date status', () => {
   const h = harness();
   h.window.efficiencyMorningMeetingUploadState.steamStatus = { sourceDate: '2026-09-01', organicSiloTotal: 9, sludgeTotal: 30 };
   h.panel.dataset.steamStatusTargetDate = '2026-09-01'; h.panel.dataset.steamStatusStatus = 'complete';
@@ -162,7 +164,7 @@ test('workbook fallback inventory never marks DataPARC complete, and old DataPAR
   h.organicBadge.dataset.queryTargetDate = '2026-08-31';
   h.api.render();
   assert.equal(h.byId('morningMeetingQuerySourceStatus-workbook').textContent, '조회 완료');
-  assert.equal(h.byId('morningMeetingQuerySourceStatus-dataparc').textContent, '조회 전');
+  assert.equal(h.byId('morningMeetingQuerySourceStatus-operations').textContent, '조회 전');
   h.window.efficiencyMorningMeetingUploadState.steamStatus = { sourceDate: '2026-09-01' };
   h.api.render();
   assert.equal(h.byId('morningMeetingQuerySourceStatus-workbook').textContent, '조회 전');
@@ -173,17 +175,17 @@ test('workbook fallback inventory never marks DataPARC complete, and old DataPAR
 
 test('duplicate and second-source requests wait for the active query; late resolution does not complete a new date', async () => {
   const h = harness(); let resolveQuery;
-  h.window.organicSiloDataParc.load = options => {
+  h.window.runEfficiencyMorningMeetingBulkLookup = options => {
     h.calls.push({ source: 'dataparc', options }); return new Promise(resolve => { resolveQuery = resolve; });
   };
-  const pending = h.api.query('dataparc', { userInitiated: true });
-  await h.api.query('dataparc', { userInitiated: true });
+  const pending = h.api.query('operations', { userInitiated: true });
+  await h.api.query('operations', { userInitiated: true });
   await h.api.query('workbook', { userInitiated: true });
   assert.equal(h.calls.length, 1);
   assert.equal(h.byId('morningMeetingWorkbookQueryButton').disabled, true);
   h.panel.dataset.morningMeetingAutoBaseDate = '2026-09-02'; h.api.render();
   resolveQuery({ organicSiloTotal: 5 }); await pending;
-  assert.equal(h.byId('morningMeetingQuerySourceStatus-dataparc').textContent, '조회 전');
+  assert.equal(h.byId('morningMeetingQuerySourceStatus-operations').textContent, '조회 전');
   assert.equal(h.byId('morningMeetingWorkbookQueryButton').disabled, false);
 });
 

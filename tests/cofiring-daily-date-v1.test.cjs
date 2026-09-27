@@ -8,16 +8,7 @@ const core=require('../maintenance/cofiring-core.js');
 
 // Exercise the real mounted UI and real timing helper. Only remote stores/live
 // transport and the selector/event DOM are modeled; calculation uses the core.
-class Element {
-  constructor(attributes={}){this.attributes=attributes;this.dataset={};this.value=attributes.value||'';this.hidden=Object.hasOwn(attributes,'hidden');this.disabled=Object.hasOwn(attributes,'disabled');this.textContent='';this.children=[];this.listeners={};this.classList={add(){},remove(){},toggle(){}};}
-  set innerHTML(value){this.html=value;this.children=[];for(const tag of value.matchAll(/<[a-z][^>]*\bdata-cfv[^>]*>/g)){const attrs={};for(const a of tag[0].matchAll(/([a-z][a-z0-9-]*)(?:="([^"]*)")?/g))attrs[a[1]]=a[2]||'';this.children.push(new Element(attrs));}}
-  get innerHTML(){return this.html||'';}
-  querySelectorAll(selector){const selectors=selector.split(',').map(s=>/^\[([^=\]]+)(?:="([^\"]+)")?\]$/.exec(s.trim())),out=[];for(const child of this.children){if(selectors.some(m=>m&&Object.hasOwn(child.attributes,m[1])&&(m[2]===undefined||child.attributes[m[1]]===m[2])))out.push(child);out.push(...child.querySelectorAll(selector));}return out;}
-  querySelector(selector){return this.querySelectorAll(selector)[0]||null;}
-  closest(){return null;}
-  addEventListener(type,fn){(this.listeners[type]||=[]).push(fn);}
-  async fire(type){for(const fn of this.listeners[type]||[])await fn({target:this});}
-}
+const {Element,inventoryReport,receiptFetch}=require('./helpers/cofiring-period-dom.cjs');
 function deferred(){let resolve;const promise=new Promise(r=>{resolve=r;});return {promise,resolve};}
 async function flush(){for(let i=0;i<30;i++)await Promise.resolve();}
 function blank(){return {unit1:{organic:null,manure:null},unit2:{organic:null,manure:null}};}
@@ -36,7 +27,7 @@ function mounted({savedId=null,now='2026-09-15T04:02:00Z'}={}){
     return {state:()=>state,defaults:()=>settings,select(...values){h.storeSelections[kind]=values;const next=JSON.stringify(values);if(next!==selected){selected=next;state.loaded=false;state.settings=h.settingsByDate[values[0]]||settings;state.values=h.manualByStart[values[0]]||blank();}},async load(){h.events.push(kind+'.load');state.loading=true;const gate=h[kind+'Gate'];if(gate)await gate.promise;state.loaded=true;state.loading=false;options.onChange();return true;},dispose(){},save:async()=>true};
   }
   function emit(){liveOptions.onChange(liveState);}
-  function result(id){return {requestId:id,report:{reference:fixtureReference(liveState.period),queryElapsedSeconds:6.374,workerElapsedSeconds:26.499,timing:{controllerElapsedSeconds:28.155}}};}
+  function result(id){return {requestId:id,report:{...inventoryReport(fixtureReference(liveState.period)),queryElapsedSeconds:6.374,workerElapsedSeconds:26.499,timing:{controllerElapsedSeconds:28.155}}};}
   function save(id){liveState.item.saved={id,status:'complete'};liveState.item.result=result(id);}
   const live={
     state:()=>liveState,
@@ -51,7 +42,7 @@ function mounted({savedId=null,now='2026-09-15T04:02:00Z'}={}){
   h.emitOld=()=>{if(liveState.item.result)liveOptions.onResult(liveState.item.result);emit();};
   const setTimer=(f,ms)=>{const id=++serial;h.timers.set(id,{f,ms});return id;},clearTimer=id=>h.timers.delete(id);
   class FixedDate extends Date{constructor(...args){super(...(args.length?args:[h.now]));}static now(){return h.now;}}
-  const context=vm.createContext({Date:FixedDate,console,MutationObserver:class {constructor(fn){h.visibilityChanged=fn;}observe(){}disconnect(){}},performance:{now:()=>h.clock},CofiringCore:core,CofiringLive:{createPeriod:options=>{liveOptions=options;return live;}},CofiringCalculationSettingsStorage:{create:options=>store('settings',options)},CofiringPeriodManualStorage:{blank,parseValue:v=>v===''?null:Number(v),create:options=>store('manual',options)},CofiringPeriodAdjustmentV56:{create:()=>null},CofiringTargetReferenceV6:{forUnit:()=>null},getShiftLogAuthHeaders:()=>({Authorization:h.auth}),document:{readyState:'loading',addEventListener(){},getElementById:()=>null},navigator:{userAgent:'desktop'},location:{pathname:'/maintenance/'},setTimeout:setTimer,clearTimeout:clearTimer,requestAnimationFrame:f=>{const id=++serial;h.frames.set(id,f);return id;},cancelAnimationFrame:id=>h.frames.delete(id),confirm:()=>true});
+  const context=vm.createContext({Date:FixedDate,URLSearchParams,fetch:receiptFetch,console,MutationObserver:class {constructor(fn){h.visibilityChanged=fn;}observe(){}disconnect(){}},performance:{now:()=>h.clock},CofiringCore:core,CofiringLive:{createPeriod:options=>{liveOptions=options;return live;}},CofiringCalculationSettingsStorage:{create:options=>store('settings',options)},CofiringPeriodManualStorage:{blank,parseValue:v=>v===''?null:Number(v),create:options=>store('manual',options)},CofiringPeriodAdjustmentV56:{create:()=>null},CofiringTargetReferenceV6:{forUnit:()=>null},getShiftLogAuthHeaders:()=>({Authorization:h.auth}),document:{readyState:'loading',addEventListener(){},getElementById:()=>null},navigator:{userAgent:'desktop'},location:{pathname:'/maintenance/'},setTimeout:setTimer,clearTimeout:clearTimer,requestAnimationFrame:f=>{const id=++serial;h.frames.set(id,f);return id;},cancelAnimationFrame:id=>h.frames.delete(id),confirm:()=>true});
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-click-timing-v1.js'),'utf8'),context);
   const createTiming=context.CofiringClickTimingV1.create;
   context.CofiringClickTimingV1={create:options=>(h.timing=createTiming(options))};
@@ -183,7 +174,7 @@ test('reopening after a past day query boundary is complete reloads that day sto
   const h=mounted({savedId:'saved-yesterday',now:'2026-09-16T00:00:59.999+09:00'});await h.ready();
   const nextSettings=comparable(h.controller.settings.defaults());nextSettings.unit1.coal.calorific=6000;nextSettings.unit1.bio.calorific=3000;
   h.settingsByDate['2026-09-15']=nextSettings;
-  h.manualByStart['2026-09-15T00:00']={unit1:{organic:3,manure:5},unit2:{organic:7,manure:11}};
+  h.manualByStart['2026-09-15T00:00']={inputMode:'manual',receipts:{organic:10,manure:16},unit1:{organic:3,manure:5},unit2:{organic:7,manure:11}};
   h.find('cfv7-date').value='2026-09-15';await h.find('cfv7-date').fire('change');
   assert.equal(h.find('cfv5-query').disabled,true);assert.equal(h.controller.getResult(),null);
   h.setHidden(true);assert.equal(h.timers.size,0);

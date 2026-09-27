@@ -12,7 +12,7 @@ if (args.length !== 1 || !['--review', '--all'].includes(args[0])) {
   const focused = args[0] === '--review';
   const files = fs.readdirSync(path.join(root, 'tests'))
     .filter(name => /\.test\.(?:mjs|cjs|js)$/.test(name))
-    .filter(name => !focused || /^project-(?:hardening-v1|access-v2|cofiring-v3|organic-v4|blower-v5|account-v6|structure-v12)\.test\.mjs$/.test(name))
+    .filter(name => !focused || /^project-(?:hardening-v1|access-v2|cofiring-v3|organic-v4|blower-v5|account-v6|structure-v12|regression-v13)\.test\.mjs$/.test(name))
     .sort().map(name => 'tests/' + name);
   console.log(`${focused ? 'REVIEW REGRESSION' : 'ALL NODE TESTS'}: ${files.length} files`);
   if (focused) console.log('Focused review checks only. Run --all to include the remaining historical and integration checks.');

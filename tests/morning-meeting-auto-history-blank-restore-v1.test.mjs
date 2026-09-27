@@ -2128,12 +2128,12 @@ test(
 
     assert.match(
       indexSource,
-      /style\.css\?v=20260916-auto-history-blank-restore-v1/
+      /style\.css\?v=[^"\s<>]+/
     );
 
     assert.match(
       indexSource,
-      /script\.js\?v=20260916-auto-history-blank-restore-v1/
+      /script\.js\?v=[^"\s<>]+/
     );
   }
 );

@@ -150,6 +150,13 @@ export async function onRequestPost(context) {
       return jsonResponse({ ok: false, message: "초기화 요청 내용을 확인해 주세요." }, 400);
     }
 
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return jsonResponse({ ok: false, message: '초기화 요청 내용을 확인해 주세요.' }, 400);
+    }
+    const origin = context.request.headers.get('Origin');
+    if (origin && origin !== new URL(context.request.url).origin) {
+      return jsonResponse({ ok: false, message: '동일한 사이트에서 요청해 주세요.' }, 403);
+    }
     const targetDate = normalizeText(body.targetDate);
     if (!isValidIsoDate(targetDate)) {
       return jsonResponse({ ok: false, message: "초기화할 날짜를 확인해 주세요." }, 400);
@@ -174,12 +181,11 @@ export async function onRequestPost(context) {
     `).bind(targetDate).first();
 
     const serverRevision = resetRow ? Number(resetRow.revision || 0) : 0;
-    const expectedRevision = Number(body.expectedRevision);
-    if (
-      Number.isSafeInteger(expectedRevision) &&
-      expectedRevision >= 0 &&
-      expectedRevision !== serverRevision
-    ) {
+    const expectedRevision = body.expectedRevision;
+    if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
+      return jsonResponse({ok:false,message:'초기화할 자료 버전을 확인해 주세요.'},400);
+    }
+    if (expectedRevision !== serverRevision) {
       return jsonResponse({
         ok: false,
         code: "MORNING_MEETING_PURGE_REVISION_CONFLICT",
@@ -201,92 +207,53 @@ export async function onRequestPost(context) {
     }
 
     const marks = placeholders(PURGE_REQUEST_TYPES.length);
-    const countResult = await database.prepare(`
-      SELECT request_type, COUNT(*) AS row_count
-      FROM ois_data_requests
-      WHERE target_date = ?
-        AND request_type IN (${marks})
-      GROUP BY request_type
-      ORDER BY request_type ASC
-    `).bind(targetDate, ...PURGE_REQUEST_TYPES).all();
-    const deletedByType = requestTypeMap(countResult.results);
-
-    const deleteResult = await database.prepare(`
-      DELETE FROM ois_data_requests
-      WHERE target_date = ?
-        AND request_type IN (${marks})
-        AND NOT EXISTS (
-          SELECT 1
-          FROM ois_data_requests AS active
-          WHERE active.target_date = ?
-            AND active.request_type IN (${marks})
-            AND active.status IN ('pending', 'processing')
-            AND (active.expires_at IS NULL OR active.expires_at >= ?)
-        )
-    `).bind(
-      targetDate,
-      ...PURGE_REQUEST_TYPES,
-      targetDate,
-      ...PURGE_REQUEST_TYPES,
-      now
-    ).run();
-
-    const afterDeleteActive = await activeRows(database, targetDate, now);
-    if (afterDeleteActive.length > 0) {
-      const activeRequestTypes = [...new Set(afterDeleteActive.map(row => normalizeText(row.request_type)).filter(Boolean))];
-      return jsonResponse({
-        ok: false,
-        code: "MORNING_MEETING_PURGE_QUERY_ACTIVE",
-        activeRequestTypes,
-        message: "초기화와 동시에 새 조회가 시작되었습니다. 조회가 끝난 뒤 다시 초기화해 주세요."
-      }, 409);
-    }
-
-    let overrideChanges = 0;
-    let nextRevision = serverRevision;
-    if (resetRow) {
-      const user = authentication.user;
-      const updateResult = await database.prepare(`
-        UPDATE morning_meeting_auto_history_overrides
-        SET
-          values_json = '{}',
-          reset_active = 0,
-          reset_at = NULL,
-          reset_by_id = '',
-          reset_by_name = '',
-          reset_snapshot_values_json = '{}',
-          reset_restored_at = ?,
-          updated_by_id = ?,
-          updated_by_name = ?,
-          updated_at = ?,
-          revision = revision + 1
-        WHERE target_date = ?
-          AND revision = ?
-      `).bind(
-        now,
-        user.employeeNo,
-        user.name,
-        now,
-        targetDate,
-        serverRevision
-      ).run();
-      overrideChanges = Number(updateResult?.meta?.changes || 0);
-      if (overrideChanges !== 1) {
-        return jsonResponse({
-          ok: false,
-          code: "MORNING_MEETING_PURGE_REVISION_CONFLICT",
-          message: "선택일 조회자료는 삭제했지만 초기화 상태 정리에 충돌이 발생했습니다. 새로고침해 주세요."
-        }, 409);
+    const user = authentication.user;
+    // D1 batch is transactional. The SQL guard rechecks revision and active
+    // queries inside that transaction, before either deletion or state changes.
+    // Invalid JSON deliberately aborts the entire batch on a failed guard.
+    const revisionValue = resetRow ? serverRevision : -1;
+    const statements = [
+      database.prepare(`SELECT json(CASE WHEN
+        COALESCE((SELECT revision FROM morning_meeting_auto_history_overrides WHERE target_date = ?), -1) = ?
+        AND NOT EXISTS (SELECT 1 FROM ois_data_requests
+          WHERE target_date = ? AND request_type IN (${marks})
+            AND status IN ('pending','processing') AND (expires_at IS NULL OR expires_at >= ?))
+        THEN 'true' ELSE 'PURGE_CONFLICT' END) AS allowed`)
+        .bind(targetDate, revisionValue, targetDate, ...PURGE_REQUEST_TYPES, now),
+      database.prepare(`SELECT request_type, COUNT(*) AS row_count FROM ois_data_requests
+        WHERE target_date = ? AND request_type IN (${marks}) GROUP BY request_type ORDER BY request_type`)
+        .bind(targetDate, ...PURGE_REQUEST_TYPES),
+      database.prepare(`DELETE FROM ois_data_requests WHERE target_date = ? AND request_type IN (${marks})`)
+        .bind(targetDate, ...PURGE_REQUEST_TYPES),
+      database.prepare(`UPDATE morning_meeting_auto_history_overrides SET
+        values_json = '{}', reset_active = 0, reset_at = NULL, reset_by_id = '', reset_by_name = '',
+        reset_snapshot_values_json = '{}', reset_restored_at = ?, updated_by_id = ?, updated_by_name = ?,
+        updated_at = ?, revision = revision + 1 WHERE target_date = ? AND revision = ?`)
+        .bind(now, user.employeeNo, user.name, now, targetDate, revisionValue),
+      database.prepare(`SELECT COUNT(*) AS row_count FROM ois_data_requests
+        WHERE target_date = ? AND request_type IN (${marks})`).bind(targetDate, ...PURGE_REQUEST_TYPES)
+    ];
+    let results;
+    try {
+      results = await database.batch(statements);
+    } catch (error) {
+      // The transaction has rolled back; classify conflicts without SQL details.
+      const current = await database.prepare('SELECT revision FROM morning_meeting_auto_history_overrides WHERE target_date = ?').bind(targetDate).first();
+      if ((current ? Number(current.revision) : -1) !== revisionValue) {
+        return jsonResponse({ok:false,code:'MORNING_MEETING_PURGE_REVISION_CONFLICT',
+          message:'다른 사용자가 선택일 자료를 변경했습니다. 최신 상태를 확인해 주세요.'},409);
       }
-      nextRevision = serverRevision + 1;
+      if ((await activeRows(database, targetDate, new Date().toISOString())).length) {
+        return jsonResponse({ok:false,code:'MORNING_MEETING_PURGE_QUERY_ACTIVE',
+          message:'초기화 직전에 새 조회가 시작되었습니다. 조회가 끝난 뒤 다시 시도해 주세요.'},409);
+      }
+      throw error;
     }
-
-    const remaining = await database.prepare(`
-      SELECT COUNT(*) AS row_count
-      FROM ois_data_requests
-      WHERE target_date = ?
-        AND request_type IN (${marks})
-    `).bind(targetDate, ...PURGE_REQUEST_TYPES).first();
+    const deletedByType = requestTypeMap(results[1].results);
+    const deleteResult = results[2];
+    const overrideChanges = Number(results[3].meta?.changes || 0);
+    const nextRevision = serverRevision + overrideChanges;
+    const remaining = results[4].results?.[0];
 
     return jsonResponse({
       ok: true,
@@ -303,7 +270,7 @@ export async function onRequestPost(context) {
     console.error("Morning meeting reset-delete failed", error);
     return jsonResponse({
       ok: false,
-      message: error?.message || "오전회의 초기화 중 서버 오류가 발생했습니다."
+      message: "오전회의 초기화 중 서버 오류가 발생했습니다. 최신 상태를 확인한 뒤 다시 시도해 주세요."
     }, 500);
   }
 }

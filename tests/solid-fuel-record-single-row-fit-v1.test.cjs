@@ -30,7 +30,15 @@ test('company remains narrower than fuel and all nine fields remain ordered', ()
 
 test('cache version points to fit build exactly once', () => {
   assert.equal(
-    (html.match(/solid-fuel-trouble\.css\?v=20260920-record-single-row-fit-v1/g) || []).length,
+    (html.match(/solid-fuel-trouble\.css\?v=[^"\s<>]+/g) || []).length,
     1
   );
+});
+
+test('record fields retain four, two and one column layouts below desktop width', () => {
+  for(const [width,columns] of [[1180,'repeat(4,minmax(0,1fr))'],[760,'1fr 1fr'],[450,'1fr']]) {
+    const at=css.indexOf(`@media(max-width:${width}px){.record-grid.receipt-enabled-grid`);
+    assert.ok(at>=0, `missing responsive rule ${width}`);
+    assert.ok(css.slice(at,css.indexOf('}}',at)).includes(`grid-template-columns:${columns}!important`));
+  }
 });

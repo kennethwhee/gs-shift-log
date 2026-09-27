@@ -60,12 +60,12 @@ test('browser and API use midnight lookback contract',()=>{
 test('UI uses DataPARC total and compact operator text',()=>{
   assert.match(
     ui,
-    /COFIRING_ORGANIC_START_DATAPARC_SUM_V1/
+    /core\.organicInventoryUsage\(/
   );
 
   assert.match(
     ui,
-    /COFIRING_ORGANIC_EQUAL_SPLIT_V1/
+    /total\.allocation\[unit\]/
   );
 
   assert.doesNotMatch(
@@ -75,18 +75,20 @@ test('UI uses DataPARC total and compact operator text',()=>{
 
   assert.match(
     ui,
-    /DataPARC A\+B\+Day/
+    /Storage A/
   );
 
   assert.match(
     ui,
-    /현재재고/
+    /종료재고/
   );
 
   assert.match(
     ui,
-    /50:50 자동배분\\n계산:/
+    /50:50 자동배분/
   );
+
+  assert.match(ui, /계산: 시작재고/);
 
   assert.match(
     css,

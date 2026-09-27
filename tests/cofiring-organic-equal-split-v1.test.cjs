@@ -7,31 +7,17 @@ const ui=fs.readFileSync(
   'utf8'
 );
 
-test('organic usage is automatically split equally',()=>{
-  assert.match(
-    ui,
-    /COFIRING_ORGANIC_EQUAL_SPLIT_V1/
-  );
-
-  assert.match(
-    ui,
-    /const half=Math\.round\(\(usage\/2\)\*10000\)\/10000;/
-  );
-
-  assert.match(
-    ui,
-    /const unit1=half;/
-  );
-
-  assert.match(
-    ui,
-    /const unit2=half;/
-  );
-
-  assert.match(
-    ui,
-    /mode:'equal-50-50'/
-  );
+const core=require('../maintenance/cofiring-core.js');
+const {inventoryReport}=require('./helpers/cofiring-period-dom.cjs');
+function allocation(receipt){
+  const spec={startLocal:'2026-09-20T00:00',endLocal:'2026-09-21T00:00'};
+  const report=inventoryReport(spec);
+  return core.organicInventoryUsage({...spec,organicInventory:report.organicInventory,organicInventoryReady:true},receipt,spec);
+}
+test('verified organic inventory is automatically split equally with four-decimal allocation',()=>{
+  const actual=allocation(64.315);assert.equal(actual.ok,true);
+  assert.equal(actual.allocation.unit1,27.1575);assert.equal(actual.allocation.unit2,27.1575);
+  assert.equal(actual.allocation.mode,'equal-50-50');
 });
 
 test('organic inputs become read only after automatic allocation',()=>{
@@ -51,17 +37,8 @@ test('organic inputs become read only after automatic allocation',()=>{
   );
 });
 
-test('54.315 ton is divided into 27.1575 ton per unit',()=>{
-  const usage=54.315;
-  const half=Math.round((usage/2)*10000)/10000;
-
-  assert.equal(
-    half,
-    27.1575
-  );
-
-  assert.equal(
-    half+half,
-    54.315
-  );
+test('missing receipt is rejected and a verified zero remains zero',()=>{
+  assert.equal(allocation(null).ok,false);
+  assert.equal(allocation(10).usage,0);
+  assert.equal(allocation(10).allocation.unit1,0);
 });

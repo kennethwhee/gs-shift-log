@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import pollingContract from './helpers/ois-agent-poll-contract.cjs';
 
 const root = path.resolve(process.argv[2] || process.cwd());
 const agent = fs.readFileSync(
@@ -157,8 +158,8 @@ function successOutcome(requestId) {
   };
 }
 
-test('current one-second poll, fast Blower coalescing, and elapsed stages are explicit', () => {
-  assert.match(agent, /const\s+OIS_AGENT_POLL_INTERVAL\s*=\s*1000\s*;/);
+test('reviewed idle polling, fast Blower coalescing, and elapsed stages are explicit', () => {
+  pollingContract.assertReviewedAgentPolling(agent);
   assert.match(agent, /const\s+BLOWER_RUNTIME_PROBE_BATCH_COALESCE_MS\s*=\s*400\s*;/);
   for (const stage of ['coalesce', 'claim', 'Excel(single)', 'Excel(batch)', 'complete(batch)']) {
     assert.ok(agent.includes(`Blower Runtime 단계 ${stage}`), `${stage} timing log is missing`);
