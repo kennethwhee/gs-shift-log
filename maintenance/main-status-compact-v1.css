@@ -271,15 +271,17 @@
     width: 320px !important;
     padding: 12px !important;
     gap: 10px !important;
-    border: 1px solid #dce5ee !important;
+    border: 1px solid rgba(166, 183, 201, 0.22) !important;
     border-radius: 12px !important;
-    background: #fff !important;
-    box-shadow: 0 6px 22px #1c35491a !important;
-    backdrop-filter: none;
+    background: rgba(248, 250, 253, 0.06) !important;
+    box-shadow: 0 6px 22px rgba(28, 53, 73, 0.05) !important;
+    -webkit-backdrop-filter: blur(3px) saturate(1.01) !important;
+    backdrop-filter: blur(3px) saturate(1.01) !important;
   }
+  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRail.main-floating-notification-dock:hover { background: rgba(248, 250, 253, 0.10) !important; }
   html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) .main-floating-notification-dock__heading strong { color: #263e54; font-size: 13px; font-weight: 700; }
   html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) .main-floating-notification-dock__total { min-width: 23px; height: 22px; background: #f7eddb; color: #81550f; }
-  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) .main-floating-notification-dock__close { flex-basis: 26px; width: 26px; height: 26px; border-radius: 6px; background: #fff; color: #61758a; }
+  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) .main-floating-notification-dock__close { flex-basis: 26px; width: 26px; height: 26px; border-radius: 6px; border-color: rgba(155, 176, 198, 0.22); background: rgba(247, 249, 252, 0.08); color: #61758a; }
   html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList > button:not([hidden]) {
     display: flex !important;
     align-items: center !important;
@@ -289,12 +291,12 @@
     border-radius: 8px !important;
     box-shadow: none !important;
   }
-  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList > .blower-history-main-alert { background: #fff8ee !important; border-color: #ebddc5 !important; color: #825721 !important; }
-  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList > .arm-roll-box-main-alert { background: #fcf2f1 !important; border-color: #ead4d0 !important; color: #954b41 !important; }
+  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList > .blower-history-main-alert { background: rgba(255, 241, 243, 0.04) !important; border-color: rgba(199, 70, 83, 0.25) !important; color: #825721 !important; }
+  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList > .arm-roll-box-main-alert { background: rgba(255, 248, 232, 0.05) !important; border-color: rgba(205, 132, 27, 0.25) !important; color: #954b41 !important; }
   html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList [class$="__content"] { flex: 1; min-width: 0; }
   html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList [class$="__content"] small { color: #617185 !important; font-size: 10px !important; font-weight: 600 !important; }
   html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList [class$="__content"] strong { color: #31455a !important; font-size: 12px !important; font-weight: 650 !important; line-height: 1.4 !important; }
-  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList [class$="__count"] { flex: 0 0 auto !important; min-width: 25px !important; width: auto !important; height: 23px !important; min-height: 23px !important; padding: 0 6px !important; background: #fff !important; color: #7d4e27 !important; font-size: 10px !important; border: 1px solid #e1d3be !important; border-radius: 5px !important; }
+  html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList [class$="__count"] { flex: 0 0 auto !important; min-width: 25px !important; width: auto !important; height: 23px !important; min-height: 23px !important; padding: 0 6px !important; background: rgba(255, 255, 255, 0.22) !important; color: #7d4e27 !important; font-size: 10px !important; border: 1px solid rgba(225, 211, 190, 0.55) !important; border-radius: 5px !important; }
   html:not(.main-floating-notification-mobile-client) #statusView #shiftMemberGrid .role-notice-button.has-important-notice {
     background: #eaf2fc !important;
     border-color: #bad1eb !important;
@@ -304,11 +306,11 @@
   html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList > button[hidden] { display: none !important; }
   html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList > .blower-history-main-alert,
   html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList > .arm-roll-box-main-alert.is-critical {
-    background: #fcf2f1 !important; border-color: #ead4d0 !important; color: #954b41 !important;
+    background: rgba(255, 241, 243, 0.04) !important; border-color: rgba(199, 70, 83, 0.25) !important; color: #954b41 !important;
   }
   html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList > .blower-history-main-alert.is-warning,
   html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList > .arm-roll-box-main-alert:not(.is-critical) {
-    background: #fff8ee !important; border-color: #ebddc5 !important; color: #825721 !important;
+    background: rgba(255, 248, 232, 0.05) !important; border-color: rgba(205, 132, 27, 0.25) !important; color: #825721 !important;
   }
   html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRailList > :is(.is-critical,.is-overdue) { border-left: 3px solid #b65050 !important; }
   html:not(.main-floating-notification-mobile-client) body:has(#statusView.is-active) #mainNotificationRail.has-critical-alert .main-floating-notification-dock__total { background: #f9e9e7; color: #9a3536; }
