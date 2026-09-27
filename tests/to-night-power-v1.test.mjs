@@ -191,3 +191,118 @@ run('UI rejects wrong response date, unit, revision or NaN record', async f => {
     const invalid = structuredClone(payload); change(invalid); assert.throws(() => pure.normalizePayload(invalid, DATE));
   }
 });
+
+// R2: old-log synchronization has no authority over the independent manual record.
+function powerSnapshot(f) {
+  return {daily: f.sql.prepare('SELECT * FROM to_night_power_daily ORDER BY target_date').all(),
+    audit: f.sql.prepare('SELECT * FROM to_night_power_audit ORDER BY target_date, revision').all()};
+}
+run('legacy-style repeated overwrite with absent, blank, null or zero fields preserves every saved byte and audit', async f => {
+  await f.call('POST'); const before = powerSnapshot(f);
+  f.sql.exec("ALTER TABLE shift_logs ADD COLUMN log_json TEXT NOT NULL DEFAULT '{}'");
+  f.sql.exec('CREATE TABLE legacy_logs(id TEXT PRIMARY KEY, original_json TEXT)');
+  const sources = [{entries: []}, {}, {power: null}, {generatorEcmsGen1: ''},
+    Object.fromEntries(Object.keys(VALUES).map(key => [key, 0]))];
+  for (let round = 0; round < 4; round++) for (const incoming of sources) {
+    f.sql.prepare('INSERT OR REPLACE INTO legacy_logs VALUES (?, ?)').run('legacy-to', JSON.stringify(incoming));
+    f.sql.prepare('UPDATE shift_logs SET log_json = ?, revision = revision + 1 WHERE id = ?').run(JSON.stringify(incoming), 'log-ns-to');
+    const result = await f.call();
+    assert.equal(result.status, 200); assert.deepEqual(result.data.item.values, VALUES);
+    assert.deepEqual(powerSnapshot(f), before);
+  }
+});
+run('changing the synchronized TO log ID preserves manual values by date, not by log ID', async f => {
+  await f.call('POST'); const before = powerSnapshot(f);
+  f.sql.prepare('UPDATE shift_logs SET id = ?, revision = revision + 1').run('replacement-log');
+  const result = await f.call();
+  assert.deepEqual(result.data.item.values, VALUES); assert.equal(result.data.sourceLog.id, 'replacement-log');
+  assert.equal(result.data.item.sourceLogId, 'log-ns-to'); assert.deepEqual(powerSnapshot(f), before);
+});
+run('temporary missing TO log during synchronization retains the record but grants no write permission', async f => {
+  await f.call('POST'); const before = powerSnapshot(f); f.sql.exec('DELETE FROM shift_logs');
+  const result = await f.call(); assert.equal(result.status, 200); assert.equal(result.data.canEdit, false);
+  assert.equal(result.data.sourceLog, null); assert.deepEqual(result.data.item.values, VALUES);
+  assert.deepEqual(powerSnapshot(f), before);
+});
+run('reassigning the synchronized author changes permission only, not existing manual data', async f => {
+  await f.call('POST'); const before = powerSnapshot(f);
+  f.sql.exec("UPDATE shift_logs SET author_id = 'other', author = 'TEST OTHER', revision = 3");
+  assert.equal((await f.call()).data.canEdit, false);
+  const result = await f.call('GET', null, 'other'); assert.equal(result.data.canEdit, true);
+  assert.deepEqual(result.data.item.values, VALUES); assert.deepEqual(powerSnapshot(f), before);
+});
+run('power and audit tables have no log foreign key or cascade dependency', async f => {
+  await f.call('POST'); f.sql.exec('PRAGMA foreign_keys = ON');
+  for (const table of ['to_night_power_daily', 'to_night_power_audit']) {
+    assert.equal(f.sql.prepare(`PRAGMA foreign_key_list(${table})`).all().length, 0);
+  }
+  const before = powerSnapshot(f); f.sql.exec('DELETE FROM shift_logs'); assert.deepEqual(powerSnapshot(f), before);
+});
+run('sync invalidates an open source revision without erasing the last successful save', async f => {
+  await f.call('POST'); const before = powerSnapshot(f);
+  const draft = f.body(); draft.expectedRevision = 1; draft.values.ismartReception = 99;
+  f.sql.exec('UPDATE shift_logs SET revision = revision + 1');
+  assert.equal((await f.call('POST', draft)).status, 409); assert.deepEqual(powerSnapshot(f), before);
+});
+run('sync races with explicit save: transaction stops without erasing saved values or audit', async f => {
+  await f.call('POST'); const before = powerSnapshot(f); const draft = f.body();
+  draft.expectedRevision = 1; draft.values.ismartReception = 25;
+  f.db.beforeWriteBatch = () => f.sql.exec('UPDATE shift_logs SET revision = revision + 1');
+  assert.equal((await f.call('POST', draft)).status, 409); assert.deepEqual(powerSnapshot(f), before);
+});
+run('empty automated-looking POST cannot clear an existing manual record', async f => {
+  await f.call('POST'); const before = powerSnapshot(f);
+  for (const missing of [{}, null, Object.fromEntries(Object.keys(VALUES).map(key => [key, '']))]) {
+    const body = f.body(); body.expectedRevision = 1; body.values = missing;
+    assert.equal((await f.call('POST', body)).status, 400); assert.deepEqual(powerSnapshot(f), before);
+  }
+});
+run('explicit authorized correction to all zeros remains valid after synchronization', async f => {
+  await f.call('POST'); f.sql.exec('UPDATE shift_logs SET revision = 3');
+  const body = f.body(); body.expectedRevision = 1; body.sourceLogRevision = 3;
+  body.values = Object.fromEntries(Object.keys(VALUES).map(key => [key, 0]));
+  const result = await f.call('POST', body); assert.equal(result.status, 200);
+  assert.equal(result.data.item.revision, 2); assert.deepEqual(result.data.item.values, body.values);
+  assert.equal(f.count('to_night_power_audit'), 2);
+});
+run('other work dates do not inherit or clear the saved date values', async f => {
+  await f.call('POST'); const before = powerSnapshot(f);
+  for (const date of ['2026-09-25', '2026-09-27']) {
+    const result = await f.call('GET', null, 'to', {date}); assert.equal(result.data.item, null);
+  }
+  assert.deepEqual(powerSnapshot(f), before); assert.deepEqual((await f.call()).data.item.values, VALUES);
+});
+run('repeated read/refresh does not increment revision or write an audit entry', async f => {
+  await f.call('POST'); const before = powerSnapshot(f);
+  for (let i = 0; i < 20; i++) assert.equal((await f.call()).data.item.revision, 1);
+  assert.deepEqual(powerSnapshot(f), before);
+});
+for (const [name, mutate] of [
+  ['null record', p => { p.item = null; }],
+  ['lower revision', p => { p.item.revision = 1; }],
+  ['equal revision with changed values', p => { p.item.values.generatorEcmsGen1 = 0; }],
+  ['wrong date', p => { p.targetDate = '2026-09-27'; }],
+  ['blank number', p => { p.item.values.generatorEcmsGen1 = ''; }]
+]) run('refresh rejects ' + name + ' without mutating the confirmed payload', async f => {
+  await f.call('POST'); const draft = f.body(); draft.expectedRevision = 1; await f.call('POST', draft);
+  const prior = (await f.call()).data, before = JSON.stringify(prior), incoming = structuredClone(prior); mutate(incoming);
+  assert.throws(() => pure.acceptRefresh(prior, incoming, DATE)); assert.equal(JSON.stringify(prior), before);
+});
+run('refresh accepts newer explicit zero correction and updated duty permission', async f => {
+  await f.call('POST'); const prior = (await f.call()).data, incoming = structuredClone(prior);
+  incoming.item.revision++; incoming.item.values.generatorEcmsGen1 = 0; incoming.canEdit = false; incoming.sourceLog = null;
+  const accepted = pure.acceptRefresh(prior, incoming, DATE);
+  assert.equal(accepted.item.values.generatorEcmsGen1, 0); assert.equal(accepted.canEdit, false);
+  assert.equal(prior.item.values.generatorEcmsGen1, VALUES.generatorEcmsGen1);
+});
+run('unchanged revision may update source log identity and permissions without changing the record', async f => {
+  await f.call('POST'); const prior = (await f.call()).data, incoming = structuredClone(prior);
+  incoming.sourceLog = {id: 'sync-replacement', revision: 9}; incoming.canEdit = false;
+  const accepted = pure.acceptRefresh(prior, incoming, DATE);
+  assert.equal(accepted.sourceLog.id, 'sync-replacement'); assert.equal(accepted.canEdit, false);
+  assert.deepEqual({...accepted.item.values}, VALUES);
+});
+run('an initial never-entered date stays missing: refresh does not manufacture a zero record', async f => {
+  const incoming = (await f.call()).data, accepted = pure.acceptRefresh(null, incoming, DATE);
+  assert.equal(accepted.item, null); assert.equal(f.count('to_night_power_daily'), 0);
+});

@@ -23,10 +23,10 @@ const sourceFunction = name => {
 test('actual patched main script parses', () => { new vm.Script(source, {filename: 'script.js'}); });
 test('provider loads after the classic main script; both cache keys and CSS are present', () => {
   const main = [...index.matchAll(/<script\b[^>]*src=["']\/?script\.js(?:\?[^"']*)?["'][^>]*>/gi)];
-  assert.equal(main.length, 1); assert.match(main[0][0], /toNightPower=20260927-v1/);
-  assert.ok(index.indexOf('/maintenance/to-night-power.js?v=20260927-v1') > main[0].index);
-  assert.equal(index.split('/maintenance/to-night-power.js?v=20260927-v1').length - 1, 1);
-  assert.equal(index.split('/maintenance/to-night-power.css?v=20260927-v1').length - 1, 1);
+  assert.equal(main.length, 1); assert.match(main[0][0], /toNightPower=20260927-v1-r2/);
+  assert.ok(index.indexOf('/maintenance/to-night-power.js?v=20260927-v1-r2') > main[0].index);
+  assert.equal(index.split('/maintenance/to-night-power.js?v=20260927-v1-r2').length - 1, 1);
+  assert.equal(index.split('/maintenance/to-night-power.css?v=20260927-v1-r2').length - 1, 1);
 });
 test('TO render runs after existing closed-data/query render', () => {
   assert.match(source, /window\.morningMeetingClosedCofiring\?\.renderOrganic\(\);\s*window\.morningMeetingQuerySources\?\.render\(\);\s*window\.toNightPower\?\.renderMeeting\(\);/);
@@ -89,3 +89,13 @@ test('mismatched manual date throws before any workbook cell write', () => {
   const f = exportFixture(); assert.throws(() => f.context.applyMorningMeetingDailyDataValues({}, f.data, {targetDate: '2026-09-25'}));
   assert.equal(f.cells.size, 0);
 });
+
+for (const replacement of [undefined, null, {}, {generatorEcmsGen1: '', ismartReception: null},
+  {generatorEcmsGen1: 0, ismartReception: 0, epowerTransmission: 0, solarDailyGeneration: 0}]) {
+  test('legacy/morning refresh source cannot override explicit manual values: ' + JSON.stringify(replacement), () => {
+    const f = exportFixture();
+    f.context.applyMorningMeetingDailyDataValues({}, replacement, {targetDate: f.date});
+    assert.equal(f.cells.get('AK7'), 1000.500125);
+    assert.equal(f.cells.get('AK9'), 0);
+  });
+}

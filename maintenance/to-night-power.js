@@ -1,4 +1,8 @@
-/* Night TO power entry + read-only morning-meeting provider. No Excel/Agent call. */
+/* Night TO power entry + read-only morning-meeting provider. No Excel/Agent call.
+ * R2: keep the last confirmed date/session-scoped manual record through legacy
+ * synchronization, background refresh and transient errors. Never POST from sync.
+ * Retained values are display-only until a fresh GET is confirmed for workbook use.
+ */
 (function (root) {
   'use strict';
   const FIELDS = Object.freeze([
@@ -40,13 +44,26 @@
     }
     return {...payload, item: item === null ? null : {...item, values: Object.fromEntries(FIELDS.map(([key]) => [key, item.values[key]]))}};
   }
+  function acceptRefresh(previous, incoming, date) {
+    const next = normalizePayload(incoming, date);
+    if (!previous?.item) return next;
+    const prior = normalizePayload(previous, date);
+    // This feature has no delete endpoint: a missing row or an older revision is
+    // not an instruction to erase a previously confirmed manual record.
+    if (!next.item) throw new Error('저장된 TO 전력 자료가 재조회 응답에서 누락되었습니다. 마지막 저장값을 유지합니다.');
+    if (next.item.revision < prior.item.revision) throw new Error('이전 버전의 TO 전력 응답입니다. 마지막 저장값을 유지합니다.');
+    if (next.item.revision === prior.item.revision && FIELDS.some(([key]) => next.item.values[key] !== prior.item.values[key])) {
+      throw new Error('TO 전력 저장 버전과 값이 일치하지 않습니다. 마지막 저장값을 유지합니다.');
+    }
+    return next;
+  }
   function mergeValues(dailyData, payload, date, suppressed = false) {
     const source = dailyData && typeof dailyData === 'object' ? {...dailyData} : {};
     if (suppressed || !payload?.item) return source;
     const result = normalizePayload(payload, date);
     return {...source, ...result.item.values};
   }
-  if (typeof module === 'object' && module.exports) module.exports = {FIELDS, dateValid, parseInput, normalizePayload, mergeValues};
+  if (typeof module === 'object' && module.exports) module.exports = {FIELDS, dateValid, parseInput, normalizePayload, acceptRefresh, mergeValues};
   if (!root?.document || root.toNightPower) return;
   const doc = root.document, cache = new Map(), pending = new Map();
   let session = '', generation = 0, selectionStamp = '', uiQueued = false, meetingQueued = false;
@@ -127,17 +144,24 @@
     const entry = cache.get(date);
     if (!force && entry?.status === 'ready' && Date.now() - entry.at < 30000) return Promise.resolve(entry.payload);
     const ownGeneration = generation, ownSession = session, controller = new AbortController();
-    cache.set(date, {status: 'loading'});
+    const previous = entry?.payload?.item ? entry.payload : null;
+    cache.set(date, {status: 'loading', ...(previous ? {payload: previous, at: entry.at} : {})});
     const job = {controller, promise: null};
     job.promise = request(date, {controller}).then(payload => {
       checkSession();
       if (generation !== ownGeneration || session !== ownSession || pending.get(date) !== job) {
         throw new Error('로그인 또는 조회 상태가 변경되었습니다.');
       }
-      cache.set(date, {status: 'ready', payload, at: Date.now()});
-      return payload;
+      const accepted = acceptRefresh(previous, payload, date);
+      cache.set(date, {status: 'ready', payload: accepted, at: Date.now()});
+      return accepted;
     }).catch(error => {
-      if (generation === ownGeneration && pending.get(date) === job) cache.set(date, {status: 'error', error: error.message});
+      if (generation === ownGeneration && pending.get(date) === job) {
+        // Never retain protected values after the server rejects authentication.
+        const retain = previous && error.status !== 401 && error.status !== 403;
+        cache.set(date, {status: 'error', error: error.message,
+          ...(retain ? {payload: previous, at: entry.at} : {})});
+      }
       throw error;
     }).finally(() => {
       if (pending.get(date) === job) pending.delete(date);
@@ -275,7 +299,10 @@
         say(error.message + ' 현재 입력값은 그대로 유지됩니다.', true);
         if (error.status === 403 || error.status === 409) {
           state.payload.canEdit = false;
-          cache.delete(state.date); queueUI();
+          const previous = cache.get(state.date);
+          cache.set(state.date, {status: 'error', error: error.message,
+            ...(previous?.payload?.item ? {payload: previous.payload, at: previous.at} : {})});
+          queueUI(); redrawMeeting();
         }
       }
     } finally {
@@ -305,6 +332,13 @@
     if (session && entry?.status === 'ready' && Date.now() - entry.at >= 30000) {
       void load(date, true).catch(() => {});
       entry = cache.get(date);
+    }
+    if (session && entry?.payload?.item && entry.status !== 'ready') {
+      for (const [key, , suffix] of FIELDS) setText(byId(PREFIX + suffix), entry.payload.item.values[key].toLocaleString('ko-KR', {maximumFractionDigits: 6}) + ' kWh');
+      setText(byId(PREFIX + 'PowerDate'), date);
+      badge(entry.status === 'error' ? '재조회 실패 · 마지막 저장값 유지' : '재확인 중 · 마지막 저장값 유지', entry.status === 'error' ? 'error' : 'loading');
+      card.title = `${date} N/S TO · ${entry.payload.item.updatedBy || 'TO 담당자'} · ${entry.payload.item.updatedAt || ''} · 마지막 저장값 (재확인 전)` + (entry.error ? ` · ${entry.error}` : '');
+      return;
     }
     if (!session || !entry || entry.status === 'loading' || entry.status === 'error') {
       for (const [, , suffix] of FIELDS) setText(byId(PREFIX + suffix), '-');
@@ -342,7 +376,7 @@
     if (entry?.status !== 'ready') throw new Error('TO 전력 저장자료를 확인하지 못했습니다. 전력 카드에서 재조회 후 다시 생성해 주세요.');
     return mergeValues(dailyData, entry.payload, date);
   }
-  root.toNightPower = {version: '20260927-v1', targetDate, renderMeeting, refreshMeeting, ensureForWorkbook, valuesForWorkbook,
+  root.toNightPower = {version: '20260927-v1-r2', targetDate, renderMeeting, refreshMeeting, ensureForWorkbook, valuesForWorkbook,
     refreshDuty: () => { selectionStamp = ''; queueUI(); }};
   function init() {
     const original = root.updateShiftMemberCardStates;
