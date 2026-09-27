@@ -2,12 +2,17 @@
 #shiftMemberGrid .shift-member-card.has-to-night-power { position: relative; }
 #shiftMemberGrid .to-night-power-button {
   position: absolute; top: 10px; right: 10px; z-index: 2; margin: 0;
-  min-height: 25px; padding: 4px 8px; border: 1px solid #3989ce; border-radius: 4px;
-  background: #337fc2; color: #fff; font: 700 11px/1.3 system-ui, sans-serif; font-family: inherit;
+  min-height: 25px; padding: 4px 8px; border: 1px solid #9bc9f0; border-radius: 4px;
+  background: #eaf4ff; color: #1767b4; font: 700 11px/1.3 system-ui, sans-serif; font-family: inherit;
   font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
 }
 #shiftMemberGrid .to-night-power-button[hidden] { display: none !important; }
-#shiftMemberGrid .to-night-power-button:hover { background: #4390d1; }
+#shiftMemberGrid .to-night-power-button:hover:not(:disabled) { border-color: #79b7e9; background: #dceeff; color: #0e5fa9; }
+#shiftMemberGrid .to-night-power-button.is-complete { border-color: #9fd6b4; background: #eaf8ef; color: #187047; }
+#shiftMemberGrid .to-night-power-button.is-complete:hover:not(:disabled) { border-color: #79c397; background: #ddf3e5; color: #12623c; }
+#shiftMemberGrid .to-night-power-button.is-checking { border-color: #ccd6e0; background: #f1f4f7; color: #667789; cursor: progress; }
+#shiftMemberGrid .to-night-power-button:disabled { opacity: 1; }
 #shiftMemberGrid .to-night-power-button:focus-visible { outline: 2px solid #bfddff; outline-offset: 3px; }
 
 /*

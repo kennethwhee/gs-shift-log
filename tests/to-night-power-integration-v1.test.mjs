@@ -9,6 +9,7 @@ const root = process.env.TO_POWER_SOURCE_ROOT || (existsSync(path.join(packageRo
 const source = readFileSync(path.join(root, 'script.js'), 'utf8').replaceAll('\r\n', '\n');
 const index = readFileSync(path.join(root, 'index.html'), 'utf8');
 const providerSource = readFileSync(path.join(root, 'maintenance/to-night-power.js'), 'utf8');
+const providerCss = readFileSync(path.join(root, 'maintenance/to-night-power.css'), 'utf8');
 const pureContext = {module: {exports: {}}};
 vm.runInNewContext(providerSource, pureContext);
 const pure = pureContext.module.exports;
@@ -24,10 +25,21 @@ const sourceFunction = name => {
 test('actual patched main script parses', () => { new vm.Script(source, {filename: 'script.js'}); });
 test('provider loads after the classic main script; both cache keys and CSS are present', () => {
   const main = [...index.matchAll(/<script\b[^>]*src=["']\/?script\.js(?:\?[^"']*)?["'][^>]*>/gi)];
-  assert.equal(main.length, 1); assert.match(main[0][0], /toNightPower=20260927-v1-r5/);
-  assert.ok(index.indexOf('/maintenance/to-night-power.js?v=20260927-v1-r5') > main[0].index);
-  assert.equal(index.split('/maintenance/to-night-power.js?v=20260927-v1-r5').length - 1, 1);
-  assert.equal(index.split('/maintenance/to-night-power.css?v=20260927-v1-r2-ui1').length - 1, 1);
+  assert.equal(main.length, 1); assert.match(main[0][0], /toNightPower=20260928-v1-r6-state1/);
+  assert.ok(index.indexOf('/maintenance/to-night-power.js?v=20260928-v1-r6-state1') > main[0].index);
+  assert.equal(index.split('/maintenance/to-night-power.js?v=20260928-v1-r6-state1').length - 1, 1);
+  assert.equal(index.split('/maintenance/to-night-power.css?v=20260928-v1-r2-ui2-state1').length - 1, 1);
+});
+test('TO card distinguishes incomplete, complete and checking states', () => {
+  assert.match(providerSource, /function paintInputButton\(button, entry, eligible\)/);
+  assert.match(providerSource, /const complete = ready && Boolean\(entry\.payload\.item\)/);
+  assert.match(providerSource, /setText\(button, '전력 입력'\)/);
+  assert.match(providerSource, /setText\(button, '✓ 입력 완료'\)/);
+  assert.match(providerSource, /setText\(button, '확인 중…'\)/);
+  assert.match(providerCss, /background:\s*#eaf4ff/);
+  assert.match(providerCss, /\.to-night-power-button\.is-complete/);
+  assert.match(providerCss, /background:\s*#eaf8ef/);
+  assert.match(providerCss, /\.to-night-power-button\.is-checking/);
 });
 test('TO render runs after existing closed-data/query render', () => {
   assert.match(source, /window\.morningMeetingClosedCofiring\?\.renderOrganic\(\);\s*window\.morningMeetingQuerySources\?\.render\(\);\s*window\.toNightPower\?\.renderMeeting\(\);/);

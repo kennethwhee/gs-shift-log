@@ -296,6 +296,28 @@
     if (uiQueued) return;
     uiQueued = true; queueMicrotask(() => { uiQueued = false; syncCard(); });
   }
+  function paintInputButton(button, entry, eligible) {
+    const ready = eligible && entry?.status === 'ready' && entry?.payload?.canEdit === true;
+    const checking = eligible && (!entry || entry.status === 'loading');
+    const complete = ready && Boolean(entry.payload.item);
+    setHidden(button, !(ready || checking));
+    button.disabled = checking;
+    button.classList.toggle('is-pending', ready && !complete);
+    button.classList.toggle('is-complete', complete);
+    button.classList.toggle('is-checking', checking);
+    if (checking) button.setAttribute('aria-busy', 'true');
+    else button.removeAttribute('aria-busy');
+    if (checking) {
+      setText(button, '확인 중…');
+      button.title = '저장된 전력 입력 여부를 확인하고 있습니다.';
+    } else if (complete) {
+      setText(button, '✓ 입력 완료');
+      button.title = '전력 입력 완료 · 클릭하여 저장값 확인/수정';
+    } else if (ready) {
+      setText(button, '전력 입력');
+      button.title = 'N/S TO 전력 실적 입력 (kWh)';
+    }
+  }
   function syncCard() {
     checkSession();
     const selected = selectedDuty();
@@ -315,8 +337,7 @@
         button.addEventListener('keydown', event => { event.stopPropagation(); });
         card.classList.add('has-to-night-power'); card.appendChild(button);
       }
-      setHidden(button, !(eligible && entry?.status === 'ready' && entry.payload.canEdit));
-      button.title = '이 날짜의 N/S TO 전력 실적 입력·수정 (kWh)';
+      paintInputButton(button, entry, eligible);
     }
   }
   function say(text, error = false) {
@@ -511,7 +532,7 @@
     if (entry?.status !== 'ready') throw new Error('TO 전력 저장자료를 확인하지 못했습니다. 전력 카드에서 재조회 후 다시 생성해 주세요.');
     return mergeValues(dailyData, entry.payload, date);
   }
-  root.toNightPower = {version: '20260927-v1-r5', targetDate, renderMeeting, refreshMeeting, ensureForWorkbook, valuesForWorkbook,
+  root.toNightPower = {version: '20260928-v1-r6-state1', targetDate, renderMeeting, refreshMeeting, ensureForWorkbook, valuesForWorkbook,
     refreshDuty: () => { selectionStamp = ''; queueUI(); }};
   function init() {
     const original = root.updateShiftMemberCardStates;
