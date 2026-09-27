@@ -1,0 +1,54 @@
+/* Main floating operating alert translucency V1
+   Desktop only: make the dock visually lighter without fading text/content. */
+@media screen and (min-width: 769px) {
+  html body
+  #mainNotificationRail.main-floating-notification-dock {
+    border-color: rgba(166, 183, 201, 0.24) !important;
+    background: rgba(248, 250, 253, 0.20) !important;
+    box-shadow:
+      0 10px 28px rgba(25, 43, 66, 0.05),
+      0 2px 7px rgba(25, 43, 66, 0.02) !important;
+    -webkit-backdrop-filter: blur(12px) saturate(1.03) !important;
+    backdrop-filter: blur(12px) saturate(1.03) !important;
+  }
+
+  html body
+  #mainNotificationRail.main-floating-notification-dock:hover {
+    background: rgba(248, 250, 253, 0.28) !important;
+  }
+
+  html body
+  #mainNotificationRail .main-floating-notification-dock__close {
+    border-color: rgba(171, 188, 206, 0.28) !important;
+    background: rgba(247, 249, 252, 0.16) !important;
+  }
+
+  html body
+  #mainNotificationRail .main-floating-notification-dock__close:hover {
+    background: rgba(238, 243, 247, 0.40) !important;
+  }
+
+  html body
+  #mainNotificationRailList > .blower-history-main-alert {
+    border-color: rgba(207, 99, 111, 0.32) !important;
+    background: rgba(255, 241, 243, 0.10) !important;
+  }
+
+  html body
+  #mainNotificationRailList > .blower-history-main-alert.is-warning {
+    border-color: rgba(201, 151, 38, 0.32) !important;
+    background: rgba(255, 248, 232, 0.12) !important;
+  }
+
+  html body
+  #mainNotificationRailList > .arm-roll-box-main-alert {
+    border-color: rgba(205, 132, 27, 0.32) !important;
+    background: rgba(255, 248, 232, 0.12) !important;
+  }
+
+  html body
+  #mainNotificationRailList > .arm-roll-box-main-alert.is-critical {
+    border-color: rgba(199, 69, 83, 0.32) !important;
+    background: rgba(255, 241, 243, 0.10) !important;
+  }
+}
