@@ -267,7 +267,7 @@
     const shown=ready?(ratio?value.toFixed(2)+'<small>%</small>':num(value,digits)+(suffix?' '+suffix:'')):'—';
     return `<div class="cfv52-metric${ratio?' cfv52-metric-ratio':''}${emphasis?' cfv52-metric-emphasis':''}"><span>${label}</span><strong>${shown}</strong></div>`;
   }
-  function renderSummary(container,result,manualValues,targetError=''){
+  function renderSummaryOriginal(container,result,manualValues,targetError=''){
     const host=container.querySelector('[data-cfv52-summary-grid]'),note=container.querySelector('[data-cfv52-summary-note]');if(!host)return;
     const targetPercent=targetPercentFor(container);
     // Keep the shared editor and its draft/focus alive when results refresh.
@@ -293,6 +293,104 @@
     restoreEditor();
     if(note)note.textContent=result?.warnings?.length?'자료 확인 필요':'계산 완료';
   }
+
+  // COFIRING_ADJUSTED_COMPARISON_CARDS_V4
+  function cfvAdjustmentNumber(value){
+    const number=Number(value);return Number.isFinite(number)?number:null;
+  }
+  function cfvAdjustmentDelta(beforeValue,afterValue,{ratio=false,unit=''}={}){
+    const before=cfvAdjustmentNumber(beforeValue),after=cfvAdjustmentNumber(afterValue);
+    if(before===null||after===null)return null;
+    const delta=after-before;if(Math.abs(delta)<0.005)return null;
+    return {delta,up:delta>0,text:(delta>0?'+':'')+num(delta,2)+(ratio?'%p':unit?' '+unit:'')};
+  }
+  function cfvAppendAdjustmentDelta(target,beforeValue,afterValue,options={}){
+    const change=cfvAdjustmentDelta(beforeValue,afterValue,options);if(!target||!change)return;
+    const badge=root.document.createElement('span');
+    badge.className='cfv-adjustment-delta '+(change.up?'is-up':'is-down');
+    badge.textContent=(change.up?'▲ ':'▼ ')+change.text;
+    badge.setAttribute('aria-label','원본 대비 '+change.text);
+    target.appendChild(badge);
+  }
+  function cfvDecorateOriginalCard(card,unitIndex){
+    if(!card)return card;
+    card.classList.add('cfv-adjustment-original-card');
+    card.dataset.adjustmentKind='original';
+    const titleWrap=card.querySelector('.cfv52-unit-title > div');
+    if(titleWrap&&!titleWrap.querySelector('.cfv-original-kind')){
+      titleWrap.classList.add('cfv-original-unit-heading');
+      const badge=root.document.createElement('span');badge.className='cfv-original-kind';badge.textContent='원본';titleWrap.appendChild(badge);
+    }
+    card.dataset.adjustmentUnitLabel=(unitIndex+1)+'호기 원본';
+    return card;
+  }
+  function cfvDecorateAdjustedCard(card,unitIndex,beforeUnit,afterUnit){
+    if(!card)return card;
+    card.classList.add('cfv-adjustment-card');
+    card.dataset.adjustmentKind='adjusted';
+    card.dataset.adjustmentLabel=(unitIndex+1)+'호기 원본 → 혼소조정';
+    card.querySelectorAll('[data-cfv6-target], .cfv8-deadline-target, .cfv10-target').forEach(node=>node.remove());
+    const titleWrap=card.querySelector('.cfv52-unit-title > div');
+    if(titleWrap){
+      titleWrap.classList.add('cfv-adjustment-unit-heading');
+      if(!titleWrap.querySelector('.cfv-adjustment-kind')){
+        const badge=root.document.createElement('span');badge.className='cfv-adjustment-kind';badge.textContent='혼소조정';titleWrap.appendChild(badge);
+      }
+    }
+    const header=card.querySelector('header');
+    if(header&&!header.querySelector('.cfv-adjustment-applied')){
+      const status=header.querySelector('.cfv52-card-status');
+      const wrap=root.document.createElement('div');wrap.className='cfv-adjustment-header-status';
+      const applied=root.document.createElement('span');applied.className='cfv-adjustment-applied';applied.textContent='혼소조정 적용';
+      if(status){status.replaceWith(wrap);wrap.append(applied,status);}else{wrap.append(applied);header.appendChild(wrap);}
+    }
+    const beforeRatios={
+      '바이오 혼소율':coalBioRatio(beforeUnit),
+      '유기성 및 축분 혼소율':beforeUnit?.fuelRatios?.organicGroup,
+      '종합혼소율':beforeUnit?.fuelRatios?.total
+    };
+    const afterRatios={
+      '바이오 혼소율':coalBioRatio(afterUnit),
+      '유기성 및 축분 혼소율':afterUnit?.fuelRatios?.organicGroup,
+      '종합혼소율':afterUnit?.fuelRatios?.total
+    };
+    card.querySelectorAll('.cfv52-metric').forEach(metric=>{
+      const label=String(metric.querySelector('span')?.textContent||'').trim();
+      const strong=metric.querySelector('strong');
+      if(Object.prototype.hasOwnProperty.call(afterRatios,label))cfvAppendAdjustmentDelta(strong,beforeRatios[label],afterRatios[label],{ratio:true});
+    });
+    FUEL_KEYS.forEach(fuel=>{
+      const fuelBox=card.querySelector('[data-cfv10-fuel="'+fuel+'"]');
+      const value=fuelBox?.querySelector('.cfv10-fuel-value')||fuelBox?.querySelector('strong');
+      cfvAppendAdjustmentDelta(value,beforeUnit?.[fuel]?.quantity,afterUnit?.[fuel]?.quantity,{unit:'t'});
+    });
+    return card;
+  }
+  function renderSummary(container,result,manualValues,targetError=''){
+    const state=container?.__cfvAdjustedComparisonState;
+    if(!result||!state?.active||!state.base||!state.adjusted){
+      if(!result&&container)container.__cfvAdjustedComparisonState={active:false,base:null,adjusted:null};
+      return renderSummaryOriginal(container,result,manualValues,targetError);
+    }
+    const host=container.querySelector('[data-cfv52-summary-grid]');
+    if(!host||!root.document?.createElement)return renderSummaryOriginal(container,state.base,manualValues,targetError);
+
+    renderSummaryOriginal(container,state.base,manualValues,targetError);
+    const originalChildren=[...host.children];
+    const originalCards=originalChildren.filter(node=>node.matches?.('[data-cfv52-unit]')).slice(0,UNITS.length).map((node,index)=>cfvDecorateOriginalCard(node.cloneNode(true),index));
+    const trailingOriginal=originalChildren.filter(node=>!node.matches?.('[data-cfv52-unit]')).map(node=>node.cloneNode(true));
+
+    renderSummaryOriginal(container,state.adjusted,manualValues,targetError);
+    const adjustedChildren=[...host.children].filter(node=>node.matches?.('[data-cfv52-unit]')).slice(0,UNITS.length);
+    const adjustedCards=adjustedChildren.map((node,index)=>{
+      const unit=UNITS[index];
+      return cfvDecorateAdjustedCard(node.cloneNode(true),index,state.base?.units?.[unit],state.adjusted?.units?.[unit]);
+    });
+
+    host.replaceChildren(...originalCards,...adjustedCards,...trailingOriginal);
+    const note=container.querySelector('[data-cfv52-summary-note]');if(note)note.textContent='혼소 조정 적용';
+  }
+
   function retainBioTargetEditor(container){
     const editor=container.querySelector('[data-cfv-target-control]');
     const active=root.document?.activeElement,focused=editor?.contains?.(active)?active:null;
@@ -753,7 +851,11 @@
       if(feedback){feedback.dataset.tone='';feedback.textContent='적용 전 · 현재 목표 '+targetPercentFor(container)+'%';}
     });
     function prepLabel(text,tone=''){const el=container.querySelector('[data-cfv56-prep]');if(el){el.textContent=text;el.dataset.tone=tone;}}
-    function renderDisplay(result,{adjusted=false}={}){displayResult=result;const manualValues=readManual(container);/* CFV6 DETAIL RESULT BRIDGE R2 */container.__cfv6DetailPayload={result,manualValues};if(root.CustomEvent)container.dispatchEvent(new root.CustomEvent('cfv6-detail-result',{detail:container.__cfv6DetailPayload}));renderMain(container,result);renderOrganic(container,result,manualValues);renderSummary(container,result,manualValues,deadlineInputError);renderWarnings(container,result);scheduleDeadlineRefresh();adjustmentActive=!!adjusted;const b=container.querySelector('[data-cfv56-adjust]');if(b){b.disabled=!lastResult||mobile;b.classList.toggle('is-active',adjustmentActive);b.textContent=adjustmentActive?'혼소 조정 적용중':'혼소 조정';}const note=container.querySelector('[data-cfv52-summary-note]');if(note&&adjusted)note.textContent='혼소 조정 적용';}
+    function renderDisplay(result,{adjusted=false}={}){
+      // COFIRING_ADJUSTED_COMPARISON_STATE_V4
+      container.__cfvAdjustedComparisonState = adjusted
+        ? { active: true, base: lastResult || null, adjusted: result || null }
+        : { active: false, base: result || lastResult || null, adjusted: null };displayResult=result;const manualValues=readManual(container);/* CFV6 DETAIL RESULT BRIDGE R2 */container.__cfv6DetailPayload={result,manualValues};if(root.CustomEvent)container.dispatchEvent(new root.CustomEvent('cfv6-detail-result',{detail:container.__cfv6DetailPayload}));renderMain(container,result);renderOrganic(container,result,manualValues);renderSummary(container,result,manualValues,deadlineInputError);renderWarnings(container,result);scheduleDeadlineRefresh();adjustmentActive=!!adjusted;const b=container.querySelector('[data-cfv56-adjust]');if(b){b.disabled=!lastResult||mobile;b.classList.toggle('is-active',adjustmentActive);b.textContent=adjustmentActive?'혼소 조정 적용중':'혼소 조정';}const note=container.querySelector('[data-cfv52-summary-note]');if(note&&adjusted)note.textContent='혼소 조정 적용';}
     function adjustmentContext(){return {result:lastResult,settings:readSettings(container),spec:currentSpec()};}
     let adjuster=null;
     function scheduleFastPrep(delay=900){if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}const epoch=++fastPrepGeneration;restoringSaved=false;if(disposed||mobile||!visible()||!live)return;prepLabel('고속 준비 예약');fastPrepTimer=root.setTimeout?.(()=>{fastPrepTimer=null;void fastPrepare(epoch);},delay);}

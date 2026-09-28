@@ -1,0 +1,135 @@
+/* COFIRING ADJUSTED COMPARISON CARDS V4
+   Row 1 = original 1/2 unit cards (deadline area kept).
+   Row 2 = adjusted 1/2 unit cards only while adjustment is active (deadline area removed).
+*/
+
+.cfv52-summary-grid > .cfv-adjustment-original-card {
+  position: relative;
+}
+
+.cfv-original-unit-heading,
+.cfv-adjustment-unit-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.cfv-original-kind {
+  display: inline-flex;
+  min-height: 21px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 7px;
+  border: 1px solid rgba(75, 133, 199, 0.34);
+  border-radius: 7px;
+  background: rgba(234, 244, 255, 0.86);
+  color: #2f6fab;
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.cfv52-summary-grid > .cfv-adjustment-card {
+  position: relative;
+  margin-top: 31px;
+  border-color: rgba(236, 145, 49, 0.76) !important;
+  background: linear-gradient(180deg, rgba(255, 247, 235, 0.96), rgba(255, 252, 247, 0.99)) !important;
+  box-shadow: inset 0 0 0 1px rgba(241, 163, 78, 0.14), 0 3px 11px rgba(165, 104, 37, 0.05) !important;
+}
+
+.cfv52-summary-grid > .cfv-adjustment-card::before {
+  content: "↓  " attr(data-adjustment-label);
+  position: absolute;
+  top: -30px;
+  left: 0;
+  right: 0;
+  display: flex;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  color: #e66e16;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.cfv52-summary-grid > .cfv-adjustment-card > header {
+  border-bottom-color: rgba(236, 145, 49, 0.30) !important;
+  background: rgba(255, 243, 226, 0.70) !important;
+}
+
+.cfv-adjustment-kind,
+.cfv-adjustment-applied {
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border: 1px solid rgba(235, 131, 31, 0.52);
+  border-radius: 7px;
+  background: rgba(255, 238, 218, 0.84);
+  color: #dc6914;
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.cfv-adjustment-applied {
+  border-color: rgba(235, 131, 31, 0.62);
+  background: rgba(255, 230, 198, 0.90);
+}
+
+.cfv-adjustment-header-status {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.cfv-adjustment-card .cfv52-metric,
+.cfv-adjustment-card .cfv10-fuel {
+  border-color: rgba(231, 157, 84, 0.30) !important;
+  background: rgba(255, 252, 247, 0.76) !important;
+}
+
+.cfv-adjustment-card .cfv52-metric-emphasis {
+  background: rgba(255, 246, 230, 0.94) !important;
+}
+
+.cfv-adjustment-card .cfv10-fuels-head {
+  border-color: rgba(231, 157, 84, 0.24) !important;
+}
+
+.cfv-adjustment-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 7px;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.cfv-adjustment-delta.is-up { color: #ec6b18; }
+.cfv-adjustment-delta.is-down { color: #2872c7; }
+
+/* Adjusted cards intentionally never show Bio deadline/closing information. */
+.cfv-adjustment-card [data-cfv6-target],
+.cfv-adjustment-card .cfv8-deadline-target,
+.cfv-adjustment-card .cfv10-target {
+  display: none !important;
+}
+
+@media screen and (max-width: 900px) {
+  .cfv52-summary-grid > .cfv-adjustment-card { margin-top: 29px; }
+  .cfv-adjustment-header-status { gap: 4px; }
+  .cfv-adjustment-kind,
+  .cfv-adjustment-applied { padding: 0 6px; font-size: 8.5px; }
+  .cfv-adjustment-delta { margin-left: 5px; font-size: 9px; }
+}
