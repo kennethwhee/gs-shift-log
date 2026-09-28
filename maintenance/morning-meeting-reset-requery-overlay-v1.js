@@ -307,7 +307,7 @@
       const startedAt =
         Date.now();
 
-      console.info(
+      console.info?.(
         "[MORNING OIS RESET R2A V2.3] START",
         key
       );
@@ -326,7 +326,7 @@
           value
         });
 
-        console.info(
+        console.info?.(
           "[MORNING OIS RESET R2A V2.3] DONE",
           key,
           Date.now() -

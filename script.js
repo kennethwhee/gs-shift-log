@@ -229840,7 +229840,7 @@ function initializeLimestoneSlipCameraPicker() {
       const startedAt =
         Date.now();
 
-      console.info(
+      console.info?.(
         "[MORNING OIS R2A V2.3] START",
         key
       );
@@ -229859,7 +229859,7 @@ function initializeLimestoneSlipCameraPicker() {
           value
         });
 
-        console.info(
+        console.info?.(
           "[MORNING OIS R2A V2.3] DONE",
           key,
           Date.now() -

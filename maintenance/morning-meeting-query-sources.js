@@ -484,6 +484,58 @@
     try {
       const loader = window.runEfficiencyMorningMeetingBulkLookup;
       if (typeof loader !== "function") throw new Error("운영정보 조회 기능을 불러오지 못했습니다. 새로고침해 주세요.");
+      /*
+       * MORNING_MEETING_EARLY_NON_OIS_V1_R2B_V22
+       *
+       * Power and closing-data do not use the shared
+       * operating OIS navigation lane.
+       *
+       * Start them immediately while operating OIS runs.
+       */
+      const settleCurrentSourceTask =
+        task =>
+          Promise
+            .resolve()
+            .then(task)
+            .then(
+              value => ({
+                status:
+                  "fulfilled",
+                value
+              }),
+              reason => ({
+                status:
+                  "rejected",
+                reason
+              })
+            );
+
+      const earlyCurrentSourceTasks =
+        source === "all"
+          ? {
+              power:
+                settleCurrentSourceTask(
+                  () =>
+                    window
+                      .toNightPower
+                      ?.refreshMeeting
+                      ?.()
+                ),
+
+              closed:
+                settleCurrentSourceTask(
+                  () =>
+                    window
+                      .morningMeetingClosedCofiring
+                      ?.refreshOrganicFromClosing
+                      ?.({
+                        userInitiated:
+                          true
+                      })
+                )
+            }
+          : null;
+
       try {
         const result = await loader({
           userInitiated: true,
@@ -502,14 +554,46 @@
       }
 
       if (source === "all") {
+        /*
+          Steam remains OIS work.
+
+          It starts only after the operating R2A
+          serial lane has settled.
+        */
         const currentSourceTasks = [
-          ["power", () => window.toNightPower?.refreshMeeting?.()],
-          ["steam", () => window.loadEfficiencyMorningMeetingSteamOis?.({ userInitiated: true })],
-          ["closed", () => window.morningMeetingClosedCofiring?.refreshOrganicFromClosing?.({ userInitiated: true })]
+          [
+            "power",
+            earlyCurrentSourceTasks
+              ?.power
+          ],
+
+          [
+            "steam",
+            settleCurrentSourceTask(
+              () =>
+                window
+                  .loadEfficiencyMorningMeetingSteamOis
+                  ?.({
+                    userInitiated:
+                      true
+                  })
+            )
+          ],
+
+          [
+            "closed",
+            earlyCurrentSourceTasks
+              ?.closed
+          ]
         ];
-        const currentResults = await Promise.allSettled(
-          currentSourceTasks.map(([, task]) => Promise.resolve().then(task))
-        );
+
+        const currentResults =
+          await Promise.all(
+            currentSourceTasks.map(
+              ([, task]) =>
+                task
+            )
+          );
         currentResults.forEach((result, index) => {
           const name = currentSourceTasks[index][0];
           results.push({ source: name, ...result });

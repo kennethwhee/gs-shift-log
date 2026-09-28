@@ -101,7 +101,7 @@ function harness() {
     return behaviors[key] ? behaviors[key](options) : Promise.resolve({ key, sourceDate: panel.dataset.morningMeetingAutoBaseDate });
   };
   const context = vm.createContext({ window, document, Date, Map, Set, Promise,
-    console: { log() {}, warn() {}, error() {} }, getShiftLogSessionToken: () => token,
+    console: { log() {}, info() {}, warn() {}, error() {} }, getShiftLogSessionToken: () => token,
     MutationObserver: class {
       constructor(callback) { this.callback = callback; observers.push(this); }
       observe(target, options) { this.target = target; this.options = options; }
@@ -120,12 +120,12 @@ function harness() {
 
 const request = { userInitiated: true, targetDate: '2026-09-04' };
 
-test('actual operations hook starts six source loaders together, deduplicates the run and never reads Excel', async () => {
+test('actual operations hook starts parallel non-OIS plus one OIS item, then serializes remaining OIS work', async () => {
   const h = harness(), pending = deferred();
   for (const key of Object.keys(LOADERS)) h.behaviors[key] = () => pending.promise;
   const firstRun = h.run(request);
   assert.equal(h.run(request), firstRun, 'A duplicate operation must reuse its active promise.');
-  assert.deepEqual(h.calls.map(call => call.key).sort(), Object.keys(LOADERS).sort());
+  assert.deepEqual(h.calls.map(call => call.key).sort(), ['smp', 'weather', 'water'].sort());
   assert.ok(h.calls.every(call => call.options.forceRefresh === false));
   pending.resolve({ complete: true });
   const results = plain(await firstRun);
