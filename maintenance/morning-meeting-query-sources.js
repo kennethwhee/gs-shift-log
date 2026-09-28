@@ -505,7 +505,7 @@
         const currentSourceTasks = [
           ["power", () => window.toNightPower?.refreshMeeting?.()],
           ["steam", () => window.loadEfficiencyMorningMeetingSteamOis?.({ userInitiated: true })],
-          ["closed", () => window.morningMeetingClosedCofiring?.refresh?.({ force: true })]
+          ["closed", () => window.morningMeetingClosedCofiring?.refreshOrganicFromClosing?.({ userInitiated: true })]
         ];
         const currentResults = await Promise.allSettled(
           currentSourceTasks.map(([, task]) => Promise.resolve().then(task))

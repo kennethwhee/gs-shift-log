@@ -241574,7 +241574,7 @@ function initializeDailyControls() {
       cardId: "efficiencyMorningMeetingAutoDailySludgeCard",
       buttonId: "efficiencyMorningMeetingAutoDailySludgeRefreshButton",
       label: "유기성 마감자료 다시 조회",
-      refresh: () => window.morningMeetingClosedCofiring?.refresh?.({ force: true })
+      refresh: () => window.morningMeetingClosedCofiring?.refreshOrganicFromClosing?.({ userInitiated: true })
     }
   ];
   let loadingKey = "";

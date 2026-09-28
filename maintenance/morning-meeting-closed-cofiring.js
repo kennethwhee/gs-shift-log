@@ -221,6 +221,18 @@
     return true;
   }
 
+  // MORNING_MEETING_ORGANIC_MINI_REFRESH_EXPLICIT_V4_R4
+  // User-facing organic refresh path. This explicitly asks the saved closing
+  // provider for the selected date and grants replacement permission only for
+  // this request. Saved-First V3 R3 still prevents an incomplete closing from
+  // erasing a complete existing Morning Meeting organic card.
+  async function refreshOrganicFromClosing(options = {}) {
+    const date = targetDate();
+    if (!dateValid(date) || isBlocked(date)) return null;
+    beginExplicitOrganicRequery(date);
+    return refresh({...options, force: true});
+  }
+
 
   function targetDate() {
     const state = root.efficiencyMorningMeetingUploadState || {};
@@ -502,6 +514,6 @@
     doc.addEventListener('visibilitychange', () => { if (!doc.hidden && byId(PREFIX + 'SludgeCard')) void refresh({force: true}); });
     sync();
   }
-  root.morningMeetingClosedCofiring = Object.freeze({targetDate, isBlocked, load, peek, state, refresh, renderOrganic, valuesForWorkbook});
+  root.morningMeetingClosedCofiring = Object.freeze({targetDate, isBlocked, load, peek, state, refresh, refreshOrganicFromClosing, renderOrganic, valuesForWorkbook});
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', initialize, {once: true}); else initialize();
 })(typeof window !== 'undefined' ? window : null);
