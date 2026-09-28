@@ -850,7 +850,7 @@
       const feedback=container.querySelector('[data-cfv-target-feedback]');
       if(feedback){feedback.dataset.tone='';feedback.textContent='적용 전 · 현재 목표 '+targetPercentFor(container)+'%';}
     });
-    function prepLabel(text,tone=''){const cfvPrepText=String(text||'');if(!mobile&&(tone==='error'||/조회 준비 완료|조회 준비 불가|로그인 필요|저장값 확인 실패|입력 기준 확인 필요/.test(cfvPrepText)))cfvSummaryLayoutPending(false);const el=container.querySelector('[data-cfv56-prep]');if(el){el.textContent=text;el.dataset.tone=tone;}}
+    function prepLabel(text,tone=''){const cfvPrepText=String(text||'');if(!mobile&&/조회 준비 완료|조회 준비 불가|로그인 필요|저장값 확인 실패/.test(cfvPrepText))cfvSummaryLayoutPending(false);const el=container.querySelector('[data-cfv56-prep]');if(el){el.textContent=text;el.dataset.tone=tone;}}
     function renderDisplay(result,{adjusted=false}={}){
       // COFIRING_ADJUSTED_COMPARISON_STATE_V4
       container.__cfvAdjustedComparisonState = adjusted
@@ -863,9 +863,18 @@
     }
     // COFIRING_ADJUSTED_COMPARISON_RESTORE_FINAL_READY_V6_R3_R6
     function cfvSummaryLayoutFinalReady(result,adjusted){
+      // COFIRING_ADJUSTED_COMPARISON_RESTORE_FINAL_METRICS_V6_R3_R7
       if(adjusted)return true;
       if(!result?.units)return false;
-      return UNITS.every(unit=>{const u=result.units?.[unit];return coalBioRatio(u)!==null&&!!u?.organic?.complete&&!!u?.manure?.complete;});
+      return UNITS.every(unit=>{
+        const u=result.units?.[unit];
+        const ratios=u?.fuelRatios||{};
+        return coalBioRatio(u)!==null
+          && Number.isFinite(Number(ratios.organicGroup))
+          && Number.isFinite(Number(ratios.total))
+          && Number.isFinite(Number(u?.organic?.quantity))
+          && Number.isFinite(Number(u?.manure?.quantity));
+      });
     }
     function cfvSummaryLayoutMaybeReveal(result,adjusted){
       if(mobile)return;
