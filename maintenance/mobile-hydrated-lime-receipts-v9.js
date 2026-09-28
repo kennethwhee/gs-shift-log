@@ -762,7 +762,6 @@
         <div class="mhlt-receipt-head" role="row">
           <span role="columnheader">일자</span>
           <span role="columnheader">시간</span>
-          <span role="columnheader">호기</span>
           <span role="columnheader">입고량</span>
           <span role="columnheader">관리</span>
         </div>
@@ -790,9 +789,7 @@
                   <span class="mhlt-receipt-cell is-time" role="cell">
                     ${escapeHtml(item.receiptTime || "-")}
                   </span>
-                  <span class="mhlt-receipt-cell is-unit" role="cell">
-                    ${unitNo ? `${unitNo}호기` : "-"}
-                  </span>
+
                   <span class="mhlt-receipt-cell is-quantity" role="cell">
                     ${formatNumber(item.quantityTon)} t
                   </span>
