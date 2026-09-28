@@ -19846,7 +19846,294 @@ async function readOisSteamDailySalesBreakdown(
           if (isSubtotal && found.total === null) found.total = targetItem.value;
         }
       }
-      return found.low !== null && found.high !== null ? found : null;
+      if (
+        found.low !== null &&
+        found.high !== null
+      ) {
+        found.readerMode = "table";
+        return found;
+      }
+
+
+      /*
+        MORNING_MEETING_STEAM_OIS_BREAKDOWN_V8
+
+        OIJA08000M can render its result as an ExtJS grid
+        instead of a plain HTML TABLE.
+
+        Surface V10 already recognizes these rows.
+        This fallback reads the same ExtJS / role=row surface.
+      */
+
+      const canonicalDate = value => {
+        const match =
+          normalizeText(value)
+            .match(
+              /(\d{4})\s*[.\/-]\s*(\d{1,2})\s*[.\/-]\s*(\d{1,2})/
+            );
+
+        if (!match) return "";
+
+        return [
+          match[1],
+          String(match[2]).padStart(2, "0"),
+          String(match[3]).padStart(2, "0")
+        ].join("/");
+      };
+
+      const canonicalTargetDate =
+        canonicalDate(targetDateText) ||
+        targetDateText;
+
+      const pageDateCandidates = [
+        document.body?.innerText ||
+          document.body?.textContent ||
+          "",
+        ...[
+          ...document.querySelectorAll(
+            "input, textarea"
+          )
+        ].map(
+          element => element.value || ""
+        )
+      ];
+
+      const pageHasTargetDate =
+        pageDateCandidates.some(
+          value => {
+            return (
+              canonicalDate(value) ===
+                canonicalTargetDate ||
+              normalizeText(value)
+                .replace(/[.-]/g, "/")
+                .includes(canonicalTargetDate)
+            );
+          }
+        );
+
+      let gridUsageCenterX =
+        usageTonCenterX;
+
+      if (gridUsageCenterX === null) {
+        const genericHeaders = [
+          ...document.querySelectorAll(
+            [
+              "th",
+              '[role="columnheader"]',
+              ".x-grid3-hd-inner",
+              ".x-grid-hd-inner",
+              ".x-column-header-inner",
+              ".x-column-header-text"
+            ].join(",")
+          )
+        ].filter(isVisible);
+
+        const usageHeader =
+          genericHeaders.find(
+            header => {
+              return compact(
+                getCellText(header)
+              ).includes(
+                "증기사용량"
+              );
+            }
+          ) || null;
+
+        if (usageHeader) {
+          const rectangle =
+            usageHeader.getBoundingClientRect();
+
+          gridUsageCenterX =
+            rectangle.left +
+            rectangle.width / 2;
+        }
+      }
+
+      const gridFound = {
+        low: null,
+        high: null,
+        total: null,
+        rows: [],
+        readerMode: "grid"
+      };
+
+      const gridRows = [
+        ...document.querySelectorAll(
+          [
+            "tr",
+            '[role="row"]',
+            ".x-grid3-row",
+            ".x-grid-row",
+            ".grid-row"
+          ].join(",")
+        )
+      ].filter(isVisible);
+
+      let activeGridDate = "";
+
+      for (const row of gridRows) {
+        const rowText =
+          normalizeText(
+            row.innerText ||
+              row.textContent ||
+              ""
+          );
+
+        if (!rowText) continue;
+
+        const rowDate =
+          canonicalDate(rowText);
+
+        if (rowDate) {
+          activeGridDate = rowDate;
+        }
+
+        if (
+          activeGridDate &&
+          activeGridDate !== canonicalTargetDate
+        ) {
+          continue;
+        }
+
+        if (
+          !activeGridDate &&
+          !pageHasTargetDate
+        ) {
+          continue;
+        }
+
+        const compactRow =
+          compact(rowText);
+
+        const isLow =
+          compactRow.includes("8bar") ||
+          compactRow.includes("저압");
+
+        const isHigh =
+          compactRow.includes("34bar") ||
+          compactRow.includes("고압");
+
+        const isSubtotal =
+          compactRow.includes("소계");
+
+        if (
+          !isLow &&
+          !isHigh &&
+          !isSubtotal
+        ) {
+          continue;
+        }
+
+        let cells = [
+          ...row.querySelectorAll(
+            [
+              '[role="gridcell"]',
+              ".x-grid3-cell-inner",
+              ".x-grid-cell-inner"
+            ].join(",")
+          )
+        ].filter(isVisible);
+
+        if (cells.length === 0) {
+          cells = [
+            ...row.children
+          ].filter(isVisible);
+        }
+
+        const cellItems =
+          cells.map(
+            cell => {
+              const rectangle =
+                cell.getBoundingClientRect();
+
+              const text =
+                getCellText(cell);
+
+              return {
+                text,
+                value: parseNumber(text),
+                centerX:
+                  rectangle.left +
+                  rectangle.width / 2
+              };
+            }
+          );
+
+        const numericItems =
+          cellItems.filter(
+            item => item.value !== null
+          );
+
+        if (numericItems.length === 0) {
+          continue;
+        }
+
+        let targetItem = null;
+
+        if (gridUsageCenterX !== null) {
+          targetItem =
+            numericItems
+              .slice()
+              .sort(
+                (left, right) => {
+                  return (
+                    Math.abs(
+                      left.centerX -
+                        gridUsageCenterX
+                    ) -
+                    Math.abs(
+                      right.centerX -
+                        gridUsageCenterX
+                    )
+                  );
+                }
+              )[0] || null;
+        }
+
+        if (!targetItem) {
+          targetItem =
+            numericItems[
+              numericItems.length - 1
+            ];
+        }
+
+        gridFound.rows.push(
+          cellItems.map(
+            item => item.text
+          )
+        );
+
+        if (
+          isLow &&
+          gridFound.low === null
+        ) {
+          gridFound.low =
+            targetItem.value;
+        }
+
+        if (
+          isHigh &&
+          gridFound.high === null
+        ) {
+          gridFound.high =
+            targetItem.value;
+        }
+
+        if (
+          isSubtotal &&
+          gridFound.total === null
+        ) {
+          gridFound.total =
+            targetItem.value;
+        }
+      }
+
+      return (
+        gridFound.low !== null &&
+        gridFound.high !== null
+      )
+        ? gridFound
+        : null;
     }, targetSlashDate);
 
     if (captured) {
