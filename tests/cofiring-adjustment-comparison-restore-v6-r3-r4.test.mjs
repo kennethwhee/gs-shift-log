@@ -33,11 +33,13 @@ test('nested async periodChanged signature enables pending guard before null sum
   assert.ok(pending>=0&&placeholder>pending,'pending guard must precede null summary render');
 });
 
-test('final render and terminal preparation reveal the grid',()=>{
+test('final-ready render controls reveal and terminal no-result/error preparation still releases the grid',()=>{
   const render=block('renderDisplay','adjustmentContext');
-  assert.match(render,/\{cfvSummaryLayoutPending\(false\);/);
+  assert.doesNotMatch(render,/\{cfvSummaryLayoutPending\(false\);/);
+  assert.match(render,/renderSummary\(container,result,manualValues,deadlineInputError\);cfvSummaryLayoutMaybeReveal\(result,adjusted\);/);
   const prep=block('prepLabel','renderDisplay');
-  assert.match(prep,/tone==='ready'\|\|tone==='error'/);
+  assert.doesNotMatch(prep,/tone==='ready'\|\|tone==='error'/);
+  assert.match(prep,/조회 준비 완료/);
   assert.match(prep,/cfvSummaryLayoutPending\(false\)/);
 });
 

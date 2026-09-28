@@ -850,16 +850,26 @@
       const feedback=container.querySelector('[data-cfv-target-feedback]');
       if(feedback){feedback.dataset.tone='';feedback.textContent='적용 전 · 현재 목표 '+targetPercentFor(container)+'%';}
     });
-    function prepLabel(text,tone=''){const cfvPrepText=String(text||'');if(!mobile&&(tone==='ready'||tone==='error'||/조회 준비 불가|로그인 필요|저장값 확인 실패/.test(cfvPrepText)))cfvSummaryLayoutPending(false);const el=container.querySelector('[data-cfv56-prep]');if(el){el.textContent=text;el.dataset.tone=tone;}}
-    function renderDisplay(result,{adjusted=false}={}){cfvSummaryLayoutPending(false);
+    function prepLabel(text,tone=''){const cfvPrepText=String(text||'');if(!mobile&&(tone==='error'||/조회 준비 완료|조회 준비 불가|로그인 필요|저장값 확인 실패|입력 기준 확인 필요/.test(cfvPrepText)))cfvSummaryLayoutPending(false);const el=container.querySelector('[data-cfv56-prep]');if(el){el.textContent=text;el.dataset.tone=tone;}}
+    function renderDisplay(result,{adjusted=false}={}){
       // COFIRING_ADJUSTED_COMPARISON_STATE_V4
       container.__cfvAdjustedComparisonState = adjusted
         ? { active: true, base: lastResult || null, adjusted: result || null }
-        : { active: false, base: result || lastResult || null, adjusted: null };displayResult=result;const manualValues=readManual(container);/* CFV6 DETAIL RESULT BRIDGE R2 */container.__cfv6DetailPayload={result,manualValues};if(root.CustomEvent)container.dispatchEvent(new root.CustomEvent('cfv6-detail-result',{detail:container.__cfv6DetailPayload}));renderMain(container,result);renderOrganic(container,result,manualValues);renderSummary(container,result,manualValues,deadlineInputError);renderWarnings(container,result);scheduleDeadlineRefresh();adjustmentActive=!!adjusted;const b=container.querySelector('[data-cfv56-adjust]');if(b){b.disabled=!lastResult||mobile;b.classList.toggle('is-active',adjustmentActive);b.textContent=adjustmentActive?'혼소조정 적용 중':'혼소 조정';}const note=container.querySelector('[data-cfv52-summary-note]');if(note&&adjusted)note.textContent='혼소 조정 적용';}
+        : { active: false, base: result || lastResult || null, adjusted: null };displayResult=result;const manualValues=readManual(container);/* CFV6 DETAIL RESULT BRIDGE R2 */container.__cfv6DetailPayload={result,manualValues};if(root.CustomEvent)container.dispatchEvent(new root.CustomEvent('cfv6-detail-result',{detail:container.__cfv6DetailPayload}));renderMain(container,result);renderOrganic(container,result,manualValues);renderSummary(container,result,manualValues,deadlineInputError);cfvSummaryLayoutMaybeReveal(result,adjusted);renderWarnings(container,result);scheduleDeadlineRefresh();adjustmentActive=!!adjusted;const b=container.querySelector('[data-cfv56-adjust]');if(b){b.disabled=!lastResult||mobile;b.classList.toggle('is-active',adjustmentActive);b.textContent=adjustmentActive?'혼소조정 적용 중':'혼소 조정';}const note=container.querySelector('[data-cfv52-summary-note]');if(note&&adjusted)note.textContent='혼소 조정 적용';}
     // COFIRING_ADJUSTED_COMPARISON_RESTORE_FLASH_FIX_V6_R3_R4
     function cfvSummaryLayoutPending(active){
       if(mobile)return;
       container.classList.toggle('cfv-summary-final-layout-pending',!!active);
+    }
+    // COFIRING_ADJUSTED_COMPARISON_RESTORE_FINAL_READY_V6_R3_R6
+    function cfvSummaryLayoutFinalReady(result,adjusted){
+      if(adjusted)return true;
+      if(!result?.units)return false;
+      return UNITS.every(unit=>{const u=result.units?.[unit];return coalBioRatio(u)!==null&&!!u?.organic?.complete&&!!u?.manure?.complete;});
+    }
+    function cfvSummaryLayoutMaybeReveal(result,adjusted){
+      if(mobile)return;
+      if(cfvSummaryLayoutFinalReady(result,adjusted))cfvSummaryLayoutPending(false);
     }
     function adjustmentContext(){return {result:lastResult,settings:readSettings(container),spec:currentSpec()};}
     let adjuster=null;
