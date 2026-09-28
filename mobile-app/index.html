@@ -932,6 +932,248 @@
   }
 }
 
+
+
+/* ===== MOBILE LIMESTONE COMPACT EDIT POPUP V3 REFINE ===== */
+@media (max-width: 768px) {
+
+  /* 화면 중앙 정렬 대신 상단 여유 + 내부 스크롤 */
+  #limestoneReceiptEditorPanel {
+    position: fixed !important;
+    left: 50% !important;
+    top: calc(env(safe-area-inset-top, 0px) + 72px) !important;
+    right: auto !important;
+    bottom: auto !important;
+    transform: translateX(-50%) !important;
+
+    z-index: 12000 !important;
+
+    width: calc(100vw - 24px) !important;
+    max-width: 760px !important;
+    max-height: calc(100dvh - 110px) !important;
+
+    margin: 0 !important;
+    padding: 18px 18px 20px !important;
+    box-sizing: border-box !important;
+
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
+    -webkit-overflow-scrolling: touch !important;
+
+    background: #ffffff !important;
+    border: 1px solid #dbe4ef !important;
+    border-radius: 22px !important;
+
+    box-shadow:
+      0 0 0 100vmax rgba(15, 23, 42, 0.36),
+      0 24px 70px rgba(15, 23, 42, 0.22) !important;
+  }
+
+  #limestoneReceiptEditorPanel[hidden] {
+    display: none !important;
+  }
+
+  /* 헤더 */
+  #limestoneReceiptEditorPanel .limestone-editor-header {
+    position: relative !important;
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    min-height: 48px !important;
+    margin: 0 0 16px !important;
+    padding: 0 54px 0 0 !important;
+  }
+
+  #limestoneReceiptEditorPanel .limestone-editor-header > div > span {
+    display: none !important;
+  }
+
+  #limestoneReceiptEditorTitle {
+    margin: 0 !important;
+    font-size: 21px !important;
+    line-height: 1.25 !important;
+    font-weight: 800 !important;
+    color: #172033 !important;
+  }
+
+  #limestoneReceiptEditorDescription {
+    display: none !important;
+  }
+
+  #closeLimestoneReceiptEditorButton {
+    position: absolute !important;
+    top: 0 !important;
+    right: 0 !important;
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border: 0 !important;
+    border-radius: 13px !important;
+    background: #f1f4f8 !important;
+    color: #536176 !important;
+    font-size: 26px !important;
+    line-height: 1 !important;
+  }
+
+  /* 2열 그리드 안정화 */
+  #limestoneReceiptEditorForm {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 14px 12px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    align-items: start !important;
+  }
+
+  #limestoneReceiptEditorForm > .form-field,
+  #limestoneReceiptEditorForm > div,
+  #limestoneReceiptEditorForm > label {
+    min-width: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  #limestoneReceiptEditorForm .form-field__label {
+    display: block !important;
+    margin: 0 0 7px !important;
+    color: #46546a !important;
+    font-size: 14px !important;
+    line-height: 1.3 !important;
+    font-weight: 750 !important;
+  }
+
+  #limestoneReceiptEditorForm input,
+  #limestoneReceiptEditorForm select {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 52px !important;
+    min-height: 52px !important;
+    margin: 0 !important;
+    padding: 0 14px !important;
+    box-sizing: border-box !important;
+    border: 1px solid #ccd7e5 !important;
+    border-radius: 13px !important;
+    background: #ffffff !important;
+    color: #243248 !important;
+    font-size: 16px !important;
+    font-weight: 600 !important;
+  }
+
+  #limestoneReceiptEditorForm input:focus,
+  #limestoneReceiptEditorForm select:focus {
+    border-color: #4a78ca !important;
+    box-shadow: 0 0 0 2px rgba(59, 108, 190, 0.12) !important;
+    outline: none !important;
+  }
+
+  /* 입고량 + ton */
+  #limestoneReceiptEditorForm .limestone-quantity-input-wrap {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 72px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    align-items: stretch !important;
+  }
+
+  #limestoneReceiptEditorForm .limestone-quantity-input-wrap input {
+    width: 100% !important;
+    min-width: 0 !important;
+    border-radius: 13px 0 0 13px !important;
+  }
+
+  #limestoneReceiptEditorForm .limestone-quantity-input-wrap > span {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    height: 52px !important;
+    box-sizing: border-box !important;
+    border: 1px solid #ccd7e5 !important;
+    border-left: 0 !important;
+    border-radius: 0 13px 13px 0 !important;
+    background: #f6f8fb !important;
+    color: #6a778c !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+  }
+
+  /* 비고 숨김 유지 */
+  #limestoneReceiptEditorForm .limestone-editor-note-field {
+    display: none !important;
+  }
+
+  /* 메시지 */
+  #limestoneReceiptEditorMessage {
+    grid-column: 1 / -1 !important;
+    margin: 0 !important;
+  }
+
+  /* 하단 버튼 */
+  #limestoneReceiptEditorForm .limestone-editor-actions {
+    grid-column: 1 / -1 !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 12px !important;
+    margin: 6px 0 0 !important;
+    padding: 0 !important;
+    position: sticky !important;
+    bottom: 0 !important;
+    background: #ffffff !important;
+  }
+
+  #cancelLimestoneReceiptEditorButton,
+  #saveLimestoneReceiptButton {
+    width: 100% !important;
+    min-height: 54px !important;
+    margin: 0 !important;
+    border-radius: 14px !important;
+    font-size: 17px !important;
+    line-height: 1 !important;
+    font-weight: 800 !important;
+  }
+
+  #cancelLimestoneReceiptEditorButton {
+    border: 1px solid #ccd7e5 !important;
+    background: #ffffff !important;
+    color: #46546a !important;
+  }
+
+  #saveLimestoneReceiptButton {
+    border: 1px solid #3263b6 !important;
+    background: #3263b6 !important;
+    color: #ffffff !important;
+  }
+}
+
+/* 아주 작은 폭에서는 1열 */
+@media (max-width: 430px) {
+  #limestoneReceiptEditorPanel {
+    width: calc(100vw - 18px) !important;
+    padding: 16px 14px 18px !important;
+    top: calc(env(safe-area-inset-top, 0px) + 64px) !important;
+    max-height: calc(100dvh - 92px) !important;
+  }
+
+  #limestoneReceiptEditorTitle {
+    font-size: 19px !important;
+  }
+
+  #limestoneReceiptEditorForm {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 12px !important;
+  }
+
+  #limestoneReceiptEditorForm .limestone-editor-actions {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
 </style>
 
 <!-- ROOT MOBILE REDIRECT BOOTSTRAP REMOVED IN MOBILE-APP V13 -->
