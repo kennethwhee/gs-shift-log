@@ -14,6 +14,57 @@
     Number.isFinite(Date.parse(value + 'T00:00:00Z')) && new Date(value + 'T00:00:00Z').toISOString().slice(0, 10) === value;
   const emptyOrganic = () => Object.fromEntries(Object.keys(ORGANIC_IDS).map(key => [key, null]));
 
+  // MORNING_MEETING_CLOSED_SUMMARY_COMPAT_V4
+  // The persisted closed summary is intentionally compact. Some ratio fields
+  // live only in snapshot.result. Fill only missing summary fields from that
+  // already-saved result; never query/recalculate or override summary values.
+  function closedCoalBioRatio(result) {
+    const coal = number(result?.heats?.coal);
+    const bio = number(result?.heats?.bio);
+    return coal !== null && bio !== null && coal + bio > 0
+      ? bio / (coal + bio) * 100
+      : null;
+  }
+
+  function compatClosedUnitSummary(summary, result) {
+    const value = summary && typeof summary === 'object' ? {...summary} : {};
+    if (value.bioRatio === undefined) value.bioRatio = closedCoalBioRatio(result);
+    if (value.organicGroupRatio === undefined) {
+      value.organicGroupRatio =
+        result?.fuelRatios?.organicGroup ??
+        result?.ratios?.organic ??
+        null;
+    }
+    if (value.totalRatio === undefined) {
+      value.totalRatio =
+        result?.fuelRatios?.total ??
+        result?.ratios?.total ??
+        null;
+    }
+    for (const fuel of ['coal', 'bio', 'organic', 'manure']) {
+      if (value[fuel] === undefined) value[fuel] = result?.[fuel]?.quantity;
+    }
+    return value;
+  }
+
+  function compatClosedCombinedSummary(summary, result) {
+    const value = summary && typeof summary === 'object' ? {...summary} : {};
+    if (value.bioRatio === undefined) value.bioRatio = closedCoalBioRatio(result);
+    if (value.organicGroupRatio === undefined) {
+      value.organicGroupRatio =
+        result?.fuelRatios?.organicGroup ??
+        result?.ratios?.organic ??
+        null;
+    }
+    if (value.totalRatio === undefined) {
+      value.totalRatio =
+        result?.fuelRatios?.total ??
+        result?.ratios?.total ??
+        null;
+    }
+    return value;
+  }
+
   function normalizeItem(item, date) {
     if (item === null) return null;
     const snapshot = item?.snapshot, summary = item?.summary;
@@ -62,7 +113,7 @@
     }
     return { targetDate: date, revision: item.revision, updatedAt: String(item.updatedAt || ''),
       source: 'cofiring-closed-history', period: {startLocal: period.startLocal, endLocal: period.endLocal},
-      unitOne: unit(summary?.unit1), unitTwo: unit(summary?.unit2), combined: ratios(summary?.combined),
+      unitOne: unit(compatClosedUnitSummary(summary?.unit1, snapshot?.result?.units?.unit1)), unitTwo: unit(compatClosedUnitSummary(summary?.unit2, snapshot?.result?.units?.unit2)), combined: ratios(compatClosedCombinedSummary(summary?.combined, snapshot?.result?.combined)),
       organic, receiptCountNote: '마감자료에는 입고 건수가 저장되어 있지 않습니다.' };
   }
 
