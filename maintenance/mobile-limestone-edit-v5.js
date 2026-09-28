@@ -2,141 +2,76 @@
 
 /*
  * =========================================================
- * MOBILE LIMESTONE EDIT MODAL V5 R2
+ * MOBILE LIMESTONE EDIT V6 R2 UNIFORM CONTROLS
  *
  * Mobile only.
  *
- * - Intercepts Limestone Edit button.
- * - Does NOT use legacy nested Limestone editor.
- * - Opens an independent body-level modal.
- * - PUT /api/limestone-receipts
- * - Existing note is preserved.
- * - Delete is untouched.
+ * Date     = YYYY-MM-DD plain text
+ * Time     = HH:mm plain text
+ * Unit     = normalized select
+ * Quantity = normalized text + ton affix
+ *
+ * Existing note is preserved on PUT.
+ * Delete and desktop behavior are untouched.
  * =========================================================
  */
 
-(function installMobileLimestoneEditV5() {
-  if (window.__mobileLimestoneEditV5Installed === true) {
+(function installMobileLimestoneEditV6R2() {
+
+  if (window.__mobileLimestoneEditV6R2Installed === true) {
     return;
   }
 
-  window.__mobileLimestoneEditV5Installed = true;
+  window.__mobileLimestoneEditV6R2Installed = true;
 
-  const API =
-    "/api/limestone-receipts";
+  const API = "/api/limestone-receipts";
 
-  const MOBILE_QUERY =
-    "(max-width: 768px)";
-
-  let activeReceipt =
-    null;
-
-  let savePending =
-    false;
+  let activeReceipt = null;
+  let savePending = false;
 
 
   function isMobile() {
-    return window
-      .matchMedia(
-        MOBILE_QUERY
-      )
-      .matches;
+    return window.matchMedia("(max-width: 768px)").matches;
   }
 
 
   function elements() {
     return {
-      modal:
-        document.getElementById(
-          "mobileLimestoneEditModal"
-        ),
-
-      form:
-        document.getElementById(
-          "mobileLimestoneEditForm"
-        ),
-
-      close:
-        document.getElementById(
-          "closeMobileLimestoneEditModal"
-        ),
-
-      cancel:
-        document.getElementById(
-          "cancelMobileLimestoneEditModal"
-        ),
-
-      save:
-        document.getElementById(
-          "saveMobileLimestoneEditModal"
-        ),
-
-      date:
-        document.getElementById(
-          "mobileLimestoneEditDate"
-        ),
-
-      time:
-        document.getElementById(
-          "mobileLimestoneEditTime"
-        ),
-
-      unit:
-        document.getElementById(
-          "mobileLimestoneEditUnit"
-        ),
-
-      quantity:
-        document.getElementById(
-          "mobileLimestoneEditQuantity"
-        ),
-
-      status:
-        document.getElementById(
-          "mobileLimestoneEditStatus"
-        )
+      modal: document.getElementById("mobileLimestoneEditModal"),
+      form: document.getElementById("mobileLimestoneEditForm"),
+      close: document.getElementById("closeMobileLimestoneEditModal"),
+      cancel: document.getElementById("cancelMobileLimestoneEditModal"),
+      save: document.getElementById("saveMobileLimestoneEditModal"),
+      date: document.getElementById("mobileLimestoneEditDate"),
+      time: document.getElementById("mobileLimestoneEditTime"),
+      unit: document.getElementById("mobileLimestoneEditUnit"),
+      quantity: document.getElementById("mobileLimestoneEditQuantity"),
+      status: document.getElementById("mobileLimestoneEditStatus")
     };
   }
 
 
-  function headers(
-    extra = {}
-  ) {
-    if (
-      typeof window
-        .getShiftLogAuthHeaders ===
-      "function"
-    ) {
-      return window
-        .getShiftLogAuthHeaders(
-          extra
-        );
+  function headers(extra = {}) {
+    if (typeof window.getShiftLogAuthHeaders === "function") {
+      return window.getShiftLogAuthHeaders(extra);
     }
 
     return {
-      Accept:
-        "application/json",
-
+      Accept: "application/json",
       ...extra
     };
   }
 
 
-  async function readJson(
-    response
-  ) {
-    const text =
-      await response.text();
+  async function readJson(response) {
+    const text = await response.text();
 
     if (!text.trim()) {
       return {};
     }
 
     try {
-      return JSON.parse(
-        text
-      );
-
+      return JSON.parse(text);
     } catch {
       throw new Error(
         "서버 응답 형식을 확인하지 못했습니다."
@@ -145,35 +80,81 @@
   }
 
 
-  function status(
-    message
-  ) {
-    const {
-      status: node
-    } =
-      elements();
+  function setStatus(message) {
+    const node = elements().status;
 
     if (!node) {
       return;
     }
 
-    const text =
-      String(
-        message ||
-        ""
-      ).trim();
+    const value = String(message || "").trim();
 
-    node.textContent =
-      text;
-
-    node.hidden =
-      !text;
+    node.textContent = value;
+    node.hidden = !value;
   }
 
 
-  function normalizeReceipt(
-    receipt
-  ) {
+  function normalizeDate(value) {
+    const raw = String(value || "").trim();
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      return raw;
+    }
+
+    const digits = raw.replace(/\D/g, "");
+
+    if (digits.length !== 8) {
+      return raw;
+    }
+
+    return (
+      digits.slice(0, 4) +
+      "-" +
+      digits.slice(4, 6) +
+      "-" +
+      digits.slice(6, 8)
+    );
+  }
+
+
+  function normalizeTime(value) {
+    const raw = String(value || "").trim();
+
+    if (/^([01]\d|2[0-3]):[0-5]\d$/.test(raw)) {
+      return raw;
+    }
+
+    const digits = raw.replace(/\D/g, "");
+
+    if (digits.length === 3) {
+      return (
+        "0" +
+        digits.slice(0, 1) +
+        ":" +
+        digits.slice(1)
+      );
+    }
+
+    if (digits.length === 4) {
+      return (
+        digits.slice(0, 2) +
+        ":" +
+        digits.slice(2)
+      );
+    }
+
+    return raw;
+  }
+
+
+  function normalizeQuantity(value) {
+    return String(value || "")
+      .replace(",", ".")
+      .replace(/[^0-9.]/g, "");
+  }
+
+
+  function normalizeReceipt(receipt) {
     if (!receipt) {
       return null;
     }
@@ -181,8 +162,7 @@
     return {
       ...receipt,
 
-      id:
-        receipt.id,
+      id: receipt.id,
 
       revision:
         Number(
@@ -227,49 +207,24 @@
   }
 
 
-  function rowDate(
-    button
-  ) {
-    const row =
-      button.closest(
-        "tr"
-      );
+  function getRowDate(button) {
+    const row = button.closest("tr");
 
-    if (!row) {
-      return "";
-    }
+    const firstCell = row?.querySelector("td");
 
-    const firstCell =
-      row.querySelector(
-        "td"
-      );
+    const match = String(
+      firstCell?.textContent ||
+      ""
+    ).match(
+      /\d{4}-\d{2}-\d{2}/
+    );
 
-    const raw =
-      String(
-        firstCell?.textContent ||
-        ""
-      ).trim();
-
-    const match =
-      raw.match(
-        /\d{4}-\d{2}-\d{2}/
-      );
-
-    return match
-      ? match[0]
-      : "";
+    return match ? match[0] : "";
   }
 
 
-  async function fetchReceipt(
-    id,
-    button
-  ) {
-    const receiptId =
-      String(
-        id ||
-        ""
-      ).trim();
+  async function fetchReceipt(id, button) {
+    const receiptId = String(id || "").trim();
 
     if (!receiptId) {
       throw new Error(
@@ -277,58 +232,40 @@
       );
     }
 
-    const url =
-      new URL(
-        API,
-        window.location.origin
-      );
+    const url = new URL(
+      API,
+      window.location.origin
+    );
 
-    const date =
-      rowDate(
-        button
-      );
+    const rowDate = getRowDate(button);
 
-    if (date) {
+    if (rowDate) {
       url.searchParams.set(
         "startDate",
-        date
+        rowDate
       );
 
       url.searchParams.set(
         "endDate",
-        date
+        rowDate
       );
     }
 
     url.searchParams.set(
       "_",
-      String(
-        Date.now()
-      )
+      String(Date.now())
     );
 
-    const response =
-      await fetch(
-        url.toString(),
-        {
-          method:
-            "GET",
+    const response = await fetch(
+      url.toString(),
+      {
+        method: "GET",
+        headers: headers(),
+        cache: "no-store"
+      }
+    );
 
-          headers:
-            headers({
-              Accept:
-                "application/json"
-            }),
-
-          cache:
-            "no-store"
-        }
-      );
-
-    const result =
-      await readJson(
-        response
-      );
+    const result = await readJson(response);
 
     if (
       !response.ok ||
@@ -337,40 +274,34 @@
       throw new Error(
         result.message ||
         result.error ||
-        `입고기록 조회 실패 (HTTP ${response.status})`
+        (
+          "입고기록 조회 실패 (HTTP " +
+          response.status +
+          ")"
+        )
       );
     }
 
     const items =
-      Array.isArray(
-        result.items
-      )
+      Array.isArray(result.items)
         ? result.items
-        : Array.isArray(
-            result.data?.items
-          )
+        : Array.isArray(result.data?.items)
           ? result.data.items
           : [];
 
-    const found =
-      items.find(
-        item =>
-          String(
-            item?.id ||
-            ""
-          ) ===
-          receiptId
-      );
+    const found = items.find(
+      item =>
+        String(item?.id || "") ===
+        receiptId
+    );
 
     if (!found) {
       throw new Error(
-        "선택한 입고기록을 찾지 못했습니다. 새로고침 후 다시 시도해 주세요."
+        "선택한 입고기록을 찾지 못했습니다."
       );
     }
 
-    return normalizeReceipt(
-      found
-    );
+    return normalizeReceipt(found);
   }
 
 
@@ -378,59 +309,34 @@
     const {
       modal,
       save
-    } =
-      elements();
+    } = elements();
 
     if (modal) {
-      modal.hidden =
-        true;
-
-      modal.setAttribute(
-        "hidden",
-        ""
-      );
-
-      modal.setAttribute(
-        "aria-hidden",
-        "true"
-      );
+      modal.hidden = true;
+      modal.setAttribute("hidden", "");
+      modal.setAttribute("aria-hidden", "true");
     }
 
     if (save) {
-      save.disabled =
-        false;
-
-      save.textContent =
-        "저장";
+      save.disabled = false;
+      save.textContent = "저장";
     }
 
-    document.body
-      .classList
-      .remove(
-        "is-mobile-limestone-edit-open"
-      );
-
-    activeReceipt =
-      null;
-
-    savePending =
-      false;
-
-    status(
-      ""
+    document.body.classList.remove(
+      "is-mobile-limestone-edit-open"
     );
+
+    activeReceipt = null;
+    savePending = false;
+
+    setStatus("");
   }
 
 
-  function openModal(
-    receipt
-  ) {
-    const normalized =
-      normalizeReceipt(
-        receipt
-      );
+  function openModal(receipt) {
+    const value = normalizeReceipt(receipt);
 
-    if (!normalized) {
+    if (!value) {
       return;
     }
 
@@ -440,8 +346,7 @@
       time,
       unit,
       quantity
-    } =
-      elements();
+    } = elements();
 
     if (
       !modal ||
@@ -451,81 +356,44 @@
       !quantity
     ) {
       window.alert(
-        "모바일 석회석 수정창을 찾을 수 없습니다."
+        "모바일 수정창을 찾을 수 없습니다."
       );
 
       return;
     }
 
-    /*
-     * Legacy panel is PC-only now.
-     * Make sure it never stays visible on mobile.
-     */
-    const legacy =
-      document.getElementById(
-        "limestoneReceiptEditorPanel"
-      );
+    activeReceipt = value;
 
-    if (legacy) {
-      legacy.hidden =
-        true;
+    date.value = normalizeDate(
+      value.receiptDate
+    );
 
-      legacy.setAttribute(
-        "hidden",
-        ""
-      );
-    }
+    time.value = normalizeTime(
+      value.receiptTime
+    );
 
-    activeReceipt =
-      normalized;
-
-    date.value =
-      normalized.receiptDate;
-
-    time.value =
-      normalized.receiptTime;
-
-    unit.value =
-      String(
-        normalized.unitNo
-      );
+    unit.value = String(
+      value.unitNo
+    );
 
     quantity.value =
-      Number.isFinite(
-        normalized.quantityTon
-      )
-        ? String(
-            normalized.quantityTon
-          )
+      Number.isFinite(value.quantityTon)
+        ? String(value.quantityTon)
         : "";
 
-    status(
-      ""
+    setStatus("");
+
+    modal.hidden = false;
+    modal.removeAttribute("hidden");
+    modal.setAttribute("aria-hidden", "false");
+
+    document.body.classList.add(
+      "is-mobile-limestone-edit-open"
     );
-
-    modal.hidden =
-      false;
-
-    modal.removeAttribute(
-      "hidden"
-    );
-
-    modal.setAttribute(
-      "aria-hidden",
-      "false"
-    );
-
-    document.body
-      .classList
-      .add(
-        "is-mobile-limestone-edit-open"
-      );
   }
 
 
-  async function save(
-    event
-  ) {
+  async function saveReceipt(event) {
     event.preventDefault();
 
     if (
@@ -541,30 +409,43 @@
       unit,
       quantity,
       save
-    } =
-      elements();
+    } = elements();
 
     const receiptDate =
-      String(
-        date?.value ||
-        ""
-      ).trim();
+      normalizeDate(
+        date?.value
+      );
 
     const receiptTime =
-      String(
-        time?.value ||
-        ""
-      ).trim();
+      normalizeTime(
+        time?.value
+      );
 
     const unitNo =
       Number(
         unit?.value
       );
 
-    const quantityTon =
-      Number(
+    const quantityText =
+      normalizeQuantity(
         quantity?.value
       );
+
+    const quantityTon =
+      Number(quantityText);
+
+
+    if (date) {
+      date.value = receiptDate;
+    }
+
+    if (time) {
+      time.value = receiptTime;
+    }
+
+    if (quantity) {
+      quantity.value = quantityText;
+    }
 
 
     if (
@@ -572,8 +453,8 @@
         receiptDate
       )
     ) {
-      status(
-        "입고일자를 확인해 주세요."
+      setStatus(
+        "입고일자를 YYYY-MM-DD 형식으로 입력해 주세요."
       );
 
       date?.focus();
@@ -587,8 +468,8 @@
         receiptTime
       )
     ) {
-      status(
-        "입고시간을 확인해 주세요."
+      setStatus(
+        "입고시간을 HH:mm 형식으로 입력해 주세요."
       );
 
       time?.focus();
@@ -598,14 +479,11 @@
 
 
     if (
-      ![
-        1,
-        2
-      ].includes(
+      ![1, 2].includes(
         unitNo
       )
     ) {
-      status(
+      setStatus(
         "호기를 선택해 주세요."
       );
 
@@ -616,13 +494,11 @@
 
 
     if (
-      !Number.isFinite(
-        quantityTon
-      ) ||
+      !Number.isFinite(quantityTon) ||
       quantityTon < 0.01 ||
       quantityTon > 999.99
     ) {
-      status(
+      setStatus(
         "입고량은 0.01~999.99 ton 범위로 입력해 주세요."
       );
 
@@ -632,72 +508,57 @@
     }
 
 
-    savePending =
-      true;
+    savePending = true;
 
-    status(
-      ""
-    );
+    setStatus("");
 
     if (save) {
-      save.disabled =
-        true;
-
-      save.textContent =
-        "저장 중...";
+      save.disabled = true;
+      save.textContent = "저장 중...";
     }
 
 
     try {
-      const response =
-        await fetch(
-          API,
-          {
-            method:
-              "PUT",
 
-            headers:
-              headers({
-                Accept:
-                  "application/json",
+      const response = await fetch(
+        API,
+        {
+          method: "PUT",
 
-                "Content-Type":
-                  "application/json"
-              }),
+          headers:
+            headers({
+              "Content-Type":
+                "application/json"
+            }),
 
-            body:
-              JSON.stringify({
-                id:
-                  activeReceipt.id,
+          body:
+            JSON.stringify({
+              id:
+                activeReceipt.id,
 
-                revision:
-                  activeReceipt.revision,
+              revision:
+                activeReceipt.revision,
 
-                receiptDate,
+              receiptDate,
+              receiptTime,
+              unitNo,
+              quantityTon,
 
-                receiptTime,
+              note:
+                activeReceipt.note
+            }),
 
-                unitNo,
+          cache:
+            "no-store"
+        }
+      );
 
-                quantityTon,
-
-                /*
-                 * Hidden on mobile,
-                 * but existing value is preserved.
-                 */
-                note:
-                  activeReceipt.note
-              }),
-
-            cache:
-              "no-store"
-          }
-        );
 
       const result =
         await readJson(
           response
         );
+
 
       if (
         !response.ok ||
@@ -706,24 +567,28 @@
         throw new Error(
           result.message ||
           result.error ||
-          `석회석 입고기록 수정 실패 (HTTP ${response.status})`
+          (
+            "석회석 입고기록 수정 실패 (HTTP " +
+            response.status +
+            ")"
+          )
         );
       }
 
+
       closeModal();
 
-      if (
-        typeof window
-          .loadLimestoneReceipts ===
-        "function"
-      ) {
-        await window
-          .loadLimestoneReceipts();
-      }
 
       if (
-        typeof window
-          .showToast ===
+        typeof window.loadLimestoneReceipts ===
+        "function"
+      ) {
+        await window.loadLimestoneReceipts();
+      }
+
+
+      if (
+        typeof window.showToast ===
         "function"
       ) {
         window.showToast(
@@ -732,49 +597,40 @@
         );
       }
 
-    } catch (
-      error
-    ) {
+    } catch (error) {
+
       console.error(
         "모바일 석회석 수정 실패:",
         error
       );
 
-      status(
+      setStatus(
         error?.message ||
         "석회석 입고기록을 수정하지 못했습니다."
       );
 
     } finally {
-      savePending =
-        false;
+
+      savePending = false;
 
       if (save) {
-        save.disabled =
-          false;
-
-        save.textContent =
-          "저장";
+        save.disabled = false;
+        save.textContent = "저장";
       }
     }
   }
 
 
-  /*
-   * Capture phase:
-   * mobile Edit is handled here before
-   * legacy tbody click handler sees it.
-   */
   document.addEventListener(
     "click",
     async event => {
+
       if (!isMobile()) {
         return;
       }
 
       const target =
-        event.target instanceof
-          Element
+        event.target instanceof Element
           ? event.target
           : null;
 
@@ -782,10 +638,9 @@
         return;
       }
 
-      const edit =
-        target.closest(
-          "#efficiencyLimestoneView [data-limestone-edit]"
-        );
+      const edit = target.closest(
+        "#efficiencyLimestoneView [data-limestone-edit]"
+      );
 
       if (!edit) {
         return;
@@ -799,24 +654,20 @@
         return;
       }
 
-      edit.disabled =
-        true;
+      edit.disabled = true;
 
       try {
+
         const receipt =
           await fetchReceipt(
-            edit.dataset
-              .limestoneEdit,
+            edit.dataset.limestoneEdit,
             edit
           );
 
-        openModal(
-          receipt
-        );
+        openModal(receipt);
 
-      } catch (
-        error
-      ) {
+      } catch (error) {
+
         console.error(
           "모바일 석회석 수정창 열기 실패:",
           error
@@ -824,26 +675,28 @@
 
         window.alert(
           error?.message ||
-          "석회석 입고기록을 불러오지 못했습니다."
+          "입고기록을 불러오지 못했습니다."
         );
 
       } finally {
-        edit.disabled =
-          false;
+
+        edit.disabled = false;
       }
     },
     true
   );
 
 
-  function bindModal() {
+  function bind() {
     const {
       modal,
       form,
       close,
-      cancel
-    } =
-      elements();
+      cancel,
+      date,
+      time,
+      quantity
+    } = elements();
 
     if (
       !modal ||
@@ -853,15 +706,13 @@
     }
 
     if (
-      modal.dataset
-        .mobileLimestoneEditBound ===
+      modal.dataset.mobileLimestoneV6R2Bound ===
       "1"
     ) {
       return;
     }
 
-    modal.dataset
-      .mobileLimestoneEditBound =
+    modal.dataset.mobileLimestoneV6R2Bound =
       "1";
 
 
@@ -885,13 +736,47 @@
 
     form.addEventListener(
       "submit",
-      save
+      saveReceipt
+    );
+
+
+    date?.addEventListener(
+      "blur",
+      () => {
+        date.value =
+          normalizeDate(
+            date.value
+          );
+      }
+    );
+
+
+    time?.addEventListener(
+      "blur",
+      () => {
+        time.value =
+          normalizeTime(
+            time.value
+          );
+      }
+    );
+
+
+    quantity?.addEventListener(
+      "input",
+      () => {
+        quantity.value =
+          normalizeQuantity(
+            quantity.value
+          );
+      }
     );
 
 
     modal.addEventListener(
       "click",
       event => {
+
         if (
           event.target ===
           modal
@@ -905,9 +790,9 @@
     document.addEventListener(
       "keydown",
       event => {
+
         if (
-          event.key ===
-          "Escape" &&
+          event.key === "Escape" &&
           !modal.hidden
         ) {
           event.preventDefault();
@@ -924,14 +809,14 @@
   ) {
     document.addEventListener(
       "DOMContentLoaded",
-      bindModal,
+      bind,
       {
-        once:
-          true
+        once: true
       }
     );
-
-  } else {
-    bindModal();
   }
+  else {
+    bind();
+  }
+
 })();

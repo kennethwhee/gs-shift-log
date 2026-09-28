@@ -562,13 +562,20 @@
 
 
 
-/* ===== MOBILE LIMESTONE EDIT MODAL V5 R2 ===== */
+
+
+
+
+
+
+/* ===== MOBILE LIMESTONE EDIT V6 R2 UNIFORM CONTROLS ===== */
 
 @media (max-width: 768px) {
 
   body.is-mobile-limestone-edit-open {
     overflow: hidden !important;
   }
+
 
   #mobileLimestoneEditModal {
     position: fixed !important;
@@ -579,12 +586,13 @@
     align-items: center !important;
     justify-content: center !important;
 
+    box-sizing: border-box !important;
+
     padding:
       max(14px, env(safe-area-inset-top, 0px))
       12px
       max(14px, env(safe-area-inset-bottom, 0px)) !important;
 
-    box-sizing: border-box !important;
     overflow: auto !important;
 
     background: rgba(15, 23, 42, 0.42) !important;
@@ -593,13 +601,16 @@
     backdrop-filter: blur(2px);
   }
 
+
   #mobileLimestoneEditModal[hidden] {
     display: none !important;
   }
 
-  .mobile-limestone-edit-dialog {
+
+  #mobileLimestoneEditModal .mobile-limestone-edit-dialog {
     width: min(410px, calc(100vw - 24px)) !important;
     max-width: 410px !important;
+    min-width: 0 !important;
 
     margin: auto !important;
     padding: 18px 16px 16px !important;
@@ -615,7 +626,10 @@
       0 24px 70px rgba(15, 23, 42, 0.24) !important;
   }
 
-  .mobile-limestone-edit-header {
+
+  /* HEADER */
+
+  #mobileLimestoneEditModal .mobile-limestone-edit-header {
     display: flex !important;
     align-items: center !important;
     justify-content: space-between !important;
@@ -624,6 +638,7 @@
 
     margin: 0 0 18px !important;
   }
+
 
   #mobileLimestoneEditTitle {
     margin: 0 !important;
@@ -636,6 +651,7 @@
 
     letter-spacing: -0.025em !important;
   }
+
 
   #closeMobileLimestoneEditModal {
     flex: 0 0 44px !important;
@@ -660,12 +676,14 @@
     line-height: 1 !important;
   }
 
+
+  /* EXACT 2 x 2 */
+
   #mobileLimestoneEditForm {
     display: grid !important;
 
     grid-template-columns:
-      minmax(0, 1fr)
-      minmax(0, 1fr) !important;
+      repeat(2, minmax(0, 1fr)) !important;
 
     grid-template-areas:
       "date time"
@@ -673,27 +691,37 @@
       "status status"
       "actions actions" !important;
 
-    column-gap: 10px !important;
+    column-gap: 12px !important;
     row-gap: 14px !important;
 
     width: 100% !important;
     min-width: 0 !important;
+    max-width: 100% !important;
 
     margin: 0 !important;
     padding: 0 !important;
 
     box-sizing: border-box !important;
   }
+
 
   .mobile-limestone-edit-field {
+    display: grid !important;
+
+    grid-template-rows:
+      18px
+      48px !important;
+
     width: 100% !important;
     min-width: 0 !important;
+    max-width: 100% !important;
 
     margin: 0 !important;
     padding: 0 !important;
 
     box-sizing: border-box !important;
   }
+
 
   .mobile-limestone-edit-field.is-date {
     grid-area: date !important;
@@ -711,23 +739,34 @@
     grid-area: quantity !important;
   }
 
-  .mobile-limestone-edit-field > span {
-    display: block !important;
 
-    margin: 0 0 6px !important;
+  .mobile-limestone-edit-label {
+    display: flex !important;
+    align-items: flex-start !important;
+
+    width: 100% !important;
+    height: 18px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    box-sizing: border-box !important;
 
     color: #46546a !important;
 
     font-size: 13px !important;
-    line-height: 1.2 !important;
+    line-height: 16px !important;
     font-weight: 750 !important;
   }
 
-  #mobileLimestoneEditDate,
-  #mobileLimestoneEditTime,
-  #mobileLimestoneEditUnit,
-  #mobileLimestoneEditQuantity {
-    display: block !important;
+
+  /* IDENTICAL OUTER CONTROL */
+
+  .mobile-limestone-edit-control {
+    display: grid !important;
+
+    grid-template-columns:
+      minmax(0, 1fr) !important;
 
     width: 100% !important;
     min-width: 0 !important;
@@ -738,44 +777,7 @@
     max-height: 48px !important;
 
     margin: 0 !important;
-    padding: 0 11px !important;
-
-    box-sizing: border-box !important;
-
-    border: 1px solid #ccd7e5 !important;
-    border-radius: 12px !important;
-
-    background: #ffffff !important;
-    color: #26354a !important;
-
-    font-size: 15px !important;
-    font-weight: 600 !important;
-
-    box-shadow: none !important;
-    outline: none !important;
-  }
-
-  #mobileLimestoneEditDate:focus,
-  #mobileLimestoneEditTime:focus,
-  #mobileLimestoneEditUnit:focus,
-  #mobileLimestoneEditQuantity:focus {
-    border-color: #4979cc !important;
-
-    box-shadow:
-      0 0 0 2px rgba(59, 108, 190, 0.12) !important;
-  }
-
-  .mobile-limestone-edit-quantity {
-    display: grid !important;
-
-    grid-template-columns:
-      minmax(0, 1fr)
-      46px !important;
-
-    width: 100% !important;
-    min-width: 0 !important;
-
-    height: 48px !important;
+    padding: 0 !important;
 
     box-sizing: border-box !important;
 
@@ -787,24 +789,88 @@
     background: #ffffff !important;
   }
 
+
+  .mobile-limestone-edit-control.has-affix {
+    grid-template-columns:
+      minmax(0, 1fr)
+      46px !important;
+  }
+
+
+  .mobile-limestone-edit-control:focus-within {
+    border-color: #4979cc !important;
+
+    box-shadow:
+      0 0 0 2px rgba(59, 108, 190, 0.12) !important;
+  }
+
+
+  /* ALL FOUR INNER CONTROLS */
+
+  #mobileLimestoneEditDate,
+  #mobileLimestoneEditTime,
+  #mobileLimestoneEditUnit,
   #mobileLimestoneEditQuantity {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+
+    display: block !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+
     height: 46px !important;
     min-height: 46px !important;
     max-height: 46px !important;
 
+    margin: 0 !important;
+    padding: 0 12px !important;
+
+    box-sizing: border-box !important;
+
     border: 0 !important;
     border-radius: 0 !important;
 
+    outline: 0 !important;
     box-shadow: none !important;
+
+    background: transparent !important;
+    color: #26354a !important;
+
+    font-family: inherit !important;
+    font-size: 15px !important;
+    line-height: normal !important;
+    font-weight: 600 !important;
+
+    font-variant-numeric: tabular-nums !important;
+
+    text-align: left !important;
   }
 
-  .mobile-limestone-edit-quantity > strong {
-    width: 46px !important;
-    height: 46px !important;
 
+  #mobileLimestoneEditUnit {
+    padding-right: 8px !important;
+  }
+
+
+  /* IDENTICAL RIGHT AFFIX */
+
+  .mobile-limestone-edit-affix {
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
+
+    width: 46px !important;
+    min-width: 46px !important;
+    max-width: 46px !important;
+
+    height: 46px !important;
+    min-height: 46px !important;
+    max-height: 46px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
 
     box-sizing: border-box !important;
 
@@ -814,8 +880,20 @@
     color: #718096 !important;
 
     font-size: 12px !important;
+    line-height: 1 !important;
     font-weight: 700 !important;
+
+    pointer-events: none !important;
   }
+
+
+  .mobile-limestone-edit-affix.is-arrow {
+    color: #445066 !important;
+    font-size: 14px !important;
+  }
+
+
+  /* STATUS */
 
   #mobileLimestoneEditStatus {
     grid-area: status !important;
@@ -831,9 +909,13 @@
     line-height: 1.4 !important;
   }
 
+
   #mobileLimestoneEditStatus[hidden] {
     display: none !important;
   }
+
+
+  /* ACTIONS */
 
   .mobile-limestone-edit-actions {
     grid-area: actions !important;
@@ -841,15 +923,17 @@
     display: grid !important;
 
     grid-template-columns:
-      minmax(0, 1fr)
-      minmax(0, 1fr) !important;
+      repeat(2, minmax(0, 1fr)) !important;
 
-    gap: 10px !important;
+    gap: 12px !important;
 
     width: 100% !important;
+    min-width: 0 !important;
 
     margin: 2px 0 0 !important;
+    padding: 0 !important;
   }
+
 
   #cancelMobileLimestoneEditModal,
   #saveMobileLimestoneEditModal {
@@ -858,17 +942,20 @@
 
     height: 50px !important;
     min-height: 50px !important;
+    max-height: 50px !important;
 
     margin: 0 !important;
-    padding: 0 10px !important;
+    padding: 0 !important;
 
     box-sizing: border-box !important;
 
     border-radius: 12px !important;
 
+    font-family: inherit !important;
     font-size: 16px !important;
     font-weight: 800 !important;
   }
+
 
   #cancelMobileLimestoneEditModal {
     border: 1px solid #ccd7e5 !important;
@@ -877,6 +964,7 @@
     color: #46546a !important;
   }
 
+
   #saveMobileLimestoneEditModal {
     border: 1px solid #3263b6 !important;
 
@@ -884,411 +972,6 @@
     color: #ffffff !important;
   }
 }
-
-
-/* ===== MOBILE LIMESTONE EDIT V5 UNIFORM ALIGNMENT ===== */
-
-@media (max-width: 768px) {
-
-  /*
-   * Two perfectly equal columns.
-   */
-  #mobileLimestoneEditForm {
-    grid-template-columns:
-      repeat(
-        2,
-        minmax(0, 1fr)
-      ) !important;
-
-    grid-template-areas:
-      "date time"
-      "unit quantity"
-      "status status"
-      "actions actions" !important;
-
-    column-gap:
-      12px !important;
-
-    row-gap:
-      14px !important;
-
-    align-items:
-      start !important;
-  }
-
-
-  /*
-   * Every field receives the exact same layout.
-   *
-   * row 1 = label
-   * row 2 = 48px control
-   */
-  #mobileLimestoneEditForm
-  .mobile-limestone-edit-field {
-    display:
-      grid !important;
-
-    grid-template-rows:
-      18px
-      48px !important;
-
-    align-content:
-      start !important;
-
-    width:
-      100% !important;
-
-    min-width:
-      0 !important;
-
-    max-width:
-      100% !important;
-
-    margin:
-      0 !important;
-
-    padding:
-      0 !important;
-
-    box-sizing:
-      border-box !important;
-  }
-
-
-  /*
-   * All four labels start on exactly the same line.
-   */
-  #mobileLimestoneEditForm
-  .mobile-limestone-edit-field
-  > span {
-    display:
-      flex !important;
-
-    align-items:
-      flex-start !important;
-
-    width:
-      100% !important;
-
-    height:
-      18px !important;
-
-    min-height:
-      18px !important;
-
-    max-height:
-      18px !important;
-
-    margin:
-      0 !important;
-
-    padding:
-      0 !important;
-
-    box-sizing:
-      border-box !important;
-
-    color:
-      #46546a !important;
-
-    font-size:
-      13px !important;
-
-    line-height:
-      16px !important;
-
-    font-weight:
-      750 !important;
-  }
-
-
-  /*
-   * Date / Time / Unit:
-   * identical outer dimensions.
-   */
-  #mobileLimestoneEditDate,
-  #mobileLimestoneEditTime,
-  #mobileLimestoneEditUnit {
-    display:
-      block !important;
-
-    width:
-      100% !important;
-
-    min-width:
-      0 !important;
-
-    max-width:
-      100% !important;
-
-    height:
-      48px !important;
-
-    min-height:
-      48px !important;
-
-    max-height:
-      48px !important;
-
-    margin:
-      0 !important;
-
-    padding:
-      0 12px !important;
-
-    box-sizing:
-      border-box !important;
-
-    border:
-      1px solid #ccd7e5 !important;
-
-    border-radius:
-      12px !important;
-
-    background:
-      #ffffff !important;
-
-    font-size:
-      15px !important;
-
-    line-height:
-      normal !important;
-  }
-
-
-  /*
-   * Quantity outer box:
-   * exactly the same 48px / 100% dimensions.
-   */
-  #mobileLimestoneEditForm
-  .mobile-limestone-edit-quantity {
-    display:
-      grid !important;
-
-    grid-template-columns:
-      minmax(0, 1fr)
-      46px !important;
-
-    width:
-      100% !important;
-
-    min-width:
-      0 !important;
-
-    max-width:
-      100% !important;
-
-    height:
-      48px !important;
-
-    min-height:
-      48px !important;
-
-    max-height:
-      48px !important;
-
-    margin:
-      0 !important;
-
-    padding:
-      0 !important;
-
-    box-sizing:
-      border-box !important;
-
-    overflow:
-      hidden !important;
-
-    border:
-      1px solid #ccd7e5 !important;
-
-    border-radius:
-      12px !important;
-
-    background:
-      #ffffff !important;
-  }
-
-
-  #mobileLimestoneEditQuantity {
-    display:
-      block !important;
-
-    width:
-      100% !important;
-
-    min-width:
-      0 !important;
-
-    max-width:
-      100% !important;
-
-    height:
-      46px !important;
-
-    min-height:
-      46px !important;
-
-    max-height:
-      46px !important;
-
-    margin:
-      0 !important;
-
-    padding:
-      0 12px !important;
-
-    box-sizing:
-      border-box !important;
-
-    border:
-      0 !important;
-
-    border-radius:
-      0 !important;
-
-    background:
-      transparent !important;
-
-    font-size:
-      15px !important;
-
-    box-shadow:
-      none !important;
-  }
-
-
-  #mobileLimestoneEditForm
-  .mobile-limestone-edit-quantity
-  > strong {
-    display:
-      flex !important;
-
-    align-items:
-      center !important;
-
-    justify-content:
-      center !important;
-
-    width:
-      46px !important;
-
-    min-width:
-      46px !important;
-
-    max-width:
-      46px !important;
-
-    height:
-      46px !important;
-
-    min-height:
-      46px !important;
-
-    max-height:
-      46px !important;
-
-    margin:
-      0 !important;
-
-    padding:
-      0 !important;
-
-    box-sizing:
-      border-box !important;
-
-    border:
-      0 !important;
-
-    border-left:
-      1px solid #ccd7e5 !important;
-
-    background:
-      #f6f8fb !important;
-
-    color:
-      #718096 !important;
-
-    font-size:
-      12px !important;
-
-    line-height:
-      1 !important;
-
-    font-weight:
-      700 !important;
-  }
-
-
-  /*
-   * Cancel / Save:
-   * equal columns and equal height.
-   */
-  #mobileLimestoneEditForm
-  .mobile-limestone-edit-actions {
-    display:
-      grid !important;
-
-    grid-template-columns:
-      repeat(
-        2,
-        minmax(0, 1fr)
-      ) !important;
-
-    gap:
-      12px !important;
-
-    width:
-      100% !important;
-
-    min-width:
-      0 !important;
-
-    max-width:
-      100% !important;
-
-    margin:
-      2px 0 0 !important;
-
-    padding:
-      0 !important;
-
-    box-sizing:
-      border-box !important;
-  }
-
-
-  #cancelMobileLimestoneEditModal,
-  #saveMobileLimestoneEditModal {
-    width:
-      100% !important;
-
-    min-width:
-      0 !important;
-
-    max-width:
-      100% !important;
-
-    height:
-      50px !important;
-
-    min-height:
-      50px !important;
-
-    max-height:
-      50px !important;
-
-    margin:
-      0 !important;
-
-    padding:
-      0 !important;
-
-    box-sizing:
-      border-box !important;
-  }
-}
-
 </style>
 
 <!-- ROOT MOBILE REDIRECT BOOTSTRAP REMOVED IN MOBILE-APP V13 -->
@@ -17262,75 +16945,109 @@
     </header>
 
 
-    <form id="mobileLimestoneEditForm">
+    <form
+      id="mobileLimestoneEditForm"
+      autocomplete="off"
+    >
 
       <label class="mobile-limestone-edit-field is-date">
 
-        <span>입고일자</span>
+        <span class="mobile-limestone-edit-label">
+          입고일자
+        </span>
 
-        <input
-          type="date"
-          id="mobileLimestoneEditDate"
-          required
-        />
+        <div class="mobile-limestone-edit-control">
+
+          <input
+            type="text"
+            id="mobileLimestoneEditDate"
+            inputmode="numeric"
+            maxlength="10"
+            placeholder="2026-09-27"
+            autocomplete="off"
+            required
+          />
+
+        </div>
 
       </label>
 
 
       <label class="mobile-limestone-edit-field is-time">
 
-        <span>입고시간</span>
+        <span class="mobile-limestone-edit-label">
+          입고시간
+        </span>
 
-        <input
-          type="time"
-          id="mobileLimestoneEditTime"
-          required
-        />
+        <div class="mobile-limestone-edit-control">
+
+          <input
+            type="text"
+            id="mobileLimestoneEditTime"
+            inputmode="numeric"
+            maxlength="5"
+            placeholder="09:20"
+            autocomplete="off"
+            required
+          />
+
+        </div>
 
       </label>
 
 
       <label class="mobile-limestone-edit-field is-unit">
 
-        <span>호기</span>
+        <span class="mobile-limestone-edit-label">
+          호기
+        </span>
 
-        <select
-          id="mobileLimestoneEditUnit"
-          required
-        >
+        <div class="mobile-limestone-edit-control has-affix">
 
-          <option value="1">
-            1호기
-          </option>
+          <select
+            id="mobileLimestoneEditUnit"
+            required
+          >
+            <option value="1">1호기</option>
+            <option value="2">2호기</option>
+          </select>
 
-          <option value="2">
-            2호기
-          </option>
+          <span
+            class="mobile-limestone-edit-affix is-arrow"
+            aria-hidden="true"
+          >
+            ▾
+          </span>
 
-        </select>
+        </div>
 
       </label>
 
 
       <label class="mobile-limestone-edit-field is-quantity">
 
-        <span>입고량</span>
+        <span class="mobile-limestone-edit-label">
+          입고량
+        </span>
 
-        <div class="mobile-limestone-edit-quantity">
+        <div class="mobile-limestone-edit-control has-affix">
 
           <input
-            type="number"
+            type="text"
             id="mobileLimestoneEditQuantity"
-            min="0.01"
-            max="999.99"
-            step="0.01"
             inputmode="decimal"
+            maxlength="6"
+            placeholder="29.97"
+            autocomplete="off"
             required
           />
 
-          <strong>
+          <span
+            class="mobile-limestone-edit-affix"
+            aria-hidden="true"
+          >
             ton
-          </strong>
+          </span>
 
         </div>
 
@@ -17368,6 +17085,6 @@
   </div>
 </section>
 
-<script src="/maintenance/mobile-limestone-edit-v5.js?v=20260928-v5r2"></script>
+<script src="/maintenance/mobile-limestone-edit-v5.js?v=20260928-v6r2-uniform"></script>
 </body>
 </html>
