@@ -1,4 +1,5 @@
 ﻿"use strict";
+const { parseOisSteamSalesApiResponseV13 } = require("./steam-sales-api-v13");
 // [COFIRING-WEB-BRIDGE-V1] Shares the existing Excel lane; no startup query.
 const {
   COFIRING_REQUEST_TYPE,
@@ -19753,6 +19754,85 @@ async function captureOisSteamProductionFromApi(
   });
 }
 
+/* MORNING_MEETING_STEAM_OIS_API_DIRECT_V13
+   OIJA08000M renders unreliably in headless Edge, but its authenticated
+   POST /ajax/data response is canonical and contains entry_date/product/use_ton.
+   Read that response directly; keep the existing DOM/grid reader as fallback.
+*/
+async function readOisSteamDailySalesFromApiV13(
+  frame,
+  targetDate
+) {
+  if (!isValidOisAgentDate(targetDate)) {
+    throw new Error("증기 판매량 API 조회 날짜가 올바르지 않습니다.");
+  }
+
+  const targetYearMonth = targetDate.slice(0, 7).replace(/-/g, "");
+  const apiResponse = await frame.evaluate(async ({ targetYearMonth }) => {
+    const requestPayload = {
+      select: [
+        {
+          schepow_stat_code: "8000",
+          steam: "ALL",
+          yearmon: targetYearMonth,
+          rowstatus: "C"
+        }
+      ]
+    };
+
+    const body = new URLSearchParams();
+    body.set("tossdata", JSON.stringify(requestPayload));
+    body.set("cmd", "oi.LogSheetService.listProcSteam");
+
+    const response = await fetch("/ajax/data", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "X-Requested-With": "XMLHttpRequest"
+      },
+      body: body.toString()
+    });
+
+    return {
+      ok: response.ok,
+      status: response.status,
+      statusText: response.statusText,
+      text: await response.text()
+    };
+  }, { targetYearMonth });
+
+  if (!apiResponse?.ok) {
+    throw new Error(
+      `OIS 증기 판매량 API 응답 오류 (${apiResponse?.status || "?"} ${apiResponse?.statusText || ""})`.trim()
+    );
+  }
+
+  let payload;
+  try {
+    payload = JSON.parse(String(apiResponse.text || ""));
+  } catch (error) {
+    throw new Error(`OIS 증기 판매량 API JSON 해석 실패: ${error?.message || error}`);
+  }
+
+  const parsed = parseOisSteamSalesApiResponseV13(payload, targetDate);
+  if (!parsed) {
+    throw new Error(`${targetDate.replace(/-/g, "/")}의 8Bar·34Bar API 응답 행을 찾지 못했습니다.`);
+  }
+
+  console.log("OIS 일별 증기 판매량 API 직접 확인:", {
+    targetDate,
+    targetYearMonth,
+    steamSalesLowPressure: parsed.steamSalesLowPressure,
+    steamSalesHighPressure: parsed.steamSalesHighPressure,
+    steamSales: parsed.steamSales,
+    readerMode: parsed.sourceMode
+  });
+
+  return parsed;
+}
+
 async function readOisSteamDailySalesBreakdown(
   frame,
   targetDate
@@ -20198,8 +20278,19 @@ async function collectOisSteamStatusValues(
 
   const salesFrame = await openOisSteamDailySales(page);
   await selectOisOptionByLabel(salesFrame, "전체", false);
-  await new Promise(resolve => setTimeout(resolve, 700));
-  const sales = await readOisSteamDailySalesBreakdown(salesFrame, targetDate);
+  await new Promise(resolve => setTimeout(resolve, 250));
+
+  let sales;
+  try {
+    sales = await readOisSteamDailySalesFromApiV13(salesFrame, targetDate);
+  } catch (apiError) {
+    console.warn(
+      "OIS 증기 판매량 API 직접 조회 실패 · 기존 Grid 판독으로 대체:",
+      apiError?.message || apiError
+    );
+    await new Promise(resolve => setTimeout(resolve, 700));
+    sales = await readOisSteamDailySalesBreakdown(salesFrame, targetDate);
+  }
 
   if (totalProduction <= 0) throw new Error("총 증기생산량이 0 이하이므로 판매율을 계산할 수 없습니다.");
   const averageSteamSales = round(sales.steamSales / 24);
