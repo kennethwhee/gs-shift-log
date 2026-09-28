@@ -1,0 +1,662 @@
+/* MOBILE LIMESTONE / HYDRATED LIME NESTED V6 - QUICK ENTRY PARITY */
+
+#efficiencyHydratedLimeView[hidden],
+#mobileLimestoneManagePanel[hidden],
+.mhlt-editor-backdrop[hidden],
+.mhlt-quick-entry[hidden] {
+  display: none !important;
+}
+
+@media screen and (max-width: 768px) {
+  body #efficiencyTeamModal #efficiencyLimestoneTab .efficiency-team-tab__label {
+    font-size: 10px !important;
+    letter-spacing: -0.055em !important;
+    white-space: nowrap !important;
+  }
+}
+
+.mobile-limestone-hydrated-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px 8px 8px;
+  border-bottom: 1px solid #d8e2ee;
+  background: #fff;
+}
+
+.mobile-lh-tab {
+  box-sizing: border-box;
+  min-height: 42px;
+  border: 1px solid #cbd9e7;
+  border-radius: 9px;
+  background: #fff;
+  color: #586a80;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+}
+
+.mobile-lh-tab.is-active,
+.mobile-lh-tab[aria-selected="true"] {
+  border-color: #4380c9;
+  background: #edf5ff;
+  color: #245b9f;
+  box-shadow: inset 0 -2px 0 #4380c9;
+}
+
+#mobileLimestoneManagePanel {
+  min-width: 0;
+}
+
+#efficiencyHydratedLimeView {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 0 0 10px;
+  color: #263953;
+}
+
+#efficiencyHydratedLimeView:not([hidden]) {
+  display: block !important;
+}
+
+.mhlt-heading {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 8px 10px;
+  border-bottom: 1px solid #d8e2ee;
+  background: #fff;
+}
+
+.mhlt-heading__copy {
+  min-width: 0;
+}
+
+.mhlt-heading__copy > span {
+  display: none;
+}
+
+.mhlt-heading__copy h3 {
+  margin: 0;
+  color: #263953;
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: -0.04em;
+}
+
+.mhlt-heading__copy p {
+  display: none;
+}
+
+.mhlt-heading__actions {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 6px;
+}
+
+.mhlt-button {
+  box-sizing: border-box;
+  min-height: 38px;
+  padding: 0 11px;
+  border: 1px solid #cad7e6;
+  border-radius: 9px;
+  background: #fff;
+  color: #52647b;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mhlt-button--primary {
+  border-color: #3a8d5d;
+  background: #3a8d5d;
+  color: #fff;
+  box-shadow: 0 3px 9px rgba(58, 141, 93, 0.18);
+}
+
+.mhlt-button--primary span {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  margin-right: 2px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 999px;
+  font-size: 14px;
+  vertical-align: -1px;
+}
+
+.mhlt-button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.mhlt-month-card {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 42px 78px;
+  align-items: stretch;
+  gap: 6px;
+  margin: 8px;
+  padding: 6px;
+  border: 1px solid #d5e0ec;
+  border-radius: 12px;
+  background: #f8fbfe;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.9);
+}
+
+.mhlt-month-arrow,
+.mhlt-current-month,
+.mhlt-month-field {
+  box-sizing: border-box;
+  min-height: 42px;
+  border: 1px solid #cbd9e7;
+  border-radius: 9px;
+  background: #fff;
+  color: #50637b;
+  font: inherit;
+  font-weight: 900;
+}
+
+.mhlt-month-arrow {
+  padding: 0;
+  font-size: 21px;
+  line-height: 1;
+}
+
+.mhlt-current-month {
+  padding: 0 7px;
+  font-size: 10px;
+}
+
+.mhlt-month-field {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.mhlt-month-field > span {
+  pointer-events: none;
+  font-size: 15px;
+  letter-spacing: -0.04em;
+}
+
+.mhlt-month-field > input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.mhlt-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+  margin: 0 8px 8px;
+}
+
+.mhlt-summary-card {
+  position: relative;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 70px;
+  padding: 8px 5px 7px 8px;
+  overflow: hidden;
+  border: 1px solid #d5e0ec;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.mhlt-summary-card::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: #3a8d5d;
+  content: "";
+}
+
+.mhlt-summary-card.is-year::before {
+  background: #4879aa;
+}
+
+.mhlt-summary-card.is-average::before {
+  background: #7656ad;
+}
+
+.mhlt-summary-card.is-count::before {
+  background: #b57a22;
+}
+
+.mhlt-summary-card > span {
+  display: block;
+  min-height: 20px;
+  color: #6e7d91;
+  font-size: 8px;
+  font-weight: 900;
+  line-height: 1.15;
+  letter-spacing: -0.04em;
+}
+
+.mhlt-summary-card > strong {
+  display: block;
+  margin-top: 6px;
+  overflow: hidden;
+  color: #2f7650;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.05em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mhlt-summary-card.is-year > strong {
+  color: #315f8f;
+}
+
+.mhlt-summary-card.is-average > strong {
+  color: #6c4b9d;
+}
+
+.mhlt-summary-card.is-count > strong {
+  color: #966215;
+}
+
+.mhlt-summary-card small {
+  color: #8794a5;
+  font-size: 7px;
+  font-weight: 800;
+}
+
+.mhlt-history-card {
+  box-sizing: border-box;
+  min-height: 330px;
+  margin: 0 8px;
+  overflow: hidden;
+  border: 1px solid #d5e0ec;
+  border-radius: 11px;
+  background: #fff;
+}
+
+.mhlt-history-card__header {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 9px;
+  border-bottom: 1px solid #dbe4ee;
+  background: #fbfdff;
+}
+
+.mhlt-history-card__header h4 {
+  margin: 0;
+  color: #263953;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.15;
+  letter-spacing: -0.04em;
+}
+
+.mhlt-history-card__header small {
+  display: block;
+  margin-top: 2px;
+  color: #8290a1;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.mhlt-count-badge {
+  min-width: 39px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #eef6f1;
+  color: #2f7650;
+  font-size: 11px;
+  text-align: center;
+}
+
+.mhlt-status {
+  margin: 7px 8px 0;
+  padding: 7px 8px;
+  border: 1px solid #bddbc8;
+  border-radius: 8px;
+  background: #eef8f2;
+  color: #2f6c49;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.mhlt-status.is-error {
+  border-color: #e8b8b8;
+  background: #fff2f2;
+  color: #a23e3e;
+}
+
+.mhlt-record-list {
+  display: grid;
+  gap: 0;
+}
+
+.mhlt-empty {
+  display: grid;
+  min-height: 250px;
+  place-items: start center;
+  padding: 18px 12px;
+  color: #98a3b1;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.mhlt-record {
+  padding: 9px;
+  border-bottom: 1px solid #edf1f5;
+}
+
+.mhlt-record:last-child {
+  border-bottom: 0;
+}
+
+.mhlt-record__main {
+  display: grid;
+  grid-template-columns: minmax(82px, 0.8fr) minmax(92px, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.mhlt-record__when,
+.mhlt-record__quantity {
+  min-width: 0;
+}
+
+.mhlt-record__when strong,
+.mhlt-record__quantity strong {
+  display: block;
+  overflow: hidden;
+  color: #30445f;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mhlt-record__quantity strong {
+  color: #2d7850;
+  text-align: right;
+}
+
+.mhlt-record__when small,
+.mhlt-record__quantity small {
+  display: block;
+  margin-top: 3px;
+  overflow: hidden;
+  color: #8895a6;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mhlt-record__quantity small {
+  text-align: right;
+}
+
+.mhlt-record__actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 3px;
+}
+
+.mhlt-record__actions button {
+  min-width: 36px;
+  min-height: 24px;
+  padding: 0 6px;
+  border: 1px solid #cbd8e6;
+  border-radius: 6px;
+  background: #fff;
+  color: #53677f;
+  font: inherit;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.mhlt-record__actions button.danger {
+  border-color: #e7c1c1;
+  color: #b14d4d;
+}
+
+.mhlt-record__note {
+  margin: 6px 0 0;
+  padding: 6px 7px;
+  border-radius: 6px;
+  background: #f7f9fb;
+  color: #68788b;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.mhlt-editor-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 18px 10px max(10px, env(safe-area-inset-bottom));
+  background: rgba(22, 34, 52, 0.48);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.mhlt-editor {
+  box-sizing: border-box;
+  width: min(100%, 520px);
+  max-height: min(84dvh, 680px);
+  overflow: auto;
+  border: 1px solid #cfdbe7;
+  border-radius: 16px 16px 11px 11px;
+  background: #fff;
+  box-shadow: 0 22px 54px rgba(16, 36, 58, 0.25);
+  -webkit-overflow-scrolling: touch;
+}
+
+.mhlt-editor > header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 13px 9px;
+  border-bottom: 1px solid #e0e7ef;
+  background: #fff;
+}
+
+.mhlt-editor > header span {
+  display: block;
+  color: #5e9d78;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.mhlt-editor > header h4 {
+  margin: 2px 0 0;
+  color: #283d58;
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.mhlt-editor-close {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid #d5dfe9;
+  border-radius: 9px;
+  background: #f7f9fb;
+  color: #607085;
+  font: inherit;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.mhlt-editor form {
+  padding: 12px;
+}
+
+.mhlt-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mhlt-form-grid label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.mhlt-form-grid label.is-wide {
+  grid-column: 1 / -1;
+}
+
+.mhlt-form-grid label > span {
+  color: #5f7187;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.mhlt-form-grid input,
+.mhlt-form-grid textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #cbd8e6;
+  border-radius: 9px;
+  background: #fff;
+  color: #2b405b;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 800;
+  outline: none;
+}
+
+.mhlt-form-grid input {
+  min-height: 44px;
+  padding: 0 9px;
+}
+
+.mhlt-form-grid textarea {
+  min-height: 82px;
+  padding: 10px;
+  resize: vertical;
+}
+
+.mhlt-form-grid input:focus,
+.mhlt-form-grid textarea:focus {
+  border-color: #5ba377;
+  box-shadow: 0 0 0 3px rgba(70, 151, 101, 0.12);
+}
+
+.mhlt-editor-status {
+  margin: 10px 0 0;
+  padding: 8px 9px;
+  border-radius: 8px;
+  background: #eef8f2;
+  color: #2d714c;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.mhlt-editor-status.is-error {
+  background: #fff1f1;
+  color: #a24343;
+}
+
+.mhlt-editor footer {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.mhlt-editor footer .mhlt-button {
+  min-height: 44px;
+  font-size: 12px;
+}
+
+html.mhlt-editor-open,
+html.mhlt-editor-open body {
+  overscroll-behavior: none;
+}
+
+@media screen and (min-width: 769px) {
+  #efficiencyHydratedLimeTab,
+  #efficiencyHydratedLimeView {
+    display: none !important;
+  }
+}
+
+/* =========================================================
+  V5 - 소석회 모바일 빠른 입고 입력
+  석회석 수동 입력 모달의 공용 class를 그대로 사용해
+  두 재료의 모바일 입력 경험을 동일하게 맞춘다.
+========================================================= */
+.mhlt-quick-entry[hidden],
+.mhlt-quick-entry .limestone-manual-entry-modal__error[hidden] {
+  display: none !important;
+}
+
+body.is-hydrated-lime-manual-entry-open {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
+.mhlt-quick-entry .limestone-manual-entry-modal__eyebrow {
+  color: #5e9d78;
+}
+
+.mhlt-quick-entry .limestone-manual-entry-modal__input::placeholder {
+  font-size: 0.86em;
+  letter-spacing: -0.04em;
+}
+
+.mhlt-quick-entry .limestone-manual-entry-modal__error {
+  min-height: 0;
+}
+
+.mhlt-quick-entry .limestone-manual-entry-modal__error:not([hidden]) {
+  display: block;
+}
+
+.mhlt-quick-entry .limestone-manual-entry-modal__action:disabled {
+  opacity: 0.62;
+  cursor: wait;
+}
