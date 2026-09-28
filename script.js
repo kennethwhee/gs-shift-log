@@ -170065,6 +170065,30 @@ console.log(
   수정된 워크시트 저장
 ==================================================== */
 
+    /* ===================================================
+      MORNING MEETING FINAL HISTORY ALIGNMENT V10
+
+      실제 최종 Excel 워크시트가 완성된 뒤:
+      - Bio 제목만 세로 2행 병합
+      - 전력단가 5일 날짜를 Bio 날짜 기준으로 사용
+      - 같은 5일의 혼소 마감값 재기록
+      - 하단 업무영역은 1행 아래로 보존
+    ==================================================== */
+    if (typeof window.applyMorningMeetingFinalHistoryAlignmentV10 !== "function") {
+      throw new Error("최종 Excel Bio/전력단가 이력 정렬 V10을 불러오지 못했습니다. Ctrl+F5 후 다시 생성해 주세요.");
+    }
+
+    let finalHistoryAlignmentResultV10 =
+      await window.applyMorningMeetingFinalHistoryAlignmentV10(
+        worksheetDocument,
+        sharedStrings
+      );
+
+    console.log(
+      "최종 Excel Bio/전력단가 이력 정렬 V10:",
+      finalHistoryAlignmentResultV10
+    );
+
     zip.file(
       worksheetPath,
 
@@ -170086,6 +170110,7 @@ console.log(
     ==================================================== */
 
     const totalRowDelta =
+      (Number(finalHistoryAlignmentResultV10?.rowDelta) || 0) +
       shiftPartResult.delta +
       fuelResult.delta +
       dynamicResult.delta +
