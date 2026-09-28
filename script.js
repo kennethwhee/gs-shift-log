@@ -163671,6 +163671,2420 @@ function applyMorningMeetingWeekendSupplementTables(
   };
 }
 
+/* =========================================================
+  MORNING MEETING LONG HOLIDAY SIDE-BY-SIDE LAYOUT V2
+
+  5일 이상 장기 취합:
+  - Bio / 유기성 고형연료 혼소율 표는 왼쪽(B~전력표 직전)
+  - 전일 전력 단가 표는 오른쪽에서 Bio 제목과 같은 행에서 시작
+  - 5일을 초과한 날짜 수만큼 Bio 제목만 세로 확장
+  - Bio 날짜별 칸은 실제 Excel 열 폭을 기준으로 최대한 균등 분할
+  - 전력표가 빠져나간 기존 아래쪽 행은 업무내용 병합 폭을 복원
+
+  이 함수는 SMP/혼소율 값과 직접입력 스타일 반영이 모두 끝난 뒤
+  최종 worksheet XML을 재배치한다. 따라서 기존 값 조회/계산 로직은
+  건드리지 않고 셀/스타일/병합을 그대로 이동한다.
+========================================================= */
+
+function applyMorningMeetingLongHolidaySideBySideLayoutV2(
+  worksheetDocument,
+  sharedStrings,
+  weekendSupplementResult
+) {
+  const holidayCount =
+    Number(
+      weekendSupplementResult?.holidayCount ||
+      0
+    );
+
+
+  const result = {
+    applied:
+      false,
+
+    holidayCount:
+      Number.isFinite(
+        holidayCount
+      )
+        ? holidayCount
+        : 0,
+
+    rowDelta:
+      0,
+
+    reason:
+      "not-long-holiday"
+  };
+
+
+  /*
+    1~4일 기존 레이아웃은 그대로 둔다.
+    이번 보정 대상은 장기 취합(5일 이상)뿐이다.
+  */
+  if (
+    !Number.isInteger(
+      holidayCount
+    ) ||
+    holidayCount <
+      5
+  ) {
+    return result;
+  }
+
+
+  const sheetData =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "sheetData"
+      )[0];
+
+
+  const mergeCells =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "mergeCells"
+      )[0];
+
+
+  if (
+    !sheetData ||
+    !mergeCells
+  ) {
+    throw new Error(
+      "장기휴무 취합표의 행 또는 병합 셀 정보를 찾지 못했습니다."
+    );
+  }
+
+
+  const columnName = (
+    columnNumber
+  ) => {
+    let number =
+      Number(
+        columnNumber
+      );
+
+
+    let text =
+      "";
+
+
+    while (
+      number >
+      0
+    ) {
+      number -=
+        1;
+
+
+      text =
+        String.fromCharCode(
+          65 +
+          number %
+          26
+        ) +
+        text;
+
+
+      number =
+        Math.floor(
+          number /
+          26
+        );
+    }
+
+
+    return text;
+  };
+
+
+  const rowNumberFromAddress = (
+    address
+  ) => {
+    const match =
+      String(
+        address ||
+        ""
+      ).match(
+        /^(?:[A-Z]+)(\d+)$/i
+      );
+
+
+    return match
+      ? Number(
+          match[1]
+        )
+      : 0;
+  };
+
+
+  const cellColumnNumber = (
+    cellElement
+  ) => {
+    return getMorningMeetingColumnNumber(
+      getMorningMeetingCellColumn(
+        cellElement?.getAttribute?.(
+          "r"
+        ) ||
+        ""
+      )
+    );
+  };
+
+
+  const directRows = () => {
+    return getMorningMeetingDirectXmlChildren(
+      sheetData,
+      "row"
+    );
+  };
+
+
+  const directMerges = () => {
+    return getMorningMeetingDirectXmlChildren(
+      mergeCells,
+      "mergeCell"
+    );
+  };
+
+
+  const getRow = (
+    rowNumber
+  ) => {
+    return directRows().find(
+      rowElement => {
+        return (
+          getMorningMeetingRowNumber(
+            rowElement
+          ) ===
+          rowNumber
+        );
+      }
+    ) ||
+    null;
+  };
+
+
+  const ensureRow = (
+    rowNumber,
+    templateRow = null
+  ) => {
+    const existing =
+      getRow(
+        rowNumber
+      );
+
+
+    if (
+      existing
+    ) {
+      return existing;
+    }
+
+
+    const row =
+      worksheetDocument
+        .createElementNS(
+          MAIN_XML_NAMESPACE,
+          "row"
+        );
+
+
+    row.setAttribute(
+      "r",
+      String(
+        rowNumber
+      )
+    );
+
+
+    if (
+      templateRow
+    ) {
+      Array.from(
+        templateRow.attributes ||
+        []
+      ).forEach(
+        attribute => {
+          if (
+            attribute.name !==
+            "r"
+          ) {
+            row.setAttribute(
+              attribute.name,
+              attribute.value
+            );
+          }
+        }
+      );
+
+    } else {
+      row.setAttribute(
+        "ht",
+        "20.1"
+      );
+
+
+      row.setAttribute(
+        "customHeight",
+        "1"
+      );
+    }
+
+
+    const nextRow =
+      directRows().find(
+        rowElement => {
+          return (
+            getMorningMeetingRowNumber(
+              rowElement
+            ) >
+            rowNumber
+          );
+        }
+      ) ||
+      null;
+
+
+    sheetData.insertBefore(
+      row,
+      nextRow
+    );
+
+
+    return row;
+  };
+
+
+  const getCell = (
+    rowNumber,
+    columnNumber
+  ) => {
+    const row =
+      getRow(
+        rowNumber
+      );
+
+
+    if (
+      !row
+    ) {
+      return null;
+    }
+
+
+    return getMorningMeetingDirectXmlChildren(
+      row,
+      "c"
+    ).find(
+      cellElement => {
+        return (
+          cellColumnNumber(
+            cellElement
+          ) ===
+          columnNumber
+        );
+      }
+    ) ||
+    null;
+  };
+
+
+  const insertCellSorted = (
+    rowElement,
+    cellElement
+  ) => {
+    const targetColumn =
+      cellColumnNumber(
+        cellElement
+      );
+
+
+    const nextCell =
+      getMorningMeetingDirectXmlChildren(
+        rowElement,
+        "c"
+      ).find(
+        currentCell => {
+          return (
+            cellColumnNumber(
+              currentCell
+            ) >
+            targetColumn
+          );
+        }
+      ) ||
+      null;
+
+
+    rowElement.insertBefore(
+      cellElement,
+      nextCell
+    );
+  };
+
+
+  const ensureCell = (
+    rowNumber,
+    columnNumber,
+    templateCell = null
+  ) => {
+    const existing =
+      getCell(
+        rowNumber,
+        columnNumber
+      );
+
+
+    if (
+      existing
+    ) {
+      return existing;
+    }
+
+
+    const row =
+      ensureRow(
+        rowNumber
+      );
+
+
+    const cell =
+      templateCell
+        ? templateCell.cloneNode(
+            true
+          )
+        : worksheetDocument
+            .createElementNS(
+              MAIN_XML_NAMESPACE,
+              "c"
+            );
+
+
+    cell.setAttribute(
+      "r",
+      `${columnName(
+        columnNumber
+      )}${rowNumber}`
+    );
+
+
+    insertCellSorted(
+      row,
+      cell
+    );
+
+
+    return cell;
+  };
+
+
+  const clearCellPayload = (
+    cellElement
+  ) => {
+    if (
+      !cellElement
+    ) {
+      return;
+    }
+
+
+    while (
+      cellElement.firstChild
+    ) {
+      cellElement.removeChild(
+        cellElement.firstChild
+      );
+    }
+
+
+    [
+      "t",
+      "cm",
+      "vm"
+    ].forEach(
+      attributeName => {
+        cellElement.removeAttribute(
+          attributeName
+        );
+      }
+    );
+  };
+
+
+  const copyCellPayload = (
+    sourceCell,
+    targetCell
+  ) => {
+    if (
+      !sourceCell ||
+      !targetCell
+    ) {
+      return;
+    }
+
+
+    const targetAddress =
+      targetCell.getAttribute(
+        "r"
+      );
+
+
+    const targetStyle =
+      targetCell.getAttribute(
+        "s"
+      );
+
+
+    Array.from(
+      targetCell.attributes ||
+      []
+    ).forEach(
+      attribute => {
+        if (
+          attribute.name !==
+          "r" &&
+          attribute.name !==
+          "s"
+        ) {
+          targetCell.removeAttribute(
+            attribute.name
+          );
+        }
+      }
+    );
+
+
+    while (
+      targetCell.firstChild
+    ) {
+      targetCell.removeChild(
+        targetCell.firstChild
+      );
+    }
+
+
+    Array.from(
+      sourceCell.attributes ||
+      []
+    ).forEach(
+      attribute => {
+        if (
+          attribute.name !==
+          "r" &&
+          attribute.name !==
+          "s"
+        ) {
+          targetCell.setAttribute(
+            attribute.name,
+            attribute.value
+          );
+        }
+      }
+    );
+
+
+    Array.from(
+      sourceCell.childNodes ||
+      []
+    ).forEach(
+      childNode => {
+        targetCell.appendChild(
+          childNode.cloneNode(
+            true
+          )
+        );
+      }
+    );
+
+
+    targetCell.setAttribute(
+      "r",
+      targetAddress
+    );
+
+
+    if (
+      targetStyle !==
+      null
+    ) {
+      targetCell.setAttribute(
+        "s",
+        targetStyle
+      );
+    }
+  };
+
+
+  const cellText = (
+    cellElement
+  ) => {
+    return normalizeMorningMeetingTemplateText(
+      getMorningMeetingCellTextFromXml(
+        cellElement,
+        sharedStrings
+      )
+    );
+  };
+
+
+  const findTextCell = (
+    matcher
+  ) => {
+    for (
+      const row of
+      directRows()
+    ) {
+      for (
+        const cell of
+        getMorningMeetingDirectXmlChildren(
+          row,
+          "c"
+        )
+      ) {
+        if (
+          matcher.test(
+            cellText(
+              cell
+            )
+          )
+        ) {
+          return cell;
+        }
+      }
+    }
+
+
+    return null;
+  };
+
+
+  const mergeRangeForCell = (
+    cellElement
+  ) => {
+    if (
+      !cellElement
+    ) {
+      return null;
+    }
+
+
+    const address =
+      String(
+        cellElement.getAttribute(
+          "r"
+        ) ||
+        ""
+      ).toUpperCase();
+
+
+    const column =
+      getMorningMeetingColumnNumber(
+        getMorningMeetingCellColumn(
+          address
+        )
+      );
+
+
+    const row =
+      rowNumberFromAddress(
+        address
+      );
+
+
+    return directMerges().map(
+      mergeElement => {
+        return {
+          element:
+            mergeElement,
+
+          range:
+            parseMorningMeetingMergeReference(
+              mergeElement.getAttribute(
+                "ref"
+              )
+            )
+        };
+      }
+    ).find(
+      record => {
+        if (
+          !record.range
+        ) {
+          return false;
+        }
+
+
+        const startColumn =
+          getMorningMeetingColumnNumber(
+            record.range.startColumn
+          );
+
+
+        const endColumn =
+          getMorningMeetingColumnNumber(
+            record.range.endColumn
+          );
+
+
+        return (
+          row >=
+            record.range.startRow &&
+          row <=
+            record.range.endRow &&
+          column >=
+            startColumn &&
+          column <=
+            endColumn
+        );
+      }
+    )?.range ||
+    null;
+  };
+
+
+  const bioTitleCell =
+    findTextCell(
+      /Bio\s*\/\s*유기성\s*고형연료\s*혼소율/i
+    );
+
+
+  const powerTitleCell =
+    findTextCell(
+      /전일\s*전력\s*단가/i
+    );
+
+
+  if (
+    !bioTitleCell ||
+    !powerTitleCell
+  ) {
+    throw new Error(
+      "장기휴무 Bio 또는 전일 전력 단가 제목 셀을 찾지 못했습니다."
+    );
+  }
+
+
+  const bioTitleMerge =
+    mergeRangeForCell(
+      bioTitleCell
+    );
+
+
+  const powerTitleMerge =
+    mergeRangeForCell(
+      powerTitleCell
+    );
+
+
+  if (
+    !bioTitleMerge ||
+    !powerTitleMerge
+  ) {
+    throw new Error(
+      "장기휴무 Bio 또는 전일 전력 단가 제목 병합 범위를 찾지 못했습니다."
+    );
+  }
+
+
+  const bioTitleRow =
+    rowNumberFromAddress(
+      bioTitleCell.getAttribute(
+        "r"
+      )
+    );
+
+
+  const powerTitleRow =
+    rowNumberFromAddress(
+      powerTitleCell.getAttribute(
+        "r"
+      )
+    );
+
+
+  const bioStartColumn =
+    getMorningMeetingColumnNumber(
+      bioTitleMerge.startColumn
+    );
+
+
+  const bioEndColumn =
+    getMorningMeetingColumnNumber(
+      bioTitleMerge.endColumn
+    );
+
+
+  const powerStartColumn =
+    getMorningMeetingColumnNumber(
+      powerTitleMerge.startColumn
+    );
+
+
+  const powerEndColumn =
+    getMorningMeetingColumnNumber(
+      powerTitleMerge.endColumn
+    );
+
+
+  if (
+    !bioTitleRow ||
+    !powerTitleRow ||
+    !bioStartColumn ||
+    !bioEndColumn ||
+    !powerStartColumn ||
+    !powerEndColumn ||
+    bioEndColumn >=
+      powerStartColumn
+  ) {
+    throw new Error(
+      "장기휴무 Bio/전력 단가 표의 좌우 배치를 확인하지 못했습니다."
+    );
+  }
+
+
+  const operationHeadingRow =
+    directRows().map(
+      rowElement => {
+        const rowNumber =
+          getMorningMeetingRowNumber(
+            rowElement
+          );
+
+
+        const firstCellText =
+          getMorningMeetingDirectXmlChildren(
+            rowElement,
+            "c"
+          ).map(
+            cellElement => {
+              return cellText(
+                cellElement
+              );
+            }
+          ).find(
+            text => {
+              return /^1\.\s*설비\s*운영/.test(
+                text
+              );
+            }
+          ) ||
+          "";
+
+
+        return {
+          rowNumber,
+          firstCellText
+        };
+      }
+    ).find(
+      record => {
+        return (
+          record.rowNumber >
+            bioTitleRow &&
+          Boolean(
+            record.firstCellText
+          )
+        );
+      }
+    )?.rowNumber ||
+    (
+      bioTitleRow +
+      6
+    );
+
+
+  const bioBodySourceStartRow =
+    bioTitleRow +
+    1;
+
+
+  const bioBodyRowCount =
+    5;
+
+
+  const bioBodySourceEndRow =
+    bioBodySourceStartRow +
+    bioBodyRowCount -
+    1;
+
+
+  const powerRowCount =
+    holidayCount +
+    2;
+
+
+  const powerSourceLastRow =
+    powerTitleRow +
+    powerRowCount -
+    1;
+
+
+  /*
+    5일은 기준 높이 그대로.
+    6일부터 1일 증가할 때마다 Bio 제목만 한 행씩 늘린다.
+  */
+  const extraTitleRows =
+    Math.max(
+      0,
+      holidayCount -
+      5
+    );
+
+
+  const targetPowerTitleRow =
+    bioTitleRow;
+
+
+  const targetPowerLastRow =
+    targetPowerTitleRow +
+    powerRowCount -
+    1;
+
+
+  const targetOperationHeadingRow =
+    operationHeadingRow +
+    extraTitleRows;
+
+
+  if (
+    targetPowerLastRow !==
+    targetOperationHeadingRow
+  ) {
+    throw new Error(
+      `장기휴무 표 높이 계산이 일치하지 않습니다. (SMP ${targetPowerLastRow}, 업무 ${targetOperationHeadingRow})`
+    );
+  }
+
+
+  const parseMerge = (
+    mergeElement
+  ) => {
+    const range =
+      parseMorningMeetingMergeReference(
+        mergeElement.getAttribute(
+          "ref"
+        )
+      );
+
+
+    if (
+      !range
+    ) {
+      return null;
+    }
+
+
+    return {
+      element:
+        mergeElement,
+
+      range,
+
+      startColumnNumber:
+        getMorningMeetingColumnNumber(
+          range.startColumn
+        ),
+
+      endColumnNumber:
+        getMorningMeetingColumnNumber(
+          range.endColumn
+        )
+    };
+  };
+
+
+  const addMerge = (
+    startColumn,
+    endColumn,
+    startRow,
+    endRow = startRow
+  ) => {
+    const merge =
+      worksheetDocument
+        .createElementNS(
+          MAIN_XML_NAMESPACE,
+          "mergeCell"
+        );
+
+
+    merge.setAttribute(
+      "ref",
+      `${columnName(
+        startColumn
+      )}${startRow}:` +
+      `${columnName(
+        endColumn
+      )}${endRow}`
+    );
+
+
+    mergeCells.appendChild(
+      merge
+    );
+
+
+    return merge;
+  };
+
+
+  const removeMerges = (
+    predicate
+  ) => {
+    directMerges().forEach(
+      mergeElement => {
+        const record =
+          parseMerge(
+            mergeElement
+          );
+
+
+        if (
+          record &&
+          predicate(
+            record
+          )
+        ) {
+          mergeCells.removeChild(
+            mergeElement
+          );
+        }
+      }
+    );
+  };
+
+
+  const overlaps = (
+    record,
+    startColumn,
+    endColumn,
+    startRow,
+    endRow
+  ) => {
+    return !(
+      record.endColumnNumber <
+        startColumn ||
+      record.startColumnNumber >
+        endColumn ||
+      record.range.endRow <
+        startRow ||
+      record.range.startRow >
+        endRow
+    );
+  };
+
+
+  const clearCellsInRect = (
+    startColumn,
+    endColumn,
+    startRow,
+    endRow
+  ) => {
+    directRows().forEach(
+      rowElement => {
+        const rowNumber =
+          getMorningMeetingRowNumber(
+            rowElement
+          );
+
+
+        if (
+          rowNumber <
+            startRow ||
+          rowNumber >
+            endRow
+        ) {
+          return;
+        }
+
+
+        getMorningMeetingDirectXmlChildren(
+          rowElement,
+          "c"
+        ).forEach(
+          cellElement => {
+            const column =
+              cellColumnNumber(
+                cellElement
+              );
+
+
+            if (
+              column >=
+                startColumn &&
+              column <=
+                endColumn
+            ) {
+              rowElement.removeChild(
+                cellElement
+              );
+            }
+          }
+        );
+      }
+    );
+  };
+
+
+  const snapshotRect = (
+    startColumn,
+    endColumn,
+    startRow,
+    endRow
+  ) => {
+    const cells =
+      [];
+
+
+    directRows().forEach(
+      rowElement => {
+        const rowNumber =
+          getMorningMeetingRowNumber(
+            rowElement
+          );
+
+
+        if (
+          rowNumber <
+            startRow ||
+          rowNumber >
+            endRow
+        ) {
+          return;
+        }
+
+
+        getMorningMeetingDirectXmlChildren(
+          rowElement,
+          "c"
+        ).forEach(
+          cellElement => {
+            const column =
+              cellColumnNumber(
+                cellElement
+              );
+
+
+            if (
+              column >=
+                startColumn &&
+              column <=
+                endColumn
+            ) {
+              cells.push({
+                sourceRow:
+                  rowNumber,
+
+                column,
+
+                cell:
+                  cellElement.cloneNode(
+                    true
+                  )
+              });
+            }
+          }
+        );
+      }
+    );
+
+
+    const merges =
+      directMerges().map(
+        mergeElement => {
+          return parseMerge(
+            mergeElement
+          );
+        }
+      ).filter(
+        record => {
+          return (
+            record &&
+            record.startColumnNumber >=
+              startColumn &&
+            record.endColumnNumber <=
+              endColumn &&
+            record.range.startRow >=
+              startRow &&
+            record.range.endRow <=
+              endRow
+          );
+        }
+      ).map(
+        record => {
+          return {
+            startColumn:
+              record.startColumnNumber,
+
+            endColumn:
+              record.endColumnNumber,
+
+            startRow:
+              record.range.startRow,
+
+            endRow:
+              record.range.endRow
+          };
+        }
+      );
+
+
+    return {
+      cells,
+      merges
+    };
+  };
+
+
+  const pasteRectSnapshot = (
+    snapshot,
+    rowDelta
+  ) => {
+    snapshot.cells.forEach(
+      item => {
+        const rowNumber =
+          item.sourceRow +
+          rowDelta;
+
+
+        const row =
+          ensureRow(
+            rowNumber
+          );
+
+
+        const cell =
+          item.cell.cloneNode(
+            true
+          );
+
+
+        cell.setAttribute(
+          "r",
+          `${columnName(
+            item.column
+          )}${rowNumber}`
+        );
+
+
+        const existing =
+          getCell(
+            rowNumber,
+            item.column
+          );
+
+
+        if (
+          existing
+        ) {
+          row.removeChild(
+            existing
+          );
+        }
+
+
+        insertCellSorted(
+          row,
+          cell
+        );
+      }
+    );
+
+
+    snapshot.merges.forEach(
+      merge => {
+        addMerge(
+          merge.startColumn,
+          merge.endColumn,
+          merge.startRow +
+            rowDelta,
+          merge.endRow +
+            rowDelta
+        );
+      }
+    );
+  };
+
+
+  const mergeRecordsForRow = (
+    rowNumber,
+    startColumn,
+    endColumn
+  ) => {
+    return directMerges().map(
+      mergeElement => {
+        return parseMerge(
+          mergeElement
+        );
+      }
+    ).filter(
+      record => {
+        return (
+          record &&
+          record.range.startRow ===
+            rowNumber &&
+          record.range.endRow ===
+            rowNumber &&
+          record.startColumnNumber >=
+            startColumn &&
+          record.endColumnNumber <=
+            endColumn
+        );
+      }
+    ).sort(
+      (
+        left,
+        right
+      ) => {
+        return (
+          left.startColumnNumber -
+          right.startColumnNumber
+        );
+      }
+    );
+  };
+
+
+  const snapshotGroupedRow = (
+    rowNumber
+  ) => {
+    const groups =
+      mergeRecordsForRow(
+        rowNumber,
+        bioStartColumn,
+        bioEndColumn
+      );
+
+
+    if (
+      groups.length !==
+      holidayCount +
+      1
+    ) {
+      throw new Error(
+        `장기휴무 Bio ${rowNumber}행의 날짜 병합 수를 확인하지 못했습니다. (${groups.length})`
+      );
+    }
+
+
+    return groups.map(
+      group => {
+        const sourceCells =
+          [];
+
+
+        for (
+          let column =
+            group.startColumnNumber;
+          column <=
+            group.endColumnNumber;
+          column +=
+            1
+        ) {
+          sourceCells.push(
+            getCell(
+              rowNumber,
+              column
+            )?.cloneNode(
+              true
+            ) ||
+            null
+          );
+        }
+
+
+        const firstCell =
+          sourceCells[0] ||
+          null;
+
+
+        const lastCell =
+          sourceCells[
+            sourceCells.length -
+            1
+          ] ||
+          firstCell;
+
+
+        const middleCell =
+          sourceCells.find(
+            (
+              cell,
+              index
+            ) => {
+              return (
+                cell &&
+                index >
+                  0 &&
+                index <
+                  sourceCells.length -
+                  1
+              );
+            }
+          ) ||
+          firstCell ||
+          lastCell;
+
+
+        return {
+          payloadCell:
+            firstCell,
+
+          firstCell:
+            firstCell ||
+            middleCell ||
+            lastCell,
+
+          middleCell:
+            middleCell ||
+            firstCell ||
+            lastCell,
+
+          lastCell:
+            lastCell ||
+            middleCell ||
+            firstCell
+        };
+      }
+    );
+  };
+
+
+  const bioRowSnapshots =
+    [];
+
+
+  for (
+    let offset =
+      0;
+    offset <
+      bioBodyRowCount;
+    offset +=
+      1
+  ) {
+    bioRowSnapshots.push(
+      snapshotGroupedRow(
+        bioBodySourceStartRow +
+        offset
+      )
+    );
+  }
+
+
+  const powerSnapshot =
+    snapshotRect(
+      powerStartColumn,
+      powerEndColumn,
+      powerTitleRow,
+      powerSourceLastRow
+    );
+
+
+  /* =====================================================
+    실제 열 폭을 읽어 날짜 그룹을 시각적으로 균등 분할
+  ====================================================== */
+
+  const columnWidthMap =
+    new Map();
+
+
+  const colsElement =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "cols"
+      )[0];
+
+
+  if (
+    colsElement
+  ) {
+    getMorningMeetingDirectXmlChildren(
+      colsElement,
+      "col"
+    ).forEach(
+      columnElement => {
+        const min =
+          Number(
+            columnElement.getAttribute(
+              "min"
+            ) ||
+            0
+          );
+
+
+        const max =
+          Number(
+            columnElement.getAttribute(
+              "max"
+            ) ||
+            0
+          );
+
+
+        const width =
+          Number(
+            columnElement.getAttribute(
+              "width"
+            ) ||
+            8.43
+          );
+
+
+        if (
+          !Number.isFinite(
+            min
+          ) ||
+          !Number.isFinite(
+            max
+          ) ||
+          !Number.isFinite(
+            width
+          )
+        ) {
+          return;
+        }
+
+
+        for (
+          let column =
+            min;
+          column <=
+            max;
+          column +=
+            1
+        ) {
+          columnWidthMap.set(
+            column,
+            width
+          );
+        }
+      }
+    );
+  }
+
+
+  const getColumnWidth = (
+    column
+  ) => {
+    const width =
+      Number(
+        columnWidthMap.get(
+          column
+        ) ??
+        8.43
+      );
+
+
+    return Number.isFinite(
+      width
+    ) &&
+    width >
+      0
+      ? width
+      : 8.43;
+  };
+
+
+  const partitionColumnsByVisualWidth = (
+    startColumn,
+    endColumn,
+    groupCount
+  ) => {
+    const columns =
+      [];
+
+
+    for (
+      let column =
+        startColumn;
+      column <=
+        endColumn;
+      column +=
+        1
+    ) {
+      columns.push(
+        column
+      );
+    }
+
+
+    if (
+      groupCount <
+        1 ||
+      groupCount >
+        columns.length
+    ) {
+      return null;
+    }
+
+
+    const prefix = [
+      0
+    ];
+
+
+    columns.forEach(
+      column => {
+        prefix.push(
+          prefix[
+            prefix.length -
+            1
+          ] +
+          getColumnWidth(
+            column
+          )
+        );
+      }
+    );
+
+
+    const totalWidth =
+      prefix[
+        prefix.length -
+        1
+      ];
+
+
+    const targetWidth =
+      totalWidth /
+      groupCount;
+
+
+    const itemCount =
+      columns.length;
+
+
+    const infinity =
+      Number.POSITIVE_INFINITY;
+
+
+    const costs =
+      Array.from(
+        {
+          length:
+            groupCount +
+            1
+        },
+        () => {
+          return Array(
+            itemCount +
+            1
+          ).fill(
+            infinity
+          );
+        }
+      );
+
+
+    const previous =
+      Array.from(
+        {
+          length:
+            groupCount +
+            1
+        },
+        () => {
+          return Array(
+            itemCount +
+            1
+          ).fill(
+            -1
+          );
+        }
+      );
+
+
+    costs[0][0] =
+      0;
+
+
+    for (
+      let group =
+        1;
+      group <=
+        groupCount;
+      group +=
+        1
+    ) {
+      const minimumEnd =
+        group;
+
+
+      const maximumEnd =
+        itemCount -
+        (
+          groupCount -
+          group
+        );
+
+
+      for (
+        let endIndex =
+          minimumEnd;
+        endIndex <=
+          maximumEnd;
+        endIndex +=
+          1
+      ) {
+        for (
+          let startIndex =
+            group -
+            1;
+          startIndex <
+            endIndex;
+          startIndex +=
+            1
+        ) {
+          if (
+            !Number.isFinite(
+              costs[
+                group -
+                1
+              ][
+                startIndex
+              ]
+            )
+          ) {
+            continue;
+          }
+
+
+          const width =
+            prefix[
+              endIndex
+            ] -
+            prefix[
+              startIndex
+            ];
+
+
+          const relativeError =
+            (
+              width -
+              targetWidth
+            ) /
+            targetWidth;
+
+
+          const cost =
+            costs[
+              group -
+              1
+            ][
+              startIndex
+            ] +
+            relativeError *
+            relativeError;
+
+
+          if (
+            cost <
+            costs[
+              group
+            ][
+              endIndex
+            ]
+          ) {
+            costs[
+              group
+            ][
+              endIndex
+            ] =
+              cost;
+
+
+            previous[
+              group
+            ][
+              endIndex
+            ] =
+              startIndex;
+          }
+        }
+      }
+    }
+
+
+    if (
+      !Number.isFinite(
+        costs[
+          groupCount
+        ][
+          itemCount
+        ]
+      )
+    ) {
+      return null;
+    }
+
+
+    const groups =
+      [];
+
+
+    let endIndex =
+      itemCount;
+
+
+    for (
+      let group =
+        groupCount;
+      group >=
+        1;
+      group -=
+        1
+    ) {
+      const startIndex =
+        previous[
+          group
+        ][
+          endIndex
+        ];
+
+
+      if (
+        startIndex <
+        0
+      ) {
+        return null;
+      }
+
+
+      groups.push({
+        startColumn:
+          columns[
+            startIndex
+          ],
+
+        endColumn:
+          columns[
+            endIndex -
+            1
+          ],
+
+        width:
+          prefix[
+            endIndex
+          ] -
+          prefix[
+            startIndex
+          ]
+      });
+
+
+      endIndex =
+        startIndex;
+    }
+
+
+    groups.reverse();
+
+
+    return groups;
+  };
+
+
+  const visualGroups =
+    partitionColumnsByVisualWidth(
+      bioStartColumn,
+      bioEndColumn,
+      holidayCount +
+      1
+    );
+
+
+  if (
+    !visualGroups
+  ) {
+    throw new Error(
+      "장기휴무 Bio 날짜 칸을 균등 분할할 수 없습니다."
+    );
+  }
+
+
+  /* =====================================================
+    6일 이상이면 업무 영역을 아래로 밀어
+    Bio 제목만 그만큼 세로로 늘릴 공간을 만든다.
+  ====================================================== */
+
+  if (
+    extraTitleRows >
+    0
+  ) {
+    directRows().filter(
+      rowElement => {
+        return (
+          getMorningMeetingRowNumber(
+            rowElement
+          ) >=
+          operationHeadingRow
+        );
+      }
+    ).forEach(
+      rowElement => {
+        shiftMorningMeetingExistingRow(
+          rowElement,
+          extraTitleRows
+        );
+      }
+    );
+
+
+    directMerges().forEach(
+      mergeElement => {
+        const range =
+          parseMorningMeetingMergeReference(
+            mergeElement.getAttribute(
+              "ref"
+            )
+          );
+
+
+        if (
+          !range
+        ) {
+          return;
+        }
+
+
+        if (
+          range.startRow >=
+          operationHeadingRow
+        ) {
+          range.startRow +=
+            extraTitleRows;
+
+
+          range.endRow +=
+            extraTitleRows;
+
+        } else if (
+          range.endRow >=
+          operationHeadingRow
+        ) {
+          range.endRow +=
+            extraTitleRows;
+        }
+
+
+        mergeElement.setAttribute(
+          "ref",
+          formatMorningMeetingMergeReference(
+            range
+          )
+        );
+      }
+    );
+
+
+    updateMorningMeetingRowsDimensionAfter(
+      worksheetDocument,
+      operationHeadingRow,
+      extraTitleRows
+    );
+
+
+    updateMorningMeetingRowBreaksAfter(
+      worksheetDocument,
+      operationHeadingRow,
+      extraTitleRows
+    );
+  }
+
+
+  /* =====================================================
+    Bio 제목/본문 재구성
+  ====================================================== */
+
+  const bioTargetBodyStartRow =
+    bioBodySourceStartRow +
+    extraTitleRows;
+
+
+  const bioTargetBodyEndRow =
+    bioTargetBodyStartRow +
+    bioBodyRowCount -
+    1;
+
+
+  removeMerges(
+    record => {
+      return overlaps(
+        record,
+        bioStartColumn,
+        bioEndColumn,
+        bioTitleRow,
+        bioTargetBodyEndRow
+      );
+    }
+  );
+
+
+  clearCellsInRect(
+    bioStartColumn,
+    bioEndColumn,
+    bioBodySourceStartRow,
+    bioTargetBodyEndRow
+  );
+
+
+  const titleRowElement =
+    getRow(
+      bioTitleRow
+    );
+
+
+  const titleTemplateCells =
+    [];
+
+
+  for (
+    let column =
+      bioStartColumn;
+    column <=
+      bioEndColumn;
+    column +=
+      1
+  ) {
+    titleTemplateCells.push(
+      getCell(
+        bioTitleRow,
+        column
+      )?.cloneNode(
+        true
+      ) ||
+      null
+    );
+  }
+
+
+  for (
+    let extraIndex =
+      1;
+    extraIndex <=
+      extraTitleRows;
+    extraIndex +=
+      1
+  ) {
+    const rowNumber =
+      bioTitleRow +
+      extraIndex;
+
+
+    ensureRow(
+      rowNumber,
+      titleRowElement
+    );
+
+
+    for (
+      let column =
+        bioStartColumn;
+      column <=
+        bioEndColumn;
+      column +=
+        1
+    ) {
+      const templateCell =
+        titleTemplateCells[
+          column -
+          bioStartColumn
+        ];
+
+
+      const cell =
+        ensureCell(
+          rowNumber,
+          column,
+          templateCell
+        );
+
+
+      if (
+        templateCell?.getAttribute?.(
+          "s"
+        ) !==
+        null &&
+        templateCell?.getAttribute?.(
+          "s"
+        ) !==
+        undefined
+      ) {
+        cell.setAttribute(
+          "s",
+          templateCell.getAttribute(
+            "s"
+          )
+        );
+      }
+
+
+      clearCellPayload(
+        cell
+      );
+    }
+  }
+
+
+  addMerge(
+    bioStartColumn,
+    bioEndColumn,
+    bioTitleRow,
+    bioTitleRow +
+    extraTitleRows
+  );
+
+
+  const rebuildBioRow = (
+    targetRow,
+    snapshots
+  ) => {
+    const row =
+      ensureRow(
+        targetRow
+      );
+
+
+    clearCellsInRect(
+      bioStartColumn,
+      bioEndColumn,
+      targetRow,
+      targetRow
+    );
+
+
+    visualGroups.forEach(
+      (
+        group,
+        groupIndex
+      ) => {
+        const snapshot =
+          snapshots[
+            groupIndex
+          ];
+
+
+        if (
+          !snapshot
+        ) {
+          throw new Error(
+            `장기휴무 Bio ${targetRow}행의 ${groupIndex + 1}번째 그룹 정보를 찾지 못했습니다.`
+          );
+        }
+
+
+        for (
+          let column =
+            group.startColumn;
+          column <=
+            group.endColumn;
+          column +=
+            1
+        ) {
+          const isFirst =
+            column ===
+            group.startColumn;
+
+
+          const isLast =
+            column ===
+            group.endColumn;
+
+
+          const templateCell =
+            isFirst
+              ? snapshot.firstCell
+              : isLast
+                ? snapshot.lastCell
+                : snapshot.middleCell;
+
+
+          const cell =
+            templateCell
+              ? templateCell.cloneNode(
+                  true
+                )
+              : worksheetDocument
+                  .createElementNS(
+                    MAIN_XML_NAMESPACE,
+                    "c"
+                  );
+
+
+          cell.setAttribute(
+            "r",
+            `${columnName(
+              column
+            )}${targetRow}`
+          );
+
+
+          if (
+            !isFirst
+          ) {
+            clearCellPayload(
+              cell
+            );
+          }
+
+
+          if (
+            isFirst &&
+            snapshot.payloadCell &&
+            snapshot.payloadCell !==
+            templateCell
+          ) {
+            copyCellPayload(
+              snapshot.payloadCell,
+              cell
+            );
+          }
+
+
+          insertCellSorted(
+            row,
+            cell
+          );
+        }
+
+
+        addMerge(
+          group.startColumn,
+          group.endColumn,
+          targetRow
+        );
+      }
+    );
+  };
+
+
+  bioRowSnapshots.forEach(
+    (
+      rowSnapshot,
+      index
+    ) => {
+      rebuildBioRow(
+        bioTargetBodyStartRow +
+        index,
+        rowSnapshot
+      );
+    }
+  );
+
+
+  /* =====================================================
+    SMP 표를 Bio 제목과 같은 행부터 오른쪽에 재배치
+  ====================================================== */
+
+  const shiftedPowerSourceLastRow =
+    powerSourceLastRow +
+    extraTitleRows;
+
+
+  removeMerges(
+    record => {
+      return overlaps(
+        record,
+        powerStartColumn,
+        powerEndColumn,
+        targetPowerTitleRow,
+        shiftedPowerSourceLastRow
+      );
+    }
+  );
+
+
+  clearCellsInRect(
+    powerStartColumn,
+    powerEndColumn,
+    targetPowerTitleRow,
+    shiftedPowerSourceLastRow
+  );
+
+
+  pasteRectSnapshot(
+    powerSnapshot,
+    targetPowerTitleRow -
+    powerTitleRow
+  );
+
+
+  /* =====================================================
+    SMP가 빠진 아래쪽 업무행의 B~AO 병합 폭 복원
+
+    마지막 SMP 행과 "1. 설비 운영..." 제목 행은 같은 행을 공유한다.
+    그 다음 행부터는 다시 전체 폭을 사용한다.
+  ====================================================== */
+
+  const leftEndColumn =
+    powerStartColumn -
+    1;
+
+
+  const fullEndColumn =
+    powerEndColumn;
+
+
+  directMerges().forEach(
+    mergeElement => {
+      const record =
+        parseMerge(
+          mergeElement
+        );
+
+
+      if (
+        !record ||
+        record.range.startRow !==
+          record.range.endRow ||
+        record.range.startRow <=
+          targetPowerLastRow ||
+        record.range.startRow >
+          shiftedPowerSourceLastRow ||
+        record.range.startColumn !==
+          "B" ||
+        record.endColumnNumber !==
+          leftEndColumn
+      ) {
+        return;
+      }
+
+
+      record.range.endColumn =
+        columnName(
+          fullEndColumn
+        );
+
+
+      mergeElement.setAttribute(
+        "ref",
+        formatMorningMeetingMergeReference(
+          record.range
+        )
+      );
+    }
+  );
+
+
+  mergeCells.setAttribute(
+    "count",
+    String(
+      directMerges().length
+    )
+  );
+
+
+  const dataGroupWidths =
+    visualGroups.slice(
+      1
+    ).map(
+      group => {
+        return group.width;
+      }
+    );
+
+
+  const minimumDataWidth =
+    dataGroupWidths.length >
+      0
+      ? Math.min(
+          ...dataGroupWidths
+        )
+      : 0;
+
+
+  const maximumDataWidth =
+    dataGroupWidths.length >
+      0
+      ? Math.max(
+          ...dataGroupWidths
+        )
+      : 0;
+
+
+  return {
+    applied:
+      true,
+
+    holidayCount,
+
+    rowDelta:
+      extraTitleRows,
+
+    bioTitleRow,
+
+    bioTitleRowSpan:
+      extraTitleRows +
+      1,
+
+    bioBodyStartRow:
+      bioTargetBodyStartRow,
+
+    bioBodyEndRow:
+      bioTargetBodyEndRow,
+
+    powerTitleRow:
+      targetPowerTitleRow,
+
+    powerLastRow:
+      targetPowerLastRow,
+
+    operationHeadingRow:
+      targetOperationHeadingRow,
+
+    bioStartColumn:
+      columnName(
+        bioStartColumn
+      ),
+
+    bioEndColumn:
+      columnName(
+        bioEndColumn
+      ),
+
+    powerStartColumn:
+      columnName(
+        powerStartColumn
+      ),
+
+    powerEndColumn:
+      columnName(
+        powerEndColumn
+      ),
+
+    bioDateGroupWidthRatio:
+      minimumDataWidth >
+        0
+        ? maximumDataWidth /
+          minimumDataWidth
+        : null,
+
+    visualGroups:
+      visualGroups.map(
+        group => {
+          return {
+            startColumn:
+              columnName(
+                group.startColumn
+              ),
+
+            endColumn:
+              columnName(
+                group.endColumn
+              ),
+
+            width:
+              group.width
+          };
+        }
+      )
+  };
+}
+
+
 async function applyMorningMeetingManualInputCellFills(
   zip,
   worksheetDocument,
@@ -167646,6 +170060,33 @@ console.log(
 );
 
 /* ===================================================
+  장기휴무 Bio / SMP 최종 레이아웃 정렬
+
+  - 모든 수치/스타일 반영 후 마지막에 셀을 이동한다.
+  - 5일 이상 장기 취합에서만 적용한다.
+=================================================== */
+
+const longHolidaySideBySideLayoutResult =
+  isWeekendMode
+    ? applyMorningMeetingLongHolidaySideBySideLayoutV2(
+        worksheetDocument,
+        sharedStrings,
+        weekendSupplementResult
+      )
+    : {
+        applied: false,
+        holidayCount: 0,
+        rowDelta: 0,
+        reason: "weekday"
+      };
+
+
+console.log(
+  "오전회의 장기휴무 Bio/SMP 레이아웃 정렬:",
+  longHolidaySideBySideLayoutResult
+);
+
+/* ===================================================
   수정된 워크시트 저장
 ==================================================== */
 
@@ -167674,6 +170115,10 @@ console.log(
       fuelResult.delta +
       dynamicResult.delta +
       tmResult.delta +
+      Number(
+        longHolidaySideBySideLayoutResult?.rowDelta ||
+        0
+      ) +
       Number(
         weekdayLayoutResult
           ?.templateRowDelta ||
