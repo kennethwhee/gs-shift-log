@@ -239205,11 +239205,8 @@ function initialize() {
 
     /*
       석회석 입고:
-      모바일 신규 등록은 허용하고
-      기존 기록 수정·삭제만 차단
+      모바일 신규 등록·수정·삭제 허용
     */
-    "#limestoneReceiptEditorPanel button",
-    "#efficiencyLimestoneView .limestone-row-actions button",
 
     /* 석회석 사용량 */
     "#refreshLimestoneUsageReceiptButton",
@@ -239224,11 +239221,10 @@ function initialize() {
   ].join(",");
 
   const mutatingFormSelector = [
-    "#limestoneReceiptEditorForm",
     "#efficiencyMorningMeetingAutoHistoryView form"
   ].join(",");
 
-  const readOnlyFieldSelector = [
+const readOnlyFieldSelector = [
     "#efficiencyMorningMeetingView input:not([type='date']):not([type='month']):not([type='hidden']):not([type='checkbox']):not([type='file'])",
     "#efficiencyMorningMeetingView textarea",
     "#efficiencyMorningMeetingAutoHistoryView input:not([type='date']):not([type='month']):not([type='hidden'])",
