@@ -1,0 +1,137 @@
+/* GS MOBILE LIMESTONE HISTORY FIX V10
+   Mobile limestone receipt history only.
+   1) Edit/Delete stay on one horizontal line.
+   2) Receipt history gets its own touch-scroll viewport.
+*/
+
+@media screen and (max-width: 768px) {
+  #efficiencyTeamModal.is-mobile-monitor-only
+  #efficiencyLimestoneView
+  .limestone-receipt-history-card,
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-history-card {
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: hidden !important;
+  }
+
+  #efficiencyTeamModal.is-mobile-monitor-only
+  #efficiencyLimestoneView
+  .limestone-receipt-scroll,
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-scroll {
+    display: block !important;
+    position: relative !important;
+    width: 100% !important;
+    height: clamp(180px, 23dvh, 230px) !important;
+    min-height: 0 !important;
+    max-height: 230px !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    touch-action: pan-y !important;
+    pointer-events: auto !important;
+    scrollbar-gutter: auto !important;
+  }
+
+  #efficiencyTeamModal.is-mobile-monitor-only
+  #efficiencyLimestoneView
+  .limestone-receipt-scroll
+  .limestone-receipt-table,
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-scroll
+  .limestone-receipt-table {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    table-layout: fixed !important;
+  }
+
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-receipt-table th:nth-child(1),
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-receipt-table td:nth-child(1) {
+    width: 25% !important;
+  }
+
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-receipt-table th:nth-child(2),
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-receipt-table td:nth-child(2) {
+    width: 16% !important;
+  }
+
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-receipt-table th:nth-child(3),
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-receipt-table td:nth-child(3) {
+    width: 14% !important;
+  }
+
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-receipt-table th:nth-child(4),
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-receipt-table td:nth-child(4) {
+    width: 21% !important;
+  }
+
+  #efficiencyTeamModal.is-mobile-monitor-only #efficiencyLimestoneView .limestone-receipt-table th:nth-child(8),
+  #efficiencyTeamModal.is-mobile-monitor-only #efficiencyLimestoneView .limestone-receipt-table td:nth-child(8),
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-receipt-table th:nth-child(8),
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-receipt-table td:nth-child(8) {
+    display: table-cell !important;
+    width: 24% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    padding-left: 4px !important;
+    padding-right: 4px !important;
+  }
+
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-receipt-table tbody tr {
+    height: 46px !important;
+    min-height: 46px !important;
+  }
+
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-receipt-table td {
+    height: 46px !important;
+    min-height: 46px !important;
+    padding-top: 5px !important;
+    padding-bottom: 5px !important;
+    vertical-align: middle !important;
+    white-space: nowrap !important;
+  }
+
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-receipt-table thead th {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 5 !important;
+  }
+
+  #efficiencyTeamModal.is-mobile-monitor-only #efficiencyLimestoneView .limestone-row-actions,
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-row-actions {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  #efficiencyTeamModal.is-mobile-monitor-only #efficiencyLimestoneView .limestone-row-actions button,
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-row-actions button {
+    display: inline-flex !important;
+    flex: 1 1 0 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    padding: 0 4px !important;
+    margin: 0 !important;
+    border-radius: 6px !important;
+    font-size: 9px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+  }
+}
