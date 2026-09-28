@@ -559,7 +559,380 @@
         animation-duration: 1.8s;
       }
     }
-  </style>
+
+
+/* ===== MOBILE LIMESTONE COMPACT EDIT POPUP V2 ===== */
+@media (max-width: 768px) {
+
+  /* -------------------------------------------------
+     팝업 본체
+
+     기존 inline 입력창을
+     화면 중앙 modal처럼 표시한다.
+  -------------------------------------------------- */
+  #limestoneReceiptEditorPanel {
+    position: fixed !important;
+    left: 50% !important;
+    top: 50% !important;
+    right: auto !important;
+    bottom: auto !important;
+
+    transform: translate(-50%, -50%) !important;
+
+    z-index: 12000 !important;
+
+    width: calc(100vw - 30px) !important;
+    max-width: 720px !important;
+    max-height: calc(100dvh - 120px) !important;
+
+    margin: 0 !important;
+    padding: 20px !important;
+
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+
+    background: #ffffff !important;
+
+    border: 1px solid #dbe4ef !important;
+    border-radius: 22px !important;
+
+    box-shadow:
+      0 0 0 100vmax rgba(15, 23, 42, 0.38),
+      0 24px 70px rgba(15, 23, 42, 0.22) !important;
+
+    overscroll-behavior: contain !important;
+  }
+
+
+  #limestoneReceiptEditorPanel[hidden] {
+    display: none !important;
+  }
+
+
+  /* -------------------------------------------------
+     헤더
+  -------------------------------------------------- */
+  #limestoneReceiptEditorPanel
+  .limestone-editor-header {
+    position: relative !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+
+    min-height: 48px !important;
+
+    margin: 0 0 18px !important;
+    padding: 0 54px 0 0 !important;
+  }
+
+
+  /*
+    미리보기처럼 RECEIPT ENTRY 영문 라벨은
+    모바일 수정창에서는 숨긴다.
+  */
+  #limestoneReceiptEditorPanel
+  .limestone-editor-header
+  > div
+  > span {
+    display: none !important;
+  }
+
+
+  #limestoneReceiptEditorTitle {
+    margin: 0 !important;
+
+    font-size: 23px !important;
+    line-height: 1.25 !important;
+    font-weight: 800 !important;
+
+    color: #172033 !important;
+  }
+
+
+  #limestoneReceiptEditorDescription {
+    display: none !important;
+  }
+
+
+  #closeLimestoneReceiptEditorButton {
+    position: absolute !important;
+
+    top: 0 !important;
+    right: 0 !important;
+
+    width: 46px !important;
+    height: 46px !important;
+    min-width: 46px !important;
+    min-height: 46px !important;
+
+    padding: 0 !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    border: 0 !important;
+    border-radius: 13px !important;
+
+    background: #f1f4f8 !important;
+
+    color: #536176 !important;
+
+    font-size: 27px !important;
+    line-height: 1 !important;
+  }
+
+
+  /* -------------------------------------------------
+     입력 영역
+
+     1행: 날짜 | 시간
+     2행: 호기 | 입고량
+  -------------------------------------------------- */
+  #limestoneReceiptEditorForm {
+    display: grid !important;
+
+    grid-template-columns:
+      minmax(0, 1fr)
+      minmax(0, 1fr) !important;
+
+    gap: 15px 14px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  #limestoneReceiptEditorForm
+  > .form-field {
+    min-width: 0 !important;
+    margin: 0 !important;
+  }
+
+
+  #limestoneReceiptEditorForm
+  .form-field__label {
+    display: block !important;
+
+    margin: 0 0 7px !important;
+
+    color: #46546a !important;
+
+    font-size: 14px !important;
+    line-height: 1.3 !important;
+    font-weight: 750 !important;
+  }
+
+
+  #limestoneReceiptEditorForm
+  input,
+  #limestoneReceiptEditorForm
+  select {
+    width: 100% !important;
+    min-width: 0 !important;
+
+    height: 52px !important;
+    min-height: 52px !important;
+
+    box-sizing: border-box !important;
+
+    margin: 0 !important;
+    padding: 0 14px !important;
+
+    border: 1px solid #ccd7e5 !important;
+    border-radius: 13px !important;
+
+    background: #ffffff !important;
+
+    color: #243248 !important;
+
+    font-size: 16px !important;
+    font-weight: 600 !important;
+  }
+
+
+  #limestoneReceiptEditorForm
+  input:focus,
+  #limestoneReceiptEditorForm
+  select:focus {
+    border-color: #4a78ca !important;
+
+    box-shadow:
+      0 0 0 2px rgba(59, 108, 190, 0.12) !important;
+
+    outline: none !important;
+  }
+
+
+  /* -------------------------------------------------
+     입고량 + ton
+  -------------------------------------------------- */
+  #limestoneReceiptEditorForm
+  .limestone-quantity-input-wrap {
+    display: grid !important;
+
+    grid-template-columns:
+      minmax(0, 1fr)
+      62px !important;
+
+    width: 100% !important;
+  }
+
+
+  #limestoneReceiptEditorForm
+  .limestone-quantity-input-wrap
+  input {
+    border-radius:
+      13px 0 0 13px !important;
+  }
+
+
+  #limestoneReceiptEditorForm
+  .limestone-quantity-input-wrap
+  > span {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    height: 52px !important;
+
+    box-sizing: border-box !important;
+
+    border:
+      1px solid #ccd7e5 !important;
+
+    border-left: 0 !important;
+
+    border-radius:
+      0 13px 13px 0 !important;
+
+    background: #f6f8fb !important;
+
+    color: #6a778c !important;
+
+    font-size: 14px !important;
+    font-weight: 700 !important;
+  }
+
+
+  /* -------------------------------------------------
+     모바일 수정에서는 비고 숨김
+
+     기존 record의 note 값은 건드리지 않는다.
+     저장 로직도 기존 그대로 사용한다.
+  -------------------------------------------------- */
+  #limestoneReceiptEditorForm
+  .limestone-editor-note-field {
+    display: none !important;
+  }
+
+
+  /* -------------------------------------------------
+     오류/안내
+  -------------------------------------------------- */
+  #limestoneReceiptEditorMessage {
+    grid-column: 1 / -1 !important;
+
+    margin: 0 !important;
+  }
+
+
+  /* -------------------------------------------------
+     취소 / 저장
+  -------------------------------------------------- */
+  #limestoneReceiptEditorForm
+  .limestone-editor-actions {
+    grid-column: 1 / -1 !important;
+
+    display: grid !important;
+
+    grid-template-columns:
+      minmax(0, 1fr)
+      minmax(0, 1fr) !important;
+
+    gap: 12px !important;
+
+    margin: 4px 0 0 !important;
+    padding: 0 !important;
+  }
+
+
+  #cancelLimestoneReceiptEditorButton,
+  #saveLimestoneReceiptButton {
+    width: 100% !important;
+
+    min-height: 54px !important;
+
+    margin: 0 !important;
+
+    border-radius: 14px !important;
+
+    font-size: 17px !important;
+    line-height: 1 !important;
+    font-weight: 800 !important;
+  }
+
+
+  #cancelLimestoneReceiptEditorButton {
+    border:
+      1px solid #ccd7e5 !important;
+
+    background:
+      #ffffff !important;
+
+    color:
+      #46546a !important;
+  }
+
+
+  #saveLimestoneReceiptButton {
+    border:
+      1px solid #3263b6 !important;
+
+    background:
+      #3263b6 !important;
+
+    color:
+      #ffffff !important;
+  }
+
+
+  /* -------------------------------------------------
+     작은 iPhone에서도 2열 유지
+  -------------------------------------------------- */
+  @media (max-width: 390px) {
+
+    #limestoneReceiptEditorPanel {
+      width:
+        calc(100vw - 20px) !important;
+
+      padding:
+        18px 15px !important;
+    }
+
+
+    #limestoneReceiptEditorForm {
+      gap:
+        13px 10px !important;
+    }
+
+
+    #limestoneReceiptEditorForm
+    input,
+    #limestoneReceiptEditorForm
+    select {
+      padding:
+        0 11px !important;
+
+      font-size:
+        15px !important;
+    }
+  }
+}
+
+</style>
 
 <!-- ROOT MOBILE REDIRECT BOOTSTRAP REMOVED IN MOBILE-APP V13 -->
 
