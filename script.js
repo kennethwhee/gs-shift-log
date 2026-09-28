@@ -244820,8 +244820,85 @@ async function restoreSolarCumulativeFromD1() {
     getState();
 
 
-  const dailyData =
-    state.steamStatus;
+  /* ===================================================
+  MORNING MEETING FINAL WORKBOOK CURRENT SOURCES V7
+
+  기존 state.steamStatus 단일 객체 대신 현재 카드별 자료원을
+  사용한다. 아래의 기존 workbook writer 흐름은 그대로 둔다.
+
+  - 전력/태양광: N/S TO 저장자료
+  - 증기: OIS 현재 결과 / 허용된 저장 표시값
+  - 유기성: 선택일 혼소율 마감 저장자료
+  - Daily DATA Excel 조회는 실행하지 않는다.
+=================================================== */
+
+const finalWorkbookCurrentValueCollectorV7 =
+  window.morningMeetingWorkbookCurrentValues;
+
+if (
+  !finalWorkbookCurrentValueCollectorV7 ||
+  typeof finalWorkbookCurrentValueCollectorV7.collect !== "function"
+) {
+  throw new Error(
+    "최종 엑셀 현재 자료원 수집 기능을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요."
+  );
+}
+
+const finalWorkbookCurrentValueBundleV7 =
+  await finalWorkbookCurrentValueCollectorV7.collect();
+
+/*
+  호환을 위해 변수명 dailyData는 유지한다.
+  내용은 더 이상 Daily DATA Excel 결과가 아니라 현재 자료원 값이다.
+*/
+const dailyData =
+  finalWorkbookCurrentValueBundleV7 &&
+  finalWorkbookCurrentValueBundleV7.values &&
+  typeof finalWorkbookCurrentValueBundleV7.values === "object"
+    ? finalWorkbookCurrentValueBundleV7.values
+    : {};
+
+const finalWorkbookMissingItemsV7 =
+  Array.isArray(finalWorkbookCurrentValueBundleV7?.missing)
+    ? finalWorkbookCurrentValueBundleV7.missing
+    : typeof finalWorkbookCurrentValueCollectorV7.getMissing === "function"
+      ? finalWorkbookCurrentValueCollectorV7.getMissing(dailyData)
+      : [];
+
+if (finalWorkbookMissingItemsV7.length > 0) {
+  const finalWorkbookMissingMessageV7 =
+    [
+      ...finalWorkbookMissingItemsV7.map(item => {
+        return `- ${item?.label || item?.key || "알 수 없는 항목"}`;
+      }),
+      "",
+      "그래도 진행하시겠습니까?"
+    ].join("\n");
+
+  let finalWorkbookContinueV7 = false;
+
+  if (typeof showCompactConfirm === "function") {
+    finalWorkbookContinueV7 = Boolean(
+      await showCompactConfirm({
+        title: "누락된 자동 수치",
+        message: finalWorkbookMissingMessageV7,
+        confirmText: "예",
+        cancelText: "아니오"
+      })
+    );
+  } else {
+    finalWorkbookContinueV7 = window.confirm(
+      ["누락된 자동 수치:", finalWorkbookMissingMessageV7].join("\n")
+    );
+  }
+
+  if (!finalWorkbookContinueV7) {
+    if (elements.message) {
+      elements.message.textContent = "최종 엑셀 생성을 취소했습니다.";
+    }
+    return;
+  }
+}
 
 
   if (
