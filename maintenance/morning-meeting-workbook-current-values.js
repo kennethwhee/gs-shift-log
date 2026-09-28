@@ -1,23 +1,18 @@
-/* MORNING MEETING FINAL WORKBOOK CURRENT SOURCES V7
- * Build the final-workbook automatic-value object from the current owners:
- * - Power + solar: N/S TO saved values (toNightPower)
- * - Steam: current OIS result, with a source-owned/saved rendered card fallback
- * - Organic: selected-day saved co-firing closing values
+/* MORNING MEETING FINAL WORKBOOK CURRENT SOURCES V8
+ * Final workbook should mirror the values currently shown on the Morning Meeting cards.
  *
- * Important:
- * - This module NEVER starts Daily DATA Excel lookup.
- * - Power DOM fallback is accepted only when the card proves TO ownership
- *   (TO input complete / retained last saved TO value).
- * - Organic values are accepted only from the selected-day closing provider;
- *   legacy Daily DATA saved display fallback is NOT a workbook source.
+ * Current-source policy:
+ * - First preserve same-date rendered card values that the operator can actually see.
+ * - Then let canonical providers (TO / OIS / closing) overwrite only with finite values.
+ * - Never start the removed Daily DATA Excel lookup.
+ * - Never use a rendered value from a different date.
  */
 (function installMorningMeetingWorkbookCurrentValues(root) {
   "use strict";
 
   if (!root || !root.document) return;
-  if (root.morningMeetingWorkbookCurrentValues) return;
 
-  const VERSION = "20260928-v7";
+  const VERSION = "20260928-v8";
   const doc = root.document;
 
   const IDS = Object.freeze({
@@ -97,9 +92,7 @@
   }
 
   function finiteNumber(value) {
-    if (typeof value === "number") {
-      return Number.isFinite(value) ? value : null;
-    }
+    if (typeof value === "number") return Number.isFinite(value) ? value : null;
 
     const normalized = text(value).replaceAll(",", "");
     if (!normalized || normalized === "-") return null;
@@ -128,120 +121,91 @@
   }
 
   function displayedDate(id) {
-    const value = elementText(id);
-    return value.match(/20\d{2}-\d{2}-\d{2}/)?.[0] || "";
-  }
-
-  function displayMatchesTarget(dateId, targetDate) {
-    const sourceDate = displayedDate(dateId);
-    return !targetDate || !sourceDate || sourceDate === targetDate;
+    return elementText(id).match(/20\d{2}-\d{2}-\d{2}/)?.[0] || "";
   }
 
   function targetDate() {
-    const candidates = [
-      root.toNightPower?.targetDate?.(),
-      root.morningMeetingClosedCofiring?.targetDate?.(),
-      doc.getElementById("efficiencyMorningMeetingWaterPanel")?.dataset?.morningMeetingAutoBaseDate,
-      root.efficiencyMorningMeetingUploadState?.shiftPart?.reportDate,
-      root.efficiencyMorningMeetingUploadState?.shiftPart?.loadedDate,
+    /*
+     * The Morning Meeting card date is the operational/source date.
+     * Prefer an actually rendered card date over meeting/header dates.
+     */
+    const rendered = [
       displayedDate(IDS.powerDate),
       displayedDate(IDS.steamDate),
       displayedDate(IDS.organicDate)
+    ].find(isDate);
+
+    if (rendered) return rendered;
+
+    const candidates = [
+      root.morningMeetingClosedCofiring?.targetDate?.(),
+      root.toNightPower?.targetDate?.(),
+      doc.getElementById("efficiencyMorningMeetingWaterPanel")?.dataset?.morningMeetingAutoBaseDate,
+      root.efficiencyMorningMeetingUploadState?.shiftPart?.reportDate,
+      root.efficiencyMorningMeetingUploadState?.shiftPart?.loadedDate
     ];
 
     return candidates.map(text).find(isDate) || "";
   }
 
-  function hasAnyNumber(values, keys) {
-    return keys.some(key => finiteNumber(values?.[key]) !== null);
+  function displayMatchesTarget(dateId, date) {
+    const sourceDate = displayedDate(dateId);
+    return !date || !sourceDate || sourceDate === date;
   }
 
-  function fillMissingFromDom(values, keys, dateId, date) {
-    if (!displayMatchesTarget(dateId, date)) return values;
+  function copyFiniteKeys(target, source, keys, { overwrite = true } = {}) {
+    for (const key of keys) {
+      const number = finiteNumber(source?.[key]);
+      if (number === null) continue;
+      if (!overwrite && finiteNumber(target[key]) !== null) continue;
+      target[key] = number;
+    }
+    return target;
+  }
+
+  function copyRenderedCard(target, keys, dateId, date) {
+    if (!displayMatchesTarget(dateId, date)) return target;
 
     for (const key of keys) {
-      if (finiteNumber(values[key]) !== null) continue;
       const number = elementNumber(IDS[key]);
-      if (number !== null) values[key] = number;
+      if (number !== null) target[key] = number;
     }
 
-    return values;
-  }
-
-  function powerCardProvesCurrentSource(date) {
-    if (!displayMatchesTarget(IDS.powerDate, date)) return false;
-
-    const status = elementText(IDS.powerStatus);
-
-    /*
-     * Allowed:
-     * - TO 입력 완료
-     * - 재조회 실패 · 마지막 저장값 유지
-     * - 재확인 중 · 마지막 저장값 유지
-     *
-     * Intentionally NOT allowed:
-     * - TO 미입력 · 기존 저장값
-     *   (legacy Daily DATA saved display fallback)
-     */
-    return /TO\s*입력\s*완료|마지막\s*저장값\s*유지/.test(status);
-  }
-
-  function steamCardProvesUsableSource(date) {
-    if (!displayMatchesTarget(IDS.steamDate, date)) return false;
-
-    const status = elementText(IDS.steamStatus);
-
-    /*
-     * Steam policy is OIS / saved value.
-     * "기존 저장값" is an already-saved, read-only fallback; this helper does
-     * not launch the removed Daily DATA Excel lookup.
-     */
-    return /OIS\s*완료|기존\s*저장값|마지막\s*저장값\s*유지/.test(status);
+    return target;
   }
 
   async function mergePower(values, date, sourceErrors) {
-    const power = root.toNightPower;
-    let providerSucceeded = false;
+    /* Visible same-date card values are retained even when TO row is not yet saved. */
+    copyRenderedCard(values, POWER_KEYS, IDS.powerDate, date);
 
+    const power = root.toNightPower;
     if (
-      date &&
-      power &&
-      typeof power.ensureForWorkbook === "function" &&
-      typeof power.valuesForWorkbook === "function"
+      !date ||
+      !power ||
+      typeof power.ensureForWorkbook !== "function" ||
+      typeof power.valuesForWorkbook !== "function"
     ) {
-      try {
-        await power.ensureForWorkbook(date);
-        Object.assign(
-          values,
-          power.valuesForWorkbook(values, { targetDate: date }) || {}
-        );
-        providerSucceeded = true;
-      } catch (error) {
-        sourceErrors.push({
-          source: "power",
-          message: text(error?.message) || "TO 전력 저장자료 확인 실패"
-        });
-      }
+      return values;
     }
 
-    /*
-     * If the canonical provider answered successfully, its result is final.
-     * Do not backfill missing TO fields from a legacy rendered value.
-     */
-    if (providerSucceeded) return values;
-
-    /*
-     * On a transient provider error, only retain values when the rendered card
-     * explicitly proves it is a TO-owned last saved value.
-     */
-    if (powerCardProvesCurrentSource(date)) {
-      fillMissingFromDom(values, POWER_KEYS, IDS.powerDate, date);
+    try {
+      await power.ensureForWorkbook(date);
+      const provided = power.valuesForWorkbook({ ...values }, { targetDate: date }) || {};
+      copyFiniteKeys(values, provided, POWER_KEYS, { overwrite: true });
+    } catch (error) {
+      sourceErrors.push({
+        source: "power",
+        message: text(error?.message) || "TO 전력 저장자료 확인 실패"
+      });
     }
 
     return values;
   }
 
   function mergeSteam(values, date) {
+    /* Preserve what is visibly shown first. */
+    copyRenderedCard(values, STEAM_KEYS, IDS.steamDate, date);
+
     const raw =
       root.__morningMeetingSteamOisProbeLastResult &&
       typeof root.__morningMeetingSteamOisProbeLastResult === "object"
@@ -252,58 +216,33 @@
     const sameDate = Boolean(raw) && (!date || !rawDate || rawDate === date);
 
     if (sameDate) {
-      for (const key of STEAM_KEYS) {
-        const number = finiteNumber(raw[key]);
-        if (number !== null) values[key] = number;
-      }
-    }
-
-    if (hasAnyNumber(values, STEAM_KEYS) && STEAM_KEYS.every(key => finiteNumber(values[key]) !== null)) {
-      return values;
-    }
-
-    if (steamCardProvesUsableSource(date)) {
-      fillMissingFromDom(values, STEAM_KEYS, IDS.steamDate, date);
+      copyFiniteKeys(values, raw, STEAM_KEYS, { overwrite: true });
     }
 
     return values;
   }
 
   async function mergeOrganic(values, date, sourceErrors) {
-    const closed = root.morningMeetingClosedCofiring;
+    /*
+     * Mirror the current card first. This does not start Daily DATA Excel lookup;
+     * it only reads values already rendered on the Morning Meeting screen.
+     */
+    copyRenderedCard(values, ORGANIC_KEYS, IDS.organicDate, date);
 
-    if (
-      !date ||
-      !closed ||
-      typeof closed.valuesForWorkbook !== "function"
-    ) {
+    const closed = root.morningMeetingClosedCofiring;
+    if (!date || !closed || typeof closed.valuesForWorkbook !== "function") {
       return values;
     }
 
-    /*
-     * Reuse an already-loaded selected-day closing value first. This avoids
-     * throwing away a currently valid closing value merely because a refresh
-     * endpoint is temporarily unavailable.
-     */
     try {
-      const existing = closed.valuesForWorkbook(values, { targetDate: date }) || {};
-      Object.assign(values, existing);
-      if (ORGANIC_KEYS.every(key => finiteNumber(values[key]) !== null)) {
-        return values;
-      }
-    } catch (error) {
-      /* Keep going: a load below may make the selected closing available. */
-    }
+      let provided = closed.valuesForWorkbook({ ...values }, { targetDate: date }) || {};
+      copyFiniteKeys(values, provided, ORGANIC_KEYS, { overwrite: true });
 
-    try {
       if (typeof closed.load === "function") {
         await closed.load(date);
+        provided = closed.valuesForWorkbook({ ...values }, { targetDate: date }) || {};
+        copyFiniteKeys(values, provided, ORGANIC_KEYS, { overwrite: true });
       }
-
-      Object.assign(
-        values,
-        closed.valuesForWorkbook(values, { targetDate: date }) || {}
-      );
     } catch (error) {
       sourceErrors.push({
         source: "organic",
@@ -311,11 +250,6 @@
       });
     }
 
-    /*
-     * Deliberately NO DOM fallback here.
-     * The organic card can be rendered from legacy Daily DATA saved fallback,
-     * but final workbook organic values must come from the selected-day closing.
-     */
     return values;
   }
 
@@ -335,6 +269,13 @@
     await mergeOrganic(values, date, sourceErrors);
 
     const missing = getMissing(values);
+
+    console.info("[MorningMeetingWorkbookCurrentValues V8]", {
+      targetDate: date,
+      values: { ...values },
+      missing: missing.map(item => item.key),
+      sourceErrors: sourceErrors.map(item => item.source)
+    });
 
     return {
       version: VERSION,
