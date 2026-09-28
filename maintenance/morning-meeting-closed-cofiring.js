@@ -159,18 +159,63 @@
     });
   }
 
+    // MORNING_MEETING_ORGANIC_SAVED_FIRST_V3_R3
+  // Existing saved Morning Meeting organic data stays authoritative when a
+  // historical co-firing close does not contain the complete organic payload.
+  function hasCompleteClosedOrganic(item) {
+    const organic = item?.organic;
+    return [
+      organic?.sludgeTotal,
+      organic?.organicDaySilo,
+      organic?.organicStorageSiloA,
+      organic?.organicStorageSiloB,
+      organic?.organicSiloTotal
+    ].every(value => number(value) !== null);
+  }
+
+  function hasCompleteExistingOrganicValues(value) {
+    const source = value && typeof value === 'object' ? value : {};
+    return [
+      source.sludgeTotal ?? source.organicReceivedAmount,
+      source.organicDaySilo ?? source.organicDaySiloLevel,
+      source.organicStorageSiloA ?? source.organicStorageSiloALevel,
+      source.organicStorageSiloB ?? source.organicStorageSiloBLevel,
+      source.organicSiloTotal
+    ].every(item => number(item) !== null);
+  }
+
   function shouldPreserveExistingOrganic(date) {
     if (!dateValid(date) || isBlocked(date)) {
       savedFirstOrganicDates.delete(date);
       return false;
     }
-    if (hasExistingSavedOrganicCard(date)) savedFirstOrganicDates.add(date);
-    return savedFirstOrganicDates.has(date) && !explicitOrganicRequeryDates.has(date);
+
+    if (hasExistingSavedOrganicCard(date)) {
+      savedFirstOrganicDates.add(date);
+    }
+
+    if (!savedFirstOrganicDates.has(date)) {
+      return false;
+    }
+
+    const closed = peek(date);
+
+    // Loading / missing / failed / partial historical close:
+    // never erase a valid existing saved Morning Meeting organic card.
+    if (!hasCompleteClosedOrganic(closed)) {
+      return true;
+    }
+
+    // Only a complete closing may replace the saved card after an explicit
+    // organic mini refresh / 전체자료 action.
+    return !explicitOrganicRequeryDates.has(date);
   }
 
   function beginExplicitOrganicRequery(date = targetDate()) {
     if (!dateValid(date)) return false;
-    savedFirstOrganicDates.delete(date);
+
+    // Keep the saved-date latch. Explicit refresh is permission to replace
+    // only when the fetched closing is complete.
     explicitOrganicRequeryDates.add(date);
     root.setTimeout(() => explicitOrganicRequeryDates.delete(date), 30000);
     return true;
@@ -297,6 +342,21 @@
   }
 
   function valuesForWorkbook(dailyData, options = {}) {
+    const savedFirstV3Date = options.targetDate || targetDate();
+    const savedFirstV3Closed =
+      options.suppressClosedValues === true ||
+      (options.targetDate && options.targetDate !== targetDate())
+        ? null
+        : peek(savedFirstV3Date);
+
+    if (
+      options.suppressClosedValues !== true &&
+      hasCompleteExistingOrganicValues(dailyData) &&
+      !hasCompleteClosedOrganic(savedFirstV3Closed)
+    ) {
+      return {...(dailyData && typeof dailyData === 'object' ? dailyData : {})};
+    }
+
     const savedFirstDate = options.targetDate || targetDate();
     if (
       options.suppressClosedValues !== true &&
