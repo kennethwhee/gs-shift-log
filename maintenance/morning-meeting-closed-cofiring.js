@@ -135,6 +135,48 @@
   const setText = (element, value) => { if (element && element.textContent !== value) element.textContent = value; };
   const PANEL = 'efficiencyMorningMeetingWaterPanel';
 
+  // MORNING_MEETING_ORGANIC_SAVED_FIRST_V2_R4
+  // Existing saved Morning Meeting organic values remain authoritative until
+  // the operator explicitly requests a requery. Background closed-data refresh
+  // must not cover those values with a loading/missing/partial closing.
+  const savedFirstOrganicDates = new Set();
+  const explicitOrganicRequeryDates = new Set();
+
+  function organicSavedText(element) {
+    return String(element?.textContent || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function hasExistingSavedOrganicCard(date) {
+    if (!dateValid(date) || isBlocked(date)) return false;
+    const dateText = organicSavedText(byId(PREFIX + 'SludgeDate'));
+    const statusText = organicSavedText(byId(PREFIX + 'SludgeStatus'));
+    const savedLabel = dateText.includes('기존 저장값') || statusText.includes('기존 저장값');
+    if (!dateText.includes(date) || !savedLabel) return false;
+
+    return Object.values(ORGANIC_IDS).some(id => {
+      const value = organicSavedText(byId(id));
+      return value !== '' && value !== '-' && value !== '—';
+    });
+  }
+
+  function shouldPreserveExistingOrganic(date) {
+    if (!dateValid(date) || isBlocked(date)) {
+      savedFirstOrganicDates.delete(date);
+      return false;
+    }
+    if (hasExistingSavedOrganicCard(date)) savedFirstOrganicDates.add(date);
+    return savedFirstOrganicDates.has(date) && !explicitOrganicRequeryDates.has(date);
+  }
+
+  function beginExplicitOrganicRequery(date = targetDate()) {
+    if (!dateValid(date)) return false;
+    savedFirstOrganicDates.delete(date);
+    explicitOrganicRequeryDates.add(date);
+    root.setTimeout(() => explicitOrganicRequeryDates.delete(date), 30000);
+    return true;
+  }
+
+
   function targetDate() {
     const state = root.efficiencyMorningMeetingUploadState || {};
     const choices = [byId(PANEL)?.dataset.morningMeetingAutoBaseDate, state.shiftPart?.reportDate, state.shiftPart?.loadedDate];
@@ -255,6 +297,15 @@
   }
 
   function valuesForWorkbook(dailyData, options = {}) {
+    const savedFirstDate = options.targetDate || targetDate();
+    if (
+      options.suppressClosedValues !== true &&
+      (!options.targetDate || options.targetDate === targetDate()) &&
+      shouldPreserveExistingOrganic(savedFirstDate)
+    ) {
+      return {...(dailyData && typeof dailyData === 'object' ? dailyData : {})};
+    }
+
     const result = {...(dailyData && typeof dailyData === 'object' ? dailyData : {})};
     for (const key of [...Object.keys(ORGANIC_IDS), ...ALIASES]) delete result[key];
     const saved = options.suppressClosedValues === true ||
@@ -278,6 +329,9 @@
     catch (error) { console.warn('오전회의 유기성 기존 저장값 표시 실패:', error); return false; }
   }
   function renderOrganic() {
+    const savedFirstDate = targetDate();
+    if (shouldPreserveExistingOrganic(savedFirstDate)) return;
+
     const date = targetDate(), entry = state(date), saved = peek(date);
     if (!saved && date && !isBlocked(date) && renderLegacySavedOrganic(date)) {
       const fallbackButton = byId(PREFIX + 'SludgeRefreshButton');
@@ -320,9 +374,18 @@
 
   async function refresh(options = {}) {
     const date = targetDate();
-    try { return await load(date, options); }
-    catch { return null; }
-    finally { renderOrganic(); }
+    const explicit = explicitOrganicRequeryDates.has(date);
+
+    if (!explicit && shouldPreserveExistingOrganic(date)) return null;
+
+    try {
+      return await load(date, options);
+    } catch {
+      return null;
+    } finally {
+      renderOrganic();
+      if (explicit) explicitOrganicRequeryDates.delete(date);
+    }
   }
 
   function sync() {
@@ -349,6 +412,22 @@
     invalidate(date); if (date === targetDate()) { renderOrganic(); void refresh({force: true}); }
   }
   function initialize() {
+    doc.addEventListener('click', event => {
+      const button = event.target?.closest?.('button');
+      if (!button) return;
+
+      const organicRefresh =
+        button.id === PREFIX + 'SludgeRefreshButton';
+
+      const allRefresh =
+        button.closest?.('#efficiencyTeamModal') &&
+        organicSavedText(button) === '전체자료';
+
+      if (organicRefresh || allRefresh) {
+        beginExplicitOrganicRequery(targetDate());
+      }
+    }, true);
+
     const relevant = [PANEL, PREFIX + 'SludgeCard', 'efficiencyMorningMeetingAutoCofiringCard'];
     const observer = new MutationObserver(mutations => {
       if (mutations.some(m => m.type === 'attributes' || [...m.addedNodes].some(node =>
