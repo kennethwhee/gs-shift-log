@@ -133,3 +133,8 @@
   .cfv-adjustment-applied { padding: 0 6px; font-size: 8.5px; }
   .cfv-adjustment-delta { margin-left: 5px; font-size: 9px; }
 }
+
+/* COFIRING_ADJUSTED_COMPARISON_CARDS_V5_STATUS_BLUE */
+.cofiring-period-v5 [data-cfv56-adjust].is-active {
+  background-color: #eaf5ff !important;
+}
