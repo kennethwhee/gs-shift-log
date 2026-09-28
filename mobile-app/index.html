@@ -561,786 +561,329 @@
     }
 
 
-/* ===== MOBILE LIMESTONE EDIT POPUP V4 CLEAN ===== */
+
+/* ===== MOBILE LIMESTONE EDIT MODAL V5 R2 ===== */
 
 @media (max-width: 768px) {
 
-  /* ================================================
-     POPUP
-  ================================================= */
-
-  #limestoneReceiptEditorPanel {
-    position: fixed !important;
-
-    left: 50% !important;
-    top: 50% !important;
-
-    right: auto !important;
-    bottom: auto !important;
-
-    transform:
-      translate(-50%, -50%) !important;
-
-    z-index: 12000 !important;
-
-    width:
-      min(
-        412px,
-        calc(100vw - 28px)
-      ) !important;
-
-    max-width:
-      calc(100vw - 28px) !important;
-
-    max-height:
-      calc(
-        100dvh -
-        env(safe-area-inset-top, 0px) -
-        env(safe-area-inset-bottom, 0px) -
-        36px
-      ) !important;
-
-    margin: 0 !important;
-
-    padding:
-      18px 16px 16px !important;
-
-    box-sizing:
-      border-box !important;
-
-    overflow-x:
-      hidden !important;
-
-    overflow-y:
-      auto !important;
-
-    -webkit-overflow-scrolling:
-      touch !important;
-
-    overscroll-behavior:
-      contain !important;
-
-    background:
-      #ffffff !important;
-
-    border:
-      1px solid #d7e0eb !important;
-
-    border-radius:
-      20px !important;
-
-    box-shadow:
-      0 0 0 100vmax rgba(15, 23, 42, 0.38),
-      0 20px 60px rgba(15, 23, 42, 0.20) !important;
+  body.is-mobile-limestone-edit-open {
+    overflow: hidden !important;
   }
 
+  #mobileLimestoneEditModal {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 50000 !important;
 
-  #limestoneReceiptEditorPanel[hidden] {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    padding:
+      max(14px, env(safe-area-inset-top, 0px))
+      12px
+      max(14px, env(safe-area-inset-bottom, 0px)) !important;
+
+    box-sizing: border-box !important;
+    overflow: auto !important;
+
+    background: rgba(15, 23, 42, 0.42) !important;
+
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+  }
+
+  #mobileLimestoneEditModal[hidden] {
     display: none !important;
   }
 
+  .mobile-limestone-edit-dialog {
+    width: min(410px, calc(100vw - 24px)) !important;
+    max-width: 410px !important;
 
-  /* ================================================
-     HEADER
-  ================================================= */
+    margin: auto !important;
+    padding: 18px 16px 16px !important;
 
-  #limestoneReceiptEditorPanel
-  .limestone-editor-header {
-    position:
-      relative !important;
+    box-sizing: border-box !important;
 
-    display:
-      flex !important;
+    background: #ffffff !important;
 
-    align-items:
-      center !important;
+    border: 1px solid #d8e1ec !important;
+    border-radius: 20px !important;
 
-    min-height:
-      44px !important;
-
-    margin:
-      0 0 16px !important;
-
-    padding:
-      0 52px 0 0 !important;
-
-    box-sizing:
-      border-box !important;
+    box-shadow:
+      0 24px 70px rgba(15, 23, 42, 0.24) !important;
   }
 
+  .mobile-limestone-edit-header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
 
-  #limestoneReceiptEditorPanel
-  .limestone-editor-header
-  > div
-  > span {
-    display:
-      none !important;
+    gap: 12px !important;
+
+    margin: 0 0 18px !important;
   }
 
+  #mobileLimestoneEditTitle {
+    margin: 0 !important;
 
-  #limestoneReceiptEditorTitle {
-    margin:
-      0 !important;
+    color: #172033 !important;
 
-    padding:
-      0 !important;
+    font-size: 20px !important;
+    line-height: 1.25 !important;
+    font-weight: 800 !important;
 
-    color:
-      #172033 !important;
-
-    font-size:
-      20px !important;
-
-    line-height:
-      1.25 !important;
-
-    font-weight:
-      800 !important;
-
-    letter-spacing:
-      -0.02em !important;
+    letter-spacing: -0.025em !important;
   }
 
+  #closeMobileLimestoneEditModal {
+    flex: 0 0 44px !important;
 
-  #limestoneReceiptEditorDescription {
-    display:
-      none !important;
+    width: 44px !important;
+    height: 44px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    border: 0 !important;
+    border-radius: 12px !important;
+
+    background: #f1f4f8 !important;
+    color: #536176 !important;
+
+    font-size: 26px !important;
+    line-height: 1 !important;
   }
 
-
-  #closeLimestoneReceiptEditorButton {
-    position:
-      absolute !important;
-
-    top:
-      0 !important;
-
-    right:
-      0 !important;
-
-    width:
-      44px !important;
-
-    min-width:
-      44px !important;
-
-    max-width:
-      44px !important;
-
-    height:
-      44px !important;
-
-    min-height:
-      44px !important;
-
-    max-height:
-      44px !important;
-
-    margin:
-      0 !important;
-
-    padding:
-      0 !important;
-
-    display:
-      flex !important;
-
-    align-items:
-      center !important;
-
-    justify-content:
-      center !important;
-
-    border:
-      0 !important;
-
-    border-radius:
-      12px !important;
-
-    background:
-      #f1f4f8 !important;
-
-    color:
-      #536176 !important;
-
-    font-size:
-      25px !important;
-
-    line-height:
-      1 !important;
-  }
-
-
-  /* ================================================
-     EXACT 2 x 2 GRID
-
-     Row 1:
-     Date | Time
-
-     Row 2:
-     Unit | Quantity
-  ================================================= */
-
-  #limestoneReceiptEditorForm {
-    display:
-      grid !important;
+  #mobileLimestoneEditForm {
+    display: grid !important;
 
     grid-template-columns:
-      repeat(
-        2,
-        minmax(0, 1fr)
-      ) !important;
+      minmax(0, 1fr)
+      minmax(0, 1fr) !important;
 
     grid-template-areas:
       "date time"
       "unit quantity"
-      "message message"
+      "status status"
       "actions actions" !important;
 
-    column-gap:
-      12px !important;
+    column-gap: 10px !important;
+    row-gap: 14px !important;
 
-    row-gap:
-      13px !important;
+    width: 100% !important;
+    min-width: 0 !important;
 
-    width:
-      100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
 
-    max-width:
-      100% !important;
-
-    min-width:
-      0 !important;
-
-    margin:
-      0 !important;
-
-    padding:
-      0 !important;
-
-    box-sizing:
-      border-box !important;
-
-    align-items:
-      start !important;
+    box-sizing: border-box !important;
   }
 
+  .mobile-limestone-edit-field {
+    width: 100% !important;
+    min-width: 0 !important;
 
-  #limestoneReceiptEditorForm
-  > label {
-    display:
-      block !important;
+    margin: 0 !important;
+    padding: 0 !important;
 
-    width:
-      auto !important;
-
-    min-width:
-      0 !important;
-
-    max-width:
-      none !important;
-
-    margin:
-      0 !important;
-
-    padding:
-      0 !important;
-
-    box-sizing:
-      border-box !important;
+    box-sizing: border-box !important;
   }
 
-
-  #limestoneReceiptEditorForm
-  > label:has(#limestoneReceiptDate) {
-    grid-area:
-      date !important;
+  .mobile-limestone-edit-field.is-date {
+    grid-area: date !important;
   }
 
-
-  #limestoneReceiptEditorForm
-  > label:has(#limestoneReceiptTime) {
-    grid-area:
-      time !important;
+  .mobile-limestone-edit-field.is-time {
+    grid-area: time !important;
   }
 
-
-  #limestoneReceiptEditorForm
-  > label:has(#limestoneReceiptUnit) {
-    grid-area:
-      unit !important;
+  .mobile-limestone-edit-field.is-unit {
+    grid-area: unit !important;
   }
 
-
-  #limestoneReceiptEditorForm
-  > label:has(#limestoneReceiptQuantity) {
-    grid-area:
-      quantity !important;
+  .mobile-limestone-edit-field.is-quantity {
+    grid-area: quantity !important;
   }
 
+  .mobile-limestone-edit-field > span {
+    display: block !important;
 
-  /* ================================================
-     LABEL
-  ================================================= */
+    margin: 0 0 6px !important;
 
-  #limestoneReceiptEditorForm
-  .form-field__label {
-    display:
-      block !important;
+    color: #46546a !important;
 
-    margin:
-      0 0 6px !important;
-
-    padding:
-      0 !important;
-
-    color:
-      #46546a !important;
-
-    font-size:
-      13px !important;
-
-    line-height:
-      1.25 !important;
-
-    font-weight:
-      750 !important;
+    font-size: 13px !important;
+    line-height: 1.2 !important;
+    font-weight: 750 !important;
   }
 
+  #mobileLimestoneEditDate,
+  #mobileLimestoneEditTime,
+  #mobileLimestoneEditUnit,
+  #mobileLimestoneEditQuantity {
+    display: block !important;
 
-  /* ================================================
-     NORMALIZE ALL 4 CONTROLS
-  ================================================= */
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
 
-  #limestoneReceiptDate,
-  #limestoneReceiptTime,
-  #limestoneReceiptUnit,
-  #limestoneReceiptQuantity {
-    display:
-      block !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    max-height: 48px !important;
 
-    width:
-      100% !important;
+    margin: 0 !important;
+    padding: 0 11px !important;
 
-    min-width:
-      0 !important;
+    box-sizing: border-box !important;
 
-    max-width:
-      100% !important;
+    border: 1px solid #ccd7e5 !important;
+    border-radius: 12px !important;
 
-    height:
-      48px !important;
+    background: #ffffff !important;
+    color: #26354a !important;
 
-    min-height:
-      48px !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
 
-    max-height:
-      48px !important;
+    box-shadow: none !important;
+    outline: none !important;
+  }
 
-    margin:
-      0 !important;
-
-    padding:
-      0 12px !important;
-
-    box-sizing:
-      border-box !important;
-
-    border:
-      1px solid #ccd7e5 !important;
-
-    border-radius:
-      12px !important;
-
-    background:
-      #ffffff !important;
-
-    color:
-      #26354a !important;
-
-    font-size:
-      16px !important;
-
-    line-height:
-      48px !important;
-
-    font-weight:
-      600 !important;
+  #mobileLimestoneEditDate:focus,
+  #mobileLimestoneEditTime:focus,
+  #mobileLimestoneEditUnit:focus,
+  #mobileLimestoneEditQuantity:focus {
+    border-color: #4979cc !important;
 
     box-shadow:
-      none !important;
-
-    outline:
-      none !important;
+      0 0 0 2px rgba(59, 108, 190, 0.12) !important;
   }
 
-
-  #limestoneReceiptDate:focus,
-  #limestoneReceiptTime:focus,
-  #limestoneReceiptUnit:focus,
-  #limestoneReceiptQuantity:focus {
-    border-color:
-      #4a78ca !important;
-
-    box-shadow:
-      0 0 0 2px
-      rgba(
-        59,
-        108,
-        190,
-        0.12
-      ) !important;
-  }
-
-
-  /* iOS date text alignment */
-  #limestoneReceiptDate {
-    text-align:
-      left !important;
-  }
-
-
-  #limestoneReceiptDate
- ::-webkit-date-and-time-value {
-    text-align:
-      left !important;
-
-    margin:
-      0 !important;
-  }
-
-
-  /* ================================================
-     QUANTITY + TON
-
-     One outer border only.
-     Remove the current double-border look.
-  ================================================= */
-
-  #limestoneReceiptEditorForm
-  .limestone-quantity-input-wrap {
-    display:
-      grid !important;
+  .mobile-limestone-edit-quantity {
+    display: grid !important;
 
     grid-template-columns:
       minmax(0, 1fr)
-      54px !important;
+      46px !important;
 
-    width:
-      100% !important;
+    width: 100% !important;
+    min-width: 0 !important;
 
-    min-width:
-      0 !important;
+    height: 48px !important;
 
-    max-width:
-      100% !important;
+    box-sizing: border-box !important;
 
-    height:
-      48px !important;
+    overflow: hidden !important;
 
-    margin:
-      0 !important;
+    border: 1px solid #ccd7e5 !important;
+    border-radius: 12px !important;
 
-    padding:
-      0 !important;
-
-    box-sizing:
-      border-box !important;
-
-    overflow:
-      hidden !important;
-
-    border:
-      1px solid #ccd7e5 !important;
-
-    border-radius:
-      12px !important;
-
-    background:
-      #ffffff !important;
+    background: #ffffff !important;
   }
 
+  #mobileLimestoneEditQuantity {
+    height: 46px !important;
+    min-height: 46px !important;
+    max-height: 46px !important;
 
-  #limestoneReceiptEditorForm
-  .limestone-quantity-input-wrap
-  #limestoneReceiptQuantity {
-    width:
-      100% !important;
+    border: 0 !important;
+    border-radius: 0 !important;
 
-    min-width:
-      0 !important;
-
-    height:
-      46px !important;
-
-    min-height:
-      46px !important;
-
-    max-height:
-      46px !important;
-
-    border:
-      0 !important;
-
-    border-radius:
-      0 !important;
-
-    box-shadow:
-      none !important;
-
-    line-height:
-      46px !important;
+    box-shadow: none !important;
   }
 
+  .mobile-limestone-edit-quantity > strong {
+    width: 46px !important;
+    height: 46px !important;
 
-  #limestoneReceiptEditorForm
-  .limestone-quantity-input-wrap
-  > span {
-    display:
-      flex !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
 
-    align-items:
-      center !important;
+    box-sizing: border-box !important;
 
-    justify-content:
-      center !important;
+    border-left: 1px solid #ccd7e5 !important;
 
-    width:
-      54px !important;
+    background: #f6f8fb !important;
+    color: #718096 !important;
 
-    min-width:
-      54px !important;
-
-    max-width:
-      54px !important;
-
-    height:
-      46px !important;
-
-    min-height:
-      46px !important;
-
-    max-height:
-      46px !important;
-
-    margin:
-      0 !important;
-
-    padding:
-      0 !important;
-
-    box-sizing:
-      border-box !important;
-
-    border:
-      0 !important;
-
-    border-left:
-      1px solid #ccd7e5 !important;
-
-    border-radius:
-      0 !important;
-
-    background:
-      #f6f8fb !important;
-
-    color:
-      #718096 !important;
-
-    font-size:
-      13px !important;
-
-    line-height:
-      1 !important;
-
-    font-weight:
-      700 !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
   }
 
+  #mobileLimestoneEditStatus {
+    grid-area: status !important;
 
-  /* ================================================
-     NOTE
+    width: 100% !important;
 
-     Hidden on compact mobile edit.
-     Underlying stored value remains untouched.
-  ================================================= */
+    margin: 0 !important;
+    padding: 0 !important;
 
-  #limestoneReceiptEditorForm
-  .limestone-editor-note-field {
-    display:
-      none !important;
+    color: #c43c3c !important;
+
+    font-size: 12px !important;
+    line-height: 1.4 !important;
   }
 
-
-  /* ================================================
-     MESSAGE
-  ================================================= */
-
-  #limestoneReceiptEditorMessage {
-    grid-area:
-      message !important;
-
-    width:
-      100% !important;
-
-    min-width:
-      0 !important;
-
-    margin:
-      0 !important;
-
-    padding:
-      0 !important;
-
-    box-sizing:
-      border-box !important;
+  #mobileLimestoneEditStatus[hidden] {
+    display: none !important;
   }
 
+  .mobile-limestone-edit-actions {
+    grid-area: actions !important;
 
-  #limestoneReceiptEditorMessage[hidden] {
-    display:
-      none !important;
-  }
-
-
-  /* ================================================
-     ACTIONS
-  ================================================= */
-
-  #limestoneReceiptEditorForm
-  .limestone-editor-actions {
-    grid-area:
-      actions !important;
-
-    display:
-      grid !important;
+    display: grid !important;
 
     grid-template-columns:
-      repeat(
-        2,
-        minmax(0, 1fr)
-      ) !important;
-
-    gap:
-      10px !important;
-
-    width:
-      100% !important;
-
-    min-width:
-      0 !important;
-
-    max-width:
-      100% !important;
-
-    margin:
-      2px 0 0 !important;
-
-    padding:
-      0 !important;
-
-    box-sizing:
-      border-box !important;
-  }
-
-
-  #cancelLimestoneReceiptEditorButton,
-  #saveLimestoneReceiptButton {
-    display:
-      flex !important;
-
-    align-items:
-      center !important;
-
-    justify-content:
-      center !important;
-
-    width:
-      100% !important;
-
-    min-width:
-      0 !important;
-
-    max-width:
-      100% !important;
-
-    height:
-      50px !important;
-
-    min-height:
-      50px !important;
-
-    max-height:
-      50px !important;
-
-    margin:
-      0 !important;
-
-    padding:
-      0 12px !important;
-
-    box-sizing:
-      border-box !important;
-
-    border-radius:
-      12px !important;
-
-    font-size:
-      16px !important;
-
-    line-height:
-      1 !important;
-
-    font-weight:
-      800 !important;
-  }
-
-
-  #cancelLimestoneReceiptEditorButton {
-    border:
-      1px solid #ccd7e5 !important;
-
-    background:
-      #ffffff !important;
-
-    color:
-      #46546a !important;
-  }
-
-
-  #saveLimestoneReceiptButton {
-    border:
-      1px solid #3263b6 !important;
-
-    background:
-      #3263b6 !important;
-
-    color:
-      #ffffff !important;
-  }
-}
-
-
-/*
- * Only genuinely narrow screens fall back to one column.
- * Normal current iPhones keep the intended 2 x 2 layout.
- */
-@media (max-width: 359px) {
-
-  #limestoneReceiptEditorForm {
-    grid-template-columns:
+      minmax(0, 1fr)
       minmax(0, 1fr) !important;
 
-    grid-template-areas:
-      "date"
-      "time"
-      "unit"
-      "quantity"
-      "message"
-      "actions" !important;
+    gap: 10px !important;
+
+    width: 100% !important;
+
+    margin: 2px 0 0 !important;
+  }
+
+  #cancelMobileLimestoneEditModal,
+  #saveMobileLimestoneEditModal {
+    width: 100% !important;
+    min-width: 0 !important;
+
+    height: 50px !important;
+    min-height: 50px !important;
+
+    margin: 0 !important;
+    padding: 0 10px !important;
+
+    box-sizing: border-box !important;
+
+    border-radius: 12px !important;
+
+    font-size: 16px !important;
+    font-weight: 800 !important;
+  }
+
+  #cancelMobileLimestoneEditModal {
+    border: 1px solid #ccd7e5 !important;
+
+    background: #ffffff !important;
+    color: #46546a !important;
+  }
+
+  #saveMobileLimestoneEditModal {
+    border: 1px solid #3263b6 !important;
+
+    background: #3263b6 !important;
+    color: #ffffff !important;
   }
 }
-
 </style>
 
 <!-- ROOT MOBILE REDIRECT BOOTSTRAP REMOVED IN MOBILE-APP V13 -->
@@ -17283,5 +16826,143 @@
     }
   })();
 </script>
+
+<section
+  id="mobileLimestoneEditModal"
+  class="mobile-limestone-edit-overlay"
+  aria-hidden="true"
+  hidden
+>
+  <div
+    class="mobile-limestone-edit-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="mobileLimestoneEditTitle"
+  >
+
+    <header class="mobile-limestone-edit-header">
+
+      <h3 id="mobileLimestoneEditTitle">
+        석회석 입고기록 수정
+      </h3>
+
+      <button
+        type="button"
+        id="closeMobileLimestoneEditModal"
+        aria-label="수정창 닫기"
+      >
+        ×
+      </button>
+
+    </header>
+
+
+    <form id="mobileLimestoneEditForm">
+
+      <label class="mobile-limestone-edit-field is-date">
+
+        <span>입고일자</span>
+
+        <input
+          type="date"
+          id="mobileLimestoneEditDate"
+          required
+        />
+
+      </label>
+
+
+      <label class="mobile-limestone-edit-field is-time">
+
+        <span>입고시간</span>
+
+        <input
+          type="time"
+          id="mobileLimestoneEditTime"
+          required
+        />
+
+      </label>
+
+
+      <label class="mobile-limestone-edit-field is-unit">
+
+        <span>호기</span>
+
+        <select
+          id="mobileLimestoneEditUnit"
+          required
+        >
+
+          <option value="1">
+            1호기
+          </option>
+
+          <option value="2">
+            2호기
+          </option>
+
+        </select>
+
+      </label>
+
+
+      <label class="mobile-limestone-edit-field is-quantity">
+
+        <span>입고량</span>
+
+        <div class="mobile-limestone-edit-quantity">
+
+          <input
+            type="number"
+            id="mobileLimestoneEditQuantity"
+            min="0.01"
+            max="999.99"
+            step="0.01"
+            inputmode="decimal"
+            required
+          />
+
+          <strong>
+            ton
+          </strong>
+
+        </div>
+
+      </label>
+
+
+      <p
+        id="mobileLimestoneEditStatus"
+        role="alert"
+        hidden
+      >
+      </p>
+
+
+      <div class="mobile-limestone-edit-actions">
+
+        <button
+          type="button"
+          id="cancelMobileLimestoneEditModal"
+        >
+          취소
+        </button>
+
+        <button
+          type="submit"
+          id="saveMobileLimestoneEditModal"
+        >
+          저장
+        </button>
+
+      </div>
+
+    </form>
+
+  </div>
+</section>
+
+<script src="/maintenance/mobile-limestone-edit-v5.js?v=20260928-v5r2"></script>
 </body>
 </html>
