@@ -119,6 +119,14 @@
     ['epowerTransmission', '송전량', 'EpowerTransmission'],
     ['solarDailyGeneration', '태양광 발전량', 'SolarGeneration']
   ]);
+  // TO_NIGHT_POWER_EXCEL_ORDER_V1_R3
+  // Excel top-to-bottom source order: solar -> generation -> reception -> transmission.
+  const FORM_FIELDS = Object.freeze([
+    FIELDS.find(([key]) => key === 'solarDailyGeneration'),
+    FIELDS.find(([key]) => key === 'generatorEcmsGen1'),
+    FIELDS.find(([key]) => key === 'ismartReception'),
+    FIELDS.find(([key]) => key === 'epowerTransmission')
+  ]);
   const API = '/api/to-night-power', PREFIX = 'efficiencyMorningMeetingAutoDaily';
   const dateValid = value => typeof value === 'string' && /^20\d{2}-\d{2}-\d{2}$/.test(value) &&
     Number.isFinite(Date.parse(value + 'T00:00:00Z')) && new Date(value + 'T00:00:00Z').toISOString().slice(0, 10) === value;
@@ -358,7 +366,7 @@
         <button type="button" data-close aria-label="입력창 닫기" class="to-night-power-close">×</button></header>
       <div class="to-night-power-date"><span>실적 기준일</span><strong id="toNightPowerDate"></strong></div>
       <p class="to-night-power-help">선택한 야간 근무 시작일 기준 · 단위 kWh</p>
-      <div class="to-night-power-fields">${FIELDS.map(([key, label]) => `<label for="toNightPower-${key}">${label}
+      <div class="to-night-power-fields">${FORM_FIELDS.map(([key, label]) => `<label for="toNightPower-${key}">${label}
         <span class="to-night-power-input"><input id="toNightPower-${key}" name="${key}" type="text" inputmode="decimal"
           autocomplete="off" maxlength="32" placeholder="0" required aria-describedby="toNightPowerMessage"><span>kWh</span></span></label>`).join('')}</div>
       <p id="toNightPowerMessage" class="to-night-power-message" role="status" aria-live="polite"></p>
@@ -382,7 +390,7 @@
   }
   function isDirty() {
     if (!modalState?.baseline) return false;
-    return FIELDS.some(([key]) => form.elements.namedItem(key).value !== modalState.baseline[key]);
+    return FORM_FIELDS.some(([key]) => form.elements.namedItem(key).value !== modalState.baseline[key]);
   }
   async function openDialog() {
     checkSession(); const selected = selectedDuty();
@@ -401,7 +409,7 @@
       if (state !== modalState || state.session !== checkSession()) return;
       if (!payload.canEdit) throw new Error('해당 날짜 N/S TO 담당자만 입력·수정할 수 있습니다.');
       state.payload = payload; state.baseline = {};
-      for (const [key] of FIELDS) {
+      for (const [key] of FORM_FIELDS) {
         const value = payload.item ? String(payload.item.values[key]) : '';
         form.elements.namedItem(key).value = value; form.elements.namedItem(key).removeAttribute('aria-invalid'); state.baseline[key] = value;
       }
@@ -411,7 +419,7 @@
       setBusy(false);
       if (state === modalState) {
         byId('toNightPowerSave').disabled = !state.payload?.canEdit;
-        if (state.payload?.canEdit) form.elements.namedItem(FIELDS[0][0]).focus();
+        if (state.payload?.canEdit) form.elements.namedItem(FORM_FIELDS[0][0]).focus();
       }
     }
   }
@@ -422,7 +430,7 @@
     const selected = selectedDuty();
     if (selected.shift !== 'NS' || selected.date !== state.date) { say('선택한 근무가 바뀌었습니다. 입력창을 닫고 해당 N/S 카드에서 다시 열어 주세요.', true); return; }
     const values = {};
-    for (const [key, label] of FIELDS) {
+    for (const [key, label] of FORM_FIELDS) {
       const input = form.elements.namedItem(key);
       try { values[key] = parseInput(input.value); }
       catch (error) { input.setAttribute('aria-invalid', 'true'); input.focus(); say(`${label}: ${error.message}`, true); return; }

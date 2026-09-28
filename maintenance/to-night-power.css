@@ -253,3 +253,29 @@
   .to-night-power-dialog footer > div { width: 100%; margin-left: 0; }
   .to-night-power-dialog footer > div button { flex: 1 1 0; }
 }
+
+/* TO_NIGHT_POWER_EXCEL_ORDER_V1_R3
+   Mirror the Excel source top-to-bottom so the operator can read and key values without jumping around.
+   Visual order: 태양광 발전량 -> 발전량 -> 수전량 -> 송전량.
+*/
+.to-night-power-fields {
+  display: grid;
+  grid-template-columns: 1fr !important;
+  gap: 10px !important;
+}
+.to-night-power-fields > label {
+  display: grid !important;
+  grid-template-columns: minmax(118px, 138px) minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.to-night-power-fields .to-night-power-input {
+  margin-top: 0 !important;
+}
+@media (max-width: 460px) {
+  .to-night-power-fields > label {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
