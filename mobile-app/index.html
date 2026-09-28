@@ -884,6 +884,411 @@
     color: #ffffff !important;
   }
 }
+
+
+/* ===== MOBILE LIMESTONE EDIT V5 UNIFORM ALIGNMENT ===== */
+
+@media (max-width: 768px) {
+
+  /*
+   * Two perfectly equal columns.
+   */
+  #mobileLimestoneEditForm {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      ) !important;
+
+    grid-template-areas:
+      "date time"
+      "unit quantity"
+      "status status"
+      "actions actions" !important;
+
+    column-gap:
+      12px !important;
+
+    row-gap:
+      14px !important;
+
+    align-items:
+      start !important;
+  }
+
+
+  /*
+   * Every field receives the exact same layout.
+   *
+   * row 1 = label
+   * row 2 = 48px control
+   */
+  #mobileLimestoneEditForm
+  .mobile-limestone-edit-field {
+    display:
+      grid !important;
+
+    grid-template-rows:
+      18px
+      48px !important;
+
+    align-content:
+      start !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    max-width:
+      100% !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      0 !important;
+
+    box-sizing:
+      border-box !important;
+  }
+
+
+  /*
+   * All four labels start on exactly the same line.
+   */
+  #mobileLimestoneEditForm
+  .mobile-limestone-edit-field
+  > span {
+    display:
+      flex !important;
+
+    align-items:
+      flex-start !important;
+
+    width:
+      100% !important;
+
+    height:
+      18px !important;
+
+    min-height:
+      18px !important;
+
+    max-height:
+      18px !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      0 !important;
+
+    box-sizing:
+      border-box !important;
+
+    color:
+      #46546a !important;
+
+    font-size:
+      13px !important;
+
+    line-height:
+      16px !important;
+
+    font-weight:
+      750 !important;
+  }
+
+
+  /*
+   * Date / Time / Unit:
+   * identical outer dimensions.
+   */
+  #mobileLimestoneEditDate,
+  #mobileLimestoneEditTime,
+  #mobileLimestoneEditUnit {
+    display:
+      block !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    max-width:
+      100% !important;
+
+    height:
+      48px !important;
+
+    min-height:
+      48px !important;
+
+    max-height:
+      48px !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      0 12px !important;
+
+    box-sizing:
+      border-box !important;
+
+    border:
+      1px solid #ccd7e5 !important;
+
+    border-radius:
+      12px !important;
+
+    background:
+      #ffffff !important;
+
+    font-size:
+      15px !important;
+
+    line-height:
+      normal !important;
+  }
+
+
+  /*
+   * Quantity outer box:
+   * exactly the same 48px / 100% dimensions.
+   */
+  #mobileLimestoneEditForm
+  .mobile-limestone-edit-quantity {
+    display:
+      grid !important;
+
+    grid-template-columns:
+      minmax(0, 1fr)
+      46px !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    max-width:
+      100% !important;
+
+    height:
+      48px !important;
+
+    min-height:
+      48px !important;
+
+    max-height:
+      48px !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      0 !important;
+
+    box-sizing:
+      border-box !important;
+
+    overflow:
+      hidden !important;
+
+    border:
+      1px solid #ccd7e5 !important;
+
+    border-radius:
+      12px !important;
+
+    background:
+      #ffffff !important;
+  }
+
+
+  #mobileLimestoneEditQuantity {
+    display:
+      block !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    max-width:
+      100% !important;
+
+    height:
+      46px !important;
+
+    min-height:
+      46px !important;
+
+    max-height:
+      46px !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      0 12px !important;
+
+    box-sizing:
+      border-box !important;
+
+    border:
+      0 !important;
+
+    border-radius:
+      0 !important;
+
+    background:
+      transparent !important;
+
+    font-size:
+      15px !important;
+
+    box-shadow:
+      none !important;
+  }
+
+
+  #mobileLimestoneEditForm
+  .mobile-limestone-edit-quantity
+  > strong {
+    display:
+      flex !important;
+
+    align-items:
+      center !important;
+
+    justify-content:
+      center !important;
+
+    width:
+      46px !important;
+
+    min-width:
+      46px !important;
+
+    max-width:
+      46px !important;
+
+    height:
+      46px !important;
+
+    min-height:
+      46px !important;
+
+    max-height:
+      46px !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      0 !important;
+
+    box-sizing:
+      border-box !important;
+
+    border:
+      0 !important;
+
+    border-left:
+      1px solid #ccd7e5 !important;
+
+    background:
+      #f6f8fb !important;
+
+    color:
+      #718096 !important;
+
+    font-size:
+      12px !important;
+
+    line-height:
+      1 !important;
+
+    font-weight:
+      700 !important;
+  }
+
+
+  /*
+   * Cancel / Save:
+   * equal columns and equal height.
+   */
+  #mobileLimestoneEditForm
+  .mobile-limestone-edit-actions {
+    display:
+      grid !important;
+
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      ) !important;
+
+    gap:
+      12px !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    max-width:
+      100% !important;
+
+    margin:
+      2px 0 0 !important;
+
+    padding:
+      0 !important;
+
+    box-sizing:
+      border-box !important;
+  }
+
+
+  #cancelMobileLimestoneEditModal,
+  #saveMobileLimestoneEditModal {
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    max-width:
+      100% !important;
+
+    height:
+      50px !important;
+
+    min-height:
+      50px !important;
+
+    max-height:
+      50px !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      0 !important;
+
+    box-sizing:
+      border-box !important;
+  }
+}
+
 </style>
 
 <!-- ROOT MOBILE REDIRECT BOOTSTRAP REMOVED IN MOBILE-APP V13 -->
