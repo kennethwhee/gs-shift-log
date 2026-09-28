@@ -19542,8 +19542,23 @@ async function openOisSteamDailySales(
       rowCount: domSignals.rowCount
     };
 
+    // MORNING_MEETING_STEAM_OIS_SURFACE_V10
+    // The confirmed OIJA08000M result grid can expose 8Bar/34Bar rows
+    // without a visible subtotal, steam-usage or TON header.
+    // Downstream readOisSteamDailySalesBreakdown() remains authoritative:
+    // it validates target date + both pressure rows and subtotal consistency.
     const accepted =
-      (signals.has8Bar && signals.has34Bar && signals.hasSubtotal) ||
+      (
+        signals.has8Bar &&
+        signals.has34Bar &&
+        (
+          signals.hasSubtotal ||
+          signals.hasSteamUsage ||
+          signals.hasSteamType ||
+          signals.hasTitle ||
+          signals.rowCount >= 3
+        )
+      ) ||
       (signals.hasSteamUsage && signals.hasSteamType) ||
       (signals.hasTitle && signals.hasSteamUsage && signals.hasTon);
 
