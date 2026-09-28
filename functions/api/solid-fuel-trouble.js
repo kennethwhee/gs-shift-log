@@ -565,8 +565,13 @@ async function listUnloadings(db,url){
   const f=applyCommonFilters(url,"unloading_date","company_name","vehicle_no",["company_name","vehicle_no","silo_route","note"]);
   if(f.clauses.length) q+=` AND ${f.clauses.join(" AND ")}`;
   const dir=text(url.searchParams.get("sort")).toLowerCase()==="asc"?"ASC":"DESC";
-  /* SOLID_FUEL_UNLOAD_CHRONOLOGICAL_WITHIN_DAY_R1 */
-  q+=` ORDER BY unloading_date ${dir},arrival_time ASC,id ASC LIMIT 2000`;
+  /* SOLID_FUEL_UNLOAD_DEPARTURE_SEQUENCE_R8 */
+  q+=` ORDER BY
+    unloading_date ${dir},
+    CASE WHEN departure_time='' THEN 1 ELSE 0 END ASC,
+    departure_time ASC,
+    id ASC
+    LIMIT 2000`;
   const stmt=db.prepare(q),res=f.binds.length?await stmt.bind(...f.binds).all():await stmt.all();
   return (Array.isArray(res?.results)?res.results:[]).map(unloadObj);
 }
