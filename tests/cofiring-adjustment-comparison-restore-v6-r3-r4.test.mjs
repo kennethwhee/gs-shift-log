@@ -39,7 +39,7 @@ test('final-ready render controls reveal and terminal no-result/error preparatio
   assert.match(render,/renderSummary\(container,result,manualValues,deadlineInputError\);cfvSummaryLayoutMaybeReveal\(result,adjusted\);/);
   const prep=block('prepLabel','renderDisplay');
   assert.doesNotMatch(prep,/tone==='ready'\|\|tone==='error'/);
-  assert.match(prep,/조회 준비 완료/);
+  assert.doesNotMatch(prep,/조회 준비 완료/);
   assert.match(prep,/cfvSummaryLayoutPending\(false\)/);
 });
 
