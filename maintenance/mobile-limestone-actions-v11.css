@@ -1,0 +1,58 @@
+/* GS MOBILE LIMESTONE ACTIONS FIX V11
+   - Restore interactive Edit/Delete actions on mobile.
+   - Restore the existing limestone receipt editor when opened.
+   - Preserve the V10 row layout and history scrolling.
+*/
+
+@media screen and (max-width: 768px) {
+  #efficiencyTeamModal.is-mobile-monitor-only
+  #efficiencyLimestoneView.is-mobile-monitor-only
+  .limestone-row-actions,
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-row-actions {
+    pointer-events: auto !important;
+  }
+
+  #efficiencyTeamModal.is-mobile-monitor-only
+  #efficiencyLimestoneView.is-mobile-monitor-only
+  .limestone-row-actions button,
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-row-actions button {
+    pointer-events: auto !important;
+    touch-action: manipulation !important;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  #efficiencyTeamModal.is-mobile-monitor-only
+  #efficiencyLimestoneView.is-mobile-monitor-only
+  #limestoneReceiptEditorPanel:not([hidden]),
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneReceiptEditorPanel:not([hidden]) {
+    display: block !important;
+    pointer-events: auto !important;
+    position: relative !important;
+    z-index: 70 !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneReceiptEditorPanel:not([hidden])
+  button,
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneReceiptEditorPanel:not([hidden])
+  input,
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneReceiptEditorPanel:not([hidden])
+  select,
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneReceiptEditorPanel:not([hidden])
+  textarea {
+    pointer-events: auto !important;
+  }
+}
