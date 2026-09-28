@@ -1,0 +1,212 @@
+/* COFIRING ADJUSTED COMPARISON CARDS V6
+   CSS-only refinement on top of the published V4 comparison-card logic.
+   1) Active [혼소 조정 적용중] button gets pale-blue background only.
+   2) Original/adjusted cards are compacted on desktop for easier one-screen comparison.
+   3) Original cards keep Bio 25% deadline area; adjusted cards remain deadline-free via V4.
+*/
+
+/* User-requested change: background only. Preserve the existing text/border semantics. */
+[data-cfv56-adjust].is-active {
+  background: #eaf4ff !important;
+  background-image: none !important;
+}
+
+@media screen and (min-width: 901px) {
+  .cfv52-summary-grid {
+    gap: 10px 14px !important;
+    align-items: start !important;
+  }
+
+  .cfv52-summary-grid > .cfv-adjustment-original-card,
+  .cfv52-summary-grid > .cfv-adjustment-card {
+    border-radius: 13px !important;
+  }
+
+  /* Pull the comparison row closer to the original row while retaining the arrow caption. */
+  .cfv52-summary-grid > .cfv-adjustment-card {
+    margin-top: 18px !important;
+  }
+
+  .cfv52-summary-grid > .cfv-adjustment-card::before {
+    top: -18px !important;
+    height: 16px !important;
+    font-size: 9.5px !important;
+  }
+
+  /* Header */
+  .cfv52-summary-grid > .cfv-adjustment-original-card > header,
+  .cfv52-summary-grid > .cfv-adjustment-card > header {
+    min-height: 0 !important;
+    padding: 9px 13px !important;
+  }
+
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv52-unit-number,
+  .cfv52-summary-grid > .cfv-adjustment-card .cfv52-unit-number {
+    font-size: 16px !important;
+    line-height: 1 !important;
+  }
+
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv52-unit-title strong,
+  .cfv52-summary-grid > .cfv-adjustment-card .cfv52-unit-title strong {
+    font-size: 14px !important;
+  }
+
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv-original-kind,
+  .cfv52-summary-grid > .cfv-adjustment-card .cfv-adjustment-kind,
+  .cfv52-summary-grid > .cfv-adjustment-card .cfv-adjustment-applied,
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv52-card-status,
+  .cfv52-summary-grid > .cfv-adjustment-card .cfv52-card-status {
+    min-height: 19px !important;
+    padding: 0 6px !important;
+    font-size: 8.5px !important;
+  }
+
+  /* Three ratio boxes */
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv52-metrics,
+  .cfv52-summary-grid > .cfv-adjustment-card .cfv52-metrics {
+    gap: 7px !important;
+    margin-top: 7px !important;
+    margin-bottom: 0 !important;
+  }
+
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv52-metric,
+  .cfv52-summary-grid > .cfv-adjustment-card .cfv52-metric {
+    min-height: 0 !important;
+    padding: 8px 10px !important;
+  }
+
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv52-metric > span,
+  .cfv52-summary-grid > .cfv-adjustment-card .cfv52-metric > span {
+    font-size: 10.5px !important;
+    line-height: 1.15 !important;
+  }
+
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv52-metric > strong,
+  .cfv52-summary-grid > .cfv-adjustment-card .cfv52-metric > strong {
+    font-size: 15px !important;
+    line-height: 1 !important;
+  }
+
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv52-metric-emphasis,
+  .cfv52-summary-grid > .cfv-adjustment-card .cfv52-metric-emphasis {
+    min-height: 0 !important;
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+  }
+
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv52-metric-emphasis > strong,
+  .cfv52-summary-grid > .cfv-adjustment-card .cfv52-metric-emphasis > strong {
+    font-size: clamp(24px, 2.25vw, 31px) !important;
+    line-height: 0.98 !important;
+  }
+
+  /* Fuel block */
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv10-fuels,
+  .cfv52-summary-grid > .cfv-adjustment-card .cfv10-fuels {
+    margin-top: 8px !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv10-fuels-head,
+  .cfv52-summary-grid > .cfv-adjustment-card .cfv10-fuels-head {
+    min-height: 0 !important;
+    margin-bottom: 5px !important;
+    padding: 0 !important;
+  }
+
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv10-fuels-head strong,
+  .cfv52-summary-grid > .cfv-adjustment-card .cfv10-fuels-head strong {
+    font-size: 11.5px !important;
+  }
+
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv10-fuels-head span,
+  .cfv52-summary-grid > .cfv-adjustment-card .cfv10-fuels-head span {
+    font-size: 8.5px !important;
+  }
+
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv10-fuel-grid,
+  .cfv52-summary-grid > .cfv-adjustment-card .cfv10-fuel-grid {
+    gap: 6px !important;
+  }
+
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv10-fuel,
+  .cfv52-summary-grid > .cfv-adjustment-card .cfv10-fuel {
+    min-height: 0 !important;
+    padding: 7px 8px !important;
+  }
+
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv10-fuel-label,
+  .cfv52-summary-grid > .cfv-adjustment-card .cfv10-fuel-label {
+    font-size: 9.5px !important;
+  }
+
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv10-fuel-value,
+  .cfv52-summary-grid > .cfv-adjustment-card .cfv10-fuel-value {
+    font-size: 14px !important;
+    line-height: 1 !important;
+  }
+
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv10-fuel-value small,
+  .cfv52-summary-grid > .cfv-adjustment-card .cfv10-fuel-value small {
+    font-size: 9px !important;
+  }
+
+  /* Compact V4 delta labels without removing them. */
+  .cfv52-summary-grid > .cfv-adjustment-card .cfv-adjustment-delta {
+    margin-left: 4px !important;
+    font-size: 8.5px !important;
+  }
+
+  /* Original card only: keep the Bio 25% closing block but make it much shorter. */
+  .cfv52-summary-grid > .cfv-adjustment-original-card [data-cfv6-target],
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv8-deadline-target,
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv10-target {
+    min-height: 0 !important;
+    margin-top: 7px !important;
+    padding: 8px 10px !important;
+  }
+
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv10-target-head {
+    min-height: 0 !important;
+    margin-bottom: 3px !important;
+    gap: 7px !important;
+  }
+
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv10-target-head,
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv10-target-head span,
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv6-target-label,
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv10-target-deadline {
+    font-size: 9.5px !important;
+    line-height: 1.15 !important;
+  }
+
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv10-target-main {
+    min-height: 0 !important;
+    margin: 0 !important;
+    gap: 7px !important;
+  }
+
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv10-target-value,
+  .cfv52-summary-grid > .cfv-adjustment-original-card [data-cfv6-target-bio] {
+    font-size: 14px !important;
+    line-height: 1 !important;
+  }
+
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv10-target-state,
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv10-target-assumption,
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv10-target-warning,
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv8-target-note {
+    font-size: 8.5px !important;
+    line-height: 1.2 !important;
+  }
+
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv10-target-details {
+    margin-top: 4px !important;
+  }
+
+  .cfv52-summary-grid > .cfv-adjustment-original-card .cfv10-target-details > summary {
+    font-size: 8.5px !important;
+    padding: 2px 0 !important;
+  }
+}
