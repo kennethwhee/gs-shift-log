@@ -1,0 +1,18 @@
+/* COFIRING ADJUSTED COMPARISON CARDS V6 R3 R4
+   Prevent the old/default summary-card layout from flashing while a selected daily period
+   is asynchronously restoring its saved result and saved co-firing adjustment.
+   Desktop only. No formula, data, storage, API, or comparison calculation change.
+*/
+
+@media screen and (min-width: 901px) {
+  .cofiring-period-v5.cfv-summary-final-layout-pending [data-cfv52-summary-grid] {
+    position: relative !important;
+    min-height: 250px !important;
+  }
+
+  /* Keep the grid footprint stable but suppress the temporary legacy placeholder cards.
+     The final saved original/adjusted cards are revealed atomically by renderDisplay(). */
+  .cofiring-period-v5.cfv-summary-final-layout-pending [data-cfv52-summary-grid] > * {
+    visibility: hidden !important;
+  }
+}
