@@ -25189,6 +25189,34 @@ async function loginOis() {
       }
 
 
+      /*
+        [OIS_SURFACE_OWNER_V1]
+
+        로그인 후 정해진 primaryPage만
+        다음 OIS 요청의 메인 surface로 사용한다.
+
+        primaryPage가 닫힌 경우 보조 popup/page를
+        메인 page로 승격하지 않고 세션 복구 경로로 보낸다.
+      */
+      if (
+        session.primaryPage
+      ) {
+        if (
+          session.primaryPage.isClosed() ===
+            true
+        ) {
+          return null;
+        }
+
+
+        session.page =
+          session.primaryPage;
+
+
+        return session.primaryPage;
+      }
+
+
       if (
         session.page &&
         session.page.isClosed() !==
@@ -25234,6 +25262,76 @@ async function loginOis() {
         session
       )
     );
+  }
+
+
+  async function closeOisAuxiliaryPages(
+    session,
+    reason =
+      ""
+  ) {
+    if (
+      !session?.context ||
+      !session?.primaryPage ||
+      session.primaryPage.isClosed() ===
+        true
+    ) {
+      return 0;
+    }
+
+
+    session.page =
+      session.primaryPage;
+
+
+    const auxiliaryPages =
+      session.context
+        .pages()
+        .filter(
+          candidatePage => {
+            return (
+              candidatePage !==
+                session.primaryPage &&
+              candidatePage.isClosed() !==
+                true
+            );
+          }
+        );
+
+
+    let closedCount =
+      0;
+
+
+    for (
+      const auxiliaryPage of
+        auxiliaryPages
+    ) {
+      try {
+        await auxiliaryPage.close();
+        closedCount += 1;
+      } catch (error) {
+        console.warn(
+          "[OIS SURFACE OWNER V1] 보조 OIS 페이지 종료 실패:",
+          error instanceof Error
+            ? error.message
+            : error
+        );
+      }
+    }
+
+
+    if (closedCount > 0) {
+      console.log(
+        "[OIS SURFACE OWNER V1] " +
+          (reason || "request boundary") +
+          " · closed auxiliary pages: " +
+          closedCount
+      );
+    }
+
+
+    return closedCount;
   }
 
 
@@ -25408,6 +25506,10 @@ async function loginOis() {
 
 
       session.page =
+        livePage;
+
+
+      session.primaryPage =
         livePage;
 
 
@@ -25824,6 +25926,12 @@ async function loginOis() {
 
           await ensureBrowserSession(
             `${requestLabel} 요청 처리 전`
+          );
+
+
+          await closeOisAuxiliaryPages(
+            browserSession,
+            `${requestLabel} 요청 시작`
           );
 
 
