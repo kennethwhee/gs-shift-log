@@ -159885,6 +159885,82 @@ function normalizeMorningMeetingTemplateToWeekdayLayout(
   }
 
 
+  /* MORNING MEETING LONG HOLIDAY COFIRING V1
+     A generated long-holiday workbook owns B24:AD29 and moves
+     "1. 설비 운영팀" to row 30. Collapse those six rows first,
+     then run the existing weekday normalizer on the restored layout. */
+  const bioTitleAddress =
+    String(
+      bioTitleCell?.getAttribute(
+        "r"
+      ) ||
+      ""
+    ).toUpperCase();
+
+  const preNormalizeOperationStart =
+    rows
+      .map(
+        rowElement => {
+          return {
+            element:
+              rowElement,
+
+            rowNumber:
+              getMorningMeetingRowNumber(
+                rowElement
+              ),
+
+            text:
+              getMorningMeetingRowColumnBText(
+                rowElement,
+                sharedStrings
+              )
+          };
+        }
+      )
+      .find(
+        record => {
+          return /^1\s*\.\s*설비\s*운영팀$/i.test(
+            record.text
+          );
+        }
+      ) ||
+      null;
+
+  if (
+    bioTitleAddress ===
+      "B24" &&
+    preNormalizeOperationStart
+      ?.rowNumber ===
+      30
+  ) {
+    collapseMorningMeetingLongHolidayLayout(
+      worksheetDocument,
+      24,
+      6
+    );
+
+    const normalizedAfterCollapse =
+      normalizeMorningMeetingTemplateToWeekdayLayout(
+        worksheetDocument,
+        sharedStrings
+      );
+
+    return {
+      ...normalizedAfterCollapse,
+      collapsedLongHoliday:
+        true,
+      templateRowDelta:
+        Number(
+          normalizedAfterCollapse
+            ?.templateRowDelta ||
+          0
+        ) -
+        6
+    };
+  }
+
+
   /* =====================================================
     설비운영팀 시작 위치 탐색
   ====================================================== */
@@ -161262,6 +161338,1006 @@ function cleanupMorningMeetingOutOfPrintResidue(
   };
 }
 
+/* MORNING MEETING LONG HOLIDAY COFIRING V1 */
+/* =========================================================
+  오전회의 장기휴무(4일 이상) 혼소율 표
+
+  기준:
+  - 주말 + 공휴일 휴무일 수가 4일 이상
+  - Bio / 유기성계 혼소율은 B:AD, 24~29행에 표시
+  - 전력단가는 AE:AO, 30행부터 날짜별 세로 표시
+  - 기존 업무영역은 6행 아래로 이동
+
+  혼소율 날짜:
+  - 휴무 시작 전 기준일 ~ 마지막 휴무일 전날
+  - 예: 시작 10/02, 종료 10/09 -> 10/02 ~ 10/08
+
+  전력단가 날짜:
+  - 시작일 + 1 ~ 종료일
+  - 예: 10/03 ~ 10/09
+========================================================= */
+
+function shiftMorningMeetingWorksheetRowsForLongHoliday(
+  worksheetDocument,
+  boundaryRow,
+  delta
+) {
+  if (!delta) {
+    return;
+  }
+
+  const sheetData =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "sheetData"
+      )[0];
+
+  const mergeCells =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "mergeCells"
+      )[0];
+
+  if (!sheetData || !mergeCells) {
+    throw new Error(
+      "장기휴무 표를 위한 워크시트 행 정보를 찾지 못했습니다."
+    );
+  }
+
+  getMorningMeetingDirectXmlChildren(
+    sheetData,
+    "row"
+  )
+    .filter(
+      rowElement =>
+        getMorningMeetingRowNumber(
+          rowElement
+        ) >= boundaryRow
+    )
+    .forEach(
+      rowElement => {
+        shiftMorningMeetingExistingRow(
+          rowElement,
+          delta
+        );
+      }
+    );
+
+  getMorningMeetingDirectXmlChildren(
+    mergeCells,
+    "mergeCell"
+  ).forEach(
+    mergeElement => {
+      const range =
+        parseMorningMeetingMergeReference(
+          mergeElement.getAttribute("ref")
+        );
+
+      if (!range) {
+        return;
+      }
+
+      if (
+        range.startRow < boundaryRow &&
+        range.endRow >= boundaryRow
+      ) {
+        throw new Error(
+          `장기휴무 행 경계를 가로지르는 병합 셀 ${mergeElement.getAttribute("ref")}이 있습니다.`
+        );
+      }
+
+      if (range.startRow >= boundaryRow) {
+        range.startRow += delta;
+        range.endRow += delta;
+        mergeElement.setAttribute(
+          "ref",
+          formatMorningMeetingMergeReference(range)
+        );
+      }
+    }
+  );
+
+  mergeCells.setAttribute(
+    "count",
+    String(
+      getMorningMeetingDirectXmlChildren(
+        mergeCells,
+        "mergeCell"
+      ).length
+    )
+  );
+
+  updateMorningMeetingRowsDimensionAfter(
+    worksheetDocument,
+    boundaryRow,
+    delta
+  );
+
+  updateMorningMeetingRowBreaksAfter(
+    worksheetDocument,
+    boundaryRow,
+    delta
+  );
+}
+
+function collapseMorningMeetingLongHolidayLayout(
+  worksheetDocument,
+  startRow = 24,
+  rowCount = 6
+) {
+  const sheetData =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "sheetData"
+      )[0];
+
+  const mergeCells =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "mergeCells"
+      )[0];
+
+  if (!sheetData || !mergeCells) {
+    return false;
+  }
+
+  const endRow =
+    startRow +
+    rowCount -
+    1;
+
+  const boundaryRow =
+    endRow +
+    1;
+
+  getMorningMeetingDirectXmlChildren(
+    sheetData,
+    "row"
+  )
+    .filter(
+      rowElement => {
+        const rowNumber =
+          getMorningMeetingRowNumber(
+            rowElement
+          );
+
+        return (
+          rowNumber >= startRow &&
+          rowNumber <= endRow
+        );
+      }
+    )
+    .forEach(
+      rowElement => {
+        sheetData.removeChild(
+          rowElement
+        );
+      }
+    );
+
+  getMorningMeetingDirectXmlChildren(
+    mergeCells,
+    "mergeCell"
+  ).forEach(
+    mergeElement => {
+      const range =
+        parseMorningMeetingMergeReference(
+          mergeElement.getAttribute("ref")
+        );
+
+      if (!range) {
+        return;
+      }
+
+      const insideRemovedRows =
+        range.startRow >= startRow &&
+        range.endRow <= endRow;
+
+      if (insideRemovedRows) {
+        mergeElement.remove();
+        return;
+      }
+
+      if (
+        range.startRow <= endRow &&
+        range.endRow >= startRow
+      ) {
+        throw new Error(
+          `장기휴무 표 제거 범위를 가로지르는 병합 셀 ${mergeElement.getAttribute("ref")}이 있습니다.`
+        );
+      }
+    }
+  );
+
+  shiftMorningMeetingWorksheetRowsForLongHoliday(
+    worksheetDocument,
+    boundaryRow,
+    -rowCount
+  );
+
+  updateMorningMeetingWorksheetActualDimension(
+    worksheetDocument
+  );
+
+  return true;
+}
+
+function applyMorningMeetingLongHolidaySupplementTables(
+  worksheetDocument,
+  startDateText,
+  endDateText
+) {
+  const columnName =
+    columnNumber => {
+      let number = Number(columnNumber);
+      let result = "";
+
+      while (number > 0) {
+        number -= 1;
+        result =
+          String.fromCharCode(
+            65 +
+            number % 26
+          ) +
+          result;
+        number = Math.floor(number / 26);
+      }
+
+      return result;
+    };
+
+  const startDate =
+    parseMorningMeetingReportDate(
+      startDateText
+    );
+
+  const endDate =
+    parseMorningMeetingReportDate(
+      endDateText
+    );
+
+  if (
+    !startDate ||
+    !endDate ||
+    startDate >= endDate
+  ) {
+    throw new Error(
+      "장기휴무 시작일과 종료일을 확인해 주세요."
+    );
+  }
+
+  const holidayDates = [];
+
+  for (
+    let date =
+      addMorningMeetingDateDays(
+        startDate,
+        1
+      );
+    date <= endDate;
+    date =
+      addMorningMeetingDateDays(
+        date,
+        1
+      )
+  ) {
+    holidayDates.push(
+      new Date(
+        date.getTime()
+      )
+    );
+  }
+
+  if (holidayDates.length < 4) {
+    throw new Error(
+      "장기휴무 혼소율 표는 휴무일 4일 이상일 때 생성합니다."
+    );
+  }
+
+  /*
+    B:AD 안에서 왼쪽 라벨 5열을 고정하고
+    나머지 24열을 날짜 수만큼 최대한 균등하게 나눈다.
+    최대 24일 장기휴무까지 날짜당 최소 1열을 확보한다.
+  */
+  if (holidayDates.length > 24) {
+    throw new Error(
+      "장기휴무 혼소율 표는 최대 24일까지 표시할 수 있습니다."
+    );
+  }
+
+  const cofiringDates =
+    holidayDates.map(
+      holidayDate => {
+        return addMorningMeetingDateDays(
+          holidayDate,
+          -1
+        );
+      }
+    );
+
+  /*
+    기존 업무영역을 6행 아래로 내려
+    24~29행을 장기휴무 혼소율 전용 공간으로 확보한다.
+  */
+  const rowDelta = 6;
+
+  shiftMorningMeetingWorksheetRowsForLongHoliday(
+    worksheetDocument,
+    24,
+    rowDelta
+  );
+
+  const sheetData =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "sheetData"
+      )[0];
+
+  const mergeCells =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "mergeCells"
+      )[0];
+
+  if (!sheetData || !mergeCells) {
+    throw new Error(
+      "장기휴무 표의 행 또는 병합 셀 정보를 찾지 못했습니다."
+    );
+  }
+
+  const getStyle =
+    address => {
+      return String(
+        findMorningMeetingWorksheetCellByAddress(
+          worksheetDocument,
+          address
+        )?.getAttribute("s") ||
+        ""
+      ).trim();
+    };
+
+  const styles = {
+    titleLeft: getStyle("B19"),
+    titleMiddle: getStyle("C19"),
+    titleRight: getStyle("AD19"),
+    headerLeft: getStyle("X20"),
+    headerMiddle: getStyle("Y20"),
+    headerGroupEnd: getStyle("AA20"),
+    headerRight: getStyle("AD20"),
+    bodyLeft: getStyle("B20"),
+    bodyMiddle: getStyle("C20"),
+    bodyGroupEnd: getStyle("E20"),
+    bodyRight: getStyle("W20"),
+    bottomLeft: getStyle("B22"),
+    bottomMiddle: getStyle("C22"),
+    bottomGroupEnd: getStyle("E22"),
+    bottomRight: getStyle("W22")
+  };
+
+  const ensureRow =
+    rowNumber => {
+      let row =
+        getMorningMeetingDirectXmlChildren(
+          sheetData,
+          "row"
+        ).find(
+          rowElement =>
+            getMorningMeetingRowNumber(
+              rowElement
+            ) === rowNumber
+        );
+
+      if (row) {
+        return row;
+      }
+
+      row =
+        worksheetDocument.createElementNS(
+          MAIN_XML_NAMESPACE,
+          "row"
+        );
+
+      row.setAttribute(
+        "r",
+        String(rowNumber)
+      );
+      row.setAttribute("ht", "20.1");
+      row.setAttribute("customHeight", "1");
+
+      const nextRow =
+        getMorningMeetingDirectXmlChildren(
+          sheetData,
+          "row"
+        ).find(
+          rowElement =>
+            getMorningMeetingRowNumber(
+              rowElement
+            ) > rowNumber
+        ) ||
+        null;
+
+      sheetData.insertBefore(
+        row,
+        nextRow
+      );
+
+      return row;
+    };
+
+  const ensureCell =
+    (
+      rowNumber,
+      columnNumber
+    ) => {
+      const row = ensureRow(rowNumber);
+      const address =
+        `${columnName(columnNumber)}${rowNumber}`;
+
+      let cell =
+        getMorningMeetingDirectXmlChildren(
+          row,
+          "c"
+        ).find(
+          cellElement =>
+            String(
+              cellElement.getAttribute("r") ||
+              ""
+            ).toUpperCase() === address
+        );
+
+      if (cell) {
+        return cell;
+      }
+
+      cell =
+        worksheetDocument.createElementNS(
+          MAIN_XML_NAMESPACE,
+          "c"
+        );
+      cell.setAttribute("r", address);
+
+      const nextCell =
+        getMorningMeetingDirectXmlChildren(
+          row,
+          "c"
+        ).find(
+          cellElement => {
+            const nextColumn =
+              getMorningMeetingColumnNumber(
+                getMorningMeetingCellColumn(
+                  cellElement.getAttribute("r")
+                )
+              );
+
+            return (
+              Number.isFinite(nextColumn) &&
+              nextColumn > columnNumber
+            );
+          }
+        ) ||
+        null;
+
+      row.insertBefore(
+        cell,
+        nextCell
+      );
+
+      return cell;
+    };
+
+  const addMerge =
+    (
+      startColumn,
+      endColumn,
+      rowNumber
+    ) => {
+      const merge =
+        worksheetDocument.createElementNS(
+          MAIN_XML_NAMESPACE,
+          "mergeCell"
+        );
+
+      merge.setAttribute(
+        "ref",
+        `${columnName(startColumn)}${rowNumber}:` +
+        `${columnName(endColumn)}${rowNumber}`
+      );
+
+      mergeCells.appendChild(merge);
+    };
+
+  const getStyleForCell =
+    (
+      rowType,
+      columnNumber,
+      startColumn,
+      endColumn,
+      groupEndColumns
+    ) => {
+      if (rowType === "title") {
+        if (columnNumber === startColumn) return styles.titleLeft;
+        if (columnNumber === endColumn) return styles.titleRight;
+        return styles.titleMiddle;
+      }
+
+      const first = columnNumber === startColumn;
+      const last = columnNumber === endColumn;
+      const groupEnd = groupEndColumns.includes(columnNumber);
+
+      if (rowType === "header") {
+        if (first) return styles.headerLeft;
+        if (last) return styles.headerRight;
+        if (groupEnd) return styles.headerGroupEnd;
+        return styles.headerMiddle;
+      }
+
+      if (rowType === "bottom") {
+        if (first) return styles.bottomLeft;
+        if (last) return styles.bottomRight;
+        if (groupEnd) return styles.bottomGroupEnd;
+        return styles.bottomMiddle;
+      }
+
+      if (first) return styles.bodyLeft;
+      if (last) return styles.bodyRight;
+      if (groupEnd) return styles.bodyGroupEnd;
+      return styles.bodyMiddle;
+    };
+
+  const writeRow =
+    (
+      rowNumber,
+      startColumn,
+      endColumn,
+      rowType,
+      groupEndColumns,
+      textByColumn = {}
+    ) => {
+      const row = ensureRow(rowNumber);
+      const currentHeight =
+        Number(
+          row.getAttribute("ht") ||
+          0
+        );
+
+      if (
+        !Number.isFinite(currentHeight) ||
+        currentHeight < 20.1
+      ) {
+        row.setAttribute("ht", "20.1");
+        row.setAttribute("customHeight", "1");
+      }
+
+      for (
+        let column = startColumn;
+        column <= endColumn;
+        column += 1
+      ) {
+        const cell = ensureCell(rowNumber, column);
+        const style =
+          getStyleForCell(
+            rowType,
+            column,
+            startColumn,
+            endColumn,
+            groupEndColumns
+          );
+
+        if (style) {
+          cell.setAttribute("s", style);
+        }
+
+        setMorningMeetingDynamicCellText(
+          worksheetDocument,
+          cell,
+          Object.prototype.hasOwnProperty.call(
+            textByColumn,
+            column
+          )
+            ? textByColumn[column]
+            : ""
+        );
+      }
+    };
+
+  const formatMonthDay =
+    date => {
+      return (
+        `${String(date.getUTCMonth() + 1).padStart(2, "0")}월 ` +
+        `${String(date.getUTCDate()).padStart(2, "0")}일`
+      );
+    };
+
+  const formatSlashDate =
+    date => {
+      return (
+        `${String(date.getUTCMonth() + 1).padStart(2, "0")}/` +
+        `${String(date.getUTCDate()).padStart(2, "0")}`
+      );
+    };
+
+  /* =====================================================
+    1. 장기휴무 혼소율 표: B24:AD29
+  ====================================================== */
+  const bioStartColumn =
+    getMorningMeetingColumnNumber("B");
+  const bioEndColumn =
+    getMorningMeetingColumnNumber("AD");
+  const bioTitleRow = 24;
+  const bioDateRow = 25;
+  const bioFirstBodyRow = 26;
+  const bioLastBodyRow = 29;
+  const labelWidth = 5;
+  const labelEndColumn =
+    bioStartColumn +
+    labelWidth -
+    1;
+  const availableDateColumns =
+    bioEndColumn -
+    labelEndColumn;
+  const baseDateWidth =
+    Math.floor(
+      availableDateColumns /
+      holidayDates.length
+    );
+  const extraDateColumns =
+    availableDateColumns %
+    holidayDates.length;
+
+  if (baseDateWidth < 1) {
+    throw new Error(
+      "장기휴무 혼소율 날짜 열을 배치할 수 없습니다."
+    );
+  }
+
+  const dateGroups = [];
+  let dateColumnCursor =
+    labelEndColumn +
+    1;
+
+  holidayDates.forEach(
+    (
+      holidayDate,
+      index
+    ) => {
+      const width =
+        baseDateWidth +
+        (index < extraDateColumns ? 1 : 0);
+      const group = [
+        dateColumnCursor,
+        dateColumnCursor +
+          width -
+          1
+      ];
+      dateGroups.push(group);
+      dateColumnCursor = group[1] + 1;
+    }
+  );
+
+  const bioGroupEnds = [
+    labelEndColumn,
+    ...dateGroups.map(group => group[1])
+  ];
+
+  writeRow(
+    bioTitleRow,
+    bioStartColumn,
+    bioEndColumn,
+    "title",
+    [],
+    {
+      [bioStartColumn]:
+        "Bio / 유기성 고형연료 혼소율(%)"
+    }
+  );
+  addMerge(
+    bioStartColumn,
+    bioEndColumn,
+    bioTitleRow
+  );
+
+  const dateHeaderText = {};
+  addMerge(
+    bioStartColumn,
+    labelEndColumn,
+    bioDateRow
+  );
+
+  dateGroups.forEach(
+    (
+      group,
+      index
+    ) => {
+      dateHeaderText[group[0]] =
+        formatMonthDay(
+          cofiringDates[index]
+        );
+      addMerge(
+        group[0],
+        group[1],
+        bioDateRow
+      );
+    }
+  );
+
+  writeRow(
+    bioDateRow,
+    bioStartColumn,
+    bioEndColumn,
+    "header",
+    bioGroupEnds,
+    dateHeaderText
+  );
+
+  [
+    "#1 BLR",
+    "#2 BLR",
+    "Average",
+    "Total"
+  ].forEach(
+    (
+      label,
+      index
+    ) => {
+      const rowNumber =
+        bioFirstBodyRow +
+        index;
+
+      writeRow(
+        rowNumber,
+        bioStartColumn,
+        bioEndColumn,
+        rowNumber === bioLastBodyRow
+          ? "bottom"
+          : "body",
+        bioGroupEnds,
+        {
+          [bioStartColumn]: label
+        }
+      );
+
+      addMerge(
+        bioStartColumn,
+        labelEndColumn,
+        rowNumber
+      );
+
+      dateGroups.forEach(
+        group => {
+          addMerge(
+            group[0],
+            group[1],
+            rowNumber
+          );
+        }
+      );
+    }
+  );
+
+  /* =====================================================
+    2. 장기휴무 전력단가 표: AE30:AO...
+  ====================================================== */
+  const powerStartColumn =
+    getMorningMeetingColumnNumber("AE");
+  const powerEndColumn =
+    getMorningMeetingColumnNumber("AO");
+  const leftOperationEndColumn =
+    powerStartColumn -
+    1;
+  const powerTitleRow = 30;
+  const powerHeaderRow = 31;
+  const powerFirstBodyRow = 32;
+  const powerLastBodyRow =
+    powerFirstBodyRow +
+    holidayDates.length -
+    1;
+
+  /*
+    전력단가가 차지하는 행에서 기존 B:AO 업무 병합은
+    B:AD까지만 줄여 오른쪽 AE:AO를 확보한다.
+  */
+  getMorningMeetingDirectXmlChildren(
+    mergeCells,
+    "mergeCell"
+  ).forEach(
+    mergeElement => {
+      const range =
+        parseMorningMeetingMergeReference(
+          mergeElement.getAttribute("ref")
+        );
+
+      if (
+        !range ||
+        range.startRow < powerTitleRow ||
+        range.endRow > powerLastBodyRow
+      ) {
+        return;
+      }
+
+      const mergeStartColumn =
+        getMorningMeetingColumnNumber(
+          range.startColumn
+        );
+      const mergeEndColumn =
+        getMorningMeetingColumnNumber(
+          range.endColumn
+        );
+
+      if (mergeStartColumn >= powerStartColumn) {
+        mergeElement.remove();
+        return;
+      }
+
+      if (mergeEndColumn >= powerStartColumn) {
+        range.endColumn =
+          columnName(
+            leftOperationEndColumn
+          );
+        mergeElement.setAttribute(
+          "ref",
+          formatMorningMeetingMergeReference(range)
+        );
+      }
+    }
+  );
+
+  const powerGroups = [
+    [powerStartColumn, powerStartColumn + 2],
+    [powerStartColumn + 3, powerStartColumn + 5],
+    [powerStartColumn + 6, powerStartColumn + 8],
+    [powerStartColumn + 9, powerEndColumn]
+  ];
+
+  const powerGroupEnds =
+    powerGroups.map(group => group[1]);
+
+  writeRow(
+    powerTitleRow,
+    powerStartColumn,
+    powerEndColumn,
+    "title",
+    [],
+    {
+      [powerStartColumn]:
+        "전일 전력 단가 [원/KWh]"
+    }
+  );
+  addMerge(
+    powerStartColumn,
+    powerEndColumn,
+    powerTitleRow
+  );
+
+  writeRow(
+    powerHeaderRow,
+    powerStartColumn,
+    powerEndColumn,
+    "header",
+    powerGroupEnds,
+    {
+      [powerGroups[0][0]]: "Date",
+      [powerGroups[1][0]]: "최대",
+      [powerGroups[2][0]]: "최소",
+      [powerGroups[3][0]]: "평균"
+    }
+  );
+
+  powerGroups.forEach(
+    group => {
+      addMerge(
+        group[0],
+        group[1],
+        powerHeaderRow
+      );
+    }
+  );
+
+  holidayDates.forEach(
+    (
+      holidayDate,
+      index
+    ) => {
+      const rowNumber =
+        powerFirstBodyRow +
+        index;
+
+      writeRow(
+        rowNumber,
+        powerStartColumn,
+        powerEndColumn,
+        rowNumber === powerLastBodyRow
+          ? "bottom"
+          : "body",
+        powerGroupEnds,
+        {
+          [powerGroups[0][0]]:
+            formatSlashDate(
+              holidayDate
+            )
+        }
+      );
+
+      powerGroups.forEach(
+        group => {
+          addMerge(
+            group[0],
+            group[1],
+            rowNumber
+          );
+        }
+      );
+    }
+  );
+
+  mergeCells.setAttribute(
+    "count",
+    String(
+      getMorningMeetingDirectXmlChildren(
+        mergeCells,
+        "mergeCell"
+      ).length
+    )
+  );
+
+  updateMorningMeetingWorksheetActualDimension(
+    worksheetDocument
+  );
+
+  return {
+    enabled: true,
+    longHoliday: true,
+    holidayCount:
+      holidayDates.length,
+    rowDelta,
+    tableStartColumn: "AE",
+    leftEndColumn: "AD",
+    cofiringDates:
+      cofiringDates.map(
+        date =>
+          date.toISOString().slice(0, 10)
+      ),
+    cofiringValueCells:
+      dateGroups.map(
+        (
+          group,
+          index
+        ) => {
+          const valueColumn =
+            columnName(group[0]);
+
+          return {
+            date:
+              cofiringDates[index]
+                .toISOString()
+                .slice(0, 10),
+            unitOne:
+              `${valueColumn}26`,
+            unitTwo:
+              `${valueColumn}27`,
+            average:
+              `${valueColumn}28`,
+            total:
+              `${valueColumn}29`
+          };
+        }
+      ),
+    powerMaximumColumn:
+      columnName(powerGroups[1][0]),
+    powerMinimumColumn:
+      columnName(powerGroups[2][0]),
+    powerAverageColumn:
+      columnName(powerGroups[3][0]),
+    powerFirstBodyRow,
+    powerLastBodyRow
+  };
+}
+
 /* =========================================================
   오전회의 주말/공휴일 우측 보조표 자동 생성
 
@@ -161408,17 +162484,18 @@ function applyMorningMeetingWeekendSupplementTables(
 
   /*
     현재 요청 기준:
-    일반 주말부터 최대 4일 연휴까지 지원
+    일반 주말부터 3일 연휴까지는 기존 우측 보조표 사용
+    4일 이상은 장기휴무 전용 양식을 사용한다.
   */
 
   if (
     holidayDates.length <
       1 ||
     holidayDates.length >
-      4
+      3
   ) {
     throw new Error(
-      "주말/공휴일 보조표는 1~4일 범위로 생성할 수 있습니다."
+      "일반 주말/공휴일 보조표는 1~3일 범위로 생성할 수 있습니다."
     );
   }
 
@@ -163317,11 +164394,17 @@ async function applyMorningMeetingManualInputCellFills(
       );
 
 
+    /*
+      4일 이상 장기휴무 표는 마감 혼소율을 자동 입력하므로
+      수기 노란색 입력칸을 만들지 않는다.
+    */
     if (
+      weekendSupplement.longHoliday !==
+        true &&
       holidayCount >=
         1 &&
       holidayCount <=
-        4
+        3
     ) {
       if (
         weekendSupplement.restored ===
@@ -164236,12 +165319,10 @@ function applyMorningMeetingPreviewAutoValues(
 
     if (
       weekendDates.length <
-        1 ||
-      weekendDates.length >
-        4
+        1
     ) {
       throw new Error(
-        "주말 전력단가는 1~4일 범위만 반영할 수 있습니다."
+        "주말 전력단가 날짜 범위를 확인하지 못했습니다."
       );
     }
 
@@ -164284,6 +165365,41 @@ function applyMorningMeetingPreviewAutoValues(
 
 
     if (
+      supplement.longHoliday ===
+        true
+    ) {
+      /*
+        4일 이상 장기휴무 전용 세로 전력단가 표
+      */
+      maximumColumn =
+        String(
+          supplement.powerMaximumColumn ||
+          ""
+        ).trim();
+
+      minimumColumn =
+        String(
+          supplement.powerMinimumColumn ||
+          ""
+        ).trim();
+
+      averageColumn =
+        String(
+          supplement.powerAverageColumn ||
+          ""
+        ).trim();
+
+      if (
+        !maximumColumn ||
+        !minimumColumn ||
+        !averageColumn
+      ) {
+        throw new Error(
+          "장기휴무 전력단가 표 열을 확인하지 못했습니다."
+        );
+      }
+
+    } else if (
       supplement.restored ===
         true &&
 
@@ -164307,7 +165423,7 @@ function applyMorningMeetingPreviewAutoValues(
 
     } else {
       /*
-        자동 생성한 1~4일 주말 양식
+        자동 생성한 1~3일 주말 양식
       */
 
       const tableStartColumnNumber =
@@ -166304,41 +167420,70 @@ let weekendSupplementResult =
 if (
   isWeekendMode
 ) {
-  /*
-    먼저 기존 방식으로 주말표를 생성한다.
+  const weekendStartDate =
+    parseMorningMeetingReportDate(
+      weekendStartDateText
+    );
 
-    첨부 파일이 평일 양식이거나
-    3일 이상의 연휴인 경우에는
-    이 자동 생성 결과를 그대로 사용한다.
-  */
-
-  const generatedWeekendSupplementResult =
-    applyMorningMeetingWeekendSupplementTables(
-      worksheetDocument,
-      weekendStartDateText,
+  const weekendEndDate =
+    parseMorningMeetingReportDate(
       weekendEndDateText
     );
 
+  const holidayCount =
+    weekendStartDate &&
+    weekendEndDate
+      ? Math.round(
+          (
+            weekendEndDate.getTime() -
+            weekendStartDate.getTime()
+          ) /
+          (24 * 60 * 60 * 1000)
+        )
+      : 0;
 
-  /*
-    첨부 파일이 원래 주말 양식이고
-    토요일·일요일 2일 취합이면
-    저장한 원본 셀과 병합 구조를 다시 복원한다.
-  */
+  if (
+    holidayCount >=
+      4
+  ) {
+    weekendSupplementResult =
+      applyMorningMeetingLongHolidaySupplementTables(
+        worksheetDocument,
+        weekendStartDateText,
+        weekendEndDateText
+      );
 
-  const restoredWeekendReferenceResult =
-    restoreMorningMeetingWeekendReferenceLayout(
-      worksheetDocument,
-      uploadedWeekendReferenceLayout,
-      weekendStartDateText,
-      weekendEndDateText
-    );
+  } else {
+    /*
+      1~3일은 기존 주말 우측 보조표를 유지한다.
+    */
+    const generatedWeekendSupplementResult =
+      applyMorningMeetingWeekendSupplementTables(
+        worksheetDocument,
+        weekendStartDateText,
+        weekendEndDateText
+      );
 
 
-  weekendSupplementResult = {
-    ...generatedWeekendSupplementResult,
-    ...restoredWeekendReferenceResult
-  };
+    /*
+      첨부 파일이 원래 주말 양식이고
+      토요일·일요일 2일 취합이면
+      저장한 원본 셀과 병합 구조를 다시 복원한다.
+    */
+    const restoredWeekendReferenceResult =
+      restoreMorningMeetingWeekendReferenceLayout(
+        worksheetDocument,
+        uploadedWeekendReferenceLayout,
+        weekendStartDateText,
+        weekendEndDateText
+      );
+
+
+    weekendSupplementResult = {
+      ...generatedWeekendSupplementResult,
+      ...restoredWeekendReferenceResult
+    };
+  }
 
 
   console.log(
@@ -166380,6 +167525,46 @@ console.log(
   "오전회의 SMP·날씨 최종 엑셀 반영:",
   previewAutoValueResult
 );
+
+/* ===================================================
+  MORNING MEETING LONG HOLIDAY COFIRING V1
+
+  4일 이상 장기휴무:
+  - 혼소율 메뉴의 날짜별 마감자료를 읽는다.
+  - B24:AD29 장기휴무 혼소율 표에 자동 입력한다.
+  - 누락된 날짜는 해당 날짜만 빈칸으로 유지한다.
+=================================================== */
+
+let longHolidayCofiringExcelResult =
+  null;
+
+if (
+  weekendSupplementResult
+    ?.longHoliday ===
+    true
+) {
+  if (
+    typeof window
+      .applyMorningMeetingLongHolidayCofiringExcelValues !==
+      "function"
+  ) {
+    throw new Error(
+      "장기휴무 혼소율 최종 Excel 반영 모듈을 찾지 못했습니다."
+    );
+  }
+
+  longHolidayCofiringExcelResult =
+    await window
+      .applyMorningMeetingLongHolidayCofiringExcelValues(
+        worksheetDocument,
+        weekendSupplementResult
+      );
+
+  console.log(
+    "장기휴무 혼소율 마감자료 최종 반영 완료:",
+    longHolidayCofiringExcelResult
+  );
+}
 
 /* ===================================================
   MORNING MEETING COFIRING FINAL EXCEL V1.1 DIRECT FINAL HOOK
@@ -166503,7 +167688,17 @@ console.log(
       shiftPartResult.delta +
       fuelResult.delta +
       dynamicResult.delta +
-      tmResult.delta;;
+      tmResult.delta +
+      Number(
+        weekdayLayoutResult
+          ?.templateRowDelta ||
+        0
+      ) +
+      Number(
+        weekendSupplementResult
+          ?.rowDelta ||
+        0
+      );;
 
 
     /*

@@ -383,6 +383,290 @@
     };
   }
 
+  /* MORNING MEETING LONG HOLIDAY COFIRING V1 */
+  function setInlineStringCellValueFallback(
+    worksheetDocument,
+    address,
+    sourceValue
+  ) {
+    const cellElement =
+      findWorksheetCellByAddress(
+        worksheetDocument,
+        address
+      );
+
+    if (!cellElement) {
+      return { found: false, written: false, cleared: false };
+    }
+
+    while (cellElement.firstChild) {
+      cellElement.removeChild(cellElement.firstChild);
+    }
+
+    const text =
+      sourceValue === null ||
+      sourceValue === undefined
+        ? ""
+        : String(sourceValue);
+
+    if (!text) {
+      cellElement.removeAttribute("t");
+      return { found: true, written: false, cleared: true };
+    }
+
+    cellElement.setAttribute("t", "inlineStr");
+
+    const spreadsheetNamespace =
+      cellElement.namespaceURI ||
+      worksheetDocument.documentElement?.namespaceURI ||
+      "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+
+    const inlineStringElement =
+      worksheetDocument.createElementNS(
+        spreadsheetNamespace,
+        "is"
+      );
+
+    const textElement =
+      worksheetDocument.createElementNS(
+        spreadsheetNamespace,
+        "t"
+      );
+
+    textElement.textContent = text;
+    inlineStringElement.appendChild(textElement);
+    cellElement.appendChild(inlineStringElement);
+
+    return { found: true, written: true, cleared: false };
+  }
+
+  function formatLongHolidayRatioPair(
+    firstValue,
+    secondValue
+  ) {
+    const first = normalizeNumber(firstValue);
+    const second = normalizeNumber(secondValue);
+
+    if (first === null || second === null) {
+      return "";
+    }
+
+    return `${first.toFixed(2)} / ${second.toFixed(2)}`;
+  }
+
+  function averageLongHolidayRatio(
+    firstValue,
+    secondValue
+  ) {
+    const first = normalizeNumber(firstValue);
+    const second = normalizeNumber(secondValue);
+
+    return first !== null && second !== null
+      ? (first + second) / 2
+      : null;
+  }
+
+  async function applyLongHolidayValuesToWorksheet(
+    worksheetDocument,
+    supplement = {}
+  ) {
+    if (
+      supplement?.longHoliday !== true ||
+      !Array.isArray(supplement?.cofiringValueCells) ||
+      supplement.cofiringValueCells.length < 4
+    ) {
+      return {
+        enabled: false,
+        appliedDates: [],
+        missingDates: []
+      };
+    }
+
+    const provider =
+      window.morningMeetingClosedCofiring;
+
+    if (
+      !provider ||
+      typeof provider.load !== "function"
+    ) {
+      throw new Error(
+        "장기휴무 혼소율 마감자료 조회 모듈을 찾지 못했습니다."
+      );
+    }
+
+    const targets =
+      supplement.cofiringValueCells.map(
+        item => ({
+          ...item,
+          date: String(item?.date || "").trim()
+        })
+      );
+
+    const loaded =
+      await Promise.all(
+        targets.map(
+          async target => {
+            try {
+              const item =
+                await provider.load(
+                  target.date
+                );
+
+              return {
+                target,
+                item,
+                error: ""
+              };
+
+            } catch (error) {
+              return {
+                target,
+                item: null,
+                error:
+                  error instanceof Error
+                    ? error.message
+                    : "마감자료 조회 실패"
+              };
+            }
+          }
+        )
+      );
+
+    const missingAddresses = [];
+    const appliedDates = [];
+    const missingDates = [];
+    const errors = [];
+
+    const writeText =
+      (
+        address,
+        value
+      ) => {
+        const result =
+          setInlineStringCellValueFallback(
+            worksheetDocument,
+            address,
+            value
+          );
+
+        if (!result.found) {
+          missingAddresses.push(address);
+        }
+
+        return result;
+      };
+
+    loaded.forEach(
+      entry => {
+        const { target, item, error } = entry;
+
+        if (!item) {
+          writeText(target.unitOne, "");
+          writeText(target.unitTwo, "");
+          writeText(target.average, "");
+          writeText(target.total, "");
+          missingDates.push(target.date);
+          if (error) {
+            errors.push({ date: target.date, error });
+          }
+          return;
+        }
+
+        const unitOneBio =
+          normalizeNumber(
+            item.unitOne?.bioRatio
+          );
+        const unitOneOrganic =
+          normalizeNumber(
+            item.unitOne?.organicRatio
+          );
+        const unitTwoBio =
+          normalizeNumber(
+            item.unitTwo?.bioRatio
+          );
+        const unitTwoOrganic =
+          normalizeNumber(
+            item.unitTwo?.organicRatio
+          );
+
+        const averageBio =
+          averageLongHolidayRatio(
+            unitOneBio,
+            unitTwoBio
+          );
+        const averageOrganic =
+          averageLongHolidayRatio(
+            unitOneOrganic,
+            unitTwoOrganic
+          );
+        const averageTotal =
+          averageLongHolidayRatio(
+            item.unitOne?.totalRatio,
+            item.unitTwo?.totalRatio
+          );
+
+        writeText(
+          target.unitOne,
+          formatLongHolidayRatioPair(
+            unitOneBio,
+            unitOneOrganic
+          )
+        );
+
+        writeText(
+          target.unitTwo,
+          formatLongHolidayRatioPair(
+            unitTwoBio,
+            unitTwoOrganic
+          )
+        );
+
+        writeText(
+          target.average,
+          formatLongHolidayRatioPair(
+            averageBio,
+            averageOrganic
+          )
+        );
+
+        writeText(
+          target.total,
+          averageTotal === null
+            ? ""
+            : averageTotal.toFixed(2)
+        );
+
+        if (
+          unitOneBio !== null &&
+          unitOneOrganic !== null &&
+          unitTwoBio !== null &&
+          unitTwoOrganic !== null &&
+          averageTotal !== null
+        ) {
+          appliedDates.push(target.date);
+        } else {
+          missingDates.push(target.date);
+        }
+      }
+    );
+
+    if (missingAddresses.length > 0) {
+      throw new Error(
+        `장기휴무 혼소율 입력셀을 찾지 못했습니다: ${[...new Set(missingAddresses)].join(", ")}`
+      );
+    }
+
+    return {
+      enabled: true,
+      requestedCount: targets.length,
+      appliedCount: appliedDates.length,
+      missingCount: missingDates.length,
+      appliedDates,
+      missingDates: [...new Set(missingDates)],
+      errors
+    };
+  }
+
   function installWrapper() {
     const current = window.applyMorningMeetingDailyDataValues;
 
@@ -435,6 +719,8 @@
 
   window.getMorningMeetingCofiringExcelValues = getExcelValues;
   window.applyMorningMeetingCofiringExcelValues = applyValuesToWorksheet;
+  window.applyMorningMeetingLongHolidayCofiringExcelValues =
+    applyLongHolidayValuesToWorksheet;
 
   if (installWrapper()) {
     return;
