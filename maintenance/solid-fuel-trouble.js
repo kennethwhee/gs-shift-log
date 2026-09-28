@@ -828,6 +828,10 @@
       const receiptIndex = [...table.querySelectorAll("thead th")].findIndex(
         th=>String(th.textContent||"").trim()==="입고량"
       );
+      /* SOLID_FUEL_VISIBLE_SEQUENCE_R1 */
+      const noIndex = [...table.querySelectorAll("thead th")].findIndex(
+        th=>/^No\.?$/i.test(String(th.textContent||"").trim())
+      );
       const rows = [...body.rows].filter(
         row=>!row.classList.contains("solid-fuel-inline-empty-row") && row.cells.length > 1
       );
@@ -838,7 +842,11 @@
         row.hidden = !show;
         if(show){
           visible++;
-
+          /* SOLID_FUEL_VISIBLE_SEQUENCE_ASSIGN_R1 */
+          const noCellIndex = noIndex >= 0 ? noIndex : 0;
+          if(row.cells?.[noCellIndex]){
+            row.cells[noCellIndex].textContent = String(visible);
+          }
           if(receiptIndex>=0){
             const raw = String(row.cells?.[receiptIndex]?.textContent||"").replace(/,/g,"");
             const match = raw.match(/-?\d+(?:\.\d+)?/);
