@@ -219,3 +219,9 @@ test("meeting date may be next day while rendered source date remains the workbo
   assert.equal(bundle.values.organicDaySilo, 11.3);
   assert.equal(bundle.missing.length, 0);
 });
+
+
+test("collector exposes V9 version", () => {
+  const sandbox = installSandbox({ elements: fullVisibleElements() });
+  assert.equal(sandbox.morningMeetingWorkbookCurrentValues.version, "20260928-v9");
+});

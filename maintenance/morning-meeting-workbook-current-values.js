@@ -1,4 +1,4 @@
-/* MORNING MEETING FINAL WORKBOOK CURRENT SOURCES V8
+/* MORNING MEETING FINAL WORKBOOK CURRENT SOURCES V9
  * Final workbook should mirror the values currently shown on the Morning Meeting cards.
  *
  * Current-source policy:
@@ -12,7 +12,7 @@
 
   if (!root || !root.document) return;
 
-  const VERSION = "20260928-v8";
+  const VERSION = "20260928-v9";
   const doc = root.document;
 
   const IDS = Object.freeze({
@@ -270,7 +270,7 @@
 
     const missing = getMissing(values);
 
-    console.info("[MorningMeetingWorkbookCurrentValues V8]", {
+    console.info("[MorningMeetingWorkbookCurrentValues V9]", {
       targetDate: date,
       values: { ...values },
       missing: missing.map(item => item.key),
