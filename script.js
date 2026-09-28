@@ -229470,9 +229470,6 @@ function initializeLimestoneSlipCameraPicker() {
         key:
           "water",
 
-        alwaysLoad:
-          true,
-
         forceRefresh,
 
         label:
@@ -229757,6 +229754,197 @@ function initializeLimestoneSlipCameraPicker() {
   }
 
 
+  /*
+   * MORNING_MEETING_OIS_SERIAL_LANE_V1_R2A_V23
+   *
+   * Shared Morning Meeting OIS work uses one serial lane.
+   *
+   * OIS:
+   *   water
+   *   limestone
+   *   gear-pinion
+   *   silo-level
+   *   daily-data
+   *
+   * daily-data is the retained compatibility key and currently
+   * routes to the Steam/OIS status loader.
+   *
+   * SMP and Weather remain parallel.
+   */
+  async function runMorningMeetingOisSerialLaneV23(
+    items,
+    button
+  ) {
+    const oisKeys =
+      new Set([
+        "water",
+        "limestone",
+        "gear-pinion",
+        "silo-level",
+        "daily-data"
+      ]);
+
+    const oisItems =
+      items.filter(
+        item =>
+          oisKeys.has(
+            String(
+              item?.key ||
+              ""
+            )
+          )
+      );
+
+    const parallelItems =
+      items.filter(
+        item =>
+          !oisKeys.has(
+            String(
+              item?.key ||
+              ""
+            )
+          )
+      );
+
+    /*
+     * SMP / Weather start immediately.
+     */
+    const parallelPromise =
+      Promise.allSettled(
+        parallelItems.map(
+          item =>
+            runBulkLookupItem(
+              item,
+              button
+            )
+        )
+      );
+
+    /*
+     * Shared OIS lane:
+     * concurrency = 1
+     */
+    const oisResults =
+      [];
+
+    for (
+      const item
+      of oisItems
+    ) {
+      const key =
+        String(
+          item?.key ||
+          "unknown"
+        );
+
+      const startedAt =
+        Date.now();
+
+      console.info(
+        "[MORNING OIS R2A V2.3] START",
+        key
+      );
+
+      try {
+
+        const value =
+          await runBulkLookupItem(
+            item,
+            button
+          );
+
+        oisResults.push({
+          status:
+            "fulfilled",
+          value
+        });
+
+        console.info(
+          "[MORNING OIS R2A V2.3] DONE",
+          key,
+          Date.now() -
+            startedAt,
+          "ms"
+        );
+
+      } catch (
+        reason
+      ) {
+
+        oisResults.push({
+          status:
+            "rejected",
+          reason
+        });
+
+        console.warn(
+          "[MORNING OIS R2A V2.3] FAILED",
+          key,
+          Date.now() -
+            startedAt,
+          "ms",
+          reason
+        );
+      }
+    }
+
+    const parallelResults =
+      await parallelPromise;
+
+    const resultByKey =
+      new Map();
+
+    parallelItems.forEach(
+      (
+        item,
+        index
+      ) => {
+
+        resultByKey.set(
+          String(
+            item?.key ||
+            ""
+          ),
+          parallelResults[
+            index
+          ]
+        );
+      }
+    );
+
+    oisItems.forEach(
+      (
+        item,
+        index
+      ) => {
+
+        resultByKey.set(
+          String(
+            item?.key ||
+            ""
+          ),
+          oisResults[
+            index
+          ]
+        );
+      }
+    );
+
+    /*
+     * Preserve createBulkLookupItems() order and
+     * Promise.allSettled-style result objects.
+     */
+    return items.map(
+      item =>
+        resultByKey.get(
+          String(
+            item?.key ||
+            ""
+          )
+        )
+    );
+  }
+
   function runBulkLookup(
     button,
     options = {}
@@ -229785,22 +229973,16 @@ function initializeLimestoneSlipCameraPicker() {
     scheduleSync();
 
 
-    const lookupPromises =
+    const lookupItems =
       createBulkLookupItems(
         options
-      )
-        .map(
-          item =>
-            runBulkLookupItem(
-              item,
-              button
-            )
-        );
+      );
 
 
     bulkLookupPromise =
-      Promise.allSettled(
-        lookupPromises
+      runMorningMeetingOisSerialLaneV23(
+        lookupItems,
+        button
       )
         .then(
           results => {

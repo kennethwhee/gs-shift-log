@@ -232,6 +232,182 @@
     }
   }
 
+  /*
+   * MORNING_MEETING_RESET_OIS_SERIAL_LANE_V1_R2A_V23
+   *
+   * Selected-date reset / force-refresh follows the same
+   * shared OIS concurrency rule.
+   *
+   * OIS:
+   *   water
+   *   limestone
+   *   gear-pinion
+   *   silo-level
+   *
+   * SMP and Weather remain parallel.
+   */
+  async function runFreshOperationsOisSerialLaneV23(
+    items,
+    date
+  ) {
+    const oisKeys =
+      new Set([
+        "water",
+        "limestone",
+        "gear-pinion",
+        "silo-level"
+      ]);
+
+    const oisItems =
+      items.filter(
+        item =>
+          oisKeys.has(
+            String(
+              item?.key ||
+              ""
+            )
+          )
+      );
+
+    const parallelItems =
+      items.filter(
+        item =>
+          !oisKeys.has(
+            String(
+              item?.key ||
+              ""
+            )
+          )
+      );
+
+    const parallelPromise =
+      Promise.allSettled(
+        parallelItems.map(
+          item =>
+            runFreshItem(
+              item,
+              date
+            )
+        )
+      );
+
+    const oisResults =
+      [];
+
+    for (
+      const item
+      of oisItems
+    ) {
+      const key =
+        String(
+          item?.key ||
+          "unknown"
+        );
+
+      const startedAt =
+        Date.now();
+
+      console.info(
+        "[MORNING OIS RESET R2A V2.3] START",
+        key
+      );
+
+      try {
+
+        const value =
+          await runFreshItem(
+            item,
+            date
+          );
+
+        oisResults.push({
+          status:
+            "fulfilled",
+          value
+        });
+
+        console.info(
+          "[MORNING OIS RESET R2A V2.3] DONE",
+          key,
+          Date.now() -
+            startedAt,
+          "ms"
+        );
+
+      } catch (
+        reason
+      ) {
+
+        oisResults.push({
+          status:
+            "rejected",
+          reason
+        });
+
+        console.warn(
+          "[MORNING OIS RESET R2A V2.3] FAILED",
+          key,
+          Date.now() -
+            startedAt,
+          "ms",
+          reason
+        );
+      }
+    }
+
+    const parallelResults =
+      await parallelPromise;
+
+    const resultByKey =
+      new Map();
+
+    parallelItems.forEach(
+      (
+        item,
+        index
+      ) => {
+
+        resultByKey.set(
+          String(
+            item?.key ||
+            ""
+          ),
+          parallelResults[
+            index
+          ]
+        );
+      }
+    );
+
+    oisItems.forEach(
+      (
+        item,
+        index
+      ) => {
+
+        resultByKey.set(
+          String(
+            item?.key ||
+            ""
+          ),
+          oisResults[
+            index
+          ]
+        );
+      }
+    );
+
+    return items.map(
+      item =>
+        resultByKey.get(
+          String(
+            item?.key ||
+            ""
+          )
+        )
+    );
+  }
+
   function runFreshOperations(date) {
     const releaseBypass = acquireResetBypass(date);
     const items = [
@@ -243,9 +419,11 @@
       { key: "weather", label: "신북 날씨", loader: "loadEfficiencyMorningMeetingWeather", required: false }
     ];
 
-    const operationPromise = Promise.allSettled(
-      items.map(item => runFreshItem(item, date))
-    );
+    const operationPromise =
+      runFreshOperationsOisSerialLaneV23(
+        items,
+        date
+      );
 
     window.__efficiencyMorningMeetingBulkLookupPromise = operationPromise;
 
