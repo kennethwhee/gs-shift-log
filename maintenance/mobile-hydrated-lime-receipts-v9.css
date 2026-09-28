@@ -925,3 +925,68 @@ button {
 > span {
   min-width: 0 !important;
 }
+
+/* ===== MOBILE HYDRATED LIME RECEIPT TABLE V11 TYPOGRAPHY SYNC ===== */
+
+/*
+ * Goal:
+ * make Hydrated Lime mobile history rows feel like Limestone rows.
+ * - centered text
+ * - slightly larger body text
+ * - bolder body text
+ * - header alignment centered
+ */
+
+.mobile-hydrated-lime-view
+.mhlt-receipt-head
+> span {
+  display: flex !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  text-align: center !important;
+
+  min-width: 0 !important;
+
+  font-size: 13px !important;
+  line-height: 1.2 !important;
+  font-weight: 700 !important;
+}
+
+
+.mobile-hydrated-lime-view
+.mhlt-receipt-row
+.mhlt-receipt-cell:not(.is-actions) {
+  display: flex !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  text-align: center !important;
+
+  min-width: 0 !important;
+
+  font-size: 17px !important;
+  line-height: 1.35 !important;
+  font-weight: 700 !important;
+
+  font-variant-numeric: tabular-nums !important;
+}
+
+
+.mobile-hydrated-lime-view
+.mhlt-receipt-row
+.mhlt-receipt-cell.is-actions {
+  justify-self: stretch !important;
+  align-self: center !important;
+}
+
+
+.mobile-hydrated-lime-view
+.mhlt-receipt-row
+.mhlt-receipt-cell.is-actions
+button {
+  font-size: 16px !important;
+  font-weight: 700 !important;
+}
