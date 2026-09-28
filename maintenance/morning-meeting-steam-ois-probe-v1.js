@@ -6,7 +6,7 @@
   Steam card source ownership:
   - Sales: OIS > LOG SHEET > daily steam sales (8Bar / 34Bar / subtotal, TON)
   - Production: OIS > LOG SHEET query > BCO1/BCO2 MAIN STM FLOW 01~24 sum
-  - No Daily DATA Excel client or fallback is used by the morning-meeting cards.
+  - New Daily DATA Excel reads are disabled; already-saved legacy values may remain visible until OIS succeeds.
 */
 (function installMorningMeetingSteamOisSourceOwnerV2() {
   if (window.__morningMeetingSteamOisSourceOwnerV2Installed === true) return;
@@ -256,6 +256,66 @@
     return "OIS 대기";
   }
 
+  function hasLegacySavedSteamValues(saved) {
+    if (!saved || typeof saved !== "object") return false;
+    return Object.keys(VALUE_IDS).some(key => {
+      const raw = saved[key];
+      if (raw === null || raw === undefined || text(raw) === "") return false;
+      const numeric = Number(String(raw).replaceAll(",", ""));
+      return Number.isFinite(numeric);
+    });
+  }
+
+  function legacySavedSteamFallbackOwns(targetDate) {
+    if (!targetDate) return false;
+    const card = document.getElementById(CARD_ID);
+    const dateElement = document.getElementById(DATE_ID);
+    const shownDate = dateFromText(dateElement?.textContent);
+    if (
+      card?.dataset?.legacySavedFallback === "true" &&
+      (!shownDate || shownDate === targetDate)
+    ) {
+      return true;
+    }
+
+    const fallback = window.morningMeetingLegacySavedDailyData;
+    if (!fallback || typeof fallback.peek !== "function") return false;
+    try {
+      return hasLegacySavedSteamValues(fallback.peek(targetDate));
+    } catch {
+      return false;
+    }
+  }
+
+  function preserveLegacySavedSteamFallback(targetDate) {
+    if (!legacySavedSteamFallbackOwns(targetDate)) return false;
+
+    const fallback = window.morningMeetingLegacySavedDailyData;
+    try {
+      fallback?.render?.(targetDate);
+    } catch (error) {
+      console.warn("오전회의 증기 기존 저장값 표시 유지 실패:", error);
+    }
+
+    const statusElement = document.getElementById(STATUS_ID);
+    if (statusElement) {
+      statusElement.dataset.steamOisSource = "true";
+      statusElement.dataset.steamOisPhase = phase;
+    }
+
+    const button = document.getElementById(BUTTON_ID);
+    if (button) {
+      button.title = phase === "loading"
+        ? "OIS 재조회 중 · 기존 저장값 유지"
+        : "OIS에서 증기 생산·판매 재조회 · 기존 저장값 유지";
+      button.setAttribute("aria-label", button.title);
+      button.dataset.steamSource = "ois";
+      button.disabled = phase === "loading";
+    }
+
+    return true;
+  }
+
   function applySourceOwnership() {
     if (syncing) return;
     syncing = true;
@@ -273,6 +333,12 @@
         lastResult = null;
         phase = "idle";
       }
+
+      const currentOisOwns = Boolean(
+        lastResult &&
+        (!targetDate || lastResult.sourceDate === targetDate)
+      );
+      if (!currentOisOwns && preserveLegacySavedSteamFallback(targetDate)) return;
 
       card.dataset.steamSource = "ois";
       if (targetDate) card.dataset.steamSourceDate = targetDate;
