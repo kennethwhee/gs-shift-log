@@ -20318,37 +20318,87 @@ async function collectOisSteamProductionValuesV14(
   return result;
 }
 
+
 async function collectOisSteamSalesValuesV14(
   page,
   config,
   targetDate
 ) {
+  /* MORNING_MEETING_STEAM_SALES_SESSION_API_FIRST_V15 */
   if (!isValidOisAgentDate(targetDate)) {
     throw new Error("증기 판매량 조회 날짜가 올바르지 않습니다.");
   }
 
   await ensureOisAgentLoggedIn(page, config);
 
-  const salesFrame = await openOisSteamDailySales(page);
-  await selectOisOptionByLabel(salesFrame, "전체", false);
-  await new Promise(resolve => setTimeout(resolve, 250));
+  let sales = null;
+  let directApiError = null;
 
-  let sales;
+  /*
+    V15 primary path:
+    - Do NOT open or inspect OIJA08000M first.
+    - The logged-in main OIS page already owns the authenticated same-origin session.
+    - Query listProcSteam immediately from that session.
+    - The Daily Steam Sales screen/Grid is fallback only.
+  */
   try {
     sales = await readOisSteamDailySalesFromApiV13(
-      salesFrame,
+      page,
       targetDate
     );
-  } catch (apiError) {
+
+    console.log("OIS 증기 판매량 세션 API 직접 조회 성공:", {
+      targetDate,
+      readerMode: sales?.sourceMode || "listProcSteam-session-api"
+    });
+  } catch (error) {
+    directApiError = error;
     console.warn(
-      "OIS 증기 판매량 API 직접 조회 실패 · 기존 Grid 판독으로 대체:",
-      apiError?.message || apiError
+      "OIS 증기 판매량 세션 API 직접 조회 실패 · 화면 fallback 시도:",
+      error?.message || error
     );
-    await new Promise(resolve => setTimeout(resolve, 700));
-    sales = await readOisSteamDailySalesBreakdown(
-      salesFrame,
-      targetDate
-    );
+  }
+
+  /*
+    Fallback only:
+    Some OIS deployments may require the OIJA08000M frame to be opened first.
+    In that case open the page, retry the exact same API in that frame, and only
+    then use the legacy rendered Grid reader as the final fallback.
+  */
+  if (!sales) {
+    try {
+      const salesFrame = await openOisSteamDailySales(page);
+      await selectOisOptionByLabel(salesFrame, "전체", false);
+      await new Promise(resolve => setTimeout(resolve, 250));
+
+      try {
+        sales = await readOisSteamDailySalesFromApiV13(
+          salesFrame,
+          targetDate
+        );
+
+        console.log("OIS 증기 판매량 화면 컨텍스트 API fallback 성공:", {
+          targetDate,
+          readerMode: sales?.sourceMode || "listProcSteam-frame-api"
+        });
+      } catch (frameApiError) {
+        console.warn(
+          "OIS 증기 판매량 화면 컨텍스트 API 실패 · Grid 최종 fallback:",
+          frameApiError?.message || frameApiError
+        );
+        await new Promise(resolve => setTimeout(resolve, 700));
+        sales = await readOisSteamDailySalesBreakdown(
+          salesFrame,
+          targetDate
+        );
+      }
+    } catch (fallbackError) {
+      const primaryMessage = directApiError?.message || directApiError || "직접 API 조회 실패";
+      const fallbackMessage = fallbackError?.message || fallbackError || "화면 fallback 실패";
+      throw new Error(
+        "증기 판매량 조회 실패 · 직접 API: " + primaryMessage + " / 화면 fallback: " + fallbackMessage
+      );
+    }
   }
 
   const round = value => Math.round(Number(value) * 1000) / 1000;
@@ -20375,6 +20425,7 @@ async function collectOisSteamSalesValuesV14(
     steamSales,
     averageSteamSales,
     salesComplete: true,
+    salesReaderMode: sales?.sourceMode || "listProcSteam",
     collectedAt: new Date().toISOString()
   };
 
@@ -20383,7 +20434,8 @@ async function collectOisSteamSalesValuesV14(
     targetDate,
     "8Bar " + steamSalesLowPressure + " ton",
     "34Bar " + steamSalesHighPressure + " ton",
-    "총판매 " + steamSales + " ton"
+    "총판매 " + steamSales + " ton",
+    "reader " + result.salesReaderMode
   ].join(" · "));
 
   return result;
