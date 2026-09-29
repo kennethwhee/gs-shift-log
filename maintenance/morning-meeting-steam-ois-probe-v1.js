@@ -186,7 +186,9 @@
     return value;
   }
 
-  function normalizeResult(item, expectedDate) {
+
+function normalizeResult(item, expectedDate) {
+    /* MORNING_MEETING_STEAM_SPLIT_NORMALIZE_V14 */
     const raw =
       item?.result && typeof item.result === "object" && !Array.isArray(item.result)
         ? item.result
@@ -195,47 +197,92 @@
     const sourceDate = text(
       raw.sourceDate || raw.targetDate || item.targetDate || item.target_date
     );
-
     if (sourceDate && sourceDate !== expectedDate) {
       throw new Error(
-        `OIS 증기 조회 날짜가 다릅니다. 요청 ${expectedDate} / 결과 ${sourceDate}`
+        "OIS 증기 조회 날짜가 다릅니다. 요청 " + expectedDate + " / 결과 " + sourceDate
       );
     }
 
-    const result = {
+    const readOptionalNumber = (...keys) => {
+      for (const key of keys) {
+        const candidate = raw?.[key];
+        if (candidate === null || candidate === undefined || text(candidate) === "") continue;
+        const value = Number(String(candidate).replaceAll(",", ""));
+        if (Number.isFinite(value)) return value;
+      }
+      return null;
+    };
+
+    const steamSalesLowPressure = readOptionalNumber("steamSalesLowPressure", "steam_sales_low_pressure");
+    const steamSalesHighPressure = readOptionalNumber("steamSalesHighPressure", "steam_sales_high_pressure");
+    const steamSales = readOptionalNumber("steamSales", "steam_sales");
+    const unitOneProduction = readOptionalNumber("unitOneProduction", "unit_one_production");
+    const unitTwoProduction = readOptionalNumber("unitTwoProduction", "unit_two_production");
+    const totalProduction = readOptionalNumber("totalProduction", "total_production");
+
+    let productionComplete =
+      raw.productionComplete === true ||
+      [unitOneProduction, unitTwoProduction, totalProduction].every(value => value !== null);
+    let salesComplete =
+      raw.salesComplete === true ||
+      [steamSalesLowPressure, steamSalesHighPressure, steamSales].every(value => value !== null);
+
+    let productionError = text(raw.productionError || raw.production_error);
+    let salesError = text(raw.salesError || raw.sales_error);
+    const round3 = value => Math.round(Number(value) * 1000) / 1000;
+
+    if (productionComplete) {
+      if ([unitOneProduction, unitTwoProduction, totalProduction].some(value => value === null)) {
+        productionComplete = false;
+        productionError = productionError || "증기 생산량 일부 값을 확인하지 못했습니다.";
+      } else if (Math.abs(round3(unitOneProduction + unitTwoProduction) - round3(totalProduction)) > 0.05) {
+        productionComplete = false;
+        productionError = productionError || "1호기 + 2호기와 총 증기 생산량이 일치하지 않습니다.";
+      }
+    }
+
+    if (salesComplete) {
+      if ([steamSalesLowPressure, steamSalesHighPressure, steamSales].some(value => value === null)) {
+        salesComplete = false;
+        salesError = salesError || "증기 판매량 일부 값을 확인하지 못했습니다.";
+      } else if (Math.abs(round3(steamSalesLowPressure + steamSalesHighPressure) - round3(steamSales)) > 0.05) {
+        salesComplete = false;
+        salesError = salesError || "저압 + 고압과 총 증기 판매량이 일치하지 않습니다.";
+      }
+    }
+
+    if (!productionComplete && !salesComplete) {
+      throw new Error(
+        [productionError, salesError].filter(Boolean).join(" / ") ||
+        "증기 생산량과 판매량을 모두 확인하지 못했습니다."
+      );
+    }
+
+    const salesRate =
+      productionComplete && salesComplete && totalProduction > 0
+        ? round3(steamSales / totalProduction * 100)
+        : null;
+
+    return {
       targetDate: expectedDate,
       sourceDate: sourceDate || expectedDate,
-      steamSalesLowPressure: requireNumber(raw, "steamSalesLowPressure", "저압 증기 판매량"),
-      steamSalesHighPressure: requireNumber(raw, "steamSalesHighPressure", "고압 증기 판매량"),
-      steamSales: requireNumber(raw, "steamSales", "총 증기 판매량"),
-      unitOneProduction: requireNumber(raw, "unitOneProduction", "1호기 증기 생산량"),
-      unitTwoProduction: requireNumber(raw, "unitTwoProduction", "2호기 증기 생산량"),
-      totalProduction: requireNumber(raw, "totalProduction", "총 증기 생산량"),
+      steamSalesLowPressure,
+      steamSalesHighPressure,
+      steamSales,
+      unitOneProduction,
+      unitTwoProduction,
+      totalProduction,
+      salesRate,
+      productionComplete,
+      salesComplete,
+      complete: productionComplete && salesComplete,
+      productionError,
+      salesError,
+      productionSource: text(raw.productionSource || raw.production_source),
+      salesSource: text(raw.salesSource || raw.sales_source),
       source: text(raw.source) || "OIS",
       requestId: text(item.id)
     };
-
-    const round3 = value => Math.round(value * 1000) / 1000;
-
-    if (
-      Math.abs(
-        round3(result.steamSalesLowPressure + result.steamSalesHighPressure) -
-        round3(result.steamSales)
-      ) > 0.05
-    ) {
-      throw new Error("저압 + 고압과 총 증기 판매량이 일치하지 않습니다.");
-    }
-
-    if (
-      Math.abs(
-        round3(result.unitOneProduction + result.unitTwoProduction) -
-        round3(result.totalProduction)
-      ) > 0.05
-    ) {
-      throw new Error("1호기 + 2호기와 총 증기 생산량이 일치하지 않습니다.");
-    }
-
-    return result;
   }
 
   function formatTon(value) {
@@ -249,9 +296,12 @@
     if (element && element.textContent !== value) element.textContent = value;
   }
 
-  function statusText() {
+
+function statusText() {
+    /* MORNING_MEETING_STEAM_SPLIT_STATUS_V14 */
     if (phase === "loading") return "OIS 조회중";
     if (phase === "complete") return "OIS 완료";
+    if (phase === "partial") return "OIS 일부 완료";
     if (phase === "error") return "OIS 실패";
     return "OIS 대기";
   }
@@ -316,38 +366,38 @@
     return true;
   }
 
-  function applySourceOwnership() {
+
+function applySourceOwnership() {
+    /* MORNING_MEETING_STEAM_SPLIT_RENDER_V14 */
     if (syncing) return;
     syncing = true;
-
     try {
       const card = document.getElementById(CARD_ID);
       if (!card) return;
 
       const targetDate = resolveTargetDate();
-      if (
-        lastResult &&
-        targetDate &&
-        lastResult.sourceDate !== targetDate
-      ) {
+      if (lastResult && targetDate && lastResult.sourceDate !== targetDate) {
         lastResult = null;
         phase = "idle";
       }
 
       const currentOisOwns = Boolean(
-        lastResult &&
-        (!targetDate || lastResult.sourceDate === targetDate)
+        lastResult && (!targetDate || lastResult.sourceDate === targetDate)
       );
       if (!currentOisOwns && preserveLegacySavedSteamFallback(targetDate)) return;
 
       card.dataset.steamSource = "ois";
       if (targetDate) card.dataset.steamSourceDate = targetDate;
+      if (lastResult) {
+        card.dataset.steamProductionStatus = lastResult.productionComplete ? "complete" : "error";
+        card.dataset.steamSalesStatus = lastResult.salesComplete ? "complete" : "error";
+      } else {
+        delete card.dataset.steamProductionStatus;
+        delete card.dataset.steamSalesStatus;
+      }
 
       const dateElement = document.getElementById(DATE_ID);
-      setTextIfDifferent(
-        dateElement,
-        targetDate ? `${targetDate} · OIS` : "OIS"
-      );
+      setTextIfDifferent(dateElement, targetDate ? targetDate + " · OIS" : "OIS");
 
       const statusElement = document.getElementById(STATUS_ID);
       if (statusElement) {
@@ -358,23 +408,50 @@
 
       const button = document.getElementById(BUTTON_ID);
       if (button) {
-        button.title = "OIS에서 증기 생산·판매 재조회";
-        button.setAttribute("aria-label", "OIS에서 증기 생산·판매 재조회");
+        button.title = phase === "partial"
+          ? "OIS 일부 조회 완료 · 실패 항목 재조회"
+          : "OIS에서 증기 생산량·판매량 재조회";
+        button.setAttribute("aria-label", button.title);
         button.dataset.steamSource = "ois";
         button.disabled = phase === "loading";
       }
 
+      const validNumber = value => {
+        if (value === null || value === undefined || text(value) === "") return null;
+        const numeric = Number(String(value).replaceAll(",", ""));
+        return Number.isFinite(numeric) ? numeric : null;
+      };
+      const salesKeys = new Set([
+        "steamSalesLowPressure",
+        "steamSalesHighPressure",
+        "steamSales"
+      ]);
+      const productionKeys = new Set([
+        "unitOneProduction",
+        "unitTwoProduction",
+        "totalProduction"
+      ]);
+
       for (const [key, id] of Object.entries(VALUE_IDS)) {
         const element = document.getElementById(id);
         if (!element) continue;
-
-        const value =
-          lastResult && (!targetDate || lastResult.sourceDate === targetDate)
-            ? formatTon(lastResult[key])
-            : "-";
-
-        setTextIfDifferent(element, value);
+        const sideReady =
+          salesKeys.has(key)
+            ? lastResult?.salesComplete === true
+            : productionKeys.has(key)
+              ? lastResult?.productionComplete === true
+              : false;
+        const numeric = sideReady ? validNumber(lastResult?.[key]) : null;
+        setTextIfDifferent(element, numeric === null ? "-" : formatTon(numeric));
       }
+
+      const errors = [
+        text(lastResult?.productionError),
+        text(lastResult?.salesError)
+      ].filter(Boolean);
+      card.title = errors.length
+        ? errors.join(" / ")
+        : (targetDate ? targetDate + " OIS 증기 생산량·판매량 독립 조회" : "OIS 증기 생산량·판매량 독립 조회");
     } finally {
       syncing = false;
     }
@@ -412,7 +489,9 @@
     applySourceOwnership();
   }
 
-  function adoptStoredSteamResult(detail) {
+
+function adoptStoredSteamResult(detail) {
+    /* MORNING_MEETING_STEAM_SPLIT_ADOPT_V14 */
     const targetDate = resolveTargetDate();
     const sourceType = text(detail?.requestType || detail?.sourceRequestType);
     const sourceDate = text(detail?.sourceDate || detail?.targetDate);
@@ -422,7 +501,7 @@
         { id: detail?.requestId, targetDate, result: detail },
         targetDate
       );
-      commitOisState(normalized, "complete");
+      commitOisState(normalized, normalized.complete ? "complete" : "partial");
       return true;
     } catch (error) {
       console.warn("저장된 증기 OIS 결과 복원 실패:", error);
@@ -430,7 +509,9 @@
     }
   }
 
-  async function run(button) {
+
+async function run(button) {
+    /* MORNING_MEETING_STEAM_SPLIT_RUN_V14 */
     if (activePromise) return await activePromise;
 
     activePromise = (async () => {
@@ -440,30 +521,30 @@
       }
 
       commitOisState(null, "loading");
-
       try {
         const id = await createRequest(targetDate);
         const item = await waitForCompletion(id);
-        lastResult = normalizeResult(item, targetDate);
-        phase = "complete";
-        applySourceOwnership();
-
+        const normalized = normalizeResult(item, targetDate);
+        const nextPhase = normalized.complete ? "complete" : "partial";
+        commitOisState(normalized, nextPhase);
         window.__morningMeetingSteamOisProbeLastResult = lastResult;
+
         document.dispatchEvent(
           new CustomEvent("morningMeetingSteamOisProbeLoaded", { detail: lastResult })
         );
         document.dispatchEvent(
           new CustomEvent("efficiencyMorningMeetingSteamStatusLoaded", { detail: lastResult })
         );
-        console.log("오전회의 증기 생산·판매 OIS 확인 완료:", lastResult);
+
+        console.log("오전회의 증기 생산량·판매량 분리 OIS 확인 완료:", lastResult);
         return lastResult;
       } catch (error) {
         commitOisState(null, "error", error);
-        console.error("오전회의 증기 생산·판매 OIS 조회 실패:", error);
+        console.error("오전회의 증기 생산량·판매량 OIS 조회 실패:", error);
         window.alert?.(
           error instanceof Error
             ? error.message
-            : "OIS 증기 생산·판매 조회에 실패했습니다."
+            : "OIS 증기 생산량·판매량 조회에 실패했습니다."
         );
         throw error;
       } finally {

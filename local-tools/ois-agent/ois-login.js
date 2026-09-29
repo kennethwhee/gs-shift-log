@@ -20240,15 +20240,17 @@ async function readOisSteamDailySalesBreakdown(
   throw new Error(`${targetSlashDate}의 8Bar·34Bar 증기 판매량을 찾지 못했습니다.`);
 }
 
-async function collectOisSteamStatusValues(
+
+/* MORNING_MEETING_STEAM_SPLIT_COLLECTORS_V14 */
+async function collectOisSteamProductionValuesV14(
   page,
   config,
   targetDate
 ) {
-  // MORNING_MEETING_STEAM_OIS_COLLECTOR_V7
   if (!isValidOisAgentDate(targetDate)) {
-    throw new Error("증기 현황 조회 날짜가 올바르지 않습니다.");
+    throw new Error("증기 생산량 조회 날짜가 올바르지 않습니다.");
   }
+
   await ensureOisAgentLoggedIn(page, config);
   const capturedUnits = {};
 
@@ -20262,19 +20264,70 @@ async function collectOisSteamStatusValues(
     await selectOisOptionByLabel(frame, "1시간", false);
     await setOisLogSheetDate(frame, targetDate);
     await page.waitForTimeout(200);
-    capturedUnits[unitDefinition.resultKey] = await captureOisSteamProductionFromApi(
-      page, unitDefinition, async () => { await clickOisLogSheetSearchButton(frame); }
-    );
+
+    capturedUnits[unitDefinition.resultKey] =
+      await captureOisSteamProductionFromApi(
+        page,
+        unitDefinition,
+        async () => {
+          await clickOisLogSheetSearchButton(frame);
+        }
+      );
   }
 
   const unitOne = capturedUnits.unitOne;
   const unitTwo = capturedUnits.unitTwo;
-  if (!unitOne || !unitTwo) throw new Error("1·2호기 증기생산량을 모두 확인하지 못했습니다.");
+  if (!unitOne || !unitTwo) {
+    throw new Error("1·2호기 증기생산량을 모두 확인하지 못했습니다.");
+  }
 
   const round = value => Math.round(Number(value) * 1000) / 1000;
   const unitOneProduction = round(unitOne.productionTotal);
   const unitTwoProduction = round(unitTwo.productionTotal);
   const totalProduction = round(unitOneProduction + unitTwoProduction);
+
+  if (!(totalProduction > 0)) {
+    throw new Error("총 증기생산량이 0 이하입니다.");
+  }
+
+  const result = {
+    source: "OIS BOARD LOGSHEET BCO1/BCO2 MAIN STM FLOW 01~24",
+    targetDate,
+    sourceDate: targetDate,
+    outputInterval: "1시간",
+    hourRange: "01~24",
+    hourCount: 24,
+    unit: "ton",
+    unitOneProduction,
+    unitTwoProduction,
+    totalProduction,
+    productionComplete: true,
+    unitOne,
+    unitTwo,
+    collectedAt: new Date().toISOString()
+  };
+
+  console.log([
+    "OIS 증기 생산량 독립 조회 완료",
+    targetDate,
+    "1호기 " + unitOneProduction + " ton",
+    "2호기 " + unitTwoProduction + " ton",
+    "총생산 " + totalProduction + " ton"
+  ].join(" · "));
+
+  return result;
+}
+
+async function collectOisSteamSalesValuesV14(
+  page,
+  config,
+  targetDate
+) {
+  if (!isValidOisAgentDate(targetDate)) {
+    throw new Error("증기 판매량 조회 날짜가 올바르지 않습니다.");
+  }
+
+  await ensureOisAgentLoggedIn(page, config);
 
   const salesFrame = await openOisSteamDailySales(page);
   await selectOisOptionByLabel(salesFrame, "전체", false);
@@ -20282,43 +20335,166 @@ async function collectOisSteamStatusValues(
 
   let sales;
   try {
-    sales = await readOisSteamDailySalesFromApiV13(salesFrame, targetDate);
+    sales = await readOisSteamDailySalesFromApiV13(
+      salesFrame,
+      targetDate
+    );
   } catch (apiError) {
     console.warn(
       "OIS 증기 판매량 API 직접 조회 실패 · 기존 Grid 판독으로 대체:",
       apiError?.message || apiError
     );
     await new Promise(resolve => setTimeout(resolve, 700));
-    sales = await readOisSteamDailySalesBreakdown(salesFrame, targetDate);
+    sales = await readOisSteamDailySalesBreakdown(
+      salesFrame,
+      targetDate
+    );
   }
 
-  if (totalProduction <= 0) throw new Error("총 증기생산량이 0 이하이므로 판매율을 계산할 수 없습니다.");
-  const averageSteamSales = round(sales.steamSales / 24);
-  const salesRate = round(sales.steamSales / totalProduction * 100);
+  const round = value => Math.round(Number(value) * 1000) / 1000;
+  const steamSalesLowPressure = round(sales.steamSalesLowPressure);
+  const steamSalesHighPressure = round(sales.steamSalesHighPressure);
+  const steamSales = round(sales.steamSales);
+  const averageSteamSales = round(steamSales / 24);
+
+  if (
+    !Number.isFinite(steamSalesLowPressure) ||
+    !Number.isFinite(steamSalesHighPressure) ||
+    !Number.isFinite(steamSales)
+  ) {
+    throw new Error("8Bar·34Bar 증기 판매량 결과가 올바르지 않습니다.");
+  }
 
   const result = {
-    source: "OIS BOARD LOGSHEET / 일별 증기 판매량",
-    productionSource: "OIS BOARD LOGSHEET BCO1/BCO2 MAIN STM FLOW 01~24",
-    salesSource: "OIS 일별 증기 판매량 8Bar/34Bar",
-    targetDate, sourceDate: targetDate, outputInterval: "1시간", hourRange: "01~24", hourCount: 24,
-    unit: "ton", salesUnit: "TON",
-    steamSalesLowPressure: sales.steamSalesLowPressure,
-    steamSalesHighPressure: sales.steamSalesHighPressure,
-    steamSales: sales.steamSales, averageSteamSales,
-    unitOneProduction, unitTwoProduction, totalProduction, salesRate,
-    productionComplete: true, salesComplete: true, complete: true,
-    unitOne, unitTwo, collectedAt: new Date().toISOString()
+    source: "OIS 일별 증기 판매량 8Bar/34Bar",
+    targetDate,
+    sourceDate: targetDate,
+    salesUnit: "TON",
+    steamSalesLowPressure,
+    steamSalesHighPressure,
+    steamSales,
+    averageSteamSales,
+    salesComplete: true,
+    collectedAt: new Date().toISOString()
   };
 
   console.log([
-    "OIS 증기 생산·판매 조회 완료", targetDate,
-    `저압 ${result.steamSalesLowPressure} ton`,
-    `고압 ${result.steamSalesHighPressure} ton`,
-    `총판매 ${result.steamSales} ton`,
-    `1호기 ${result.unitOneProduction} ton`,
-    `2호기 ${result.unitTwoProduction} ton`,
-    `총생산 ${result.totalProduction} ton`
+    "OIS 증기 판매량 독립 조회 완료",
+    targetDate,
+    "8Bar " + steamSalesLowPressure + " ton",
+    "34Bar " + steamSalesHighPressure + " ton",
+    "총판매 " + steamSales + " ton"
   ].join(" · "));
+
+  return result;
+}
+
+async function collectOisSteamStatusValues(
+  page,
+  config,
+  targetDate
+) {
+  // MORNING_MEETING_STEAM_SPLIT_ORCHESTRATOR_V14
+  if (!isValidOisAgentDate(targetDate)) {
+    throw new Error("증기 현황 조회 날짜가 올바르지 않습니다.");
+  }
+
+  let production = null;
+  let sales = null;
+  let productionError = "";
+  let salesError = "";
+
+  /*
+    두 자료원은 서로 다른 OIS 화면을 소유하므로 한 page에서 동시에
+    navigate하지 않는다. 순차 실행하되 성공/실패는 각각 독립 보존한다.
+  */
+  try {
+    production = await collectOisSteamProductionValuesV14(
+      page,
+      config,
+      targetDate
+    );
+  } catch (error) {
+    productionError = error instanceof Error
+      ? error.message
+      : String(error || "증기 생산량 조회 실패");
+    console.warn("OIS 증기 생산량 독립 조회 실패:", productionError);
+  }
+
+  try {
+    sales = await collectOisSteamSalesValuesV14(
+      page,
+      config,
+      targetDate
+    );
+  } catch (error) {
+    salesError = error instanceof Error
+      ? error.message
+      : String(error || "증기 판매량 조회 실패");
+    console.warn("OIS 증기 판매량 독립 조회 실패:", salesError);
+  }
+
+  if (!production && !sales) {
+    throw new Error(
+      [
+        productionError ? "생산량: " + productionError : "",
+        salesError ? "판매량: " + salesError : ""
+      ].filter(Boolean).join(" / ") ||
+      "증기 생산량·판매량 조회에 모두 실패했습니다."
+    );
+  }
+
+  const round = value => Math.round(Number(value) * 1000) / 1000;
+  const unitOneProduction = production?.unitOneProduction ?? null;
+  const unitTwoProduction = production?.unitTwoProduction ?? null;
+  const totalProduction = production?.totalProduction ?? null;
+  const steamSalesLowPressure = sales?.steamSalesLowPressure ?? null;
+  const steamSalesHighPressure = sales?.steamSalesHighPressure ?? null;
+  const steamSales = sales?.steamSales ?? null;
+  const averageSteamSales = sales?.averageSteamSales ?? null;
+  const salesRate =
+    production && sales && Number(totalProduction) > 0
+      ? round(Number(steamSales) / Number(totalProduction) * 100)
+      : null;
+
+  const result = {
+    source: "OIS split steam collectors",
+    productionSource: production?.source || "OIS BOARD LOGSHEET BCO1/BCO2 MAIN STM FLOW 01~24",
+    salesSource: sales?.source || "OIS 일별 증기 판매량 8Bar/34Bar",
+    targetDate,
+    sourceDate: targetDate,
+    outputInterval: production?.outputInterval || "1시간",
+    hourRange: production?.hourRange || "01~24",
+    hourCount: production?.hourCount ?? 24,
+    unit: "ton",
+    salesUnit: "TON",
+    steamSalesLowPressure,
+    steamSalesHighPressure,
+    steamSales,
+    averageSteamSales,
+    unitOneProduction,
+    unitTwoProduction,
+    totalProduction,
+    salesRate,
+    productionComplete: Boolean(production),
+    salesComplete: Boolean(sales),
+    complete: Boolean(production && sales),
+    productionError,
+    salesError,
+    unitOne: production?.unitOne || null,
+    unitTwo: production?.unitTwo || null,
+    productionCollectedAt: production?.collectedAt || "",
+    salesCollectedAt: sales?.collectedAt || "",
+    collectedAt: new Date().toISOString()
+  };
+
+  console.log([
+    "OIS 증기 생산·판매 분리 조회 완료",
+    targetDate,
+    "생산 " + (result.productionComplete ? "성공" : "실패"),
+    "판매 " + (result.salesComplete ? "성공" : "실패")
+  ].join(" · "));
+
   return result;
 }
 
