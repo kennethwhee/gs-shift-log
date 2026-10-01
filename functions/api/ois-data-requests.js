@@ -13885,7 +13885,7 @@ async function findMorningMeetingAutoHistoryActiveRequestTypes(
             'water_environment',
             'limestone_stock',
             'turbine_gear_pinion',
-            'silo_level',)
+            'silo_level')
           AND (
             expires_at IS NULL
             OR expires_at >= ?
@@ -13937,7 +13937,7 @@ const MORNING_MEETING_AUTO_HISTORY_RESET_FRESH_GROUPS =
     Object.freeze([
       "silo_level"
     ]),
-    Object.freeze([,
+    Object.freeze([
       "steam_status"
     ])
   ]);
@@ -14171,7 +14171,7 @@ async function retireStaleMorningMeetingAutoHistoryActiveRequests(
           'water_environment',
           'limestone_stock',
           'turbine_gear_pinion',
-          'silo_level',)
+          'silo_level')
         AND COALESCE(
           NULLIF(updated_at, ''),
           NULLIF(started_at, ''),
@@ -14432,7 +14432,7 @@ async function resetMorningMeetingAutoHistory(
                   'water_environment',
                   'limestone_stock',
                   'turbine_gear_pinion',
-                  'silo_level',)
+                  'silo_level')
                 AND (
                   expires_at IS NULL
                   OR expires_at >= ?
@@ -14509,7 +14509,7 @@ async function resetMorningMeetingAutoHistory(
                 'water_environment',
                 'limestone_stock',
                 'turbine_gear_pinion',
-                'silo_level',)
+                'silo_level')
               AND (
                 expires_at IS NULL
                 OR expires_at >= ?
@@ -15091,7 +15091,7 @@ async function releaseMorningMeetingAutoHistoryReset(
             SELECT 1 FROM ois_data_requests
             WHERE target_date = ?
               AND status = 'complete'
-              AND request_type IN (,
+              AND request_type IN (
                 'steam_status'
               )
               AND COALESCE(NULLIF(completed_at, ''), updated_at, '') > ?
