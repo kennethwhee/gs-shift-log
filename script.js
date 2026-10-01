@@ -179073,6 +179073,10 @@ function extractNumericValues(
   const flyAshKg =
     getCellNumber(
       worksheet,
+      "K47"
+    ) ??
+    getCellNumber(
+      worksheet,
       "K48"
     );
 
