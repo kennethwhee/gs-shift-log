@@ -11,6 +11,7 @@ const steamProvider = read('maintenance/morning-meeting-steam-ois-probe-v1.js');
 const mainScript = read('script.js');
 const DATE = '2026-10-01';
 const ALL = 'morningMeetingAllQueryButton';
+const REQUERY = 'morningMeetingRequeryButton';
 const STEAM_BUTTON = 'efficiencyMorningMeetingAutoSteamRefreshButton';
 const STEAM_BADGE = 'morningMeetingQuerySourceStatus-steam';
 const tick = () => new Promise(resolve => setImmediate(resolve));
@@ -86,20 +87,25 @@ async function harness(t, {realProvider=false, realOperations=false, resetActive
   for(const id of ['efficiencyMorningMeetingAutoWaterStatus','efficiencyMorningMeetingAutoLimestoneStatus','efficiencyMorningMeetingAutoGearPinionStatus','efficiencyMorningMeetingAutoSiloStatus']) {
     const row=make(id+'-row','div',preview,'efficiency-morning-meeting-auto-card__status-actions'); make(id,'span',row);
   }
-  const timers=new Set(), calls=[],messages=[],logs=[],net=[],behavior={};let token='test-only',mobile=false;
+  const timers=new Set(), calls=[],messages=[],logs=[],net=[],behavior={};let token='test-only',mobile=false,resetRevision=1;
   const later=(fn,ms=0)=>{const id=setTimeout(()=>{timers.delete(id);fn();},ms===1500?1:ms);timers.add(id);return id;};
   const window={navigator:{userAgent:'Windows',platform:'Win32',maxTouchPoints:0},location:{origin:'https://example.invalid'},
     matchMedia:()=>({matches:mobile}),setTimeout:later,clearTimeout:id=>{clearTimeout(id);timers.delete(id);},addEventListener(){},
-    efficiencyMorningMeetingUploadState:{},showToast:m=>messages.push(m),alert:m=>messages.push(m),getShiftLogAuthHeaders:()=>({Authorization:'Bearer test-only'}),
+    efficiencyMorningMeetingUploadState:{},showToast:m=>messages.push(m),alert:m=>messages.push(m),confirm:()=>true,getShiftLogAuthHeaders:()=>({Authorization:'Bearer test-only'}),
     persistEfficiencyMorningMeetingFreshSmpAfterReset:async()=>true,refreshEfficiencyMorningMeetingAutoHistory:async()=>true};
   const response=p=>({ok:true,status:200,text:async()=>JSON.stringify(p),json:async()=>p});
   const fetch=async(raw,options={})=>{
     const url=new URL(raw,window.location.origin), body=options.body?JSON.parse(options.body):null;
     net.push({path:url.pathname,query:Object.fromEntries(url.searchParams),method:options.method||'GET',body});
     if(url.searchParams.get('action')==='morning_meeting_auto_history_reset_status')
-      return response({ok:true,item:{targetDate:url.searchParams.get('targetDate'),active:resetActive,revision:1}});
+      return response({ok:true,item:{targetDate:url.searchParams.get('targetDate'),active:resetActive,revision:resetRevision}});
+    if(body?.action==='reset_morning_meeting_auto_history'){
+      resetActive=true;resetRevision+=1;
+      return response({ok:true,item:{targetDate:body.targetDate,active:true,revision:resetRevision}});
+    }
     if(body?.action==='release_morning_meeting_auto_history_reset'){
-      resetActive=false;return response({ok:true,item:{targetDate:body.targetDate,active:false,revision:2}});
+      resetActive=false;resetRevision+=1;
+      return response({ok:true,item:{targetDate:body.targetDate,active:false,revision:resetRevision}});
     }
     if(body?.requestType==='steam_status'){
       calls.push('steam-post'); if(behavior.create)await behavior.create(body);
@@ -151,7 +157,41 @@ test('toolbar click starts steam exactly once after operations and awaits its ac
   assert.equal(await h.api.query('all',{userInitiated:true}),null);
   steam.resolve(completedSteam());await until(()=>!h.api.isBusy());
   assert.equal(h.calls.filter(x=>x==='steam').length,1);assert.equal(h.byId(STEAM_BADGE).textContent,'조회 완료');
-  assert.equal(h.byId(ALL).textContent,'전체자료');assert.equal(h.byId(ALL).disabled,false);
+  assert.equal(h.byId(ALL).textContent,'전체조회');assert.equal(h.byId(ALL).disabled,false);
+});
+
+test('toolbar exposes 전체조회 and 재조회 while legacy 운영정보조회 stays hidden',async t=>{
+  const h=await harness(t);
+  assert.equal(h.byId(ALL).textContent,'전체조회');
+  assert.equal(h.byId(REQUERY).textContent,'재조회');
+  assert.equal(h.byId('morningMeetingOperationsQueryButton').hidden,true);
+});
+
+test('재조회 creates a reset then existing active-reset all-query forces fresh sources and releases it',async t=>{
+  const h=await harness(t);
+
+  const result=await h.api.requeryAll({userInitiated:true});
+
+  assert.ok(Array.isArray(result));
+  assert.equal(result.find(x=>x.source==='operations').status,'fulfilled');
+  assert.equal(result.find(x=>x.source==='steam').status,'fulfilled');
+
+  const actions=h.net
+    .filter(x=>x.body?.action)
+    .map(x=>x.body.action);
+
+  assert.deepEqual(
+    actions.filter(x=>[
+      'reset_morning_meeting_auto_history',
+      'release_morning_meeting_auto_history_reset'
+    ].includes(x)),
+    [
+      'reset_morning_meeting_auto_history',
+      'release_morning_meeting_auto_history_reset'
+    ]
+  );
+
+  assert.equal(h.api.resetState(DATE).active,false);
 });
 
 test('missing steam function cannot resolve as successful undefined',async t=>{

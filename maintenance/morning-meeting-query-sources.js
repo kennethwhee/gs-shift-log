@@ -17,7 +17,8 @@
   const CARD_IDS = ["efficiencyMorningMeetingAutoDailyPowerCard", "efficiencyMorningMeetingAutoSteamCard",
     "efficiencyMorningMeetingAutoCofiringCard", "efficiencyMorningMeetingAutoDailySludgeCard"];
   const QUERY_BUTTONS = { all: "morningMeetingAllQueryButton", operations: "morningMeetingOperationsQueryButton" };
-  const BUTTON_LABELS = { all: "전체자료", operations: "운영정보조회" };
+  const REQUERY_BUTTON_ID = "morningMeetingRequeryButton";
+  const BUTTON_LABELS = { all: "전체조회", operations: "운영정보조회", requery: "재조회" };
   const BUTTON_IDS = ["morningMeetingAllQueryButton", "morningMeetingOperationsQueryButton", "morningMeetingCofiringRefreshButton",
     "efficiencyMorningMeetingAutoDailyPowerRefreshButton", "efficiencyMorningMeetingAutoSteamRefreshButton",
     "efficiencyMorningMeetingAutoDailySludgeRefreshButton", "efficiencyMorningMeetingAutoRetry-water",
@@ -30,6 +31,7 @@
   const resetStatusRequests = new Map();
   let activeRequest = null;
   let activeResetRequest = null;
+  let requeryBusyDate = "";
   let renderTimer = null;
   let observer = null;
   const byId = id => document.getElementById(id);
@@ -315,12 +317,30 @@
         const button = makeElement("button", `morning-meeting-workbook-query__button${source === "all" ? " is-primary" : ""}`, BUTTON_LABELS[source]);
         button.id = QUERY_BUTTONS[source];
         button.type = "button";
+        if (source === "operations") {
+          button.hidden = true;
+          button.disabled = true;
+          button.setAttribute("aria-hidden", "true");
+          button.tabIndex = -1;
+        }
         button.addEventListener("click", event => {
           event.preventDefault();
           void query(source, { userInitiated: true });
         });
         actions.append(button);
       }
+      const requeryButton = makeElement(
+        "button",
+        "morning-meeting-workbook-query__button",
+        BUTTON_LABELS.requery
+      );
+      requeryButton.id = REQUERY_BUTTON_ID;
+      requeryButton.type = "button";
+      requeryButton.addEventListener("click", event => {
+        event.preventDefault();
+        void requeryAll({ userInitiated: true });
+      });
+      actions.append(requeryButton);
       const resetButton = makeElement("button", "morning-meeting-workbook-query__button is-danger", "초기화");
       resetButton.id = RESET_BUTTON_ID;
       resetButton.type = "button";
@@ -352,7 +372,7 @@
     const resetActive = reset.active === true;
     const resetStatusUnavailable = Boolean(requestFetch && (!reset.loaded || reset.error));
     const operations = operationsState(date);
-    const busy = isBusy() || externalQueryBusy();
+    const busy = isBusy() || externalQueryBusy() || requeryBusyDate === date;
     toolbar.dataset.resetActive = resetActive ? "true" : "false";
     toolbar.dataset.resetTargetDate = date;
 
@@ -386,6 +406,11 @@
     for (const id of BUTTON_IDS) {
       const control = byId(id);
       if (!control) continue;
+      if (id === QUERY_BUTTONS.operations) {
+        control.hidden = true;
+        control.disabled = true;
+        continue;
+      }
       if (["morningMeetingCofiringRefreshButton", "efficiencyMorningMeetingAutoDailySludgeRefreshButton"].includes(id)) continue;
       control.hidden = !allowed;
       const isAllControl = id === QUERY_BUTTONS.all;
@@ -394,18 +419,39 @@
       const source = Object.keys(QUERY_BUTTONS).find(key => QUERY_BUTTONS[key] === id) || "current";
       control.title = !isDate(date) ? "자료 기준일을 선택해 주세요." : reset.loading ? "선택일의 초기화 상태를 확인하고 있습니다." :
         resetStatusUnavailable ? (reset.error || "선택일의 초기화 상태를 확인하지 못했습니다.") :
-        resetActive && source !== "all" ? "초기화된 날짜는 전체자료로 현재 운영 자료원을 다시 조회해 주세요." :
+        resetActive && source !== "all" ? "초기화된 날짜는 전체조회 또는 재조회를 사용해 주세요." :
         source === "all" ? (resetActive ? "운영정보·TO 전력·증기 OIS·마감자료를 다시 조회한 뒤 초기화를 해제합니다." :
-          "운영정보·TO 전력·증기 OIS·마감자료를 함께 조회합니다.") :
+          "저장된 선택일 자료를 우선 사용하고 없는 자료만 기존 조회 경로에서 보완합니다.") :
         source === "operations" ? "수처리·석회석·터빈·Silo·SMP·날씨를 조회합니다." : control.title;
     }
     for (const [source, id] of Object.entries(QUERY_BUTTONS)) {
       const selectedBusy = activeRequest?.date === date && activeRequest.source === source;
       const busyLabel = source === "all"
         ? activeRequest?.stage === "steam" ? "증기 조회 중…"
-          : activeRequest?.stage === "finishing" ? "마무리 중…" : "전체자료 조회 중…"
+          : activeRequest?.stage === "finishing" ? "마무리 중…" : "전체조회 중…"
         : "조회 중…";
       setText(byId(id), selectedBusy ? busyLabel : BUTTON_LABELS[source]);
+    }
+    const requeryButton = byId(REQUERY_BUTTON_ID);
+    if (requeryButton) {
+      requeryButton.hidden = !allowed;
+      requeryButton.disabled =
+        !allowed ||
+        !isDate(date) ||
+        busy ||
+        reset.loading ||
+        resetStatusUnavailable;
+      setText(
+        requeryButton,
+        requeryBusyDate === date ? "재조회 중…" : BUTTON_LABELS.requery
+      );
+      requeryButton.title = !isDate(date)
+        ? "자료 기준일을 선택해 주세요."
+        : reset.loading
+          ? "선택일의 초기화 상태를 확인하고 있습니다."
+          : resetStatusUnavailable
+            ? (reset.error || "선택일의 초기화 상태를 확인하지 못했습니다.")
+            : "선택일 오전회의 조회 결과를 초기화한 뒤 모든 현재 자료원을 처음부터 다시 조회합니다.";
     }
     const resetButton = byId(RESET_BUTTON_ID);
     if (resetButton) {
@@ -504,6 +550,80 @@
     }
     return state.active ? restoreReset(date, { ...options, expectedRevision: state.revision }) :
       resetSelectedDate(date, { ...options, expectedRevision: state.revision });
+  }
+
+  async function requeryAll(options = {}) {
+    const date = targetDate();
+
+    if (
+      options.userInitiated !== true ||
+      !canQuery() ||
+      !isDate(date) ||
+      activeRequest ||
+      activeResetRequest ||
+      requeryBusyDate === date ||
+      externalQueryBusy()
+    ) {
+      return null;
+    }
+
+    let state = resetState(date);
+
+    if (!state.loaded || state.error) {
+      const loaded = await loadResetStatus(date, { force: true });
+      if (!loaded) {
+        showResetMessage(
+          state.error || "선택일 자료 상태를 확인하지 못했습니다.",
+          "error"
+        );
+        return null;
+      }
+      state = resetState(date);
+    }
+
+    const message =
+      date +
+      " 저장된 오전회의 조회 결과를 삭제하고 모든 자료를 처음부터 다시 조회하시겠습니까?\n\n" +
+      "TO 원본 입력, 혼소율 마감/조정, 유기성 하역기록, OIS 원본과 다른 날짜 자료는 삭제하지 않습니다.";
+
+    if (
+      typeof window.confirm !== "function" ||
+      window.confirm(message) !== true
+    ) {
+      return null;
+    }
+
+    requeryBusyDate = date;
+    notifyQueryState();
+    render();
+
+    try {
+      if (!state.active) {
+        const resetItem = await postResetAction(
+          RESET_ACTIONS.reset,
+          date,
+          state.revision
+        );
+
+        if (!resetItem?.active) {
+          throw new Error("선택일 오전회의 조회결과 초기화를 완료하지 못했습니다.");
+        }
+      }
+
+      return await query("all", { userInitiated: true });
+    } catch (error) {
+      showResetMessage(
+        text(error?.message) || "선택일 전체 재조회에 실패했습니다.",
+        "error"
+      );
+      return null;
+    } finally {
+      if (requeryBusyDate === date) {
+        requeryBusyDate = "";
+      }
+      notifyQueryState();
+      render();
+    }
   }
 
   async function query(source, options = {}) {
@@ -638,7 +758,7 @@
                   // is used by the card's individual refresh button.
                   const steamLoader = window.loadEfficiencyMorningMeetingSteamOis;
                   if (typeof steamLoader !== "function") {
-                    throw new Error("증기 OIS 조회 기능이 로드되지 않았습니다. 새로고침 후 전체자료를 다시 조회해 주세요.");
+                    throw new Error("증기 OIS 조회 기능이 로드되지 않았습니다. 새로고침 후 전체조회를 다시 실행해 주세요.");
                   }
                   const pending = steamLoader.call(window, {
                      userInitiated: true,
@@ -696,7 +816,7 @@
         try {
           releasedItem = await postResetAction(RESET_ACTIONS.release, date, resetRevision);
         } catch (error) {
-          showResetMessage(`${date} 전체자료 조회는 완료됐지만 초기화를 해제하지 못했습니다. ${text(error?.message)}`, "error");
+          showResetMessage(`${date} 전체조회는 완료됐지만 초기화를 해제하지 못했습니다. ${text(error?.message)}`, "error");
         }
         if (releasedItem) {
           const followupErrors = [];
@@ -731,7 +851,7 @@
       if (source === "all") {
         const lastSteamState = localStates.get(date)?.steam;
         if (["waiting", "loading"].includes(lastSteamState?.status)) {
-          setSourceState(date, "steam", { status: "error", error: "전체자료 조회가 증기 처리 완료 전에 중단되었습니다." });
+          setSourceState(date, "steam", { status: "error", error: "전체조회가 증기 처리 완료 전에 중단되었습니다." });
         }
         current.stage = "settled";
         recordAllSteamFlow(current, "all-settled", { operationsSucceeded, steamSucceeded });
@@ -778,7 +898,8 @@
     loadResetStatus,
     resetSelectedDate,
     restoreReset,
-    toggleReset
+    toggleReset,
+    requeryAll
   });
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initialize, { once: true });
   else initialize();
