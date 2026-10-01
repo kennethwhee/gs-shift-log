@@ -52,6 +52,10 @@
 .cofiring-period-v5 .cfv56-summary-actions button{height:37px;min-width:100px;border:1px solid #203e50;border-radius:8px;padding:0 16px;background:#203e50;color:#fff;font-size:12px;font-weight:750;box-shadow:0 3px 6px #152d4010}
 .cofiring-period-v5 .cfv56-summary-actions button:hover:not(:disabled){background:#112f40;border-color:#112f40}
 .cofiring-period-v5 .cfv56-summary-actions button.is-active{border-color:var(--cf-green);background:var(--cf-green)}
+/* COFIRING_ACTIVE_ADJUSTMENT_REVERT_BLUE_V1 */
+.cofiring-period-v5 .cfv56-summary-actions [data-cfv56-active-reset]{min-width:78px;border-color:#a7c9ec;background:#eef6ff;color:#2f6fae;box-shadow:0 2px 5px #4f8fd212}
+.cofiring-period-v5 .cfv56-summary-actions [data-cfv56-active-reset]:hover:not(:disabled){border-color:#86b4e2;background:#e4f1ff;color:#245f9c;box-shadow:0 3px 7px #4f8fd21a}
+.cofiring-period-v5 .cfv56-summary-actions [data-cfv56-active-reset]:active:not(:disabled){border-color:#76a8da;background:#dcecff;color:#1f568d;box-shadow:0 1px 3px #4f8fd214}
 .cofiring-period-v5 .cfv52-summary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:24px}
 .cofiring-period-v5 .cfv52-card{min-width:0;border:1px solid #dbe5eb;border-radius:17px;background:#fff;overflow:hidden;box-shadow:0 4px 15px #142e4204}
 .cofiring-period-v5 .cfv52-card>header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:19px 21px 16px}
