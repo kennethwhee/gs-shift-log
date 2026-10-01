@@ -61,7 +61,15 @@
   }
   function storageKey(spec){return STORAGE_PREFIX+encodeURIComponent(`${spec.startLocal}|${spec.endLocal}`);}
   function readStored(spec,base){try{const raw=root.localStorage?.getItem(storageKey(spec));if(!raw)return null;const data=JSON.parse(raw);if(data.fingerprint!==fingerprint(base,spec))return null;return data;}catch(_){return null;}}
-  function saveStored(spec,base,adjustment){try{root.localStorage?.setItem(storageKey(spec),JSON.stringify({fingerprint:fingerprint(base,spec),finalBioUnit1:adjustment.result.units.unit1.bio.quantity,finalBioUnit2:adjustment.result.units.unit2.bio.quantity,meta:adjustment.adjustment,at:new Date().toISOString()}));}catch(_){} }
+  function saveStored(spec,base,adjustment){
+    try{
+      const key=storageKey(spec),value={fingerprint:fingerprint(base,spec),finalBioUnit1:adjustment.result.units.unit1.bio.quantity,finalBioUnit2:adjustment.result.units.unit2.bio.quantity,meta:adjustment.adjustment};
+      let previous=null;try{previous=JSON.parse(root.localStorage?.getItem(key)||'null');}catch(_){}
+      if(previous){const {at,...stable}=previous;if(JSON.stringify(stable)===JSON.stringify(value))return;}
+      // Identical server rereads must not cause an endless cross-tab storage loop.
+      root.localStorage?.setItem(key,JSON.stringify({...value,at:new Date().toISOString()}));
+    }catch(_){}
+  }
   function clearStored(spec){try{root.localStorage?.removeItem(storageKey(spec));}catch(_){} }
   function storedMax(){try{const n=Number(root.localStorage?.getItem(MAX_SETTING_KEY));return Number.isFinite(n)&&n>0?n:DEFAULT_MAX_TPD;}catch(_){return DEFAULT_MAX_TPD;}}
   const API='/api/cofiring-period-adjustments';
@@ -69,12 +77,28 @@
   async function loadBundle(spec,getHeaders){
     const ctrl=typeof root.AbortController==='function'?new root.AbortController():null;
     const timer=root.setTimeout?.(()=>ctrl?.abort(),10000);
-    try{const q=new URLSearchParams({start:spec.startLocal,end:spec.endLocal}),r=await root.fetch(API+'?'+q.toString(),{headers:getHeaders?.()||{},cache:'no-store',credentials:'same-origin',...(ctrl?{signal:ctrl.signal}:{})}),p=await r.json();if(!r.ok||p?.ok!==true)throw new Error(p?.message||'조회 실패');return {loaded:true,adjustment:p.adjustment||null,revision:Number(p.revision)||0,setting:{maxBioTpd:Number(p.setting?.maxBioTpd)||storedMax()}};}catch(e){return {loaded:false,error:e.name==='AbortError'?'저장 상태 확인 시간이 초과됐습니다. 창을 닫고 다시 시도해 주세요.':e.message,adjustment:null,revision:0,setting:{maxBioTpd:storedMax()}};}finally{root.clearTimeout?.(timer);}
+    try{const q=new URLSearchParams({start:spec.startLocal,end:spec.endLocal}),r=await root.fetch(API+'?'+q.toString(),{headers:getHeaders?.()||{},cache:'no-store',credentials:'same-origin',...(ctrl?{signal:ctrl.signal}:{})}),p=await r.json();if(!r.ok||p?.ok!==true)throw new Error(p?.message||'조회 실패');if(p.start!==spec.startLocal||p.end!==spec.endLocal||!Number.isSafeInteger(p.revision)||p.revision<0)throw new Error('공용 혼소조정 조회 기간·버전이 다릅니다.');return {loaded:true,adjustment:p.adjustment||null,revision:Number(p.revision)||0,setting:{maxBioTpd:Number(p.setting?.maxBioTpd)||storedMax()}};}catch(e){return {loaded:false,error:e.name==='AbortError'?'저장 상태 확인 시간이 초과됐습니다. 창을 닫고 다시 시도해 주세요.':e.message,adjustment:null,revision:0,setting:{maxBioTpd:storedMax()}};}finally{root.clearTimeout?.(timer);}
   }
   async function saveSharedMax(value,getHeaders){const n=Number(value);if(!Number.isFinite(n)||n<=0||n>2000)throw new Error('호기당 Bio 최대량을 확인해 주세요.');try{root.localStorage?.setItem(MAX_SETTING_KEY,String(n));}catch(_){}try{const r=await root.fetch(API,{method:'POST',headers:{...(getHeaders?.()||{}),'Content-Type':'application/json','X-ShiftLog-Client':'desktop'},cache:'no-store',credentials:'same-origin',body:JSON.stringify({action:'save_setting',maxBioTpd:n})}),p=await r.json();if(!r.ok||p?.ok!==true)throw new Error(p?.message||'설정 저장 실패');return {shared:true,value:Number(p?.setting?.maxBioTpd)||n};}catch(_){return {shared:false,value:n};}}
   async function saveServerAdjustment(spec,adjustment,expectedRevision,getHeaders){const body={action:'save',start:spec.startLocal,end:spec.endLocal,adjustment:{mode:adjustment.adjustment.mode,fromUnit:adjustment.adjustment.fromUnit,bioTransferTons:adjustment.adjustment.bioTransferTons,finalBioUnit1:adjustment.result.units.unit1.bio.quantity,finalBioUnit2:adjustment.result.units.unit2.bio.quantity,maxBioTpd:adjustment.adjustment.maxBioTpd,excludedBioTons:adjustment.adjustment.excludedBioTons,note:''},expectedRevision,requestId:requestId()};const r=await root.fetch(API,{method:'POST',headers:{...(getHeaders?.()||{}),'Content-Type':'application/json','X-ShiftLog-Client':'desktop'},cache:'no-store',credentials:'same-origin',body:JSON.stringify(body)}),p=await r.json();if(!r.ok||p?.ok!==true)throw new Error(p?.message||'혼소 조정 저장 실패');return p;}
   async function clearServerAdjustment(spec,expectedRevision,getHeaders){const r=await root.fetch(API,{method:'POST',headers:{...(getHeaders?.()||{}),'Content-Type':'application/json','X-ShiftLog-Client':'desktop'},cache:'no-store',credentials:'same-origin',body:JSON.stringify({action:'clear',start:spec.startLocal,end:spec.endLocal,expectedRevision,requestId:requestId()})}),p=await r.json();if(!r.ok||p?.ok!==true)throw new Error(p?.message||'혼소 조정 원복 저장 실패');return p;}
   function resolveStored(base,settings,spec){const saved=readStored(spec,base);if(!saved)return null;const r=adjustFinal(base,settings,saved.finalBioUnit1,saved.finalBioUnit2,saved.meta||{});return r.ok?r:null;}
+  // COFIRING_SERVER_ADJUSTMENT_RESOLVER_V2
+  async function resolveServer(base,settings,spec,getHeaders,isCurrent=()=>true){
+    const bundle=await loadBundle(spec,getHeaders);
+    if(!isCurrent())return {loaded:false,stale:true};
+    if(!bundle.loaded)return bundle;
+    if(!bundle.adjustment){
+      clearStored(spec);
+      return {loaded:true,adjusted:false,result:base,revision:bundle.revision};
+    }
+    const saved=bundle.adjustment;
+    const resolved=adjustFinal(base,settings,saved.finalBioUnit1,saved.finalBioUnit2,saved);
+    if(!resolved?.ok)return {loaded:false,error:resolved?.message||'공용 혼소조정값을 원본에 적용하지 못했습니다.'};
+    if(!isCurrent())return {loaded:false,stale:true};
+    saveStored(spec,base,resolved);
+    return {loaded:true,adjusted:true,result:resolved.result,revision:bundle.revision};
+  }
   function ratioBio(unit){const c=unit?.heats?.coal,b=unit?.heats?.bio,t=Number(c)+Number(b);return Number.isFinite(t)&&t>0?Number(b)/t*100:null;}
   const COAL_REVIEW_TOAST_MARKER_V13_R1=
     'COFIRING-MAX-INLINE-MODAL-MESSAGE-V14-R1';
@@ -467,8 +491,8 @@ function modalHtml(){return `<div class="cfv56-adjust-modal" data-cfv56-adjust-m
     q('[data-cfv56-reset]').addEventListener('click',async()=>{if(!validAction())return;busy=true;controls();try{await clearServerAdjustment(spec,serverRevision,options.getHeaders);serverRevision+=1;clearStored(spec);preview=null;options.onReset?.();busy=false;close();}catch(e){msg(e.message||'원복을 저장하지 못했습니다. 기존 조정값을 유지합니다.',true);}finally{busy=false;controls();}});
     for(const sel of ['[data-cfv56-close]','[data-cfv56-cancel]'])q(sel).addEventListener('click',close);
     modal.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();close();}if(e.key==='Tab'){const nodes=Array.from(modal.querySelectorAll('button:not(:disabled),input:not(:disabled)')).filter(x=>!x.closest('[hidden]'));if(!nodes.length)return;const first=nodes[0],last=nodes[nodes.length-1];if(e.shiftKey&&root.document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&root.document.activeElement===last){e.preventDefault();first.focus();}}});
-    return {open,close,resetApplied,resolve:(result,currentSettings,currentSpec)=>resolveStored(result,currentSettings,currentSpec),clear:()=>spec&&clearStored(spec),dispose(){disposed=true;++epoch;modal.remove();}};
+    return {open,close,isOpen:()=>!modal.hidden,isBusy:()=>busy,resetApplied,resolve:(result,currentSettings,currentSpec)=>resolveStored(result,currentSettings,currentSpec),clear:()=>spec&&clearStored(spec),dispose(){disposed=true;++epoch;modal.remove();}};
   }
-  root.CofiringPeriodAdjustmentV56={periodCap,adjustFinal,manualTransfer,autoMax,resolveStored,create,modalHtml,DEFAULT_MAX_TPD,API};
+  root.CofiringPeriodAdjustmentV56={periodCap,adjustFinal,manualTransfer,autoMax,resolveStored,resolveServer,create,modalHtml,DEFAULT_MAX_TPD,API};
   if(typeof module==='object'&&module.exports)module.exports=root.CofiringPeriodAdjustmentV56;
 })(typeof globalThis==='object'?globalThis:this);

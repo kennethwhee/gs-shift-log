@@ -829,9 +829,14 @@ function renderAdjustedValues(result) {
       return;
     }
     if (usingClosedHistory()) {
-      button.disabled = true;
-      button.classList.remove("is-active");
-      button.title = "혼소 조정은 혼소율 메뉴에서 적용·원복해 주세요. 같은 날짜의 오전회의 카드에 자동 반영됩니다.";
+      // MORNING_COFIRING_SHARED_EDITOR_V2: never reopen the legacy dailyDATA editor.
+      const shared = window.CofiringSharedAdjustmentSyncV2?.morning;
+      if (shared) shared.syncButton(button);
+      else {
+        button.disabled = true;
+        button.classList.remove("is-active");
+        button.title = "공용 혼소조정 기능을 불러오는 중입니다. 새로고침 후 다시 시도하거나 혼소율 메뉴에서 적용·원복해 주세요.";
+      }
       return;
     }
     const active = Boolean(adjustment && result?.ok);
@@ -1189,6 +1194,7 @@ function renderAdjustedValues(result) {
   async function openModal() {
     if (usingClosedHistory()) {
       closeModal();
+      await window.CofiringSharedAdjustmentSyncV2?.morning?.open();
       return;
     }
     const targetDate = getTargetDate();

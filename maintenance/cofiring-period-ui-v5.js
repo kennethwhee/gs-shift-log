@@ -907,7 +907,7 @@
         }
       }catch(_){}
     }
-    let adjuster=null;
+    let adjuster=null,adjustmentSync=null;
     function scheduleFastPrep(delay=900){if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}const epoch=++fastPrepGeneration;restoringSaved=false;if(disposed||mobile||!visible()||!live){cfvSummaryLayoutPending(false);return;}prepLabel('고속 준비 예약');fastPrepTimer=root.setTimeout?.(()=>{fastPrepTimer=null;void fastPrepare(epoch);},delay);}
     // Automatic balance refreshes are unsaved values, not operator edits. Only
     // an operator edit may block restoring a successful result after a failed query.
@@ -1351,6 +1351,8 @@
         const refreshing=!!live?.state()?.item?.active;prepLabel(refreshing?'저장값 재계산':'계산 완료',refreshing?'working':'ready');
         setStatus(container,refreshing?'저장된 결과와 현재 입력값으로 재계산했습니다. 최신 DataPARC 조회는 진행 중입니다.':adjusted?'선택 기간 혼소율 계산과 저장된 혼소 조정을 적용했습니다.':lastResult.warnings?.length?'혼소율을 계산했습니다. 자료 품질 경고는 [자료 확인 내용]에서 확인해 주세요. 빈칸 축분은 0t로 계산됩니다.':'선택 기간 혼소율 계산이 완료되었습니다. 빈칸 축분은 0t로 계산됩니다.','success');
         if(!organicUsageState?.ok){prepLabel('유기성 자료 확인 필요','error');setStatus(container,organicUsageState?.message||'유기성 원본 재고 확인이 필요합니다.','error');}
+        // Refresh only the persisted adjustment; never issue another DataPARC query.
+        void adjustmentSync?.refresh();
         finishClickTiming();return shown;
       }catch(e){deadlineInputError=e.message||'계산 입력값을 확인해 주세요.';clearDeadlineRefresh();renderSummary(container,displayResult||lastResult,currentManualFromFields(),deadlineInputError);clickTiming?.fail(clickToken,'계산 오류');setStatus(container,deadlineInputError,'error');return null;}
     }
@@ -1463,6 +1465,19 @@
       if(ok||liveState.item?.active)acceptClickRequest(token);else{clickTiming?.fail(token,'재조회 요청 확인 실패');setStatus(container,liveState.item?.error||'재조회 요청을 시작하지 못했습니다.','error');}
     }}catch(e){clickTiming?.fail(token,'재조회 오류');setStatus(container,e.message,'error');}finally{clickBusy=false;}});
     adjuster=adjustmentApi?.create({container,getHeaders:authHeaders,getContext:adjustmentContext,onMessage:m=>setStatus(container,m,'error'),onApply:(result)=>{renderDisplay(result,{adjusted:true});notifyPeriodAdjustmentChanged();setStatus(container,'혼소 조정값을 선택기간 계산 화면에 적용했습니다. 원본 DataPARC 저장값은 변경하지 않습니다.','success');},onReset:()=>{if(lastResult){renderDisplay(lastResult,{adjusted:false});notifyPeriodAdjustmentChanged();setStatus(container,'혼소 조정을 원복했습니다. DataPARC 원본 계산값을 표시합니다.','success');}}})||null;
+    // COFIRING_BIDIRECTIONAL_ADJUSTMENT_CONSUMER_V2
+    adjustmentSync=root.CofiringSharedAdjustmentSyncV2?.createCalculatorSync({
+      getHeaders:authHeaders,isVisible:visible,
+      getContext:()=>({result:lastResult,settings:readSettings(container),spec:currentSpec(),
+        identity:String(authHeaders().Authorization||authHeaders().authorization||''),
+        suspended:disposed||settingsDirty||manualTouched||!!usageEditSnapshot}),
+      onResult:(result,state)=>{
+        renderDisplay(result,state);
+        setStatus(container,state.adjusted?'공용 혼소조정값을 반영했습니다. 오전회의와 같은 기간의 저장값을 사용합니다.':'공용 혼소조정 원복 상태를 반영했습니다. 원본 계산값을 표시합니다.','success');
+      },
+      onDeferred:()=>setStatus(container,'편집 중인 입력값을 보호하기 위해 혼소조정 동기화를 보류했습니다. 입력값 저장·원복 후 다시 확인합니다.',''),
+      onError:e=>setStatus(container,'공용 혼소조정 조회 실패 · 현재 표시값 유지: '+(e?.message||'다시 조회해 주세요.'),'error')
+    })||null;
     const adjustButton=container.querySelector('[data-cfv56-adjust]');if(adjustButton){adjustButton.disabled=true;adjustButton.addEventListener('click',()=>{try{Promise.resolve(adjuster?.open()).catch(e=>setStatus(container,e.message,'error'));}catch(e){setStatus(container,e.message,'error');}});}
     // COFIRING_ACTIVE_ADJUSTMENT_REVERT_V1
     const activeResetButton=container.querySelector('[data-cfv56-active-reset]');
@@ -1491,12 +1506,12 @@
         }
       });
     }
-    const observer=root.MutationObserver?new root.MutationObserver(()=>{if(visible()){if(showDayUnavailable()){cfvSummaryLayoutPending(false);return;}if(selectedStoreKey!==storeKey())void periodChanged();else{if(displayResult)renderSummary(container,displayResult,currentManualFromFields(),deadlineInputError);void syncReceiptTotals();scheduleDeadlineRefresh();scheduleFastPrep(0);}}else{cfvSummaryLayoutPending(false);restoringSaved=false;clearDayBoundary();clearDeadlineRefresh();clickTiming?.cancel('화면 닫힘');fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}live?.pause();}}):null;const view=container.closest?.('[data-efficiency-view]'),modal=root.document?.getElementById?.('efficiencyTeamModal');for(const node of [view,modal])if(node&&observer)observer.observe(node,{attributes:true,attributeFilter:['hidden','aria-hidden']});
+    const observer=root.MutationObserver?new root.MutationObserver(()=>{if(visible()){if(showDayUnavailable()){cfvSummaryLayoutPending(false);return;}if(selectedStoreKey!==storeKey())void periodChanged();else{void adjustmentSync?.refresh({force:true});if(displayResult)renderSummary(container,displayResult,currentManualFromFields(),deadlineInputError);void syncReceiptTotals();scheduleDeadlineRefresh();scheduleFastPrep(0);}}else{cfvSummaryLayoutPending(false);restoringSaved=false;clearDayBoundary();clearDeadlineRefresh();clickTiming?.cancel('화면 닫힘');fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}live?.pause();}}):null;const view=container.closest?.('[data-efficiency-view]'),modal=root.document?.getElementById?.('efficiencyTeamModal');for(const node of [view,modal])if(node&&observer)observer.observe(node,{attributes:true,attributeFilter:['hidden','aria-hidden']});
     const receiptMessageHandler=event=>{if(event.origin!==root.location?.origin||event.data?.type!=='solid-fuel:receipt-changed')return;if(queryMode(container)==='daily')void syncReceiptTotals();};
     root.addEventListener?.('message',receiptMessageHandler);
     statusRefreshers.set(container,refreshStatusLine);
     updateRange(container);writeSettings(container,settings?.defaults?.()||{unit1:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}},unit2:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}}});const initialManual=manualApi?.blank?.()||{unit1:{organic:null,manure:null},unit2:{organic:null,manure:null}};renderMain(container,null);renderOrganic(container,null,initialManual);renderSummary(container,null,initialManual);bindManualInputs();bindMorningMeetingOrganicObserver();selectStores().catch(e=>setStatus(container,e.message,'error'));scheduleFastPrep(0);
-    return {calculate,periodChanged,settings,manual,live,getResult:()=>lastResult,getDisplayResult:()=>displayResult,getSnapshotInputs:()=>{const values=readManual(container);validateOrganicAllocationBeforeSave(values);return {settings:readSettings(container),manual:values,sourceRequestId:renderedRequestId};},getSpec:currentSpec,dispose(){statusRefreshers.delete(container);root.removeEventListener?.('message',receiptMessageHandler);receiptSyncGeneration++;clearInputRecalc();clearDayBoundary();clearDeadlineRefresh();clickTiming?.dispose();disposed=true;fastPrepGeneration++;if(fastPrepTimer)root.clearTimeout?.(fastPrepTimer);observer?.disconnect();morningCardObserver?.disconnect();if(morningCardBindTimer!==null)root.clearTimeout?.(morningCardBindTimer);adjuster?.dispose?.();settings?.dispose();manual?.dispose();live?.dispose();}};
+    return {calculate,periodChanged,settings,manual,live,getResult:()=>lastResult,getDisplayResult:()=>displayResult,getSnapshotInputs:()=>{const values=readManual(container);validateOrganicAllocationBeforeSave(values);return {settings:readSettings(container),manual:values,sourceRequestId:renderedRequestId};},getSpec:currentSpec,dispose(){adjustmentSync?.dispose?.();statusRefreshers.delete(container);root.removeEventListener?.('message',receiptMessageHandler);receiptSyncGeneration++;clearInputRecalc();clearDayBoundary();clearDeadlineRefresh();clickTiming?.dispose();disposed=true;fastPrepGeneration++;if(fastPrepTimer)root.clearTimeout?.(fastPrepTimer);observer?.disconnect();morningCardObserver?.disconnect();if(morningCardBindTimer!==null)root.clearTimeout?.(morningCardBindTimer);adjuster?.dispose?.();settings?.dispose();manual?.dispose();live?.dispose();}};
   }
   root.CofiringPeriodV5={mount,periodSpec,dailySpec,dailySelectionSpec,dayAvailability,defaultCalculationDate,queryMode,customSpec,currentDaySpec,selectedAvailability,targetReferenceMarkup,fuelUsageMarkup,markup,readSettings,readManual,manualForCalculation,coalBioHeat,coalBioRatio,combinedCoalBio,cachedReference,liveRequestPresentation};if(typeof module==='object'&&module.exports)module.exports=root.CofiringPeriodV5;
   if(root.document){const init=()=>{const container=root.document.querySelector('[data-cofiring-draft-root]');if(container)root.__cofiringPeriodV5Controller=mount(container);};if(root.document.readyState==='loading')root.document.addEventListener('DOMContentLoaded',init,{once:true});else init();}
