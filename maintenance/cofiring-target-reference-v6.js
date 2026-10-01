@@ -18,46 +18,40 @@
     return nonnegative(value) ? value : null;
   }
 
-  // This is an advisory steady-average reference, not a feeder command or a
-  // deadline/catch-up calculation. Keep the selected period's Coal + Bio heat
-  // constant while replacing Coal heat with Bio heat at the target share.
-  // quantity is already coefficient-corrected tonnes; calorifics are kcal/kg.
-  // Organic/manure are excluded to match the dashboard's Bio denominator.
+  // COFIRING_TOTAL_HEAT_BASIS_V2_R3: advisory target uses total fuel heat; organic/manure stay fixed while Coal/Bio are rebalanced.
   function forUnit(unit, durationHours) {
     if (!positive(durationHours) || !unit ||
-        unit.coal?.complete === false || unit.bio?.complete === false) return null;
-    const coal = unit.coal?.quantity, bio = unit.bio?.quantity;
-    const coalCalorific = unit.calorifics?.coal, bioCalorific = unit.calorifics?.bio;
-    if (!nonnegative(coal) || !nonnegative(bio) ||
-        !positive(coalCalorific) || !positive(bioCalorific)) return null;
+        unit.coal?.complete === false || unit.bio?.complete === false ||
+        unit.organic?.complete === false || unit.manure?.complete === false) return null;
+    const coal = unit.coal?.quantity, bio = unit.bio?.quantity, organic = unit.organic?.quantity, manure = unit.manure?.quantity;
+    const coalCalorific = unit.calorifics?.coal, bioCalorific = unit.calorifics?.bio,
+      organicCalorific = unit.calorifics?.organic, manureCalorific = unit.calorifics?.manure;
+    if (![coal,bio,organic,manure].every(nonnegative) ||
+        ![coalCalorific,bioCalorific,organicCalorific,manureCalorific].every(positive)) return null;
 
-    const coalHeat = coal * coalCalorific, bioHeat = bio * bioCalorific;
-    const totalHeat = coalHeat + bioHeat;
+    const coalHeat = coal * coalCalorific, bioHeat = bio * bioCalorific,
+      organicHeat = organic * organicCalorific, manureHeat = manure * manureCalorific;
+    const fixedHeat = organicHeat + manureHeat, totalHeat = coalHeat + bioHeat + fixedHeat;
     if (!positive(totalHeat)) return null;
+    const targetBioHeat = totalHeat * TARGET_SHARE;
+    const targetCoalHeat = totalHeat - fixedHeat - targetBioHeat;
+    if (targetCoalHeat < -1e-10) return null;
     const currentBioTonPerHour = bio / durationHours;
     const currentCoalTonPerHour = coal / durationHours;
-    const targetBioTonPerHour = totalHeat * TARGET_SHARE / bioCalorific / durationHours;
-    const targetCoalTonPerHour = totalHeat * (1 - TARGET_SHARE) / coalCalorific / durationHours;
-    const coalBioHeatGcalPerHour = totalHeat / 1000 / durationHours;
+    const targetBioTonPerHour = targetBioHeat / bioCalorific / durationHours;
+    const targetCoalTonPerHour = Math.max(0, targetCoalHeat) / coalCalorific / durationHours;
+    const totalFuelHeatGcalPerHour = totalHeat / 1000 / durationHours;
     const currentBioPercent = bioHeat / totalHeat * 100;
-    if (![currentBioTonPerHour, currentCoalTonPerHour, currentBioPercent].every(nonnegative) ||
-        ![targetBioTonPerHour, targetCoalTonPerHour, coalBioHeatGcalPerHour].every(positive)) return null;
+    if (![currentBioTonPerHour,currentCoalTonPerHour,currentBioPercent,targetBioTonPerHour,targetCoalTonPerHour,totalFuelHeatGcalPerHour].every(nonnegative)) return null;
 
     return {
-      targetPercent: TARGET_PERCENT,
-      durationHours,
-      currentBioPercent,
-      currentBioTonPerHour,
-      targetBioTonPerHour,
-      differenceBioTonPerHour: targetBioTonPerHour - currentBioTonPerHour,
-      currentCoalTonPerHour,
-      targetCoalTonPerHour,
-      differenceCoalTonPerHour: targetCoalTonPerHour - currentCoalTonPerHour,
-      targetMeasuredBioTonPerHour: measuredEquivalent(targetBioTonPerHour, unit.bio?.coefficient),
-      targetMeasuredCoalTonPerHour: measuredEquivalent(targetCoalTonPerHour, unit.coal?.coefficient),
-      coalBioHeatGcalPerHour,
-      basis: 'selected-period-average-coal-bio-heat',
-      quantityBasis: 'coefficient-corrected-tonnes'
+      targetPercent: TARGET_PERCENT, durationHours, currentBioPercent, currentBioTonPerHour, targetBioTonPerHour,
+      differenceBioTonPerHour: targetBioTonPerHour-currentBioTonPerHour, currentCoalTonPerHour, targetCoalTonPerHour,
+      differenceCoalTonPerHour: targetCoalTonPerHour-currentCoalTonPerHour,
+      targetMeasuredBioTonPerHour: measuredEquivalent(targetBioTonPerHour,unit.bio?.coefficient),
+      targetMeasuredCoalTonPerHour: measuredEquivalent(targetCoalTonPerHour,unit.coal?.coefficient),
+      totalFuelHeatGcalPerHour, coalBioHeatGcalPerHour: totalFuelHeatGcalPerHour,
+      basis: 'selected-period-average-total-fuel-heat', quantityBasis: 'coefficient-corrected-tonnes'
     };
   }
 
@@ -80,19 +74,19 @@
     const combined = {
       targetPercent: TARGET_PERCENT,
       durationHours,
-      basis: 'selected-period-average-coal-bio-heat',
+      basis: 'selected-period-average-total-fuel-heat',
       quantityBasis: 'coefficient-corrected-tonnes'
     };
     for (const key of ['currentBioTonPerHour', 'targetBioTonPerHour', 'differenceBioTonPerHour',
       'currentCoalTonPerHour', 'targetCoalTonPerHour', 'differenceCoalTonPerHour',
-      'coalBioHeatGcalPerHour', 'targetMeasuredBioTonPerHour', 'targetMeasuredCoalTonPerHour']) {
+      'coalBioHeatGcalPerHour', 'totalFuelHeatGcalPerHour', 'targetMeasuredBioTonPerHour', 'targetMeasuredCoalTonPerHour']) {
       combined[key] = strictSum(references.map(reference => reference[key]));
       if (combined[key] === null && !key.startsWith('targetMeasured')) return output;
     }
     const bioHeat = strictSum(references.map(reference =>
-      reference.coalBioHeatGcalPerHour * (reference.currentBioPercent / 100)));
-    if (bioHeat === null || !positive(combined.coalBioHeatGcalPerHour)) return output;
-    combined.currentBioPercent = bioHeat / combined.coalBioHeatGcalPerHour * 100;
+      reference.totalFuelHeatGcalPerHour * (reference.currentBioPercent / 100)));
+    if (bioHeat === null || !positive(combined.totalFuelHeatGcalPerHour)) return output;
+    combined.currentBioPercent = bioHeat / combined.totalFuelHeatGcalPerHour * 100;
     if (!nonnegative(combined.currentBioPercent)) return output;
     output.combined = combined;
     return output;

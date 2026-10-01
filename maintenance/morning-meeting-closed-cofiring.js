@@ -18,17 +18,21 @@
   // The persisted closed summary is intentionally compact. Some ratio fields
   // live only in snapshot.result. Fill only missing summary fields from that
   // already-saved result; never query/recalculate or override summary values.
+  // COFIRING_TOTAL_HEAT_BASIS_V2_R3: older compact summaries may contain a Coal+Bio-only Bio ratio.
+  // Rehydrate Bio ratio from the already-saved full result; do not re-query or rewrite DB rows.
   function closedCoalBioRatio(result) {
-    const coal = number(result?.heats?.coal);
+    const direct = number(result?.fuelRatios?.bio) ?? number(result?.ratios?.bio);
+    if (direct !== null) return direct;
     const bio = number(result?.heats?.bio);
-    return coal !== null && bio !== null && coal + bio > 0
-      ? bio / (coal + bio) * 100
-      : null;
+    const total = number(result?.heats?.total);
+    return bio !== null && total !== null && total > 0 ? bio / total * 100 : null;
   }
 
   function compatClosedUnitSummary(summary, result) {
     const value = summary && typeof summary === 'object' ? {...summary} : {};
-    if (value.bioRatio === undefined) value.bioRatio = closedCoalBioRatio(result);
+    const totalHeatBioRatio = closedCoalBioRatio(result);
+    if (totalHeatBioRatio !== null) value.bioRatio = totalHeatBioRatio;
+    else if (value.bioRatio === undefined) value.bioRatio = null;
     if (value.organicGroupRatio === undefined) {
       value.organicGroupRatio =
         result?.fuelRatios?.organicGroup ??
@@ -49,7 +53,9 @@
 
   function compatClosedCombinedSummary(summary, result) {
     const value = summary && typeof summary === 'object' ? {...summary} : {};
-    if (value.bioRatio === undefined) value.bioRatio = closedCoalBioRatio(result);
+    const totalHeatBioRatio = closedCoalBioRatio(result);
+    if (totalHeatBioRatio !== null) value.bioRatio = totalHeatBioRatio;
+    else if (value.bioRatio === undefined) value.bioRatio = null;
     if (value.organicGroupRatio === undefined) {
       value.organicGroupRatio =
         result?.fuelRatios?.organicGroup ??

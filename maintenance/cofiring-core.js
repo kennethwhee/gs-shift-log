@@ -461,11 +461,14 @@
     return {period,units,combined:{heats:combinedHeats,ratios:combinedRatios,fuelRatios:combinedFuelRatios},warnings,sourceKind:'dataparc-period-summary',qualityVerified,productionReady:false,databaseWritten:false,calorifics:actualCalorifics,coefficients:actualCoefficients};
   }
 
+  // COFIRING_TOTAL_HEAT_BASIS_V2_R3: closed summaries use Bio / total fuel heat.
   function summaryFromResult(result) {
     const n = value => typeof value === 'number' && Number.isFinite(value) ? value : null;
     const bioShare = value => {
-      const coal = n(value?.heats?.coal), bio = n(value?.heats?.bio);
-      return coal === null || bio === null || coal + bio <= 0 ? null : bio / (coal + bio) * 100;
+      const direct = n(value?.fuelRatios?.bio) ?? n(value?.ratios?.bio);
+      if (direct !== null) return direct;
+      const bio = n(value?.heats?.bio), total = n(value?.heats?.total);
+      return bio === null || total === null || total <= 0 ? null : bio / total * 100;
     };
     const ratios = value => ({ bioRatio: bioShare(value),
       organicGroupRatio: n(value?.fuelRatios?.organicGroup),

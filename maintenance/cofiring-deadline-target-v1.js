@@ -65,8 +65,8 @@
       status: 'invalid_period', ready: false, message: '', targetPercent,
       targetDate: null, dataAsOfLocal: null, deadlineLocal: null,
       dataAsOfMs: null, deadlineMs: null, elapsedHours: null, remainingHours: null, lagHours: null,
-      coalAssumption: null, coalTonPerHour: null, currentBioTonPerHour: null,
-      currentMeasuredBioTonPerHour: null, projectedCoalTon: null, targetTotalBioTon: null,
+      coalAssumption: null, coalTonPerHour: null, organicTonPerHour: null, manureTonPerHour: null, currentBioTonPerHour: null,
+      currentMeasuredBioTonPerHour: null, projectedCoalTon: null, projectedOrganicTon: null, projectedManureTon: null, targetTotalBioTon: null,
       additionalBioTon: null, targetBioTonPerHour: null, targetMeasuredBioTonPerHour: null,
       projectedRatioPercent: null, exactTargetPossible: false
     };
@@ -94,13 +94,16 @@
     // query deadline, not an extra accounting minute in an already finished day.
     if (end === midnight || now >= deadline) return stop('closed', '마감된 날짜입니다. 추가 투입 목표를 계산하지 않습니다.');
     if (!unit || unit.coal?.complete !== true || unit.bio?.complete !== true ||
-        !nonnegative(unit.coal.quantity) || !nonnegative(unit.bio.quantity)) {
-      return stop('incomplete_data', 'Coal·Bio 누적 실사용량을 확인한 뒤 마감 목표를 계산합니다.');
+        unit.organic?.complete !== true || unit.manure?.complete !== true ||
+        !nonnegative(unit.coal.quantity) || !nonnegative(unit.bio.quantity) ||
+        !nonnegative(unit.organic.quantity) || !nonnegative(unit.manure.quantity)) {
+      return stop('incomplete_data', 'Coal·Bio·유기성·축분 누적 실사용량을 확인한 뒤 마감 목표를 계산합니다.');
     }
-    const coalCV = unit.calorifics?.coal, bioCV = unit.calorifics?.bio;
+    const coalCV = unit.calorifics?.coal, bioCV = unit.calorifics?.bio,
+      organicCV = unit.calorifics?.organic, manureCV = unit.calorifics?.manure;
     const coalCoefficient = unit.coal.coefficient, bioCoefficient = unit.bio.coefficient;
-    if (![coalCV, bioCV, coalCoefficient, bioCoefficient].every(positive)) {
-      return stop('invalid_settings', 'Coal·Bio 발열량과 보정계수는 0보다 큰 값이어야 합니다.');
+    if (![coalCV, bioCV, organicCV, manureCV, coalCoefficient, bioCoefficient].every(positive)) {
+      return stop('invalid_settings', 'Coal·Bio·유기성·축분 발열량과 Coal·Bio 보정계수는 0보다 큰 값이어야 합니다.');
     }
     const specifiedCoal = Object.prototype.hasOwnProperty.call(options, 'coalTonPerHour');
     const coalRate = specifiedCoal ? options.coalTonPerHour : unit.coal.quantity / result.elapsedHours;
@@ -108,8 +111,15 @@
 
     // quantity has already been corrected by CofiringCore. Do not multiply its
     // coefficient twice. The assumed coal rate and target are corrected tons.
+    // COFIRING_TOTAL_HEAT_BASIS_V2_R3: target Bio share uses total fuel heat. Organic/manure continue at the selected-period average.
+    const organicRate = unit.organic.quantity / result.elapsedHours;
+    const manureRate = unit.manure.quantity / result.elapsedHours;
     const projectedCoal = unit.coal.quantity + coalRate * result.remainingHours;
-    const totalBio = (targetPercent / (100 - targetPercent)) * projectedCoal * coalCV / bioCV;
+    const projectedOrganic = unit.organic.quantity + organicRate * result.remainingHours;
+    const projectedManure = unit.manure.quantity + manureRate * result.remainingHours;
+    const nonBioHeat = projectedCoal * coalCV + projectedOrganic * organicCV + projectedManure * manureCV;
+    const targetBioHeat = (targetPercent / (100 - targetPercent)) * nonBioHeat;
+    const totalBio = targetBioHeat / bioCV;
     const difference = totalBio - unit.bio.quantity;
     const tolerance = 1e-10 * Math.max(1, Math.abs(totalBio), unit.bio.quantity);
     const additionalBio = Math.abs(difference) <= tolerance ? 0 : Math.max(0, difference);
@@ -117,22 +127,22 @@
     const measuredBioRate = bioRate / bioCoefficient;
     const currentBioRate = unit.bio.quantity / result.elapsedHours;
     const currentMeasuredBioRate = unit.bio.quantity / bioCoefficient / result.elapsedHours;
-    const coalHeat = projectedCoal * coalCV;
     const bioHeat = (unit.bio.quantity + additionalBio) * bioCV;
-    const totalHeat = coalHeat + bioHeat;
+    const totalHeat = nonBioHeat + bioHeat;
     if (![projectedCoal, totalBio, difference, additionalBio, bioRate, measuredBioRate, currentBioRate, currentMeasuredBioRate,
-      coalHeat, bioHeat, totalHeat].every(finite)) return stop('invalid_calculation', '입력값 범위가 너무 커서 마감 목표를 계산할 수 없습니다.');
-    if (totalHeat <= 0) return stop('no_heat', `Coal·Bio 투입열량이 없어 ${targetPercent}% 마감 목표를 계산할 수 없습니다.`);
+      projectedOrganic, projectedManure, nonBioHeat, bioHeat, totalHeat].every(finite)) return stop('invalid_calculation', '입력값 범위가 너무 커서 마감 목표를 계산할 수 없습니다.');
+    if (totalHeat <= 0) return stop('no_heat', `전체 연료 투입열량이 없어 ${targetPercent}% 마감 목표를 계산할 수 없습니다.`);
     Object.assign(result, {
       ready: true, coalAssumption: specifiedCoal ? 'specified' : 'period-average', coalTonPerHour: coalRate,
+      organicTonPerHour: organicRate, manureTonPerHour: manureRate,
       currentBioTonPerHour: currentBioRate,
       currentMeasuredBioTonPerHour: currentMeasuredBioRate,
-      projectedCoalTon: projectedCoal, targetTotalBioTon: totalBio, additionalBioTon: additionalBio,
+      projectedCoalTon: projectedCoal, projectedOrganicTon: projectedOrganic, projectedManureTon: projectedManure, targetTotalBioTon: totalBio, additionalBioTon: additionalBio,
       targetBioTonPerHour: bioRate, targetMeasuredBioTonPerHour: measuredBioRate,
       projectedRatioPercent: bioHeat / totalHeat * 100, exactTargetPossible: difference >= -tolerance
     });
     if (!result.exactTargetPossible) {
-      return stop('above_target', `예상 Coal 투입량에서는 Bio를 추가하지 않아도 마감 혼소율이 ${targetPercent}%를 넘습니다.`);
+      return stop('above_target', `예상 Coal·유기성·축분 투입량에서는 Bio를 추가하지 않아도 마감 혼소율이 ${targetPercent}%를 넘습니다.`);
     }
     return stop('ready', '자료 기준 시각부터 마감까지의 필요 Bio 투입량입니다.');
   }

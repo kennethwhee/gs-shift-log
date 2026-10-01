@@ -16,9 +16,10 @@
   function tonInput2(value){if(value==null||value==='')return '';const n=Number(value);return Number.isFinite(n)?n.toFixed(2):String(value);}
   const pct=v=>typeof v==='number'&&Number.isFinite(v)?v.toFixed(2)+'%':'—';
   const sum=values=>values.every(v=>typeof v==='number'&&Number.isFinite(v))?values.reduce((a,b)=>a+b,0):null;
-  function coalBioHeat(unit){const coal=unit?.heats?.coal,bio=unit?.heats?.bio;return typeof coal==='number'&&Number.isFinite(coal)&&typeof bio==='number'&&Number.isFinite(bio)?coal+bio:null;}
-  function coalBioRatio(unit){const total=coalBioHeat(unit),bio=unit?.heats?.bio;return total!==null&&total>0&&typeof bio==='number'&&Number.isFinite(bio)?bio/total*100:null;}
-  function combinedCoalBio(result){const coal=result?.combined?.heats?.coal,bio=result?.combined?.heats?.bio;const total=typeof coal==='number'&&Number.isFinite(coal)&&typeof bio==='number'&&Number.isFinite(bio)?coal+bio:null;return {heat:total,ratio:total!==null&&total>0?bio/total*100:null};}
+  // COFIRING_TOTAL_HEAT_BASIS_V2_R3: legacy helper names retained for callers; values now use total fuel heat.
+  function coalBioHeat(unit){const total=unit?.heats?.total;return typeof total==='number'&&Number.isFinite(total)?total:null;}
+  function coalBioRatio(unit){const direct=unit?.fuelRatios?.bio??unit?.ratios?.bio;if(typeof direct==='number'&&Number.isFinite(direct))return direct;const total=coalBioHeat(unit),bio=unit?.heats?.bio;return total!==null&&total>0&&typeof bio==='number'&&Number.isFinite(bio)?bio/total*100:null;}
+  function combinedCoalBio(result){const total=result?.combined?.heats?.total,direct=result?.combined?.fuelRatios?.bio??result?.combined?.ratios?.bio,bio=result?.combined?.heats?.bio;const heat=typeof total==='number'&&Number.isFinite(total)?total:null;const ratio=typeof direct==='number'&&Number.isFinite(direct)?direct:heat!==null&&heat>0&&typeof bio==='number'&&Number.isFinite(bio)?bio/heat*100:null;return {heat,ratio};}
   function cachedReference(state,spec){
     const item=state?.item,report=item?.result?.report,base=report?.reference,reference=base?{...base,organicInventoryReady:report?.organicInventoryReady===true,organicInventory:report?.organicInventory||null}:null;
     if(!state?.authenticated||!state.canQuery||!item?.saved||!reference||item.active||item.loading||item.submitting||item.error)return null;
@@ -146,7 +147,7 @@
       <div class="cfv52-summary-grid" data-cfv52-summary-grid>${summaryPlaceholder()}</div>
       <p class="cfv-target-feedback" id="cfv-bio-target-feedback" data-cfv-target-feedback role="status" aria-live="polite"></p>
 
-      <details class="cfv6-target-basis"><summary>마감까지 Bio <span data-cfv-target-label>25%</span> 필요 투입량 계산 기준</summary><p>해당일 00:00부터 조회한 누적 Coal·Bio 사용량을 기준으로, 다음 날 00:01에 Bio 열량이 Coal+Bio 열량의 목표 비율이 되도록 환산합니다. 남은 시간의 Coal 투입량은 조회 구간의 시간당 평균이 유지된다고 가정합니다.</p><p>마감 예상 Coal = 누적 Coal + Coal 평균(t/h) × 자료 기준 시각부터 남은 시간. 추가 Bio 필요량 = 마감 예상 Coal × Coal 발열량 ÷ Bio 발열량 × 목표비율 ÷ (100 − 목표비율) − 누적 Bio. 목표비율은 % 단위이며, 추가 필요량이 음수이면 0t로 표시합니다. 이를 남은 시간으로 나누어 Bio t/h를 표시하며, 보정 전 계측 투입량도 함께 환산합니다.</p><p>오늘 날짜의 <strong>일별 계산</strong>은 00:00부터 현재까지의 혼소율과 마감 목표를 함께 확인합니다. 00시부터 시작하지 않은 구간이나 여러 날의 결과는 하루 누적량이 없어 목표를 계산하지 않습니다. 자료 기준 시각 이후의 실제 사용량은 새 조회에서 반영됩니다. 혼소 조정을 적용하면 조정된 표시값 기준입니다.</p></details>
+      <details class="cfv6-target-basis"><summary>마감까지 Bio <span data-cfv-target-label>25%</span> 필요 투입량 계산 기준</summary><p>해당일 00:00부터 조회한 누적 Coal·Bio·유기성·축분 사용량을 기준으로, 다음 날 00:01에 Bio 열량이 전체 연료 열량의 목표 비율이 되도록 환산합니다. 남은 시간의 Coal·유기성·축분 투입량은 조회 구간의 시간당 평균이 유지된다고 가정합니다.</p><p>마감 예상 비Bio 열량 = 마감 예상 Coal·유기성·축분 열량의 합. 추가 Bio 필요량은 Bio 열량 ÷ 전체 연료 열량이 목표비율이 되도록 역산한 뒤 누적 Bio를 뺍니다. 목표비율은 % 단위이며, 추가 필요량이 음수이면 0t로 표시합니다. 이를 남은 시간으로 나누어 Bio t/h를 표시하며, 보정 전 계측 투입량도 함께 환산합니다.</p><p>오늘 날짜의 <strong>일별 계산</strong>은 00:00부터 현재까지의 혼소율과 마감 목표를 함께 확인합니다. 00시부터 시작하지 않은 구간이나 여러 날의 결과는 하루 누적량이 없어 목표를 계산하지 않습니다. 자료 기준 시각 이후의 실제 사용량은 새 조회에서 반영됩니다. 혼소 조정을 적용하면 조정된 표시값 기준입니다.</p></details>
 
       </section>
       <details class="cfv52-fold">
@@ -178,7 +179,7 @@
       </details>
 
       <details class="cfv5-warnings" data-cfv5-warning-box hidden><summary>자료 확인 내용</summary><ul data-cfv5-warnings></ul></details>
-      <p class="cfv5-foot"><strong>계산 기준</strong> 바이오 혼소율은 Coal+Bio 열량 기준입니다. 유기성 및 축분 혼소율과 종합혼소율은 전체 연료 열량 기준이며, 사용량 빈칸은 0t로 계산합니다.</p>
+      <p class="cfv5-foot"><strong>계산 기준</strong> 바이오·유기성 및 축분·종합 혼소율은 모두 Coal+Bio+유기성+축분 전체 연료 열량 기준입니다. 필수 연료 자료가 확정되지 않으면 목표 혼소율을 임의의 0값으로 계산하지 않습니다.</p>
     </div>`;
   }
   function summaryPlaceholder(targetPercent=25){
@@ -202,7 +203,7 @@
       <div class="cfv10-target-head"><div class="cfv-target-inline" data-cfv-target-slot="${unit}"><button type="button" class="cfv-dark-target-edit" data-cfv-target-edit="${unit}" aria-expanded="false" aria-controls="cfv-dark-target-editor" aria-label="Bio ${goal}% 목표 수정, 1·2호기 공통" title="1·2호기 공통 · 이 브라우저에 저장"><span class="cfv6-target-label">Bio 목표 <b>${goal}%</b></span><span class="cfv-dark-edit-icon" aria-hidden="true">✎</span></button></div><span class="cfv10-target-deadline">마감까지 필요 투입량</span></div>
       <div class="cfv10-target-main"><strong class="cfv10-target-value" data-cfv6-target-bio>${ready?num(reference.targetBioTonPerHour):closed?'마감 완료':'—'}${ready?' <small>t/h</small>':''}</strong></div>
       <p class="cfv10-target-warning" role="status">${warning?escapeHtml(warning):ready?escapeHtml(deadlineShort)+' 마감 기준':escapeHtml(closed?'추가 투입 목표 없음':message||state)}</p>
-      ${ready?`<details class="cfv10-target-details" data-cfv10-target-details${open?' open':''}><summary>계산 근거</summary><div class="cfv10-target-detail-body"><p data-cfv8-target-basis>자료 ${escapeHtml(basis)} → 마감 ${escapeHtml(deadline)} · ${num(reference.remainingHours,2)}시간 기준</p><dl><div><dt>조회 Bio 평균</dt><dd><b data-cfv6-current-bio>${num(reference.currentBioTonPerHour)} t/h</b></dd></div><div><dt>추가 Bio 필요량</dt><dd data-cfv6-target-delta>${num(reference.additionalBioTon)} t</dd></div><div><dt>Coal 유지 가정</dt><dd><b data-cfv6-target-coal>${num(reference.coalTonPerHour)} t/h</b></dd></div><div><dt>Bio 계측 투입 환산</dt><dd><b data-cfv8-target-measured>${num(reference.targetMeasuredBioTonPerHour)} t/h</b></dd></div></dl><p class="cfv8-target-note" data-cfv8-target-note>자료 이후 ${num(reference.lagHours*60,1)}분 경과 · 현재 구간을 다시 [계산하기]로 조회하면 최신 자료로 갱신합니다.</p></div></details>`:''}
+      ${ready?`<details class="cfv10-target-details" data-cfv10-target-details${open?' open':''}><summary>계산 근거</summary><div class="cfv10-target-detail-body"><p data-cfv8-target-basis>자료 ${escapeHtml(basis)} → 마감 ${escapeHtml(deadline)} · ${num(reference.remainingHours,2)}시간 기준</p><dl><div><dt>조회 Bio 평균</dt><dd><b data-cfv6-current-bio>${num(reference.currentBioTonPerHour)} t/h</b></dd></div><div><dt>추가 Bio 필요량</dt><dd data-cfv6-target-delta>${num(reference.additionalBioTon)} t</dd></div><div><dt>Coal 유지 가정</dt><dd><b data-cfv6-target-coal>${num(reference.coalTonPerHour)} t/h</b></dd></div><div><dt>유기성 유지 가정</dt><dd><b>${num(reference.organicTonPerHour)} t/h</b></dd></div><div><dt>축분 유지 가정</dt><dd><b>${num(reference.manureTonPerHour)} t/h</b></dd></div><div><dt>Bio 계측 투입 환산</dt><dd><b data-cfv8-target-measured>${num(reference.targetMeasuredBioTonPerHour)} t/h</b></dd></div></dl><p class="cfv8-target-note" data-cfv8-target-note>자료 이후 ${num(reference.lagHours*60,1)}분 경과 · 현재 구간을 다시 [계산하기]로 조회하면 최신 자료로 갱신합니다.</p></div></details>`:''}
     </section>`;
   }
   function fuelUsageMarkup(unit){
@@ -1703,7 +1704,7 @@
           <th>실사용량<br><small>기간 / 평균</small></th>
           <th>열량<br><small>Gcal</small></th>
 
-          <th>Coal+Bio<br>열량</th>
+          <th>전체<br>열량</th>
           <th>Bio<br>혼소율</th>
         </tr>
       `;

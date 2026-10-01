@@ -55,26 +55,21 @@
     return payload;
   }
 
+  // COFIRING_TOTAL_HEAT_BASIS_V2_R3: read the canonical total-heat Bio ratio from the stored result.
   function unitBioRatio(unit){
-    const coal=number(unit?.heats?.coal);
-    const bio=number(unit?.heats?.bio);
-    const total=(coal??0)+(bio??0);
-    return coal===null||bio===null||total<=0?null:bio/total*100;
+    const direct=number(unit?.fuelRatios?.bio)??number(unit?.ratios?.bio);
+    if(direct!==null)return direct;
+    const bio=number(unit?.heats?.bio),total=number(unit?.heats?.total);
+    return bio===null||total===null||total<=0?null:bio/total*100;
   }
 
   function combinedBioRatio(result){
-    let coal=number(result?.combined?.heats?.coal);
-    let bio=number(result?.combined?.heats?.bio);
-    if(coal===null){
-      const a=number(result?.units?.unit1?.heats?.coal),b=number(result?.units?.unit2?.heats?.coal);
-      if(a!==null&&b!==null)coal=a+b;
-    }
-    if(bio===null){
-      const a=number(result?.units?.unit1?.heats?.bio),b=number(result?.units?.unit2?.heats?.bio);
-      if(a!==null&&b!==null)bio=a+b;
-    }
-    const total=(coal??0)+(bio??0);
-    return coal===null||bio===null||total<=0?null:bio/total*100;
+    const direct=number(result?.combined?.fuelRatios?.bio)??number(result?.combined?.ratios?.bio);
+    if(direct!==null)return direct;
+    let bio=number(result?.combined?.heats?.bio),total=number(result?.combined?.heats?.total);
+    if(bio===null){const a=number(result?.units?.unit1?.heats?.bio),b=number(result?.units?.unit2?.heats?.bio);if(a!==null&&b!==null)bio=a+b;}
+    if(total===null){const a=number(result?.units?.unit1?.heats?.total),b=number(result?.units?.unit2?.heats?.total);if(a!==null&&b!==null)total=a+b;}
+    return bio===null||total===null||total<=0?null:bio/total*100;
   }
 
   function unitSnapshot(result,unitKey,fallback={}){

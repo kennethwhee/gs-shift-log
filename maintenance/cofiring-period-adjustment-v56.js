@@ -99,7 +99,8 @@
     saveStored(spec,base,resolved);
     return {loaded:true,adjusted:true,result:resolved.result,revision:bundle.revision};
   }
-  function ratioBio(unit){const c=unit?.heats?.coal,b=unit?.heats?.bio,t=Number(c)+Number(b);return Number.isFinite(t)&&t>0?Number(b)/t*100:null;}
+  // COFIRING_TOTAL_HEAT_BASIS_V2_R3: adjustment preview displays Bio / total fuel heat.
+  function ratioBio(unit){const direct=unit?.fuelRatios?.bio??unit?.ratios?.bio;if(finite(direct))return direct;const b=unit?.heats?.bio,t=unit?.heats?.total;return finite(b)&&finite(t)&&t>0?b/t*100:null;}
   const COAL_REVIEW_TOAST_MARKER_V13_R1=
     'COFIRING-MAX-INLINE-MODAL-MESSAGE-V14-R1';
 
