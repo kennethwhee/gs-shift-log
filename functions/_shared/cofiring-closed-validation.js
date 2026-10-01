@@ -106,6 +106,7 @@ export function validateClosedSnapshot(body, source, now = Date.now()) {
   if (!UNITS.every(unit => result.units[unit].coal.complete && result.units[unit].bio.complete)) {
     fail('석탄·바이오 원본 경계값을 확정하지 못해 마감하지 않았습니다.');
   }
+  const originalResult = result;
   const shown = snapshot.result;
   if (!object(shown)) fail('계산 결과가 없습니다. 다시 계산한 뒤 마감해 주세요.');
   if (shown.adjustment?.applied === true) {
@@ -171,10 +172,10 @@ export function validateClosedSnapshot(body, source, now = Date.now()) {
   // Client-provided summary fields are never used as stored calculation results.
   const summary = core.summaryFromResult(result);
   return { summary, snapshot: {
-    schemaVersion: 1, validationVersion: 5, saveId: crypto.randomUUID(),
+    schemaVersion: 1, validationVersion: 6, saveId: crypto.randomUUID(),
     targetDate: body.targetDate, period: spec, sourceRequestId: body.sourceRequestId,
     settings, manual, organicUsage, organicInventory: saved.report.reference.organicInventory ?? null,
     manualBlankPolicy: inputMode==='manual'?'organic-explicit-manure-blank-zero':'organic-inventory-required-manure-blank-zero',
-    result, summary, capturedAt: new Date(now).toISOString()
+    ...(shown.adjustment?.applied===true?{originalResult}:{}), result, summary, capturedAt: new Date(now).toISOString()
   } };
 }

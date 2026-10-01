@@ -102,12 +102,13 @@ async function publicRow(row,{includeSnapshot=false}={}){
   let summary=null,snapshot=null;
   try{summary=JSON.parse(row.summary_json||'null');}catch(_){}
   if(row.snapshot_json){try{snapshot=JSON.parse(row.snapshot_json);}catch(_){}}
+  const adjustmentApplied=Number(row.adjustment_applied)===1||row.adjustment_applied===true||snapshot?.result?.adjustment?.applied===true;
   const identity=JSON.stringify([row.target_date,row.revision,row.source_request_id,row.created_at,
     row.updated_at,row.saved_by_id,row.saved_by_name,row.save_id??snapshot?.saveId??'',row.summary_json]);
   const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(identity));
   const version=[...new Uint8Array(digest)].map(n=>n.toString(16).padStart(2,'0')).join('');
   return {targetDate:String(row.target_date||''),revision:Number(row.revision)||1,version,
-    sourceRequestId:String(row.source_request_id||''),summary,
+    sourceRequestId:String(row.source_request_id||''),summary,adjustmentApplied,
     savedById:String(row.saved_by_id||''),savedByName:String(row.saved_by_name||''),
     createdAt:String(row.created_at||''),updatedAt:String(row.updated_at||''),
     ...(includeSnapshot?{snapshot}:{})};
@@ -133,6 +134,26 @@ async function closedInventory(db,item){
     // Missing/old source contracts must not prevent reading saved closed data.
     return null;
   }
+}
+async function hydrateClosedComparison(db,item){
+  if(!item?.snapshot||item.snapshot.result?.adjustment?.applied!==true||item.snapshot.originalResult)return item;
+  try{
+    const source=await db.prepare(`SELECT id,target_date,status,result_json FROM ois_data_requests
+      WHERE id=? AND target_date=? AND request_type='cofiring_period' AND status='complete' LIMIT 1`)
+      .bind(item.sourceRequestId,item.targetDate).first();
+    if(!source)return item;
+    const canonical=validateClosedSnapshot({
+      targetDate:item.targetDate,
+      sourceRequestId:item.sourceRequestId,
+      snapshot:item.snapshot
+    },source);
+    if(canonical?.snapshot?.originalResult){
+      item.snapshot={...item.snapshot,originalResult:canonical.snapshot.originalResult};
+    }
+  }catch{
+    // Older or incomplete sources must not make the saved closed record unreadable.
+  }
+  return item;
 }
 const MAX_BODY_BYTES=1500000;
 const versioned=(revision,version)=>Number.isSafeInteger(revision)&&revision>=0&&
@@ -167,13 +188,17 @@ export async function onRequestGet(context){
     await ensureSchema(db);
     if(targetDate){
       const item=await publicRow(await currentRow(db,targetDate),{includeSnapshot:true});
-      if(item)item.organicInventory=await closedInventory(db,item);
+      if(item){
+        await hydrateClosedComparison(db,item);
+        item.organicInventory=await closedInventory(db,item);
+      }
       return json({ok:true,item});
     }
     const requested=Number.parseInt(url.searchParams.get('limit')||'120',10);
     const limit=month?31:Math.min(366,Math.max(1,Number.isFinite(requested)?requested:120));
     const columns=`target_date,revision,source_request_id,summary_json,saved_by_id,saved_by_name,created_at,updated_at,
-      CASE WHEN json_valid(snapshot_json) THEN json_extract(snapshot_json,'$.saveId') ELSE '' END AS save_id`;
+      CASE WHEN json_valid(snapshot_json) THEN json_extract(snapshot_json,'$.saveId') ELSE '' END AS save_id,
+      CASE WHEN json_valid(snapshot_json) THEN json_extract(snapshot_json,'$.result.adjustment.applied') ELSE 0 END AS adjustment_applied`;
     const rows=await db.prepare(`SELECT ${columns} FROM cofiring_closed_snapshots
       ${month?'WHERE target_date>=? AND target_date<?':''} ORDER BY target_date DESC LIMIT ?`)
       .bind(...(month?[month+'-01',month+'-32',limit]:[limit])).all();
