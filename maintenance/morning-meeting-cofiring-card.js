@@ -819,7 +819,7 @@
         setValue(VALUE_IDS[prefix + suffix], formatRatio(snapshot[unit][field]));
       }
     }
-    setStatus("complete", "마감자료");
+    setStatus("complete", snapshot.adjustmentApplied === true ? "혼소조정 적용" : "마감자료");
   }
 
   function renderClosedState() {
@@ -888,6 +888,12 @@
     try {
       const snapshot = await provider.load(targetDate, { force: options.force === true });
       if (refreshToken !== activeRefreshToken || getTargetDate() !== targetDate) return;
+      // A period apply/CLEAR may have superseded this request while it was pending.
+      // Render only the provider's current generation, not this stale completion.
+      if (provider.state(targetDate).status === "loading" || snapshot !== provider.peek(targetDate)) {
+        renderClosedState();
+        return;
+      }
       if (isSelectedDateResetActive(targetDate)) {
         clearAllValues();
         setStatus("idle", "조회 대기");
@@ -902,6 +908,10 @@
       }
     } catch (error) {
       if (refreshToken !== activeRefreshToken || getTargetDate() !== targetDate) return;
+      if (["loading", "complete"].includes(provider.state(targetDate).status)) {
+        renderClosedState();
+        return;
+      }
       if (isSelectedDateResetActive(targetDate)) {
         clearAllValues();
         setStatus("idle", "조회 대기");

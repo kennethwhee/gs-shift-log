@@ -65,9 +65,57 @@
     return value;
   }
 
+  // MORNING_COFIRING_EFFECTIVE_SYNC_V1
+  // A hydrated GET contains the server's latest exact-period apply/CLEAR state.
+  // Rebuild ALL co-firing fields from that one result. Never fill adjusted fuel
+  // quantities or ratios with an older compact summary, and never adjust twice.
+  function closedEffectiveState(item, snapshot) {
+    const hasEffective = Object.hasOwn(item, 'effectiveResult');
+    const hasFlag = Object.hasOwn(item, 'adjustmentApplied');
+    if (hasFlag && typeof item.adjustmentApplied !== 'boolean') {
+      throw new Error('마감자료의 혼소 조정 상태를 확인하지 못했습니다.');
+    }
+    const clearedLegacy = !hasEffective && item.adjustmentApplied === false &&
+      snapshot.result?.adjustment?.applied === true;
+    const result = hasEffective ? item.effectiveResult :
+      clearedLegacy ? snapshot.originalResult : snapshot.result;
+    const adjustmentApplied = hasFlag ? item.adjustmentApplied : result?.adjustment?.applied === true;
+
+    if (hasEffective || clearedLegacy) {
+      if (!result || typeof result !== 'object' || Array.isArray(result) ||
+          !result.units?.unit1 || !result.units?.unit2 || !result.combined) {
+        throw new Error('조정·원복을 반영한 최종 마감자료가 없습니다. 다시 조회해 주세요.');
+      }
+      if (!['unit1', 'unit2'].every(unit =>
+          ['coal', 'bio', 'organic', 'manure'].every(fuel => number(result.units[unit]?.[fuel]?.quantity) !== null))) {
+        throw new Error('최종 마감자료의 연료 사용량이 올바르지 않습니다.');
+      }
+      for (const key of ['startLocal', 'endLocal']) {
+        if (result.period?.[key] !== undefined && result.period[key] !== snapshot.period[key]) {
+          throw new Error('최종 혼소 조정값의 조회 기간이 마감자료와 다릅니다.');
+        }
+      }
+      if (!adjustmentApplied && result.adjustment?.applied === true) {
+        throw new Error('혼소 조정 원복 결과를 확인하지 못했습니다. 다시 조회해 주세요.');
+      }
+      return {
+        adjustmentApplied,
+        adjustmentSource: String(item.adjustmentSource || 'closed_effective'),
+        summary: {
+          unit1: compatClosedUnitSummary(null, result.units.unit1),
+          unit2: compatClosedUnitSummary(null, result.units.unit2),
+          combined: compatClosedCombinedSummary(null, result.combined)
+        }
+      };
+    }
+    // Compatibility for older, non-hydrated closes: preserve their saved summary.
+    return {summary: item.summary, adjustmentApplied,
+      adjustmentSource: String(item.adjustmentSource || 'closed_snapshot')};
+  }
+
   function normalizeItem(item, date) {
     if (item === null) return null;
-    const snapshot = item?.snapshot, summary = item?.summary;
+    const snapshot = item?.snapshot;
     if (!dateValid(date) || item?.targetDate !== date || snapshot?.targetDate !== date ||
         snapshot.schemaVersion !== 1 || !Number.isSafeInteger(item.revision) || item.revision < 1 ||
         !item.sourceRequestId || snapshot.sourceRequestId !== item.sourceRequestId) {
@@ -97,6 +145,8 @@
       }
       return result;
     };
+    const effective = closedEffectiveState(item, snapshot);
+    const summary = effective.summary;
     const organic = emptyOrganic();
     organic.sludgeTotal = number(snapshot.manual?.receipts?.organic);
     organic.organicSiloTotal = number(snapshot.organicUsage?.endTotal);
@@ -113,6 +163,7 @@
     }
     return { targetDate: date, revision: item.revision, updatedAt: String(item.updatedAt || ''),
       source: 'cofiring-closed-history', period: {startLocal: period.startLocal, endLocal: period.endLocal},
+      adjustmentApplied: effective.adjustmentApplied, adjustmentSource: effective.adjustmentSource,
       unitOne: unit(compatClosedUnitSummary(summary?.unit1, snapshot?.result?.units?.unit1)), unitTwo: unit(compatClosedUnitSummary(summary?.unit2, snapshot?.result?.units?.unit2)), combined: ratios(compatClosedCombinedSummary(summary?.combined, snapshot?.result?.combined)),
       organic, receiptCountNote: '마감자료에는 입고 건수가 저장되어 있지 않습니다.' };
   }
@@ -478,10 +529,45 @@
       invalidate(date); if (date === targetDate()) scheduleSync();
     }
   }
-  function onClosedChange(event) {
-    const date = event?.detail?.targetDate;
+  function reloadChangedCofiringDate(date) {
     if (!dateValid(date)) return;
-    invalidate(date); if (date === targetDate()) { renderOrganic(); void refresh({force: true}); }
+    // Invalidate even for a non-visible date, including a pending older request.
+    // Organic saved-first is a rendering policy, not a co-firing refresh gate.
+    invalidate(date);
+    if (date === targetDate()) {
+      if (isBlocked(date)) { notify(date); return; }
+      void load(date, {force: true}).catch(() => {});
+    }
+  }
+  function onClosedChange(event) {
+    reloadChangedCofiringDate(event?.detail?.targetDate);
+  }
+  function onPeriodAdjustmentChange(event) {
+    const start = event?.detail?.start, end = event?.detail?.end;
+    const date = typeof start === 'string' ? start.slice(0, 10) : '';
+    if (!dateValid(date) || start !== date + 'T00:00') return;
+    const next = new Date(date + 'T00:00:00Z'); next.setUTCDate(next.getUTCDate() + 1);
+    const nextDate = next.toISOString().slice(0, 10);
+    if (![nextDate + 'T00:00', nextDate + 'T00:01'].includes(end)) return;
+    const savedPeriod = cache.get(date)?.item?.period;
+    if (savedPeriod && (savedPeriod.startLocal !== start || savedPeriod.endLocal !== end)) return;
+    reloadChangedCofiringDate(date);
+  }
+  function onAdjustmentStorage(event) {
+    const prefix = 'gspo:cofiring-period-adjust:v56:';
+    if (typeof event?.key !== 'string' || !event.key.startsWith(prefix)) return;
+    try {
+      const parts = decodeURIComponent(event.key.slice(prefix.length)).split('|');
+      if (parts.length === 2) onPeriodAdjustmentChange({detail: {start: parts[0], end: parts[1]}});
+    } catch { /* Ignore unrelated or malformed storage keys. */ }
+  }
+  function refreshCofiringOnActivation() {
+    if (doc.hidden || (!byId('efficiencyMorningMeetingAutoCofiringCard') && !byId(PREFIX + 'SludgeCard'))) return;
+    const date = targetDate();
+    if (!dateValid(date) || isBlocked(date)) return;
+    // Also pick up saves from another browser/PC when this tab is revisited.
+    // Concurrent focus + visibility events share the existing pending request.
+    void load(date, {force: true}).catch(() => {});
   }
   function initialize() {
     doc.addEventListener('click', event => {
@@ -510,10 +596,12 @@
     doc.addEventListener('morningMeetingSelectedDateResetStateChanged', onReset);
     doc.addEventListener('morningMeetingResetStateChanged', onReset);
     root.addEventListener('cofiring:closed-history-changed', onClosedChange);
-    root.addEventListener('focus', () => { if (byId(PREFIX + 'SludgeCard')) void refresh({force: true}); });
-    doc.addEventListener('visibilitychange', () => { if (!doc.hidden && byId(PREFIX + 'SludgeCard')) void refresh({force: true}); });
+    root.addEventListener('cofiring:period-adjustment-changed', onPeriodAdjustmentChange);
+    root.addEventListener('storage', onAdjustmentStorage);
+    root.addEventListener('focus', refreshCofiringOnActivation);
+    doc.addEventListener('visibilitychange', refreshCofiringOnActivation);
     sync();
   }
-  root.morningMeetingClosedCofiring = Object.freeze({targetDate, isBlocked, load, peek, state, refresh, refreshOrganicFromClosing, renderOrganic, valuesForWorkbook});
+  root.morningMeetingClosedCofiring = Object.freeze({version: '20261002-adjustsync-v1', targetDate, isBlocked, load, peek, state, refresh, refreshOrganicFromClosing, renderOrganic, valuesForWorkbook});
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', initialize, {once: true}); else initialize();
 })(typeof window !== 'undefined' ? window : null);

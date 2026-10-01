@@ -43,7 +43,7 @@
 
   function requireLegacyMode() {
     if (usingClosedHistory()) {
-      throw new Error("혼소 조정은 혼소율 메뉴에서 변경한 뒤 마감자료를 다시 저장해 주세요.");
+      throw new Error("혼소 조정은 혼소율 메뉴에서 적용·원복해 주세요. 같은 날짜의 오전회의 카드에 자동 반영됩니다.");
     }
   }
 
@@ -831,7 +831,7 @@ function renderAdjustedValues(result) {
     if (usingClosedHistory()) {
       button.disabled = true;
       button.classList.remove("is-active");
-      button.title = "혼소 조정은 혼소율 메뉴에서 변경한 뒤 마감자료를 다시 저장해 주세요.";
+      button.title = "혼소 조정은 혼소율 메뉴에서 적용·원복해 주세요. 같은 날짜의 오전회의 카드에 자동 반영됩니다.";
       return;
     }
     const active = Boolean(adjustment && result?.ok);
