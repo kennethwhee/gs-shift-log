@@ -7461,12 +7461,11 @@ async function findOisNumericValueBelowKeyword(
 ========================================================= */
 
 async function extractOisWaterTreatmentValues(
-  page
+  page,
+  environmentFrame = null
 ) {
-  const frame =
-    await openOisEnvironmentDailyLog(
-      page
-    );
+  // WATER_RECALC_SAME_FRAME_TRACE_V1: use the same frame that received Recalculate.
+  const frame = environmentFrame || await openOisEnvironmentDailyLog(page);
 
 
   /* =====================================================
@@ -7656,32 +7655,12 @@ async function extractOisWaterTreatmentValues(
     기준일
   ====================================================== */
 
-  const pageText =
-    normalizeOisText(
-      await frame
-        .locator(
-          "body"
-        )
-        .innerText()
-        .catch(
-          () => ""
-        )
-    );
-
-
-  const dateMatch =
-    pageText.match(
-      /기준일\s*(\d{4}\/\d{2}\/\d{2})/
-    );
-
-
-  const sourceDate =
-    dateMatch?.[1]
-      ? dateMatch[1].replace(
-          /\//g,
-          "-"
-        )
-      : "";
+  const waterHelper = require("./water-recalc-same-frame-trace-v1.cjs");
+  const dateSnapshot = await waterHelper.snapshot(frame);
+  const sourceDate = waterHelper.observedDate(dateSnapshot);
+  if (environmentFrame && !sourceDate) {
+    throw new Error("수처리 결과 화면의 기준일을 확인하지 못했습니다.");
+  }
 
 
   const result = {
@@ -8169,169 +8148,19 @@ async function setOisEnvironmentDate(
 ========================================================= */
 
 async function clickOisEnvironmentRecalculateButton(
-  page
+  page,
+  environmentFrame = null,
+  targetDate = "",
+  waterTrace = null
 ) {
-  const environmentFrame =
-    await openOisEnvironmentDailyLog(
-      page
-    );
-
-
-  const candidates = [
-    environmentFrame.getByRole(
-      "button",
-      {
-        name:
-          "재계산",
-
-        exact:
-          true
-      }
-    ),
-
-    environmentFrame.locator(
-      'input[type="button"][value="재계산"]'
-    ),
-
-    environmentFrame.locator(
-      'input[type="submit"][value="재계산"]'
-    ),
-
-    environmentFrame.getByText(
-      "재계산",
-      {
-        exact:
-          true
-      }
-    )
-  ];
-
-
-  let recalculateButton =
-    null;
-
-
-  for (
-    const candidate of
-    candidates
-  ) {
-    const candidateCount =
-      await candidate
-        .count()
-        .catch(
-          () => 0
-        );
-
-
-    for (
-      let index = 0;
-      index <
-        candidateCount;
-      index +=
-        1
-    ) {
-      const target =
-        candidate.nth(
-          index
-        );
-
-
-      const isVisible =
-        await target
-          .isVisible()
-          .catch(
-            () => false
-          );
-
-
-      if (
-        !isVisible
-      ) {
-        continue;
-      }
-
-
-      recalculateButton =
-        target;
-
-
-      break;
-    }
-
-
-    if (
-      recalculateButton
-    ) {
-      break;
-    }
-  }
-
-
-  if (
-    !recalculateButton
-  ) {
-    throw new Error(
-      "OIS 환경일지의 재계산 버튼을 찾지 못했습니다."
-    );
-  }
-
-
-  try {
-    await recalculateButton.click({
-      timeout:
-        10000,
-
-      force:
-        true
-    });
-
-  } catch {
-    await recalculateButton.evaluate(
-      element => {
-        const clickableElement =
-          element.closest(
-            `
-              button,
-              input,
-              a,
-              [onclick],
-              [role="button"]
-            `
-          ) ||
-          element;
-
-
-        clickableElement.dispatchEvent(
-          new MouseEvent(
-            "click",
-            {
-              bubbles:
-                true,
-
-              cancelable:
-                true,
-
-              view:
-                window
-            }
-          )
-        );
-      }
-    );
-  }
-
-
-  console.log(
-    "OIS 환경일지 재계산 버튼을 클릭했습니다."
-  );
-
-
-  await page.waitForTimeout(
-    1000
-  );
-
-
-  return environmentFrame;
+  // WATER_RECALC_SAME_FRAME_TRACE_V1: do not reselect a frame when the caller supplies one.
+  const frame = environmentFrame || await openOisEnvironmentDailyLog(page);
+  const waterHelper = require("./water-recalc-same-frame-trace-v1.cjs");
+  await waterHelper.clickRecalculate(frame, targetDate, waterTrace, 10000);
+  console.log("OIS 환경일지 재계산 일반 클릭을 수행했습니다. 처리 결과는 별도로 확인합니다.");
+  if (waterTrace) await waterTrace.waitForQuiet(OIS_QUERY_TIMEOUT, 1000);
+  else await page.waitForTimeout(1000);
+  return frame;
 }
 
 
@@ -8341,7 +8170,9 @@ async function clickOisEnvironmentRecalculateButton(
 
 async function waitForOisWaterTreatmentValues(
   page,
-  targetDate
+  targetDate,
+  environmentFrame = null,
+  waterTrace = null
 ) {
   const startedAt =
     Date.now();
@@ -8371,9 +8202,13 @@ async function waitForOisWaterTreatmentValues(
     try {
       const values =
         await extractOisWaterTreatmentValues(
-          page
+          page,
+          environmentFrame
         );
 
+
+      // WATER_RECALC_SAME_FRAME_TRACE_V1: observation, not a recalc success assertion.
+      if (waterTrace) waterTrace.observeValues(values);
 
       const sourceDate =
         normalizeOisAgentText(
@@ -8529,7 +8364,7 @@ async function waitForOisWaterTreatmentValues(
 
       console.log(
         [
-          `${targetDate} OIS 수처리 재계산 완료 확인`,
+          `${targetDate} OIS 수처리 값 읽기 확인 (재계산 실행 여부는 추적 기록 참조)`,
           `${attemptCount}회차`
         ].join(
           " · "
@@ -8925,21 +8760,30 @@ async function collectOisWaterTreatmentValues(
       );
 
 
-      await setOisEnvironmentDate(
-        page,
-        targetDate
-      );
-
-
-      await clickOisEnvironmentRecalculateButton(
-        page
-      );
-
-
-      return await waitForOisWaterTreatmentValues(
-        page,
-        targetDate
-      );
+      // WATER_RECALC_SAME_FRAME_TRACE_V1: keep the date/query/click/read owner identical.
+      const waterHelper = require("./water-recalc-same-frame-trace-v1.cjs");
+      const waterTrace = waterHelper.createTrace(page, targetDate);
+      let environmentFrame = null;
+      try {
+        environmentFrame = await setOisEnvironmentDate(page, targetDate);
+        waterTrace.setFrame(environmentFrame);
+        const dateSnapshot = await waterTrace.recordFrame(environmentFrame, "after-date-query");
+        waterHelper.assertDate(dateSnapshot, targetDate);
+        await waterTrace.waitForQuiet(OIS_QUERY_TIMEOUT);
+        await clickOisEnvironmentRecalculateButton(page, environmentFrame, targetDate, waterTrace);
+        waterTrace.setPhase("values");
+        const values = await waitForOisWaterTreatmentValues(page, targetDate, environmentFrame, waterTrace);
+        waterTrace.note("values-read-complete", { sourceDate: values.sourceDate });
+        return values;
+      } catch (error) {
+        waterTrace.note("attempt-failed", { message: String(error && error.message || error).slice(0, 1600) });
+        throw error;
+      } finally {
+        if (environmentFrame) {
+          await waterTrace.recordFrame(environmentFrame, "final-frame").catch(() => {});
+        }
+        await waterTrace.finish();
+      }
     };
 
   let result;
