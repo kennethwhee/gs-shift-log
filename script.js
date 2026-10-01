@@ -235085,6 +235085,576 @@ if (
   }
 
 
+
+  /* MORNING_MEETING_AUTO_HISTORY_CURRENT_SOURCES_V3
+     자동적산자료 최신 소스 연동
+
+     기존 이력:
+       completed_history / usage_history / weather / SMP
+       → 그대로 유지
+
+     최신 소스 overlay:
+       전력   → /api/to-night-power
+       유기성 → /api/cofiring-closed-history
+                + /api/solid-fuel-trouble 완료 하역 건수
+
+     자동수치 수동 수정값은 기존 코드에서 마지막에 적용되므로
+     최종 우선순위를 계속 유지한다.
+  */
+
+  function autoHistoryCurrentFiniteNonNegative(value){
+    return (
+      typeof value === "number" &&
+      Number.isFinite(value) &&
+      value >= 0
+    );
+  }
+
+  async function autoHistoryCurrentMapLimit(
+    items,
+    limit,
+    worker
+  ){
+    const values=Array.isArray(items)?items:[];
+    if(values.length===0)return [];
+
+    const results=new Array(values.length);
+    let cursor=0;
+
+    const runners=Array.from(
+      {
+        length:
+          Math.min(
+            Math.max(Number(limit)||1,1),
+            values.length
+          )
+      },
+      async ()=>{
+        while(cursor<values.length){
+          const index=cursor++;
+          results[index]=await worker(
+            values[index],
+            index
+          );
+        }
+      }
+    );
+
+    await Promise.all(runners);
+    return results;
+  }
+
+  function collectAutoHistoryCurrentDates(
+    completedPayload,
+    limestonePayload,
+    weatherPayload,
+    range
+  ){
+    const dates=new Set();
+
+    const add=value=>{
+      const dateValue=normalizeText(value);
+
+      if(
+        isIsoDate(dateValue) &&
+        dateValue>=range.startDate &&
+        dateValue<=range.endDate
+      ){
+        dates.add(dateValue);
+      }
+    };
+
+    for(
+      const item of
+      Array.isArray(completedPayload?.items)
+        ? completedPayload.items
+        : []
+    ){
+      add(item?.targetDate);
+    }
+
+    for(
+      const item of
+      Array.isArray(limestonePayload?.items)
+        ? limestonePayload.items
+        : []
+    ){
+      add(item?.usageDate);
+    }
+
+    /*
+      서버가 overrides를 completed_history 응답에 포함하는 경우
+      해당 날짜도 후보에 포함한다.
+      변수명/내부 구현에는 의존하지 않는다.
+    */
+    for(
+      const item of
+      Array.isArray(completedPayload?.overrides)
+        ? completedPayload.overrides
+        : []
+    ){
+      add(
+        item?.targetDate ||
+        item?.recordDate
+      );
+    }
+
+    /*
+      날씨 저장일은 회의일이므로
+      실제 자동수치 행 날짜는 하루 전이다.
+    */
+    for(
+      const item of
+      Array.isArray(weatherPayload?.items)
+        ? weatherPayload.items
+        : []
+    ){
+      const meetingDate=
+        normalizeText(
+          item?.forecastDate ||
+          item?.sourceDate ||
+          item?.targetDate
+        );
+
+      if(isIsoDate(meetingDate)){
+        add(
+          addDateDays(
+            meetingDate,
+            -1
+          )
+        );
+      }
+    }
+
+    return [...dates].sort();
+  }
+
+  async function fetchAutoHistoryCurrentJson(
+    url,
+    requestOptions,
+    label
+  ){
+    const response=
+      await fetch(
+        url,
+        {
+          ...requestOptions,
+          method:"GET",
+          cache:"no-store",
+          credentials:"same-origin"
+        }
+      );
+
+    let payload=null;
+
+    try{
+      payload=await response.json();
+    }catch{
+      throw new Error(
+        label+
+        " 응답 형식을 확인하지 못했습니다."
+      );
+    }
+
+    if(
+      !response.ok ||
+      payload?.ok===false
+    ){
+      throw new Error(
+        normalizeText(
+          payload?.message
+        ) ||
+        label+
+        "을 불러오지 못했습니다."
+      );
+    }
+
+    return payload;
+  }
+
+  function normalizeAutoHistoryCurrentPower(
+    payload,
+    dateValue
+  ){
+    if(
+      payload?.ok!==true ||
+      payload?.targetDate!==dateValue ||
+      payload?.shift!=="NS" ||
+      payload?.role!=="TO" ||
+      payload?.unit!=="kWh"
+    ){
+      return null;
+    }
+
+    const item=payload?.item;
+
+    /*
+      저장하지 않은 날짜는 item=null.
+      0은 유효값이므로 falsy 검사로 배제하지 않는다.
+    */
+    if(!item){
+      return null;
+    }
+
+    const values=item?.values;
+
+    if(
+      item?.targetDate!==dateValue ||
+      item?.shift!=="NS" ||
+      item?.role!=="TO" ||
+      item?.unit!=="kWh" ||
+      !values ||
+      typeof values!=="object" ||
+      Array.isArray(values)
+    ){
+      return null;
+    }
+
+    const keys=[
+      "generatorEcmsGen1",
+      "ismartReception",
+      "epowerTransmission",
+      "solarDailyGeneration"
+    ];
+
+    if(
+      keys.some(
+        key=>
+          !autoHistoryCurrentFiniteNonNegative(
+            values[key]
+          )
+      )
+    ){
+      return null;
+    }
+
+    const normalized={
+      generatorEcmsGen1:
+        values.generatorEcmsGen1,
+
+      ismartReception:
+        values.ismartReception,
+
+      epowerTransmission:
+        values.epowerTransmission,
+
+      solarDailyGeneration:
+        values.solarDailyGeneration
+    };
+
+    if(
+      autoHistoryCurrentFiniteNonNegative(
+        payload?.solarCumulative?.monthly
+      )
+    ){
+      normalized.solarMonthlyCumulative=
+        payload.solarCumulative.monthly;
+    }
+
+    if(
+      autoHistoryCurrentFiniteNonNegative(
+        payload?.solarCumulative?.yearly
+      )
+    ){
+      normalized.solarYearlyCumulative=
+        payload.solarCumulative.yearly;
+    }
+
+    return {
+      targetDate:dateValue,
+      values:normalized
+    };
+  }
+
+  function normalizeAutoHistoryCurrentOrganic(
+    item,
+    dateValue
+  ){
+    if(!item){
+      return null;
+    }
+
+    const snapshot=item?.snapshot;
+    const nextDate=
+      addDateDays(
+        dateValue,
+        1
+      );
+
+    if(
+      item?.targetDate!==dateValue ||
+      !snapshot ||
+      snapshot?.targetDate!==dateValue ||
+      snapshot?.schemaVersion!==1
+    ){
+      return null;
+    }
+
+    const period=snapshot?.period;
+
+    if(
+      period?.startLocal!==
+        dateValue+"T00:00" ||
+
+      ![
+        nextDate+"T00:00",
+        nextDate+"T00:01"
+      ].includes(
+        period?.endLocal
+      )
+    ){
+      return null;
+    }
+
+    const received=
+      numberOrNull(
+        snapshot
+          ?.manual
+          ?.receipts
+          ?.organic
+      );
+
+    const stored=
+      numberOrNull(
+        snapshot
+          ?.organicUsage
+          ?.endTotal
+      );
+
+    if(
+      received===null ||
+      stored===null
+    ){
+      return null;
+    }
+
+    return {
+      targetDate:dateValue,
+
+      period:{
+        startLocal:
+          period.startLocal,
+
+        endLocal:
+          period.endLocal
+      },
+
+      sludgeTotal:
+        received,
+
+      organicSiloTotal:
+        stored,
+
+      sludgeTruckCount:
+        null
+    };
+  }
+
+  function getAutoHistoryOrganicTruckCount(
+    payload,
+    organic
+  ){
+    if(
+      payload?.ok!==true ||
+      payload?.source!==
+        "solid-fuel-unloading" ||
+      payload?.basis!==
+        "completed-unloading-departure" ||
+      payload?.receiptStart!==
+        organic.period.startLocal ||
+      payload?.receiptEnd!==
+        organic.period.endLocal
+    ){
+      return null;
+    }
+
+    const receiptTotal=
+      numberOrNull(
+        payload?.receipts?.organic
+      );
+
+    if(
+      receiptTotal===null ||
+      Math.abs(
+        receiptTotal -
+        Number(
+          organic.sludgeTotal
+        )
+      )>
+        0.000001 ||
+      !Number.isSafeInteger(
+        payload?.counts?.organic
+      ) ||
+      payload.counts.organic<0
+    ){
+      return null;
+    }
+
+    return payload.counts.organic;
+  }
+
+  async function fetchAutoHistoryCurrentSources(
+    range,
+    requestOptions,
+    completedPayload,
+    limestonePayload,
+    weatherPayload
+  ){
+    const dates=
+      collectAutoHistoryCurrentDates(
+        completedPayload,
+        limestonePayload,
+        weatherPayload,
+        range
+      );
+
+    const rows=
+      await autoHistoryCurrentMapLimit(
+        dates,
+        4,
+        async dateValue=>{
+          const powerPromise=
+            (
+              async ()=>{
+                try{
+                  const payload=
+                    await fetchAutoHistoryCurrentJson(
+                      "/api/to-night-power?date="+
+                        encodeURIComponent(
+                          dateValue
+                        ),
+                      requestOptions,
+                      dateValue+
+                        " TO 전력 저장자료"
+                    );
+
+                  return normalizeAutoHistoryCurrentPower(
+                    payload,
+                    dateValue
+                  );
+
+                }catch(error){
+                  console.warn(
+                    "자동적산자료 TO 전력 조회 실패:",
+                    dateValue,
+                    error
+                  );
+
+                  return null;
+                }
+              }
+            )();
+
+          const organicPromise=
+            (
+              async ()=>{
+                try{
+                  const payload=
+                    await fetchAutoHistoryCurrentJson(
+                      "/api/cofiring-closed-history?targetDate="+
+                        encodeURIComponent(
+                          dateValue
+                        ),
+                      requestOptions,
+                      dateValue+
+                        " 혼소율 마감자료"
+                    );
+
+                  const organic=
+                    normalizeAutoHistoryCurrentOrganic(
+                      payload?.item,
+                      dateValue
+                    );
+
+                  if(!organic){
+                    return null;
+                  }
+
+                  try{
+                    const query=
+                      new URLSearchParams({
+                        receiptStart:
+                          organic
+                            .period
+                            .startLocal,
+
+                        receiptEnd:
+                          organic
+                            .period
+                            .endLocal
+                      });
+
+                    const receipts=
+                      await fetchAutoHistoryCurrentJson(
+                        "/api/solid-fuel-trouble?"+
+                          query.toString(),
+                        requestOptions,
+                        dateValue+
+                          " 유기성 하역기록"
+                      );
+
+                    organic.sludgeTruckCount=
+                      getAutoHistoryOrganicTruckCount(
+                        receipts,
+                        organic
+                      );
+
+                  }catch(error){
+                    console.warn(
+                      "자동적산자료 유기성 입고건수 조회 실패:",
+                      dateValue,
+                      error
+                    );
+                  }
+
+                  return organic;
+
+                }catch(error){
+                  console.warn(
+                    "자동적산자료 유기성 마감자료 조회 실패:",
+                    dateValue,
+                    error
+                  );
+
+                  return null;
+                }
+              }
+            )();
+
+          const [
+            power,
+            organic
+          ]=
+            await Promise.all([
+              powerPromise,
+              organicPromise
+            ]);
+
+          return {
+            date:dateValue,
+            power,
+            organic
+          };
+        }
+      );
+
+    return {
+      powerItems:
+        rows
+          .map(
+            row=>row?.power
+          )
+          .filter(Boolean),
+
+      organicItems:
+        rows
+          .map(
+            row=>row?.organic
+          )
+          .filter(Boolean)
+    };
+  }
+
 async function fetchSavedHistory(
   monthValue
 ) {
@@ -235184,7 +235754,17 @@ async function fetchSavedHistory(
     ]);
 
 
+  const currentSourcePayload =
+    await fetchAutoHistoryCurrentSources(
+      range,
+      requestOptions,
+      completedPayload,
+      limestonePayload,
+      weatherPayload
+    );
+
   return {
+    currentSourcePayload,
     completedPayload,
     limestonePayload,
     weatherPayload
@@ -236278,6 +236858,126 @@ function mergeSavedRows(
     }
   );
 
+
+
+  /*
+    MORNING_MEETING_AUTO_HISTORY_CURRENT_SOURCES_V3 OVERLAY
+
+    최신 저장소 값은 legacy dailyData 필드를 보완한다.
+    사용자가 저장한 자동수치 override는 이 뒤의 기존 로직에서
+    마지막으로 적용된다.
+  */
+  const currentPowerItems=
+    Array.isArray(
+      payloads
+        ?.currentSourcePayload
+        ?.powerItems
+    )
+      ? payloads
+          .currentSourcePayload
+          .powerItems
+      : [];
+
+  currentPowerItems.forEach(
+    item=>{
+      const dateValue=
+        normalizeText(
+          item?.targetDate
+        );
+
+      if(
+        !isDateInRange(
+          dateValue
+        ) ||
+        !isObject(
+          item?.values
+        )
+      ){
+        return;
+      }
+
+      const row=
+        ensureRow(
+          dateValue
+        );
+
+      row.dailyData={
+        ...cloneObject(
+          row.dailyData
+        ),
+        ...item.values
+      };
+    }
+  );
+
+  const currentOrganicItems=
+    Array.isArray(
+      payloads
+        ?.currentSourcePayload
+        ?.organicItems
+    )
+      ? payloads
+          .currentSourcePayload
+          .organicItems
+      : [];
+
+  currentOrganicItems.forEach(
+    item=>{
+      const dateValue=
+        normalizeText(
+          item?.targetDate
+        );
+
+      if(
+        !isDateInRange(
+          dateValue
+        )
+      ){
+        return;
+      }
+
+      const row=
+        ensureRow(
+          dateValue
+        );
+
+      const dailyData=
+        cloneObject(
+          row.dailyData
+        );
+
+      if(
+        numberOrNull(
+          item?.sludgeTotal
+        )!==null
+      ){
+        dailyData.sludgeTotal=
+          item.sludgeTotal;
+      }
+
+      if(
+        numberOrNull(
+          item?.organicSiloTotal
+        )!==null
+      ){
+        dailyData.organicSiloTotal=
+          item.organicSiloTotal;
+      }
+
+      if(
+        Number.isSafeInteger(
+          item?.sludgeTruckCount
+        ) &&
+        item.sludgeTruckCount>=0
+      ){
+        dailyData.sludgeTruckCount=
+          item.sludgeTruckCount;
+      }
+
+      row.dailyData=
+        dailyData;
+    }
+  );
 
   const smpByDate =
     readLocalSmpByDate();
