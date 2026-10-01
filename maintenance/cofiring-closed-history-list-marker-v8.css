@@ -1,0 +1,39 @@
+/* COFIRING CLOSED HISTORY LIST MARKER V8
+   Monthly rows render their own active-adjustment marker from hydrated detail state.
+   Existing final-detail V2 assets remain untouched.
+*/
+
+#efficiencyCofiringDraftView .cfh-readable-table .cfh-date-line{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+  white-space:nowrap;
+}
+
+#efficiencyCofiringDraftView .cfh-readable-table .cfh-list-adjust-dot{
+  display:inline-block;
+  width:7px;
+  height:7px;
+  flex:0 0 7px;
+  border-radius:999px;
+  background:#f59e0b;
+  box-shadow:0 0 0 2px rgba(245,158,11,.14);
+  vertical-align:middle;
+}
+
+#efficiencyCofiringDraftView .cfh-readable-table .cfh-list-adjusted-day .cfh-date{
+  background:linear-gradient(90deg,rgba(255,247,237,.70),rgba(255,255,255,0));
+}
+
+/* The legacy sidecar marker may still run from final-detail V2.
+   Hide only its duplicate dot on V8-owned rows; keep the V8 row marker visible. */
+#efficiencyCofiringDraftView .cfh-day-group[data-cfh-list-adjustment="1"] .cfh-final-adjust-dot{
+  display:none!important;
+}
+
+.efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-readable-table .cfh-list-adjust-dot{
+  width:6px;
+  height:6px;
+  flex-basis:6px;
+}

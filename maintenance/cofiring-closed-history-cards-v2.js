@@ -92,7 +92,7 @@
 
   function deriveSnapshot(item){
     const snapshot=item?.snapshot||{};
-    const result=snapshot?.result||{};
+    const result=item?.effectiveResult||snapshot?.result||{};
     const fallback=snapshot?.summary||item?.summary||{};
     return {
       targetDate:String(item?.targetDate||snapshot?.targetDate||''),
@@ -109,6 +109,7 @@
       sourceRequestId:String(item?.sourceRequestId||snapshot?.sourceRequestId||''),
       savedByName:String(item?.savedByName||''),
       updatedAt:String(item?.updatedAt||''),
+      adjustmentApplied:item?.adjustmentApplied===true||result?.adjustment?.applied===true,
       revision:item?.revision??''
     };
   }
@@ -234,9 +235,11 @@
     const date=String(row.targetDate||'');
     const valid=/^20\d{2}-\d{2}-\d{2}$/.test(date);
     const weekday=valid?['일','월','화','수','목','금','토'][new Date(date+'T00:00:00Z').getUTCDay()]:'';
-    return `<tbody class="cfh-day-group" data-cfh-date="${escapeHtml(date)}">
+    const adjusted=row?.adjustmentApplied===true;
+    const adjustmentMark=adjusted?'<span class="cfh-list-adjust-dot" aria-label="혼소조정 적용" title="혼소조정 적용"></span>':'';
+    return `<tbody class="cfh-day-group${adjusted?' cfh-list-adjusted-day':''}" data-cfh-date="${escapeHtml(date)}" data-cfh-list-adjustment="1">
       <tr data-cfv15-row="${escapeHtml(date)}">
-        <th class="cfh-date" scope="rowgroup" rowspan="2" aria-label="${escapeHtml(date)}"><strong>${escapeHtml(valid?date.slice(5).replace('-','.'):date)}</strong><small>${weekday?weekday+'요일':''}</small></th>
+        <th class="cfh-date" scope="rowgroup" rowspan="2" aria-label="${escapeHtml(date)}"><span class="cfh-date-line"><strong>${escapeHtml(valid?date.slice(5).replace('-','.'):date)}</strong>${adjustmentMark}</span><small>${weekday?weekday+'요일':''}</small></th>
         ${numericCells(row.unit1,0)}${combinedCell(row.combined)}
         <td class="cfh-actions" rowspan="2"><button type="button" data-cfv15-view="${escapeHtml(date)}" aria-label="${escapeHtml(date)} 마감 상세 보기" aria-controls="cfh-readable-detail" aria-expanded="false">보기</button><button type="button" class="danger" data-cfv15-delete="${escapeHtml(date)}" aria-label="${escapeHtml(date)} 마감 데이터 삭제">삭제</button></td>
       </tr><tr>${numericCells(row.unit2,1)}</tr>
@@ -472,6 +475,11 @@
     panel.querySelector('[data-cfv12-refresh]')?.addEventListener('click',()=>void loadList({keepMonth:true}));
     root.addEventListener?.('cofiring:closed-history-changed',()=>{
       detailCache.clear();if(!panel.hidden)void loadList({keepMonth:true});
+    });
+
+    root.addEventListener?.('cofiring:period-adjustment-changed',()=>{
+      detailCache.clear();
+      if(!panel.hidden)void loadList({keepMonth:true});
     });
 
     const observer=root.MutationObserver?new root.MutationObserver(()=>{if(!panel.hidden)void loadList({keepMonth:true});}):null;
