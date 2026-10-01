@@ -5398,6 +5398,35 @@ test(
 );
 
 
+// MORNING_ALL_STEAM_COORDINATOR_V2_TEST_FIXTURE
+// These two tests isolate verified operation-loader outcomes. Steam is now a
+// required dependency, so give only their harnesses a completed steam response.
+// Production missing/undefined/pending steam behavior is tested independently.
+function installCompletedSteamForOperationResetTest(harness) {
+  const calls = [];
+  harness.window.loadEfficiencyMorningMeetingSteamOis = async options => {
+    assert.equal(options.userInitiated, true);
+    calls.push(options);
+    return {
+      sourceDate: TARGET_DATE,
+      targetDate: TARGET_DATE,
+      requestType: "steam_status",
+      requestId: "reset-operation-fixture-steam",
+      unitOneProduction: 0,
+      unitTwoProduction: 0,
+      totalProduction: 0,
+      steamSalesLowPressure: null,
+      steamSalesHighPressure: null,
+      steamSales: null,
+      productionComplete: true,
+      salesComplete: false,
+      complete: false
+    };
+  };
+  return calls;
+}
+
+
 test(
   "active reset release accepts the real forced limestone success signal but not an unverified undefined result",
   async () => {
@@ -5429,6 +5458,7 @@ test(
 
     await successful.settle();
     successful.clearCalls();
+    const successfulSteamCalls = installCompletedSteamForOperationResetTest(successful);
 
     await successful.api.query(
       "all",
@@ -5437,6 +5467,7 @@ test(
           true
       }
     );
+    assert.equal(successfulSteamCalls.length, 1, "the required steam dependency is exercised once");
 
     assert.deepEqual(
       successful.fetchCalls
@@ -5483,6 +5514,7 @@ test(
 
     await incomplete.settle();
     incomplete.clearCalls();
+    const incompleteSteamCalls = installCompletedSteamForOperationResetTest(incomplete);
 
     await incomplete.api.query(
       "all",
@@ -5491,6 +5523,7 @@ test(
           true
       }
     );
+    assert.equal(incompleteSteamCalls.length, 1, "the required steam dependency is exercised once");
 
     assert.equal(
       incomplete.fetchCalls.length,
@@ -5659,6 +5692,7 @@ test(
 
     await completeHarness.settle();
     completeHarness.clearCalls();
+    const completeHarnessSteamCalls = installCompletedSteamForOperationResetTest(completeHarness);
 
     await completeHarness.api.query(
       "all",
@@ -5667,6 +5701,7 @@ test(
           true
       }
     );
+    assert.equal(completeHarnessSteamCalls.length, 1, "the required steam dependency is exercised once");
 
     assert.deepEqual(
       completeHarness.fetchCalls
@@ -5769,6 +5804,7 @@ test(
 
     await failedHarness.settle();
     failedHarness.clearCalls();
+    const failedHarnessSteamCalls = installCompletedSteamForOperationResetTest(failedHarness);
 
     await failedHarness.api.query(
       "all",
@@ -5777,6 +5813,7 @@ test(
           true
       }
     );
+    assert.equal(failedHarnessSteamCalls.length, 1, "the required steam dependency is exercised once");
 
     assert.equal(
       failedHarness.fetchCalls.length,

@@ -24,6 +24,7 @@
     "efficiencyMorningMeetingAutoRetry-limestone", "efficiencyMorningMeetingAutoRetry-gear-pinion",
     "efficiencyMorningMeetingAutoRetry-silo-level", "efficiencyMorningMeetingAutoSmpRefreshButton",
     "efficiencyMorningMeetingAutoWeatherRefreshButton"];
+  // MORNING_ALL_STEAM_COORDINATOR_V2: explicit, awaited steam stage.
   const localStates = new Map();
   const resetStates = new Map();
   const resetStatusRequests = new Map();
@@ -124,6 +125,7 @@
     resetStates.set(item.targetDate, { loaded: true, loading: false, error: "", item });
     if (item.active) {
       setSourceState(item.targetDate, "operations", { status: "idle", error: "" });
+      setSourceState(item.targetDate, "steam", { status: "idle", error: "" });
     }
     if (applySelectedState && typeof window.applyMorningMeetingSelectedDateResetState === "function") {
       try { window.applyMorningMeetingSelectedDateResetState(item); } catch (error) { console.error(error); }
@@ -249,6 +251,36 @@
       error: [...new Set(errors)].join(" ") };
   }
 
+  function recordAllSteamFlow(current, event, extra = {}) {
+    if (current?.source !== "all") return;
+    // Diagnostics only: no credentials, measurements, persistence, or network calls.
+    const entry = { event, date: current.date, at: Date.now(), ...extra };
+    current.flowEvents = [...(current.flowEvents || []), entry].slice(-12);
+    window.__morningMeetingAllSteamLastRun = {
+      date: current.date,
+      startedAt: current.startedAt,
+      stage: current.stage,
+      events: current.flowEvents.map(item => ({ ...item }))
+    };
+    try { console.info?.("[MORNING ALL STEAM V2]", entry); } catch (_) {}
+  }
+
+  function validateAllSteamCompletion(value, date) {
+    // A resolved object can be a valid partial result. Never require sales values
+    // or complete=true: an upstream blank remains blank in the existing reader.
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new Error("증기 OIS 조회가 완료 결과를 반환하지 않았습니다.");
+    }
+    const resultDate = text(value.sourceDate || value.targetDate);
+    if (resultDate !== date || (value.targetDate && text(value.targetDate) !== date)) {
+      throw new Error("증기 OIS 조회 기준일이 다릅니다. 선택일 " + date);
+    }
+    if (text(value.requestType || value.sourceRequestType) !== "steam_status" || !text(value.requestId)) {
+      throw new Error("증기 OIS 조회 요청의 완료 결과를 확인하지 못했습니다.");
+    }
+    return value;
+  }
+
   function makeElement(tag, className, content) {
     const element = document.createElement(tag);
     if (className) element.className = className;
@@ -268,9 +300,9 @@
       const caption = makeElement("span", "morning-meeting-workbook-query__caption", "운영정보 · TO 전력 · 증기 OIS · 혼소/유기성 마감자료");
       caption.id = "morningMeetingWorkbookSource";
       const statuses = makeElement("div", "morning-meeting-workbook-query__statuses");
-      for (const source of ["operations"]) {
+      for (const source of ["operations", "steam"]) {
         const group = makeElement("span", "morning-meeting-workbook-query__source-status");
-        group.append(makeElement("span", "morning-meeting-workbook-query__source-label", "운영정보"));
+        group.append(makeElement("span", "morning-meeting-workbook-query__source-label", source === "steam" ? "증기 OIS" : "운영정보"));
         const status = makeElement("span", "morning-meeting-workbook-query__status");
         status.id = `morningMeetingQuerySourceStatus-${source}`;
         status.setAttribute("role", "status");
@@ -335,6 +367,18 @@
       badge.title = operations.error || `${date} 운영정보 조회 상태`;
     }
 
+    const steam = localStates.get(date)?.steam || { status: "idle", error: "" };
+    const steamBadge = byId("morningMeetingQuerySourceStatus-steam");
+    if (steamBadge) {
+      setText(steamBadge, steam.status === "waiting" ? "순서 대기" :
+        steam.status === "loading" ? "조회 중" : steam.status === "complete" ? "조회 완료" :
+        steam.status === "error" ? "조회 실패" : "조회 전");
+      steamBadge.classList.toggle("is-loading", ["waiting", "loading"].includes(steam.status));
+      steamBadge.classList.toggle("is-complete", steam.status === "complete");
+      steamBadge.classList.toggle("is-error", steam.status === "error");
+      steamBadge.title = steam.error || `${date} 증기 조회 처리 상태 · 원본에 없는 수치는 기존 표시를 유지합니다.`;
+    }
+
     const caption = byId("morningMeetingWorkbookSource");
     setText(caption, "운영정보 · TO 전력 · 증기 OIS · 혼소/유기성 마감자료");
     if (caption) caption.title = "오전회의 카드는 일일 DATA Excel을 조회하지 않습니다.";
@@ -356,7 +400,12 @@
         source === "operations" ? "수처리·석회석·터빈·Silo·SMP·날씨를 조회합니다." : control.title;
     }
     for (const [source, id] of Object.entries(QUERY_BUTTONS)) {
-      setText(byId(id), activeRequest?.date === date && activeRequest.source === source ? "조회 중…" : BUTTON_LABELS[source]);
+      const selectedBusy = activeRequest?.date === date && activeRequest.source === source;
+      const busyLabel = source === "all"
+        ? activeRequest?.stage === "steam" ? "증기 조회 중…"
+          : activeRequest?.stage === "finishing" ? "마무리 중…" : "전체자료 조회 중…"
+        : "조회 중…";
+      setText(byId(id), selectedBusy ? busyLabel : BUTTON_LABELS[source]);
     }
     const resetButton = byId(RESET_BUTTON_ID);
     if (resetButton) {
@@ -471,9 +520,13 @@
 
     const releaseAfterSuccess = source === "all" && reset.active;
     const resetRevision = reset.revision;
-    const current = { date, source };
+    const current = { date, source, stage: "operations", startedAt: Date.now() };
     activeRequest = current;
     setSourceState(date, "operations", { status: "loading", busy: true });
+    if (source === "all") {
+      setSourceState(date, "steam", { status: "waiting", error: "" });
+      recordAllSteamFlow(current, "all-start");
+    }
     notifyQueryState();
     render();
 
@@ -537,6 +590,7 @@
           : null;
 
       try {
+        recordAllSteamFlow(current, "operations-start");
         const result = await loader({
           userInitiated: true,
           targetDate: date,
@@ -553,6 +607,7 @@
         setSourceState(date, "operations", { status: "error", error: text(error?.message) || "운영정보 조회에 실패했습니다." });
       }
 
+      recordAllSteamFlow(current, "operations-settled", { operationsSucceeded });
       if (source === "all") {
         /*
           Steam remains OIS work.
@@ -570,13 +625,39 @@
           [
             "steam",
             settleCurrentSourceTask(
-              () =>
-                window
-                  .loadEfficiencyMorningMeetingSteamOis
-                  ?.({
-                    userInitiated:
-                      true
-                  })
+              async () => {
+                current.stage = "steam";
+                setSourceState(date, "steam", { status: "loading", error: "" });
+                recordAllSteamFlow(current, "steam-start");
+                render();
+                try {
+                  if (targetDate() !== date || !canQuery()) {
+                    throw new Error("기준일 또는 로그인 상태가 변경되어 증기 조회를 시작하지 않았습니다.");
+                  }
+                  // Required step, not an optional call. The exact same provider
+                  // is used by the card's individual refresh button.
+                  const steamLoader = window.loadEfficiencyMorningMeetingSteamOis;
+                  if (typeof steamLoader !== "function") {
+                    throw new Error("증기 OIS 조회 기능이 로드되지 않았습니다. 새로고침 후 전체자료를 다시 조회해 주세요.");
+                  }
+                  const pending = steamLoader.call(window, { userInitiated: true, targetDate: date });
+                  if (!pending || typeof pending.then !== "function") {
+                    throw new Error("증기 OIS 조회의 완료 대기 연결을 확인하지 못했습니다.");
+                  }
+                  const value = validateAllSteamCompletion(await pending, date);
+                  setSourceState(date, "steam", { status: "complete", error: "", requestId: value.requestId });
+                  recordAllSteamFlow(current, "steam-complete", { requestId: value.requestId });
+                  return value;
+                } catch (error) {
+                  setSourceState(date, "steam", { status: "error", error: text(error?.message) || "증기 OIS 조회에 실패했습니다." });
+                  recordAllSteamFlow(current, "steam-failed", { error: text(error?.message) });
+                  if (targetDate() === date) showResetMessage(text(error?.message) || "증기 OIS 조회에 실패했습니다.", "error");
+                  throw error;
+                } finally {
+                  current.stage = "finishing";
+                  render();
+                }
+              }
             )
           ],
 
@@ -597,7 +678,9 @@
         currentResults.forEach((result, index) => {
           const name = currentSourceTasks[index][0];
           results.push({ source: name, ...result });
-          if (name === "steam") steamSucceeded = result.status === "fulfilled" && result.value !== null && result.value !== false;
+          if (name === "steam") steamSucceeded = result.status === "fulfilled";
+          // Steam fulfillment is possible only after the awaited provider result
+          // has passed date/request validation, including legitimate partial data.
         });
       }
 
@@ -638,6 +721,14 @@
 
       return source === "all" ? results : results.find(item => item.source === "operations")?.value ?? null;
     } finally {
+      if (source === "all") {
+        const lastSteamState = localStates.get(date)?.steam;
+        if (["waiting", "loading"].includes(lastSteamState?.status)) {
+          setSourceState(date, "steam", { status: "error", error: "전체자료 조회가 증기 처리 완료 전에 중단되었습니다." });
+        }
+        current.stage = "settled";
+        recordAllSteamFlow(current, "all-settled", { operationsSucceeded, steamSucceeded });
+      }
       if (activeRequest === current) activeRequest = null;
       notifyQueryState();
       render();
