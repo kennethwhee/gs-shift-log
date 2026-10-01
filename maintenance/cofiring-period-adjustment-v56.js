@@ -437,11 +437,37 @@ function modalHtml(){return `<div class="cfv56-adjust-modal" data-cfv56-adjust-m
     q('[data-cfv56-auto]').addEventListener('click',()=>{showCoalReviewToastV13R1();if(!validAction())return;const r=autoMax(base,settings,Number(q('[data-cfv56-max]').value));showPreview(r,r.ok&&r.adjustment.excludedBioTons>0?`최대량 초과 ${fmt(r.adjustment.excludedBioTons)} t를 혼소 계산에서 제외하는 미리보기입니다.`:'최대혼소 자동 조정 미리보기입니다.');if(r?.ok)showCoalReviewToast();});
     q('[data-cfv56-edit]').addEventListener('click',()=>{if(!validAction())return;const e=q('[data-cfv56-final-edit]');e.hidden=!e.hidden;if(!e.hidden)q('[data-cfv56-final1]').focus();});
     q('[data-cfv56-preview-final]').addEventListener('click',()=>{if(!validAction())return;const v1=q('[data-cfv56-final1]').value,v2=q('[data-cfv56-final2]').value;if(v1.trim()===''||v2.trim()===''){preview=null;controls();msg('두 호기의 최종 Bio를 모두 입력해 주세요. 사용량이 없으면 0을 입력하세요.',true);return;}showPreview(adjustFinal(base,settings,Number(v1),Number(v2),{mode:'manual_final'}),'최종 Bio 직접수정 미리보기입니다.');});
+            // COFIRING_ACTIVE_ADJUSTMENT_RESET_API_V1
+        async function resetApplied(){
+          if(busy||disposed)return false;
+          const ctx=options.getContext?.();
+          const currentBase=ctx?.result,currentSettings=ctx?.settings,currentSpec=ctx?.spec;
+          if(!currentBase||!currentSettings||!currentSpec)throw new Error('먼저 기간 계산을 완료해 주세요.');
+          busy=true;controls();
+          try{
+            const bundle=await loadBundle(currentSpec,options.getHeaders);
+            if(bundle.loaded===false)throw new Error(bundle.error||'저장 상태를 확인하지 못했습니다. 다시 시도해 주세요.');
+            if(bundle.adjustment){
+              const cleared=await clearServerAdjustment(currentSpec,bundle.revision||0,options.getHeaders);
+              serverRevision=Number(cleared?.entry?.revision)||Number(bundle.revision||0)+1;
+            }else{
+              serverRevision=Number(bundle.revision)||serverRevision;
+            }
+            base=currentBase;settings=currentSettings;spec=currentSpec;
+            clearStored(currentSpec);preview=null;
+            options.onReset?.();
+            return true;
+          }catch(e){
+            throw new Error(e?.message||'원복을 저장하지 못했습니다. 기존 조정값을 유지합니다.');
+          }finally{
+            busy=false;controls();
+          }
+        }
     q('[data-cfv56-apply]').addEventListener('click',async()=>{if(!validAction()||!preview?.ok)return;busy=true;controls();try{msg('혼소 조정값을 저장하고 있습니다.');const saved=await saveServerAdjustment(spec,preview,serverRevision,options.getHeaders);serverRevision=Number(saved?.entry?.revision)||serverRevision+1;saveStored(spec,base,preview);options.onApply?.(preview.result,preview.adjustment);busy=false;close();}catch(e){msg(e.message||'혼소 조정 저장을 완료하지 못했습니다.',true);}finally{busy=false;controls();}});
     q('[data-cfv56-reset]').addEventListener('click',async()=>{if(!validAction())return;busy=true;controls();try{await clearServerAdjustment(spec,serverRevision,options.getHeaders);serverRevision+=1;clearStored(spec);preview=null;options.onReset?.();busy=false;close();}catch(e){msg(e.message||'원복을 저장하지 못했습니다. 기존 조정값을 유지합니다.',true);}finally{busy=false;controls();}});
     for(const sel of ['[data-cfv56-close]','[data-cfv56-cancel]'])q(sel).addEventListener('click',close);
     modal.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();close();}if(e.key==='Tab'){const nodes=Array.from(modal.querySelectorAll('button:not(:disabled),input:not(:disabled)')).filter(x=>!x.closest('[hidden]'));if(!nodes.length)return;const first=nodes[0],last=nodes[nodes.length-1];if(e.shiftKey&&root.document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&root.document.activeElement===last){e.preventDefault();first.focus();}}});
-    return {open,close,resolve:(result,currentSettings,currentSpec)=>resolveStored(result,currentSettings,currentSpec),clear:()=>spec&&clearStored(spec),dispose(){disposed=true;++epoch;modal.remove();}};
+    return {open,close,resetApplied,resolve:(result,currentSettings,currentSpec)=>resolveStored(result,currentSettings,currentSpec),clear:()=>spec&&clearStored(spec),dispose(){disposed=true;++epoch;modal.remove();}};
   }
   root.CofiringPeriodAdjustmentV56={periodCap,adjustFinal,manualTransfer,autoMax,resolveStored,create,modalHtml,DEFAULT_MAX_TPD,API};
   if(typeof module==='object'&&module.exports)module.exports=root.CofiringPeriodAdjustmentV56;

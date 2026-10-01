@@ -131,7 +131,7 @@
       <section class="cfv-results-dark" aria-label="혼소율 계산 결과">
       <div class="cfv52-summary-head">
         <div class="cfv52-summary-title"><strong>주요 계산값</strong><span class="cfv6-summary-caption">선택기간 · 보정계수 적용</span></div>
-        <div class="cfv56-summary-actions"><span data-cfv-results-time></span><span data-cfv52-summary-note>DataPARC 조회 전</span><button type="button" data-cfv56-adjust disabled>혼소 조정</button></div>
+        <div class="cfv56-summary-actions"><span data-cfv-results-time></span><span data-cfv52-summary-note>DataPARC 조회 전</span><button type="button" data-cfv56-adjust disabled>혼소 조정</button><button type="button" data-cfv56-active-reset hidden title="적용 중인 혼소 조정을 취소하고 원본값으로 되돌립니다.">원복</button></div>
       </div>
       <div data-cfv-target-home>
       <div class="cfv-target-control" id="cfv-dark-target-editor" data-cfv-target-control role="group" aria-label="Bio 목표 수정, 1·2호기 공통" hidden>
@@ -856,7 +856,7 @@
       // COFIRING_ADJUSTED_COMPARISON_STATE_V4
       container.__cfvAdjustedComparisonState = adjusted
         ? { active: true, base: lastResult || null, adjusted: result || null }
-        : { active: false, base: result || lastResult || null, adjusted: null };displayResult=result;const manualValues=readManual(container);/* CFV6 DETAIL RESULT BRIDGE R2 */container.__cfv6DetailPayload={result,manualValues};if(root.CustomEvent)container.dispatchEvent(new root.CustomEvent('cfv6-detail-result',{detail:container.__cfv6DetailPayload}));renderMain(container,result);renderOrganic(container,result,manualValues);renderSummary(container,result,manualValues,deadlineInputError);cfvSummaryLayoutMaybeReveal(result,adjusted);renderWarnings(container,result);scheduleDeadlineRefresh();adjustmentActive=!!adjusted;const b=container.querySelector('[data-cfv56-adjust]');if(b){b.disabled=!lastResult||mobile;b.classList.toggle('is-active',adjustmentActive);b.textContent=adjustmentActive?'혼소조정 적용 중':'혼소 조정';}const note=container.querySelector('[data-cfv52-summary-note]');if(note&&adjusted)note.textContent='혼소 조정 적용';}
+        : { active: false, base: result || lastResult || null, adjusted: null };displayResult=result;const manualValues=readManual(container);/* CFV6 DETAIL RESULT BRIDGE R2 */container.__cfv6DetailPayload={result,manualValues};if(root.CustomEvent)container.dispatchEvent(new root.CustomEvent('cfv6-detail-result',{detail:container.__cfv6DetailPayload}));renderMain(container,result);renderOrganic(container,result,manualValues);renderSummary(container,result,manualValues,deadlineInputError);cfvSummaryLayoutMaybeReveal(result,adjusted);renderWarnings(container,result);scheduleDeadlineRefresh();adjustmentActive=!!adjusted;const b=container.querySelector('[data-cfv56-adjust]');if(b){b.disabled=!lastResult||mobile;b.classList.toggle('is-active',adjustmentActive);b.textContent=adjustmentActive?'혼소조정 적용 중':'혼소 조정';}const activeResetButton=container.querySelector('[data-cfv56-active-reset]');if(activeResetButton){activeResetButton.hidden=!adjustmentActive;activeResetButton.disabled=!adjustmentActive||mobile;activeResetButton.setAttribute('aria-hidden',String(!adjustmentActive));}const note=container.querySelector('[data-cfv52-summary-note]');if(note&&adjusted)note.textContent='혼소 조정 적용';}
     // COFIRING_ADJUSTED_COMPARISON_RESTORE_FLASH_FIX_V6_R3_R4
     function cfvSummaryLayoutPending(active){
       if(mobile)return;
@@ -1334,7 +1334,7 @@
       clearInputRecalc();restoringSaved=false;usageEditSnapshot=null;pendingDailyDraft=draft;try{if(queryMode(container)==='daily')captureDailySelection(container,capturedAt);}catch(_){}
       selectionEpoch++;receiptSyncGeneration++;receiptSyncState={status:'idle',signature:'',value:null};organicUsageState=null;deadlineInputError='';clearDayBoundary();clearDeadlineRefresh();live?.pause();selectedStoreKey='';resetReceiptAuto();writeManual(container,manualApi.blank());
       clickTiming?.cancel('기간 변경');if(clickTiming)paintClickTiming(clickTiming.state());renderedRequestId=null;
-      fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}reference=null;lastResult=null;displayResult=null;adjustmentActive=false;updateOrganicInventoryUsage();renderMain(container,null);renderOrganic(container,null,currentManualFromFields());renderSummary(container,null,currentManualFromFields());updateRange(container);renderWarnings(container,null);const ab=container.querySelector('[data-cfv56-adjust]');if(ab){ab.disabled=true;ab.classList.remove('is-active');ab.textContent='혼소 조정';}
+      fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}reference=null;lastResult=null;displayResult=null;adjustmentActive=false;updateOrganicInventoryUsage();renderMain(container,null);renderOrganic(container,null,currentManualFromFields());renderSummary(container,null,currentManualFromFields());updateRange(container);renderWarnings(container,null);const ab=container.querySelector('[data-cfv56-adjust]');if(ab){ab.disabled=true;ab.classList.remove('is-active');ab.textContent='혼소 조정';}const arb=container.querySelector('[data-cfv56-active-reset]');if(arb){arb.hidden=true;arb.disabled=true;arb.setAttribute('aria-hidden','true');}
       try{const a=selectedDayAvailability();if(a.period)live?.select(currentSpec());if(showDayUnavailable()){cfvSummaryLayoutPending(false);return;}if(deferReads)return;const pending=selectStores();setStatus(container,queryMode(container)==='daily'?'오늘은 00:00부터 현재까지 누적, 지난 날짜는 00:00부터 다음 날 00:01까지 계산합니다. [계산하기]를 눌러주세요.':'조회 기간이 변경되었습니다. [계산하기]를 누르면 표시한 기간으로 계산합니다.','');scheduleFastPrep(0);await pending;}catch(e){setStatus(container,e.message,'error');}
     }
     function refreshDailyForClick(){
@@ -1439,6 +1439,33 @@
     }}catch(e){clickTiming?.fail(token,'재조회 오류');setStatus(container,e.message,'error');}finally{clickBusy=false;}});
     adjuster=adjustmentApi?.create({container,getHeaders:authHeaders,getContext:adjustmentContext,onMessage:m=>setStatus(container,m,'error'),onApply:(result)=>{renderDisplay(result,{adjusted:true});setStatus(container,'혼소 조정값을 선택기간 계산 화면에 적용했습니다. 원본 DataPARC 저장값은 변경하지 않습니다.','success');},onReset:()=>{if(lastResult){renderDisplay(lastResult,{adjusted:false});setStatus(container,'혼소 조정을 원복했습니다. DataPARC 원본 계산값을 표시합니다.','success');}}})||null;
     const adjustButton=container.querySelector('[data-cfv56-adjust]');if(adjustButton){adjustButton.disabled=true;adjustButton.addEventListener('click',()=>{try{Promise.resolve(adjuster?.open()).catch(e=>setStatus(container,e.message,'error'));}catch(e){setStatus(container,e.message,'error');}});}
+    // COFIRING_ACTIVE_ADJUSTMENT_REVERT_V1
+    const activeResetButton=container.querySelector('[data-cfv56-active-reset]');
+    if(activeResetButton){
+      activeResetButton.hidden=true;
+      activeResetButton.setAttribute('aria-hidden','true');
+      activeResetButton.addEventListener('click',async()=>{
+        if(!adjustmentActive||activeResetButton.disabled)return;
+        const confirmed=typeof root.confirm==='function'
+          ? root.confirm('적용 중인 혼소 조정을 원복할까요?\nDataPARC 원본 계산값으로 돌아갑니다.')
+          : true;
+        if(!confirmed)return;
+        const previousText=activeResetButton.textContent||'원복';
+        activeResetButton.disabled=true;
+        activeResetButton.textContent='원복 중...';
+        try{
+          if(typeof adjuster?.resetApplied!=='function')throw new Error('혼소 조정 원복 기능을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.');
+          await adjuster.resetApplied();
+        }catch(e){
+          setStatus(container,e?.message||'혼소 조정을 원복하지 못했습니다. 기존 조정값을 유지합니다.','error');
+        }finally{
+          activeResetButton.textContent=previousText;
+          activeResetButton.hidden=!adjustmentActive;
+          activeResetButton.disabled=!adjustmentActive||mobile;
+          activeResetButton.setAttribute('aria-hidden',String(!adjustmentActive));
+        }
+      });
+    }
     const observer=root.MutationObserver?new root.MutationObserver(()=>{if(visible()){if(showDayUnavailable()){cfvSummaryLayoutPending(false);return;}if(selectedStoreKey!==storeKey())void periodChanged();else{if(displayResult)renderSummary(container,displayResult,currentManualFromFields(),deadlineInputError);void syncReceiptTotals();scheduleDeadlineRefresh();scheduleFastPrep(0);}}else{cfvSummaryLayoutPending(false);restoringSaved=false;clearDayBoundary();clearDeadlineRefresh();clickTiming?.cancel('화면 닫힘');fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}live?.pause();}}):null;const view=container.closest?.('[data-efficiency-view]'),modal=root.document?.getElementById?.('efficiencyTeamModal');for(const node of [view,modal])if(node&&observer)observer.observe(node,{attributes:true,attributeFilter:['hidden','aria-hidden']});
     const receiptMessageHandler=event=>{if(event.origin!==root.location?.origin||event.data?.type!=='solid-fuel:receipt-changed')return;if(queryMode(container)==='daily')void syncReceiptTotals();};
     root.addEventListener?.('message',receiptMessageHandler);
