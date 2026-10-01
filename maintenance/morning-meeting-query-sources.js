@@ -451,7 +451,7 @@
           ? "선택일의 초기화 상태를 확인하고 있습니다."
           : resetStatusUnavailable
             ? (reset.error || "선택일의 초기화 상태를 확인하지 못했습니다.")
-            : "선택일 오전회의 조회 결과를 초기화한 뒤 모든 현재 자료원을 처음부터 다시 조회합니다.";
+            : "저장된 조회값을 재사용하지 않고 모든 현재 자료원을 처음부터 다시 조회합니다. 기존 값은 새 조회가 끝날 때까지 안전하게 유지합니다.";
     }
     const resetButton = byId(RESET_BUTTON_ID);
     if (resetButton) {
@@ -552,6 +552,7 @@
       resetSelectedDate(date, { ...options, expectedRevision: state.revision });
   }
 
+  // GS_MORNING_REQUERY_NON_DESTRUCTIVE_R6
   async function requeryAll(options = {}) {
     const date = targetDate();
 
@@ -570,21 +571,29 @@
     let state = resetState(date);
 
     if (!state.loaded || state.error) {
-      const loaded = await loadResetStatus(date, { force: true });
+      const loaded =
+        await loadResetStatus(
+          date,
+          { force: true }
+        );
+
       if (!loaded) {
         showResetMessage(
-          state.error || "선택일 자료 상태를 확인하지 못했습니다.",
+          state.error ||
+          "선택일 자료 상태를 확인하지 못했습니다.",
           "error"
         );
+
         return null;
       }
+
       state = resetState(date);
     }
 
     const message =
       date +
-      " 저장된 오전회의 조회 결과를 삭제하고 모든 자료를 처음부터 다시 조회하시겠습니까?\n\n" +
-      "TO 원본 입력, 혼소율 마감/조정, 유기성 하역기록, OIS 원본과 다른 날짜 자료는 삭제하지 않습니다.";
+      " 저장된 조회값을 사용하지 않고 모든 자료를 처음부터 다시 조회하시겠습니까?\n\n" +
+      "현재 화면의 기존 값은 새 조회가 끝날 때까지 유지하며, TO 원본 입력·혼소율 마감/조정·유기성 하역기록·OIS 원본과 다른 날짜 자료는 삭제하지 않습니다.";
 
     if (
       typeof window.confirm !== "function" ||
@@ -598,29 +607,65 @@
     render();
 
     try {
-      if (!state.active) {
-        const resetItem = await postResetAction(
-          RESET_ACTIONS.reset,
-          date,
-          state.revision
-        );
+      // Compatibility recovery:
+      // R4/R5 requery could leave the selected date reset active after
+      // an operating-source partial failure. Restore that saved snapshot
+      // before starting the new non-destructive forced query.
+      if (state.active) {
+        const restored =
+          await postResetAction(
+            RESET_ACTIONS.restore,
+            date,
+            state.revision
+          );
 
-        if (!resetItem?.active) {
-          throw new Error("선택일 오전회의 조회결과 초기화를 완료하지 못했습니다.");
+        if (!restored || restored.active) {
+          throw new Error(
+            "이전 재조회에서 남은 초기화 상태를 복원하지 못했습니다."
+          );
+        }
+
+        if (
+          targetDate() === date &&
+          typeof window
+            .restoreMorningMeetingSavedCompletedHistoryForDate ===
+            "function"
+        ) {
+          const restoredView =
+            await window
+              .restoreMorningMeetingSavedCompletedHistoryForDate(
+                date
+              );
+
+          if (restoredView === false) {
+            throw new Error(
+              "이전 저장값 화면 복원에 실패했습니다."
+            );
+          }
         }
       }
 
-      return await query("all", { userInitiated: true });
+      return await query(
+        "all",
+        {
+          userInitiated: true,
+          forceRefresh: true,
+          requery: true
+        }
+      );
     } catch (error) {
       showResetMessage(
-        text(error?.message) || "선택일 전체 재조회에 실패했습니다.",
+        text(error?.message) ||
+        "선택일 전체 재조회에 실패했습니다.",
         "error"
       );
+
       return null;
     } finally {
       if (requeryBusyDate === date) {
         requeryBusyDate = "";
       }
+
       notifyQueryState();
       render();
     }
@@ -639,6 +684,7 @@
     if (activeRequest || activeResetRequest || externalQueryBusy() || (reset.active && source !== "all")) return null;
 
     const releaseAfterSuccess = source === "all" && reset.active;
+    const forceFresh = releaseAfterSuccess || options.forceRefresh === true;
     const resetRevision = reset.revision;
     const current = { date, source, stage: "operations", startedAt: Date.now() };
     activeRequest = current;
@@ -714,7 +760,7 @@
         const result = await loader({
           userInitiated: true,
           targetDate: date,
-          ...(releaseAfterSuccess ? { forceRefresh: true } : {})
+          ...(forceFresh ? { forceRefresh: true } : {})
         });
         results.push({ source: "operations", status: "fulfilled", value: result });
         if (targetDate() === date) {
@@ -763,8 +809,8 @@
                   const pending = steamLoader.call(window, {
                      userInitiated: true,
                      targetDate: date,
-                     forceRefresh: releaseAfterSuccess,
-                     ignoreSaved: releaseAfterSuccess,
+                     forceRefresh: forceFresh,
+                     ignoreSaved: forceFresh,
                      silent: true,
                      requireComplete: true
                    });

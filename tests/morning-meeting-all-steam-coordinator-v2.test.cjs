@@ -103,6 +103,10 @@ async function harness(t, {realProvider=false, realOperations=false, resetActive
       resetActive=true;resetRevision+=1;
       return response({ok:true,item:{targetDate:body.targetDate,active:true,revision:resetRevision}});
     }
+    if(body?.action==='restore_morning_meeting_auto_history_reset'){
+      resetActive=false;resetRevision+=1;
+      return response({ok:true,item:{targetDate:body.targetDate,active:false,revision:resetRevision}});
+    }
     if(body?.action==='release_morning_meeting_auto_history_reset'){
       resetActive=false;resetRevision+=1;
       return response({ok:true,item:{targetDate:body.targetDate,active:false,revision:resetRevision}});
@@ -118,10 +122,29 @@ async function harness(t, {realProvider=false, realOperations=false, resetActive
     throw Error('Unexpected fixture request: '+url.href);
   };
   window.fetch=fetch;
-  window.runEfficiencyMorningMeetingBulkLookup=options=>{calls.push('operations');return behavior.operations?behavior.operations(options):Promise.resolve(operationsResult());};
-  window.toNightPower={refreshMeeting:()=>{calls.push('power');return behavior.power?behavior.power():Promise.resolve({ok:true});}};
-  window.morningMeetingClosedCofiring={refreshOrganicFromClosing:()=>{calls.push('closed');return behavior.closed?behavior.closed():Promise.resolve({ok:true});}};
-  window.loadEfficiencyMorningMeetingSteamOis=options=>{calls.push('steam');return behavior.steam?behavior.steam(options):Promise.resolve(completedSteam());};
+  window.runEfficiencyMorningMeetingBulkLookup=options=>{
+    calls.push('operations');
+    behavior.lastOperationsOptions=options;
+    return behavior.operations?behavior.operations(options):Promise.resolve(operationsResult());
+  };
+  window.toNightPower={refreshMeeting:()=>{
+    calls.push('power');
+    return behavior.power?behavior.power():Promise.resolve({ok:true});
+  }};
+  window.morningMeetingClosedCofiring={refreshOrganicFromClosing:options=>{
+    calls.push('closed');
+    behavior.lastClosedOptions=options;
+    return behavior.closed?behavior.closed(options):Promise.resolve({ok:true});
+  }};
+  window.loadEfficiencyMorningMeetingSteamOis=options=>{
+    calls.push('steam');
+    behavior.lastSteamOptions=options;
+    return behavior.steam?behavior.steam(options):Promise.resolve(completedSteam());
+  };
+  window.restoreMorningMeetingSavedCompletedHistoryForDate=async date=>{
+    calls.push('restore-history:'+date);
+    return behavior.restoreHistory?behavior.restoreHistory(date):true;
+  };
   const consoleMock={info:(...v)=>logs.push(v),log:(...v)=>logs.push(v),warn:(...v)=>logs.push(v),error:(...v)=>logs.push(v)};
   const ctx=vm.createContext({window,document,fetch,Element,URL,URLSearchParams,Date,Map,Set,Promise,console:consoleMock,
     CustomEvent:class{constructor(type,options={}){this.type=type;this.detail=options.detail;}},
@@ -167,31 +190,115 @@ test('toolbar exposes 전체조회 and 재조회 while legacy 운영정보조회
   assert.equal(h.byId('morningMeetingOperationsQueryButton').hidden,true);
 });
 
-test('재조회 creates a reset then existing active-reset all-query forces fresh sources and releases it',async t=>{
+test('재조회 bypasses saved data without creating a reset and force-refreshes operating and steam sources',async t=>{
   const h=await harness(t);
 
-  const result=await h.api.requeryAll({userInitiated:true});
+  const result=
+    await h.api.requeryAll({
+      userInitiated:true
+    });
 
   assert.ok(Array.isArray(result));
-  assert.equal(result.find(x=>x.source==='operations').status,'fulfilled');
-  assert.equal(result.find(x=>x.source==='steam').status,'fulfilled');
 
-  const actions=h.net
-    .filter(x=>x.body?.action)
-    .map(x=>x.body.action);
+  assert.equal(
+    result.find(x=>x.source==='operations').status,
+    'fulfilled'
+  );
+
+  assert.equal(
+    result.find(x=>x.source==='steam').status,
+    'fulfilled'
+  );
+
+  const resetActions=
+    h.net
+      .filter(x=>x.body?.action)
+      .map(x=>x.body.action)
+      .filter(x=>[
+        'reset_morning_meeting_auto_history',
+        'restore_morning_meeting_auto_history_reset',
+        'release_morning_meeting_auto_history_reset'
+      ].includes(x));
+
+  assert.deepEqual(
+    resetActions,
+    []
+  );
+
+  assert.equal(
+    h.behavior.lastOperationsOptions?.forceRefresh,
+    true
+  );
+
+  assert.equal(
+    h.behavior.lastSteamOptions?.forceRefresh,
+    true
+  );
+
+  assert.equal(
+    h.behavior.lastSteamOptions?.ignoreSaved,
+    true
+  );
+
+  assert.ok(
+    h.calls.includes('closed')
+  );
+
+  assert.equal(
+    h.api.resetState(DATE).active,
+    false
+  );
+});
+
+test('재조회 recovers a reset left by an earlier failed run before force-refreshing sources',async t=>{
+  const h=
+    await harness(
+      t,
+      {resetActive:true}
+    );
+
+  const result=
+    await h.api.requeryAll({
+      userInitiated:true
+    });
+
+  assert.ok(Array.isArray(result));
+
+  const actions=
+    h.net
+      .filter(x=>x.body?.action)
+      .map(x=>x.body.action);
 
   assert.deepEqual(
     actions.filter(x=>[
       'reset_morning_meeting_auto_history',
-      'release_morning_meeting_auto_history_reset'
+      'restore_morning_meeting_auto_history_reset'
     ].includes(x)),
     [
-      'reset_morning_meeting_auto_history',
-      'release_morning_meeting_auto_history_reset'
+      'restore_morning_meeting_auto_history_reset'
     ]
   );
 
-  assert.equal(h.api.resetState(DATE).active,false);
+  assert.ok(
+    h.calls.includes(
+      'restore-history:'+DATE
+    )
+  );
+
+  assert.equal(
+    h.api.resetState(DATE).active,
+    false
+  );
+
+  assert.equal(
+    h.behavior.lastOperationsOptions?.forceRefresh,
+    true
+  );
+
+  assert.equal(
+    h.behavior.lastSteamOptions?.ignoreSaved,
+    true
+  );
 });
 
 test('missing steam function cannot resolve as successful undefined',async t=>{
