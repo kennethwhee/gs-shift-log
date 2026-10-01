@@ -640,7 +640,14 @@
                   if (typeof steamLoader !== "function") {
                     throw new Error("증기 OIS 조회 기능이 로드되지 않았습니다. 새로고침 후 전체자료를 다시 조회해 주세요.");
                   }
-                  const pending = steamLoader.call(window, { userInitiated: true, targetDate: date });
+                  const pending = steamLoader.call(window, {
+                     userInitiated: true,
+                     targetDate: date,
+                     forceRefresh: releaseAfterSuccess,
+                     ignoreSaved: releaseAfterSuccess,
+                     silent: true,
+                     requireComplete: true
+                   });
                   if (!pending || typeof pending.then !== "function") {
                     throw new Error("증기 OIS 조회의 완료 대기 연결을 확인하지 못했습니다.");
                   }

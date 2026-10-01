@@ -104,7 +104,7 @@
     return data;
   }
 
-  async function createRequest(targetDate) {
+  async function createRequest(targetDate, options = {}) {
     const response = await fetch(API_URL, {
       method: "POST",
       headers: headers({ "Content-Type": "application/json" }),
@@ -112,7 +112,7 @@
       body: JSON.stringify({
         requestType: "steam_status",
         targetDate,
-        forceRefresh: true
+        forceRefresh: options.forceRefresh === true
       })
     });
 
@@ -283,6 +283,128 @@ function normalizeResult(item, expectedDate) {
       source: text(raw.source) || "OIS",
       requestId: text(item.id)
     };
+  }
+
+  /* MORNING_MEETING_STEAM_SAVED_REUSE_V4 */
+  function isCompleteSteamResult(result) {
+    return Boolean(
+      result &&
+      result.productionComplete === true &&
+      result.salesComplete === true &&
+      result.complete === true
+    );
+  }
+
+  function hasAnyCompleteSteamSide(result) {
+    return Boolean(
+      result &&
+      (result.productionComplete === true || result.salesComplete === true)
+    );
+  }
+
+  function mergeSteamResults(preferred, fallback, targetDate) {
+    const preferredProduction = preferred?.productionComplete === true ? preferred : null;
+    const fallbackProduction = fallback?.productionComplete === true ? fallback : null;
+    const preferredSales = preferred?.salesComplete === true ? preferred : null;
+    const fallbackSales = fallback?.salesComplete === true ? fallback : null;
+    const production = preferredProduction || fallbackProduction;
+    const sales = preferredSales || fallbackSales;
+
+    if (!production && !sales) return null;
+
+    const round3 = value => Math.round(Number(value) * 1000) / 1000;
+    const unitOneProduction = production?.unitOneProduction ?? null;
+    const unitTwoProduction = production?.unitTwoProduction ?? null;
+    const totalProduction = production?.totalProduction ?? null;
+    const steamSalesLowPressure = sales?.steamSalesLowPressure ?? null;
+    const steamSalesHighPressure = sales?.steamSalesHighPressure ?? null;
+    const steamSales = sales?.steamSales ?? null;
+    const productionComplete = Boolean(production);
+    const salesComplete = Boolean(sales);
+    const complete = productionComplete && salesComplete;
+
+    return {
+      targetDate,
+      sourceDate: targetDate,
+      steamSalesLowPressure,
+      steamSalesHighPressure,
+      steamSales,
+      unitOneProduction,
+      unitTwoProduction,
+      totalProduction,
+      salesRate:
+        complete && Number(totalProduction) > 0
+          ? round3(Number(steamSales) / Number(totalProduction) * 100)
+          : null,
+      productionComplete,
+      salesComplete,
+      complete,
+      productionError: productionComplete ? "" : text(preferred?.productionError || fallback?.productionError),
+      salesError: salesComplete ? "" : text(preferred?.salesError || fallback?.salesError),
+      productionSource: text(production?.productionSource),
+      salesSource: text(sales?.salesSource),
+      source: complete ? "저장 기록 + OIS" : text(preferred?.source || fallback?.source) || "저장 기록 / OIS",
+      requestId: text(preferred?.requestId || fallback?.requestId),
+      restoredProduction: Boolean(!preferredProduction && fallbackProduction),
+      restoredSales: Boolean(!preferredSales && fallbackSales)
+    };
+  }
+
+  function steamHistoryTimestamp(item) {
+    const candidates = [item?.completedAt, item?.updatedAt, item?.createdAt, item?.result?.collectedAt];
+    for (const candidate of candidates) {
+      const value = Date.parse(String(candidate || ""));
+      if (Number.isFinite(value)) return value;
+    }
+    return 0;
+  }
+
+  async function loadStoredSteamResult(targetDate) {
+    const url = new URL(API_URL, window.location.origin);
+    url.searchParams.set("action", "completed_history");
+    url.searchParams.set("startDate", targetDate);
+    url.searchParams.set("endDate", targetDate);
+    url.searchParams.set("_", String(Date.now()));
+
+    const response = await fetch(url.toString(), {
+      method: "GET",
+      headers: headers(),
+      cache: "no-store"
+    });
+    const data = await readResponse(response, "저장된 증기 조회 기록을 확인하지 못했습니다.");
+    const items = Array.isArray(data.items) ? data.items : [];
+    const steamItems = items
+      .filter(item => {
+        const requestType = text(item?.requestType || item?.sourceRequestType);
+        const itemDate = text(item?.targetDate || item?.result?.targetDate || item?.result?.sourceDate);
+        const status = text(item?.status).toLowerCase();
+        return requestType === "steam_status" && itemDate === targetDate && status === "complete" &&
+          item?.result && typeof item.result === "object" && !Array.isArray(item.result);
+      })
+      .sort((a,b) => steamHistoryTimestamp(b) - steamHistoryTimestamp(a));
+
+    let merged = null;
+    for (const item of steamItems) {
+      let normalized = null;
+      try {
+        normalized = normalizeResult(item, targetDate);
+      } catch (_) {
+        continue;
+      }
+      merged = mergeSteamResults(merged, normalized, targetDate) || normalized;
+      if (isCompleteSteamResult(merged)) break;
+    }
+    return merged;
+  }
+
+  function dispatchSteamLoaded(result) {
+    window.__morningMeetingSteamOisProbeLastResult = result;
+    document.dispatchEvent(
+      new CustomEvent("morningMeetingSteamOisProbeLoaded", { detail: result })
+    );
+    document.dispatchEvent(
+      new CustomEvent("efficiencyMorningMeetingSteamStatusLoaded", { detail: result })
+    );
   }
 
   function formatTon(value) {
@@ -510,8 +632,8 @@ function adoptStoredSteamResult(detail) {
   }
 
 
-async function run(button) {
-    /* MORNING_MEETING_STEAM_SPLIT_RUN_V14 */
+async function run(button, options = {}) {
+    /* MORNING_MEETING_STEAM_SAVED_REUSE_V4 */
     if (activePromise) return await activePromise;
 
     activePromise = (async () => {
@@ -520,32 +642,104 @@ async function run(button) {
         throw new Error("오전회의 증기 조회 기준일을 확인하지 못했습니다.");
       }
 
-      commitOisState(null, "loading");
+      const forceRefresh = options.forceRefresh === true;
+      const ignoreSaved = options.ignoreSaved === true;
+      const silent = options.silent === true;
+      let stored = null;
+
+      if (!ignoreSaved) {
+        const inMemory =
+          lastResult && lastResult.sourceDate === targetDate && hasAnyCompleteSteamSide(lastResult)
+            ? lastResult
+            : sharedState().steamStatus;
+        if (inMemory && text(inMemory.sourceDate || inMemory.targetDate) === targetDate) {
+          try {
+            stored = normalizeResult(
+              { id: inMemory.requestId, targetDate, result: inMemory },
+              targetDate
+            );
+          } catch (_) {
+            stored = null;
+          }
+        }
+
+        if (!isCompleteSteamResult(stored)) {
+          try {
+            const history = await loadStoredSteamResult(targetDate);
+            stored = mergeSteamResults(stored, history, targetDate) || stored || history;
+          } catch (error) {
+            console.warn("저장된 증기 조회 기록 확인 실패:", error);
+          }
+        }
+
+        if (hasAnyCompleteSteamSide(stored)) {
+          commitOisState(stored, isCompleteSteamResult(stored) ? "complete" : "partial");
+          dispatchSteamLoaded(lastResult);
+        }
+
+        if (isCompleteSteamResult(stored) && !forceRefresh) {
+          console.log("오전회의 증기 저장 기록 사용 · 신규 OIS 조회 생략:", lastResult);
+          return lastResult;
+        }
+      }
+
+      if (!stored) commitOisState(null, "loading");
+      else phase = "loading";
+      applySourceOwnership();
+
       try {
-        const id = await createRequest(targetDate);
+        const id = await createRequest(targetDate, { forceRefresh: true });
         const item = await waitForCompletion(id);
-        const normalized = normalizeResult(item, targetDate);
-        const nextPhase = normalized.complete ? "complete" : "partial";
-        commitOisState(normalized, nextPhase);
-        window.__morningMeetingSteamOisProbeLastResult = lastResult;
+        const fresh = normalizeResult(item, targetDate);
+        const merged = ignoreSaved
+          ? fresh
+          : (mergeSteamResults(fresh, stored, targetDate) || fresh);
+        const nextPhase = isCompleteSteamResult(merged) ? "complete" : "partial";
+        commitOisState(merged, nextPhase);
+        dispatchSteamLoaded(lastResult);
 
-        document.dispatchEvent(
-          new CustomEvent("morningMeetingSteamOisProbeLoaded", { detail: lastResult })
+        console.log(
+          isCompleteSteamResult(merged)
+            ? "오전회의 증기 생산량·판매량 조회 완료:"
+            : "오전회의 증기 일부 조회 완료 · 저장 기록과 병합:",
+          lastResult
         );
-        document.dispatchEvent(
-          new CustomEvent("efficiencyMorningMeetingSteamStatusLoaded", { detail: lastResult })
-        );
-
-        console.log("오전회의 증기 생산량·판매량 분리 OIS 확인 완료:", lastResult);
         return lastResult;
       } catch (error) {
+        if (!ignoreSaved && hasAnyCompleteSteamSide(stored)) {
+          const partial = {
+            ...stored,
+            productionError:
+              stored.productionComplete === true
+                ? ""
+                : (text(stored.productionError) || text(error?.message)),
+            salesError:
+              stored.salesComplete === true
+                ? ""
+                : (text(stored.salesError) || text(error?.message)),
+            complete: false
+          };
+          commitOisState(partial, "partial");
+          dispatchSteamLoaded(lastResult);
+          console.warn("증기 신규 조회 실패 · 저장된 완료 항목 유지:", error);
+          if (!silent) {
+            window.alert?.(
+              "저장된 증기 값은 유지했습니다.\n" +
+              (error instanceof Error ? error.message : "미수신 항목 재조회에 실패했습니다.")
+            );
+          }
+          return lastResult;
+        }
+
         commitOisState(null, "error", error);
         console.error("오전회의 증기 생산량·판매량 OIS 조회 실패:", error);
-        window.alert?.(
-          error instanceof Error
-            ? error.message
-            : "OIS 증기 생산량·판매량 조회에 실패했습니다."
-        );
+        if (!silent) {
+          window.alert?.(
+            error instanceof Error
+              ? error.message
+              : "OIS 증기 생산량·판매량 조회에 실패했습니다."
+          );
+        }
         throw error;
       } finally {
         if (button) button.disabled = false;
@@ -586,7 +780,13 @@ async function run(button) {
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
-      void run(target).catch(() => {});
+      void run(target, {
+        userInitiated: true,
+        forceRefresh: true,
+        ignoreSaved: false,
+        silent: false,
+        requireComplete: false
+      }).catch(() => {});
     },
     true
   );
@@ -613,9 +813,13 @@ async function run(button) {
   };
   window.isEfficiencyMorningMeetingSteamOisBusy = () => Boolean(activePromise);
 
-  window.loadEfficiencyMorningMeetingSteamOis = options => {
-    void options;
-    return run(document.getElementById(BUTTON_ID));
+  window.loadEfficiencyMorningMeetingSteamOis = async options => {
+    const normalizedOptions = options && typeof options === "object" ? options : {};
+    const result = await run(document.getElementById(BUTTON_ID), normalizedOptions);
+    if (normalizedOptions.requireComplete === true && !isCompleteSteamResult(result)) {
+      throw new Error("증기 생산량·판매량 중 미수신 항목이 남아 있습니다. 저장값은 유지하며 미수신 항목 재조회가 필요합니다.");
+    }
+    return result;
   };
 
   if (document.readyState === "loading") {
