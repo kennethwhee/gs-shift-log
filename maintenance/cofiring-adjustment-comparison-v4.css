@@ -138,3 +138,77 @@
 .cofiring-period-v5 [data-cfv56-adjust].is-active {
   background-color: #eaf5ff !important;
 }
+
+/* COFIRING_ADJUSTMENT_FLOW_ARROW_V4_START */
+/*
+  Approved desktop preview:
+  original card -> downward arrow -> adjusted card.
+  The arrow intentionally overlaps the adjusted card's top border.
+  1호기 = teal, 2호기 = blue.
+*/
+@media screen and (min-width: 901px) {
+  .cofiring-period-v5 .cfv52-summary-grid > .cfv-adjustment-card[data-cfv52-unit] {
+    position: relative !important;
+    margin-top: 18px !important;
+    overflow: visible !important;
+    z-index: 2;
+    --cfv-flow-color: #2ca38f;
+    --cfv-flow-bg: rgba(231, 248, 244, 0.97);
+    --cfv-flow-border: rgba(75, 179, 157, 0.36);
+  }
+
+  .cofiring-period-v5 .cfv52-summary-grid > .cfv-adjustment-card[data-cfv52-unit="unit2"] {
+    --cfv-flow-color: #4f8dde;
+    --cfv-flow-bg: rgba(235, 244, 255, 0.98);
+    --cfv-flow-border: rgba(79, 141, 222, 0.34);
+  }
+
+  .cofiring-period-v5 .cfv52-summary-grid > .cfv-adjustment-card[data-cfv52-unit]::before {
+    content: "↓" !important;
+    position: absolute !important;
+    top: -31px !important;
+    left: calc(50% - 68px) !important;
+    right: auto !important;
+    width: 36px !important;
+    height: 40px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: var(--cfv-flow-color) !important;
+    font-size: 35px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+    text-align: center !important;
+    pointer-events: none !important;
+    z-index: 20 !important;
+    filter: drop-shadow(0 2px 2px rgba(35, 74, 93, 0.10));
+  }
+
+  .cofiring-period-v5 .cfv52-summary-grid > .cfv-adjustment-card[data-cfv52-unit]::after {
+    content: "혼소조정 적용" !important;
+    position: absolute !important;
+    top: -19px !important;
+    left: calc(50% - 27px) !important;
+    right: auto !important;
+    min-width: 86px !important;
+    height: 23px !important;
+    box-sizing: border-box !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 10px !important;
+    border: 1px solid var(--cfv-flow-border) !important;
+    border-radius: 999px !important;
+    background: var(--cfv-flow-bg) !important;
+    color: var(--cfv-flow-color) !important;
+    box-shadow: 0 2px 7px rgba(36, 76, 96, 0.07) !important;
+    font-size: 10px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+    letter-spacing: -0.15px !important;
+    white-space: nowrap !important;
+    pointer-events: none !important;
+    z-index: 21 !important;
+  }
+}
+/* COFIRING_ADJUSTMENT_FLOW_ARROW_V4_END */
