@@ -896,6 +896,17 @@
       if(cfvSummaryLayoutFinalReady(result,adjusted))cfvSummaryLayoutPending(false);
     }
     function adjustmentContext(){return {result:lastResult,settings:readSettings(container),spec:currentSpec()};}
+    function notifyPeriodAdjustmentChanged(){
+      try{
+        const changedSpec=currentSpec();
+        const detail={start:changedSpec?.startLocal||'',end:changedSpec?.endLocal||''};
+        if(typeof root.CustomEvent==='function'){
+          root.dispatchEvent?.(new root.CustomEvent('cofiring:period-adjustment-changed',{detail}));
+        }else if(typeof root.Event==='function'){
+          root.dispatchEvent?.(new root.Event('cofiring:period-adjustment-changed'));
+        }
+      }catch(_){}
+    }
     let adjuster=null;
     function scheduleFastPrep(delay=900){if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}const epoch=++fastPrepGeneration;restoringSaved=false;if(disposed||mobile||!visible()||!live){cfvSummaryLayoutPending(false);return;}prepLabel('고속 준비 예약');fastPrepTimer=root.setTimeout?.(()=>{fastPrepTimer=null;void fastPrepare(epoch);},delay);}
     // Automatic balance refreshes are unsaved values, not operator edits. Only
@@ -1451,7 +1462,7 @@
       if(!await selectStores()){clickTiming?.fail(token,'계산 기준 확인 실패');return;}if(!stillSelected())return;live.select(spec);const ok=await queryWithBusyRetry({force:true});if(!stillSelected())return;const liveState=live.state();
       if(ok||liveState.item?.active)acceptClickRequest(token);else{clickTiming?.fail(token,'재조회 요청 확인 실패');setStatus(container,liveState.item?.error||'재조회 요청을 시작하지 못했습니다.','error');}
     }}catch(e){clickTiming?.fail(token,'재조회 오류');setStatus(container,e.message,'error');}finally{clickBusy=false;}});
-    adjuster=adjustmentApi?.create({container,getHeaders:authHeaders,getContext:adjustmentContext,onMessage:m=>setStatus(container,m,'error'),onApply:(result)=>{renderDisplay(result,{adjusted:true});setStatus(container,'혼소 조정값을 선택기간 계산 화면에 적용했습니다. 원본 DataPARC 저장값은 변경하지 않습니다.','success');},onReset:()=>{if(lastResult){renderDisplay(lastResult,{adjusted:false});setStatus(container,'혼소 조정을 원복했습니다. DataPARC 원본 계산값을 표시합니다.','success');}}})||null;
+    adjuster=adjustmentApi?.create({container,getHeaders:authHeaders,getContext:adjustmentContext,onMessage:m=>setStatus(container,m,'error'),onApply:(result)=>{renderDisplay(result,{adjusted:true});notifyPeriodAdjustmentChanged();setStatus(container,'혼소 조정값을 선택기간 계산 화면에 적용했습니다. 원본 DataPARC 저장값은 변경하지 않습니다.','success');},onReset:()=>{if(lastResult){renderDisplay(lastResult,{adjusted:false});notifyPeriodAdjustmentChanged();setStatus(container,'혼소 조정을 원복했습니다. DataPARC 원본 계산값을 표시합니다.','success');}}})||null;
     const adjustButton=container.querySelector('[data-cfv56-adjust]');if(adjustButton){adjustButton.disabled=true;adjustButton.addEventListener('click',()=>{try{Promise.resolve(adjuster?.open()).catch(e=>setStatus(container,e.message,'error'));}catch(e){setStatus(container,e.message,'error');}});}
     // COFIRING_ACTIVE_ADJUSTMENT_REVERT_V1
     const activeResetButton=container.querySelector('[data-cfv56-active-reset]');

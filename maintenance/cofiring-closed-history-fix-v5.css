@@ -1,0 +1,94 @@
+/* COFIRING CLOSED HISTORY FIX V5
+   1) Enabled [혼소 조정] uses high-contrast bold black text.
+   2) Right detail drawer gives more width back to the monthly table.
+   3) Left monthly values stay readable while the drawer is open.
+*/
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv56-summary-actions [data-cfv56-adjust]:not(:disabled){
+  color:#111827!important;
+  -webkit-text-fill-color:#111827!important;
+  font-weight:900!important;
+  border-color:#8297aa!important;
+  background:#fff!important;
+  box-shadow:0 1px 2px rgba(15,23,42,.08)!important;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv56-summary-actions [data-cfv56-adjust]:not(:disabled):hover{
+  color:#000!important;
+  -webkit-text-fill-color:#000!important;
+  border-color:#60788f!important;
+  background:#f8fafc!important;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv56-summary-actions [data-cfv56-adjust].is-active:not(:disabled){
+  color:#111827!important;
+  -webkit-text-fill-color:#111827!important;
+  font-weight:950!important;
+}
+
+@media (min-width:1181px){
+  .efficiency-team-panel.cfh-final-drawer-open{
+    --cfh-final-drawer-width:clamp(480px,33vw,520px)!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open .cfh-final-drawer{
+    width:var(--cfh-final-drawer-width)!important;
+    min-width:480px!important;
+    max-width:520px!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-readable-panel{
+    padding:11px!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-readable-table> :is(thead,tbody,tfoot)>tr> :is(th,td){
+    padding:6px 4px!important;
+    font-size:11px!important;
+    letter-spacing:-.10px!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-readable-table thead th{
+    font-size:10.5px!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-readable-table .cfh-date strong{
+    font-size:12.5px!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-readable-table .cfh-date small{
+    margin-top:2px!important;
+    font-size:9px!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-readable-table th.cfh-unit{
+    font-size:10.5px!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-readable-table td.cfh-unit-total{
+    font-size:12.5px!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-readable-table td.cfh-combined{
+    padding:6px!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-combined-main span,
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-combined-sub span{
+    font-size:9px!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-combined-main strong{
+    font-size:12.5px!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-combined-sub b{
+    font-size:10.5px!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-actions button{
+    min-height:27px!important;
+    max-width:54px!important;
+    padding:3px 5px!important;
+    font-size:10px!important;
+  }
+}

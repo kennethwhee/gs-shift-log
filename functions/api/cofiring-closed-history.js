@@ -169,14 +169,29 @@ function closedStoredAdjustment(row){
   if((from!==null&&from!==1&&from!==2)||!Number.isFinite(transfer)||transfer<0||!Number.isFinite(excluded)||excluded<0||(max!==null&&(!Number.isFinite(max)||max<=0)))return null;
   return {mode,fromUnit:from,bioTransferTons:transfer,finalBioUnit1:f1,finalBioUnit2:f2,maxBioTpd:max,excludedBioTons:excluded,note:String(data.note||'').slice(0,500),revision:Number(row.revision)||0,updatedAt:String(row.updated_at||'')};
 }
-async function latestClosedPeriodAdjustment(db,start,end){
-  if(typeof start!=='string'||typeof end!=='string'||!start||!end)return null;
+async function latestClosedPeriodAdjustmentState(db,start,end){
+  if(typeof start!=='string'||typeof end!=='string'||!start||!end)return {found:false,active:false,entry:null};
   try{
     const row=await db.prepare(`SELECT start_local,end_local,revision,cleared,adjustment_json,updated_at
       FROM ${PERIOD_ADJUSTMENT_TABLE} WHERE period_key=? ORDER BY revision DESC LIMIT 1`)
       .bind(`${start}|${end}`).first();
-    return closedStoredAdjustment(row);
-  }catch{return null;}
+    if(!row)return {found:false,active:false,entry:null};
+    const entry=closedStoredAdjustment(row);
+    return {
+      found:true,
+      active:!!entry,
+      cleared:Number(row.cleared)===1,
+      entry,
+      revision:Number(row.revision)||0,
+      updatedAt:String(row.updated_at||'')
+    };
+  }catch{
+    return {found:false,active:false,entry:null};
+  }
+}
+async function latestClosedPeriodAdjustment(db,start,end){
+  const state=await latestClosedPeriodAdjustmentState(db,start,end);
+  return state.active?state.entry:null;
 }
 function projectClosedPeriodAdjustment(snapshot,entry){
   if(!snapshot||!entry)return null;
@@ -190,22 +205,48 @@ function projectClosedPeriodAdjustment(snapshot,entry){
 }
 async function hydrateActivePeriodAdjustment(db,item){
   const snapshot=item?.snapshot;if(!snapshot)return item;
+  const state=await latestClosedPeriodAdjustmentState(
+    db,
+    snapshot.period?.startLocal,
+    snapshot.period?.endLocal
+  );
+
+  // Exact-period adjustment history is authoritative. A CLEAR revision must
+  // override an older adjusted closed snapshot.
+  if(state.found){
+    if(state.active){
+      const projected=projectClosedPeriodAdjustment(snapshot,state.entry);
+      if(projected){
+        item.adjustmentApplied=true;
+        item.effectiveOriginalResult=projected.originalResult;
+        item.effectiveResult=projected.result;
+        item.effectiveAdjustment=projected.adjustment;
+        item.adjustmentSource='period_adjustment';
+        return item;
+      }
+    }else{
+      item.adjustmentApplied=false;
+      item.effectiveOriginalResult=null;
+      item.effectiveResult=snapshot.originalResult||snapshot.result;
+      item.effectiveAdjustment=null;
+      item.adjustmentSource='period_adjustment_cleared';
+      return item;
+    }
+  }
+
+  // Snapshot state is fallback only when no exact-period history revision exists.
   if(snapshot.result?.adjustment?.applied===true){
     item.adjustmentApplied=true;
     item.effectiveOriginalResult=snapshot.originalResult||null;
     item.effectiveResult=snapshot.result;
     item.effectiveAdjustment=snapshot.result.adjustment||null;
     item.adjustmentSource='closed_snapshot';
-    return item;
-  }
-  const entry=await latestClosedPeriodAdjustment(db,snapshot.period?.startLocal,snapshot.period?.endLocal);
-  const projected=projectClosedPeriodAdjustment(snapshot,entry);
-  if(projected){
-    item.adjustmentApplied=true;
-    item.effectiveOriginalResult=projected.originalResult;
-    item.effectiveResult=projected.result;
-    item.effectiveAdjustment=projected.adjustment;
-    item.adjustmentSource='period_adjustment';
+  }else{
+    item.adjustmentApplied=false;
+    item.effectiveOriginalResult=null;
+    item.effectiveResult=snapshot.result;
+    item.effectiveAdjustment=null;
+    item.adjustmentSource='closed_snapshot_original';
   }
   return item;
 }
@@ -213,20 +254,45 @@ function nextClosedMonth(month){
   const m=/^(20\d{2})-(0[1-9]|1[0-2])$/.exec(month||'');if(!m)return null;
   const y=Number(m[1]),n=Number(m[2]);return n===12?`${y+1}-01`:`${y}-${String(n+1).padStart(2,'0')}`;
 }
-async function activeAdjustmentDates(db,month){
-  const next=nextClosedMonth(month);if(!next)return new Set();
+function nextClosedDate(date){
+  if(!/^20\d{2}-\d{2}-\d{2}$/.test(date||''))return null;
+  const ms=Date.parse(date+'T00:00:00Z');
+  if(!Number.isFinite(ms))return null;
+  return new Date(ms+86400000).toISOString().slice(0,10);
+}
+function closedDailyAdjustmentDate(row){
+  const start=String(row?.start_local||''),end=String(row?.end_local||'');
+  const date=start.slice(0,10),next=nextClosedDate(date);
+  if(!next||start!==date+'T00:00'||end!==next+'T00:01')return null;
+  return date;
+}
+async function adjustmentStatesByDate(db,month){
+  const next=nextClosedMonth(month);if(!next)return new Map();
   try{
-    const rows=await db.prepare(`SELECT a.start_local,a.cleared,a.adjustment_json,a.revision,a.updated_at
+    const rows=await db.prepare(`SELECT a.start_local,a.end_local,a.cleared,a.adjustment_json,a.revision,a.updated_at
       FROM ${PERIOD_ADJUSTMENT_TABLE} a
       WHERE a.start_local>=? AND a.start_local<?
         AND a.revision=(SELECT MAX(b.revision) FROM ${PERIOD_ADJUSTMENT_TABLE} b WHERE b.period_key=a.period_key)`)
       .bind(month+'-01T00:00',next+'-01T00:00').all();
-    return new Set((rows.results||[]).filter(row=>closedStoredAdjustment(row)).map(row=>String(row.start_local||'').slice(0,10)));
-  }catch{return new Set();}
+    const states=new Map();
+    for(const row of rows.results||[]){
+      const date=closedDailyAdjustmentDate(row);
+      if(!date)continue;
+      states.set(date,!!closedStoredAdjustment(row));
+    }
+    return states;
+  }catch{return new Map();}
+}
+async function activeAdjustmentDates(db,month){
+  const states=await adjustmentStatesByDate(db,month);
+  return new Set([...states].filter(([,active])=>active).map(([date])=>date));
 }
 async function applyMonthAdjustmentFlags(db,month,items){
-  const active=await activeAdjustmentDates(db,month);
-  for(const item of items||[]){if(active.has(String(item?.targetDate||'')))item.adjustmentApplied=true;}
+  const states=await adjustmentStatesByDate(db,month);
+  for(const item of items||[]){
+    const date=String(item?.targetDate||'');
+    if(states.has(date))item.adjustmentApplied=states.get(date);
+  }
   return items;
 }
 const MAX_BODY_BYTES=1500000;
