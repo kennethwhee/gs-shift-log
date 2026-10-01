@@ -720,3 +720,117 @@
     grid-template-columns:1fr;
   }
 }
+
+
+/* COFIRING CLOSED HISTORY DETAIL SPLIT LAYOUT V2
+   When the right detail drawer is open, the existing Efficiency Team body
+   yields real layout space instead of being covered by the drawer.
+*/
+@media (min-width:1181px){
+  .efficiency-team-panel.cfh-final-drawer-open{
+    --cfh-final-drawer-width:min(39vw,610px);
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open .efficiency-team-modal__body{
+    padding-right:var(--cfh-final-drawer-width)!important;
+    transition:padding-right .18s ease;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open .efficiency-team-workspace,
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView{
+    min-width:0!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open .cfh-final-drawer{
+    width:var(--cfh-final-drawer-width)!important;
+    min-width:520px!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-readable-panel{
+    min-width:0!important;
+    padding:10px!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-readable-wrap{
+    max-width:100%!important;
+    overflow:hidden!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView table.cfh-readable-table{
+    width:100%!important;
+    min-width:0!important;
+    table-layout:fixed!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-readable-table> :is(thead,tbody,tfoot)>tr> :is(th,td){
+    padding:5px 3px!important;
+    font-size:9px!important;
+    letter-spacing:-.18px!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-readable-table thead th{
+    font-size:9px!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-readable-table .cfh-date strong{
+    font-size:11px!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-readable-table .cfh-date small{
+    margin-top:2px!important;
+    font-size:8px!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-readable-table th.cfh-unit{
+    font-size:9px!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-readable-table td.cfh-unit-total{
+    font-size:10px!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-readable-table td.cfh-combined{
+    padding:5px 5px!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-combined-main{
+    margin-bottom:2px!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-combined-main span,
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-combined-sub span{
+    font-size:8px!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-combined-main strong{
+    font-size:11px!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-combined-sub b{
+    font-size:9px!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfh-actions button{
+    min-height:24px!important;
+    max-width:48px!important;
+    padding:3px 3px!important;
+    font-size:8px!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfv15-month-toolbar{
+    gap:6px!important;
+    padding:6px!important;
+  }
+
+  .efficiency-team-panel.cfh-final-drawer-open #efficiencyCofiringDraftView .cfv15-month-status{
+    margin-left:auto!important;
+  }
+}
+
+/* Keep the adjusted-day dot on the same line as the MM.DD label. */
+#efficiencyCofiringDraftView .cfh-readable-panel .cfh-final-adjusted-day .cfh-date strong{
+  display:inline-block!important;
+}
+#efficiencyCofiringDraftView .cfh-readable-panel .cfh-final-adjusted-day .cfh-date small{
+  display:block!important;
+}

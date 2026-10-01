@@ -1,4 +1,5 @@
 import { validateClosedSnapshot, validDate, readClosedOrganicInventory } from '../_shared/cofiring-closed-validation.js';
+import adjustment from '../../maintenance/cofiring-period-adjustment-v56.js';
 
 const json=(body,status=200)=>new Response(JSON.stringify(body),{
   status,
@@ -155,6 +156,79 @@ async function hydrateClosedComparison(db,item){
   }
   return item;
 }
+const PERIOD_ADJUSTMENT_TABLE='cofiring_period_adjustment_history';
+function closedStoredAdjustment(row){
+  if(!row||Number(row.cleared)===1)return null;
+  let data=null;try{data=JSON.parse(row.adjustment_json||'null');}catch(_){}
+  if(!data||typeof data!=='object'||Array.isArray(data))return null;
+  const mode=String(data.mode||'').trim();
+  const f1=Number(data.finalBioUnit1),f2=Number(data.finalBioUnit2);
+  if(!['manual_transfer','max_auto','manual_final'].includes(mode)||!Number.isFinite(f1)||f1<0||!Number.isFinite(f2)||f2<0)return null;
+  const from=data.fromUnit==null?null:Number(data.fromUnit);
+  const transfer=Number(data.bioTransferTons||0),excluded=Number(data.excludedBioTons||0),max=data.maxBioTpd==null?null:Number(data.maxBioTpd);
+  if((from!==null&&from!==1&&from!==2)||!Number.isFinite(transfer)||transfer<0||!Number.isFinite(excluded)||excluded<0||(max!==null&&(!Number.isFinite(max)||max<=0)))return null;
+  return {mode,fromUnit:from,bioTransferTons:transfer,finalBioUnit1:f1,finalBioUnit2:f2,maxBioTpd:max,excludedBioTons:excluded,note:String(data.note||'').slice(0,500),revision:Number(row.revision)||0,updatedAt:String(row.updated_at||'')};
+}
+async function latestClosedPeriodAdjustment(db,start,end){
+  if(typeof start!=='string'||typeof end!=='string'||!start||!end)return null;
+  try{
+    const row=await db.prepare(`SELECT start_local,end_local,revision,cleared,adjustment_json,updated_at
+      FROM ${PERIOD_ADJUSTMENT_TABLE} WHERE period_key=? ORDER BY revision DESC LIMIT 1`)
+      .bind(`${start}|${end}`).first();
+    return closedStoredAdjustment(row);
+  }catch{return null;}
+}
+function projectClosedPeriodAdjustment(snapshot,entry){
+  if(!snapshot||!entry)return null;
+  const base=snapshot.originalResult||(snapshot.result?.adjustment?.applied===true?null:snapshot.result);
+  if(!base||!snapshot.settings)return null;
+  try{
+    const projected=adjustment.adjustFinal(base,snapshot.settings,entry.finalBioUnit1,entry.finalBioUnit2,entry);
+    if(!projected?.ok||!projected.result)return null;
+    return {originalResult:base,result:projected.result,adjustment:projected.adjustment||entry};
+  }catch{return null;}
+}
+async function hydrateActivePeriodAdjustment(db,item){
+  const snapshot=item?.snapshot;if(!snapshot)return item;
+  if(snapshot.result?.adjustment?.applied===true){
+    item.adjustmentApplied=true;
+    item.effectiveOriginalResult=snapshot.originalResult||null;
+    item.effectiveResult=snapshot.result;
+    item.effectiveAdjustment=snapshot.result.adjustment||null;
+    item.adjustmentSource='closed_snapshot';
+    return item;
+  }
+  const entry=await latestClosedPeriodAdjustment(db,snapshot.period?.startLocal,snapshot.period?.endLocal);
+  const projected=projectClosedPeriodAdjustment(snapshot,entry);
+  if(projected){
+    item.adjustmentApplied=true;
+    item.effectiveOriginalResult=projected.originalResult;
+    item.effectiveResult=projected.result;
+    item.effectiveAdjustment=projected.adjustment;
+    item.adjustmentSource='period_adjustment';
+  }
+  return item;
+}
+function nextClosedMonth(month){
+  const m=/^(20\d{2})-(0[1-9]|1[0-2])$/.exec(month||'');if(!m)return null;
+  const y=Number(m[1]),n=Number(m[2]);return n===12?`${y+1}-01`:`${y}-${String(n+1).padStart(2,'0')}`;
+}
+async function activeAdjustmentDates(db,month){
+  const next=nextClosedMonth(month);if(!next)return new Set();
+  try{
+    const rows=await db.prepare(`SELECT a.start_local,a.cleared,a.adjustment_json,a.revision,a.updated_at
+      FROM ${PERIOD_ADJUSTMENT_TABLE} a
+      WHERE a.start_local>=? AND a.start_local<?
+        AND a.revision=(SELECT MAX(b.revision) FROM ${PERIOD_ADJUSTMENT_TABLE} b WHERE b.period_key=a.period_key)`)
+      .bind(month+'-01T00:00',next+'-01T00:00').all();
+    return new Set((rows.results||[]).filter(row=>closedStoredAdjustment(row)).map(row=>String(row.start_local||'').slice(0,10)));
+  }catch{return new Set();}
+}
+async function applyMonthAdjustmentFlags(db,month,items){
+  const active=await activeAdjustmentDates(db,month);
+  for(const item of items||[]){if(active.has(String(item?.targetDate||'')))item.adjustmentApplied=true;}
+  return items;
+}
 const MAX_BODY_BYTES=1500000;
 const versioned=(revision,version)=>Number.isSafeInteger(revision)&&revision>=0&&
   (revision===0?version===null:typeof version==='string'&&/^[a-f0-9]{64}$/.test(version));
@@ -190,6 +264,7 @@ export async function onRequestGet(context){
       const item=await publicRow(await currentRow(db,targetDate),{includeSnapshot:true});
       if(item){
         await hydrateClosedComparison(db,item);
+        await hydrateActivePeriodAdjustment(db,item);
         item.organicInventory=await closedInventory(db,item);
       }
       return json({ok:true,item});
@@ -202,7 +277,9 @@ export async function onRequestGet(context){
     const rows=await db.prepare(`SELECT ${columns} FROM cofiring_closed_snapshots
       ${month?'WHERE target_date>=? AND target_date<?':''} ORDER BY target_date DESC LIMIT ?`)
       .bind(...(month?[month+'-01',month+'-32',limit]:[limit])).all();
-    return json({ok:true,items:await Promise.all((rows.results||[]).map(row=>publicRow(row)))});
+    const items=await Promise.all((rows.results||[]).map(row=>publicRow(row)));
+    await applyMonthAdjustmentFlags(db,month,items);
+    return json({ok:true,items});
   }catch(error){
     console.error('cofiring closed snapshot GET:',error);
     return json({ok:false,message:'마감 데이터를 불러오지 못했습니다.'},500);

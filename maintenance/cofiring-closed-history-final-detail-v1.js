@@ -290,7 +290,7 @@
   }
 
   function metaMarkup(item,snapshot){
-    const adjustment=snapshot?.result?.adjustment||{};
+    const adjustment=item?.effectiveAdjustment||snapshot?.result?.adjustment||{};
     return `
       <section class="cfh-final-info-card">
         <h3>마감 저장 정보</h3>
@@ -318,9 +318,9 @@
 
   function render(item){
     const snapshot=item?.snapshot||{};
-    const finalResult=snapshot?.result||{};
-    const adjusted=finalResult?.adjustment?.applied===true;
-    const originalResult=snapshot?.originalResult||null;
+    const finalResult=item?.effectiveResult||snapshot?.result||{};
+    const adjusted=item?.adjustmentApplied===true||finalResult?.adjustment?.applied===true;
+    const originalResult=item?.effectiveOriginalResult||snapshot?.originalResult||null;
     const final=resultView(finalResult);
     const original=originalResult?resultView(originalResult):null;
     const nav=dateButtons(item?.targetDate||'');
@@ -476,14 +476,8 @@
   }
 
   async function loadMonthFlags(month){
-    if(markerCache.has(month))return markerCache.get(month);
-    const promise=api('?month='+encodeURIComponent(month)).then(payload=>Array.isArray(payload?.items)?payload.items:[]);
-    markerCache.set(month,promise);
-    try{return await promise;}
-    catch(error){
-      if(markerCache.get(month)===promise)markerCache.delete(month);
-      throw error;
-    }
+    const payload=await api('?month='+encodeURIComponent(month));
+    return Array.isArray(payload?.items)?payload.items:[];
   }
 
   async function syncMarkers(){
@@ -525,7 +519,7 @@
     markerTimer=root.setTimeout(()=>{
       markerTimer=null;
       void syncMarkers();
-    },80);
+    },120);
   }
 
   function attachHostObserver(){
@@ -568,6 +562,11 @@
   }
 
   root.addEventListener?.('cofiring:closed-history-changed',()=>{
+    markerCache.clear();
+    scheduleMarkers();
+    if(currentDate)void openDate(currentDate,opener);
+  });
+  root.addEventListener?.('cofiring:period-adjustment-changed',()=>{
     markerCache.clear();
     scheduleMarkers();
     if(currentDate)void openDate(currentDate,opener);
