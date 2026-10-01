@@ -422,10 +422,33 @@ function normalizeResult(item, expectedDate) {
 function statusText() {
     /* MORNING_MEETING_STEAM_SPLIT_STATUS_V14 */
     if (phase === "loading") return "OIS 조회중";
-    if (phase === "complete") return "OIS 완료";
+    if (phase === "complete") return "조회 완료";
     if (phase === "partial") return "OIS 일부 완료";
     if (phase === "error") return "OIS 실패";
     return "OIS 대기";
+  }
+
+  /* MORNING_MEETING_STEAM_COMPLETE_BADGE_R8 */
+  function applyStatusBadgeState(element) {
+    if (!element) return;
+
+    element.classList.add(
+      "efficiency-morning-meeting-auto-card__badge"
+    );
+
+    element.classList.remove(
+      "is-loading",
+      "is-complete",
+      "is-error"
+    );
+
+    if (phase === "loading") {
+      element.classList.add("is-loading");
+    } else if (phase === "complete") {
+      element.classList.add("is-complete");
+    } else if (phase === "error") {
+      element.classList.add("is-error");
+    }
   }
 
   function hasLegacySavedSteamValues(saved) {
@@ -524,6 +547,7 @@ function applySourceOwnership() {
       const statusElement = document.getElementById(STATUS_ID);
       if (statusElement) {
         setTextIfDifferent(statusElement, statusText());
+        applyStatusBadgeState(statusElement);
         statusElement.dataset.steamOisSource = "true";
         statusElement.dataset.steamOisPhase = phase;
       }
