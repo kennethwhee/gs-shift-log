@@ -409,21 +409,21 @@
   function setStatus(container,text,tone=''){const el=container.querySelector('[data-cfv5-status]');if(el){el.textContent=text;el.dataset.tone=tone;}statusRefreshers.get(container)?.();}
   function updateRange(container){updateModeControls(container);try{const p=periodSpec(container);container.querySelector('[data-cfv5-range]').textContent=queryMode(container)==='daily'?(p.durationHours<24?`${p.targetDate} 현재까지 누적 · 자료 기준 ${p.endLocal.slice(11)} · 계산하기로 현재까지 갱신`:`${p.targetDate} 하루 혼소율 · 24시간 기준`):`선택 기간 ${num(p.durationHours,2)}시간 · 1분 기준 · 종료 누적값 확인을 위해 다음 1분까지 조회`;const out=container.querySelector('[data-cfv7-daily-window]');if(out)out.textContent=`${p.startLocal.replace('T',' ')} ~ ${p.queryEnd.slice(0,16).replace('T',' ')}`;return p;}catch(e){container.querySelector('[data-cfv5-range]').textContent=e.message;const out=container.querySelector('[data-cfv7-daily-window]');if(out)out.textContent=queryMode(container)==='daily'?'계산일을 선택해 주세요.':'시작·종료 날짜와 시간을 확인해 주세요.';return null;}}
   function renderWarnings(container,result){const box=container.querySelector('[data-cfv5-warning-box]'),list=container.querySelector('[data-cfv5-warnings]'),warnings=result?.warnings||[];box.hidden=!warnings.length;list.innerHTML=warnings.map(w=>`<li>${escapeHtml(w)}</li>`).join('');}
-  // COFIRING_ACTIVE_ADJUSTMENT_REVERT_BLUE_RUNTIME_V2
-  function ensureActiveResetSoftBlueRuntimeV2(){
-    const id='cfv-active-reset-soft-blue-runtime-v2';
+  // COFIRING_ACTIVE_ADJUSTMENT_REVERT_WHITE_BOLD_RUNTIME_V3
+  function ensureActiveResetWhiteBoldRuntimeV3(){
+    const id='cfv-active-reset-white-bold-runtime-v3';
     if(!root.document||root.document.getElementById(id))return;
     const style=root.document.createElement('style');
     style.id=id;
     style.textContent=[
-      '#efficiencyCofiringDraftView .cofiring-period-v5 .cfv56-summary-actions [data-cfv56-active-reset]{min-width:78px!important;border-color:#a7c9ec!important;background:#eef6ff!important;color:#2f6fae!important;box-shadow:0 2px 5px #4f8fd212!important}',
-      '#efficiencyCofiringDraftView .cofiring-period-v5 .cfv56-summary-actions [data-cfv56-active-reset]:hover:not(:disabled){border-color:#86b4e2!important;background:#e4f1ff!important;color:#245f9c!important;box-shadow:0 3px 7px #4f8fd21a!important}',
-      '#efficiencyCofiringDraftView .cofiring-period-v5 .cfv56-summary-actions [data-cfv56-active-reset]:active:not(:disabled){border-color:#76a8da!important;background:#dcecff!important;color:#1f568d!important;box-shadow:0 1px 3px #4f8fd214!important}'
+      '#efficiencyCofiringDraftView .cofiring-period-v5 .cfv56-summary-actions [data-cfv56-active-reset]{min-width:78px!important;border-color:#a7c9ec!important;background:#fff!important;color:#2f6fae!important;font-weight:800!important;box-shadow:0 1px 3px #152d4010!important}',
+      '#efficiencyCofiringDraftView .cofiring-period-v5 .cfv56-summary-actions [data-cfv56-active-reset]:hover:not(:disabled){border-color:#86b4e2!important;background:#f8fbff!important;color:#245f9c!important;font-weight:800!important;box-shadow:0 2px 5px #4f8fd210!important}',
+      '#efficiencyCofiringDraftView .cofiring-period-v5 .cfv56-summary-actions [data-cfv56-active-reset]:active:not(:disabled){border-color:#76a8da!important;background:#f2f7fc!important;color:#1f568d!important;font-weight:800!important;box-shadow:0 1px 2px #4f8fd20e!important}'
     ].join('');
     (root.document.head||root.document.documentElement).appendChild(style);
   }
   function mount(container){
-    ensureActiveResetSoftBlueRuntimeV2();
+    ensureActiveResetWhiteBoldRuntimeV3();
     if(!container||container.dataset.cofiringV5Mounted==='true')return null;container.dataset.cofiringV5Mounted='true';container.classList.add('cofiring-period-v5','cfv7-daily-date','cfv10-summary-ui','cfv11-status-ui');container.innerHTML=markup();
     bioTargets.set(container,storedBioTarget());
     const targetInput=container.querySelector('[data-cfv-target-input]');
