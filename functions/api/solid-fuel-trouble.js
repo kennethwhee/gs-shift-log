@@ -595,6 +595,8 @@ async function receiptSummary(db,date){
 async function receiptSummaryPeriod(db,startLocal,endLocal){
   const startMs=receiptLocalMinute(startLocal),endMs=receiptLocalMinute(endLocal);
   if(startMs===null||endMs===null||endMs<=startMs||endMs-startMs>31*24*60*60*1000)throw new Error("입고량 조회 기간을 확인해 주세요.");
+  const paddedDaily=endMs-startMs===1441*60*1000&&startLocal.endsWith('T00:00')&&endLocal.endsWith('T00:01');
+  const effectiveEndLocal=paddedDaily?endLocal.slice(0,10)+'T00:00':endLocal;
   const row=await db.prepare(`
     WITH completed AS (
       SELECT
@@ -602,8 +604,6 @@ async function receiptSummaryPeriod(db,startLocal,endLocal){
         receipt_tons,
         CASE
           WHEN departure_time='' THEN NULL
-          WHEN arrival_time<>'' AND departure_time<arrival_time
-            THEN date(unloading_date,'+1 day')||'T'||departure_time
           ELSE unloading_date||'T'||departure_time
         END AS completed_local
       FROM solid_fuel_unloading_logs
@@ -618,8 +618,8 @@ async function receiptSummaryPeriod(db,startLocal,endLocal){
       SUM(CASE WHEN fuel_type='organic' THEN 1 ELSE 0 END) AS organic_count,
       SUM(CASE WHEN fuel_type='manure' THEN 1 ELSE 0 END) AS manure_count
     FROM completed
-    WHERE completed_local>? AND completed_local<=?
-  `).bind(startLocal,endLocal).first();
+    WHERE completed_local>=? AND completed_local<?
+  `).bind(startLocal,effectiveEndLocal).first();
   return {
     organic:Number(row?.organic_tons||0),
     manure:Number(row?.manure_tons||0),

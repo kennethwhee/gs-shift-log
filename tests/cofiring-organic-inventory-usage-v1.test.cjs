@@ -97,7 +97,7 @@ test('source connects 13 DataPARC rows, completed-unloading receipt interval, an
   assert.match(api,/receiptStart/);
   assert.match(api,/receiptEnd/);
   assert.match(api,/departure_time/);
-  assert.match(api,/completed_local>\? AND completed_local<=\?/);
+  assert.match(api,/completed_local>=\? AND completed_local<\?/);
 
   const ui=fs.readFileSync(path.join(root,'maintenance','cofiring-period-ui-v5.js'),'utf8');
   assert.match(ui,/data-cfv15-organic-usage/);

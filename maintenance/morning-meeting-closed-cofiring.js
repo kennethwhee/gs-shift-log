@@ -170,6 +170,7 @@
     return { targetDate: date, revision: item.revision, updatedAt: String(item.updatedAt || ''),
       source: 'cofiring-closed-history', period: {startLocal: period.startLocal, endLocal: period.endLocal},
       adjustmentApplied: effective.adjustmentApplied, adjustmentSource: effective.adjustmentSource,
+      receiptInputMode: snapshot.manual?.inputMode === 'manual' ? 'manual' : 'auto',
       unitOne: unit(compatClosedUnitSummary(summary?.unit1, snapshot?.result?.units?.unit1)), unitTwo: unit(compatClosedUnitSummary(summary?.unit2, snapshot?.result?.units?.unit2)), combined: ratios(compatClosedCombinedSummary(summary?.combined, snapshot?.result?.combined)),
       organic, receiptCountNote: '마감자료에는 입고 건수가 저장되어 있지 않습니다.' };
   }
@@ -389,10 +390,46 @@
           try {
             const url = '/api/solid-fuel-trouble?' + new URLSearchParams({receiptStart: item.period.startLocal, receiptEnd: item.period.endLocal});
             const receipts = await getJson(url, headers);
-            item.organic.sludgeTruckCount = matchingReceiptCount(receipts, item);
-            item.receiptCountNote = item.organic.sludgeTruckCount === null
-              ? '현재 입고기록과 마감 입고량이 달라 입고 건수를 표시하지 않습니다.'
-              : '입고기록 기준 완료 하역 건수입니다. 조회 기간과 입고량이 마감자료와 일치합니다.';
+            const receiptTons = number(receipts?.receipts?.organic);
+            const receiptCount =
+              Number.isSafeInteger(receipts?.counts?.organic) &&
+              receipts.counts.organic >= 0
+                ? receipts.counts.organic
+                : null;
+
+            const samePeriod =
+              receipts?.source === 'solid-fuel-unloading' &&
+              receipts?.basis === 'completed-unloading-departure' &&
+              receipts?.receiptStart === item.period.startLocal &&
+              receipts?.receiptEnd === item.period.endLocal;
+
+            if (
+              item.receiptInputMode !== 'manual' &&
+              samePeriod &&
+              receiptTons !== null &&
+              receiptCount !== null
+            ) {
+              item.organic.sludgeTotal = receiptTons;
+              item.organic.sludgeTruckCount = receiptCount;
+              item.receiptCountNote =
+                '입고기록 기준 완료 하역 입고량·건수입니다. 자동입력 마감은 최신 완료 하역기록을 우선 표시합니다.';
+            } else {
+              item.organic.sludgeTruckCount =
+                matchingReceiptCount(receipts, item);
+
+              item.receiptCountNote =
+                item.receiptInputMode === 'manual'
+                  ? (
+                      item.organic.sludgeTruckCount === null
+                        ? '수동 입력 마감값을 유지합니다. 현재 입고기록과 입고량이 달라 건수는 표시하지 않습니다.'
+                        : '수동 입력 마감값을 유지합니다. 입고 건수는 동일 입고량의 완료 하역기록 기준입니다.'
+                    )
+                  : (
+                      item.organic.sludgeTruckCount === null
+                        ? '현재 입고기록을 확인하지 못해 마감 입고량을 유지합니다.'
+                        : '입고기록 기준 완료 하역 건수입니다. 조회 기간과 입고량이 마감자료와 일치합니다.'
+                    );
+            }
           } catch { item.receiptCountNote = '입고기록을 확인하지 못했습니다. 마감 입고량과 재고는 그대로 표시합니다.'; }
         }
         if (!current()) return null;

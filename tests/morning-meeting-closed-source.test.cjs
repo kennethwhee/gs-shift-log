@@ -121,3 +121,35 @@ test('captured workbook suppression or export date prevents closed values reappe
   assert.equal(result.sludgeTotal,undefined);assert.equal(result.organicTruckCount,undefined);assert.equal(result.powerGeneration,50);
  }
 });
+
+test('automatic receipt close refreshes amount and count from completed unloading; manual close remains authoritative',async()=>{
+ const auto=harness(async url=>{
+  if(url.startsWith('/api/cofiring-'))return{ok:true,json:async()=>({ok:true,item:item()})};
+  const payload=receipts();
+  payload.receipts.organic=230.99;
+  payload.counts.organic=8;
+  return{ok:true,json:async()=>payload};
+ });
+
+ await auto.api.load(DATE);
+
+ assert.equal(auto.api.peek(DATE).organic.sludgeTotal,230.99);
+ assert.equal(auto.api.peek(DATE).organic.sludgeTruckCount,8);
+
+ const manualItem=item();
+ manualItem.snapshot.manual.inputMode='manual';
+ manualItem.snapshot.manual.receipts.organic=174.26;
+
+ const manual=harness(async url=>{
+  if(url.startsWith('/api/cofiring-'))return{ok:true,json:async()=>({ok:true,item:manualItem})};
+  const payload=receipts(manualItem);
+  payload.receipts.organic=230.99;
+  payload.counts.organic=8;
+  return{ok:true,json:async()=>payload};
+ });
+
+ await manual.api.load(DATE);
+
+ assert.equal(manual.api.peek(DATE).organic.sludgeTotal,174.26);
+ assert.equal(manual.api.peek(DATE).organic.sludgeTruckCount,null);
+});
