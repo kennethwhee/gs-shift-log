@@ -337,14 +337,14 @@
       group.append(badge, edit, restore, save, cancel);
       meta.appendChild(group);
     }
-
-    /* GS_MORNING_CARD_OVERRIDE_V3_STEAM_HEADER
-     * Steam has the longest title and date/status controls. Keep its
-     * override actions on a dedicated compact second header row.
+    /* GS_MORNING_CARD_OVERRIDE_V6_UNIFIED_HEADER
+     * All three editable cards use the same two-row header layout.
+     * Source/read/save behavior is unchanged; only the control container moves.
      */
-    if (cardKey === "steam" && header && group.parentElement !== header) {
+    if (header && group.parentElement !== header) {
       header.appendChild(group);
     }
+    card.classList.add("morning-card-override-unified-header");
 
     for (const field of config.fields) ensureInput(cardKey, field);
     return group;
