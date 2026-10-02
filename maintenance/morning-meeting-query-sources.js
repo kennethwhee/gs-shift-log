@@ -707,7 +707,9 @@
                     window
                       .toNightPower
                       ?.refreshMeeting
-                      ?.()
+                      ?.({
+                        allowBlockedRebuild: releaseAfterSuccess || options.requery === true
+                      })
                 ),
 
               closed:
@@ -718,7 +720,8 @@
                       ?.refreshOrganicFromClosing
                       ?.({
                         userInitiated:
-                          true
+                          true,
+                        allowBlockedRebuild: releaseAfterSuccess || options.requery === true
                       })
                 )
             }

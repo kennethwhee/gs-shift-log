@@ -520,12 +520,21 @@
   function renderMeeting() {
     checkSession();
     const card = byId(PREFIX + 'PowerCard'), date = targetDate();
-    if (!card || !dateValid(date) || blocked(date)) return;
+    if (!card || !dateValid(date)) return;
     const status = byId(PREFIX + 'PowerStatus');
     const badge = (text, state) => {
       setText(status, text);
       for (const value of ['loading', 'complete', 'error']) status?.classList.toggle('is-' + value, state === value);
     };
+    if (blocked(date)) {
+      for (const [, , suffix] of FIELDS) setText(byId(PREFIX + suffix), '-');
+      setText(byId('efficiencyMorningMeetingAutoSolarMonthlyCumulative'), '-');
+      setText(byId('efficiencyMorningMeetingAutoSolarYearlyCumulative'), '-');
+      setText(byId(PREFIX + 'PowerDate'), date);
+      badge('조회 대기', 'idle');
+      card.title = date + ' 자료삭제 상태 · TO 원본 입력은 유지됩니다.';
+      return;
+    }
     let entry = cache.get(date);
     if (session && entry?.status === 'ready' && Date.now() - entry.at >= 30000) {
       void load(date, true).catch(() => {});
@@ -558,10 +567,16 @@
       badge(hasExisting ? 'TO 미입력 · 기존 조회값' : 'TO 미입력', hasExisting ? 'complete' : 'idle');
     }
   }
-  async function refreshMeeting() {
-    const date = targetDate(); if (!dateValid(date)) return;
-    if (blocked(date)) { redrawMeeting(); return; }
-    try { await load(date, true); } catch { /* Error is visible on the power card. */ }
+  async function refreshMeeting(options = {}) {
+    const date = targetDate(); if (!dateValid(date)) return null;
+    const allowBlockedRebuild = options.allowBlockedRebuild === true;
+    if (blocked(date) && !allowBlockedRebuild) { redrawMeeting(); return null; }
+    try {
+      const payload = await load(date, true);
+      return payload;
+    } catch {
+      return null;
+    }
   }
   async function ensureForWorkbook(date) {
     if (!dateValid(date)) throw new Error('최종 엑셀 전력 실적 기준일을 확인해 주세요.');

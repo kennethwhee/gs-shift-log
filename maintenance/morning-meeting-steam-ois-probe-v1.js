@@ -525,6 +525,36 @@ function applySourceOwnership() {
         lastResult = null;
         phase = "idle";
       }
+      const selectedDateDeleted = Boolean(
+        targetDate && (
+          window.isMorningMeetingSelectedDateResetActive?.(targetDate) === true ||
+          window.morningMeetingQuerySources?.resetState?.(targetDate)?.active === true
+        )
+      );
+      if (selectedDateDeleted) {
+        card.dataset.steamSource = "ois";
+        if (targetDate) card.dataset.steamSourceDate = targetDate;
+        const dateElement = document.getElementById(DATE_ID);
+        setTextIfDifferent(dateElement, targetDate ? targetDate + " · OIS" : "OIS");
+        const statusElement = document.getElementById(STATUS_ID);
+        if (statusElement) {
+          setTextIfDifferent(statusElement, "조회 대기");
+          statusElement.classList.remove("is-loading", "is-complete", "is-error");
+          statusElement.dataset.steamOisSource = "true";
+          statusElement.dataset.steamOisPhase = "idle";
+        }
+        for (const id of Object.values(VALUE_IDS)) {
+          setTextIfDifferent(document.getElementById(id), "-");
+        }
+        const button = document.getElementById(BUTTON_ID);
+        if (button) {
+          button.disabled = true;
+          button.title = "자료삭제 상태입니다. 전체조회 또는 재조회로 다시 구성해 주세요.";
+          button.setAttribute("aria-label", button.title);
+        }
+        card.title = targetDate + " 자료삭제 상태 · OIS 원본은 삭제되지 않았습니다.";
+        return;
+      }
 
       const currentOisOwns = Boolean(
         lastResult && (!targetDate || lastResult.sourceDate === targetDate)

@@ -286,9 +286,10 @@
   // erasing a complete existing Morning Meeting organic card.
   async function refreshOrganicFromClosing(options = {}) {
     const date = targetDate();
-    if (!dateValid(date) || isBlocked(date)) return null;
+    const allowBlockedRebuild = options.allowBlockedRebuild === true;
+    if (!dateValid(date) || (isBlocked(date) && !allowBlockedRebuild)) return null;
     beginExplicitOrganicRequery(date);
-    return refresh({...options, force: true});
+    return refresh({...options, force: true, allowBlockedRebuild});
   }
 
 
@@ -359,13 +360,14 @@
 
   async function load(date = targetDate(), options = {}) {
     if (!dateValid(date)) return null;
+    const allowBlockedRebuild = options.allowBlockedRebuild === true;
     let identity;
     try { identity = checkSession(); } catch { identity = ''; }
     if (!identity) {
       invalidate(date); cache.set(date, {status: 'error', error: '로그인이 필요합니다.'}); notify(date);
       throw new Error('로그인이 필요합니다.');
     }
-    if (isBlocked(date)) { invalidate(date); return null; }
+    if (isBlocked(date) && !allowBlockedRebuild) { invalidate(date); return null; }
     if (pending.has(date)) return pending.get(date);
     if (options.force !== true && cache.has(date)) {
       const entry = cache.get(date);
@@ -373,7 +375,7 @@
       return entry.item || null;
     }
     const generation = generations.get(date) || 0;
-    const current = () => generation === (generations.get(date) || 0) && checkSession() === identity && !isBlocked(date);
+    const current = () => generation === (generations.get(date) || 0) && checkSession() === identity && (allowBlockedRebuild || !isBlocked(date));
     cache.set(date, {status: 'loading'});
     const promise = (async () => {
       try {
