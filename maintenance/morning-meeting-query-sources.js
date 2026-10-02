@@ -172,12 +172,12 @@
         const response = await requestFetch(`${REQUEST_API_URL}?action=${encodeURIComponent(RESET_STATUS_ACTION)}&targetDate=${encodeURIComponent(selectedDate)}&_=${Date.now()}`, {
           method: "GET", headers: authHeaders(false), credentials: "same-origin", cache: "no-store"
         });
-        const payload = await readResetResponse(response, "선택일 자료 초기화 상태를 확인하지 못했습니다.", selectedDate);
+        const payload = await readResetResponse(response, "선택일 자료삭제 상태를 확인하지 못했습니다.", selectedDate);
         return storeResetItem(payload.item, selectedDate, true);
       } catch (error) {
         const previous = resetStates.get(selectedDate) || {};
         if (!previous.loaded) resetStates.set(selectedDate, { ...previous, loaded: false, loading: false,
-          error: text(error?.message) || "선택일 자료 초기화 상태를 확인하지 못했습니다." });
+          error: text(error?.message) || "선택일 자료삭제 상태를 확인하지 못했습니다." });
         render();
         return null;
       } finally {
@@ -341,12 +341,14 @@
         void requeryAll({ userInitiated: true });
       });
       actions.append(requeryButton);
-      const resetButton = makeElement("button", "morning-meeting-workbook-query__button is-danger", "초기화");
+      const resetButton = makeElement("button", "morning-meeting-workbook-query__button is-danger", "자료삭제");
       resetButton.id = RESET_BUTTON_ID;
       resetButton.type = "button";
       resetButton.addEventListener("click", event => {
         event.preventDefault();
-        void toggleReset({ userInitiated: true });
+        if (typeof window.deleteMorningMeetingSelectedDateData === "function") {
+          void window.deleteMorningMeetingSelectedDateData();
+        }
       });
       actions.append(resetButton);
       toolbar.append(caption, statuses, actions);
@@ -417,10 +419,10 @@
       control.disabled = !allowed || !isDate(date) || busy || reset.loading || resetStatusUnavailable ||
         (resetActive && !isAllControl) || control.dataset.morningBulkLocked === "true";
       const source = Object.keys(QUERY_BUTTONS).find(key => QUERY_BUTTONS[key] === id) || "current";
-      control.title = !isDate(date) ? "자료 기준일을 선택해 주세요." : reset.loading ? "선택일의 초기화 상태를 확인하고 있습니다." :
+      control.title = !isDate(date) ? "자료 기준일을 선택해 주세요." : reset.loading ? "선택일 자료삭제 상태를 확인하고 있습니다." :
         resetStatusUnavailable ? (reset.error || "선택일의 초기화 상태를 확인하지 못했습니다.") :
-        resetActive && source !== "all" ? "초기화된 날짜는 전체조회 또는 재조회를 사용해 주세요." :
-        source === "all" ? (resetActive ? "운영정보·TO 전력·증기 OIS·마감자료를 다시 조회한 뒤 초기화를 해제합니다." :
+        resetActive && source !== "all" ? "자료삭제된 날짜는 전체조회 또는 재조회를 사용해 주세요." :
+        source === "all" ? (resetActive ? "운영정보·TO 전력·증기 OIS·마감자료에서 선택일 자료를 다시 구성합니다." :
           "저장된 선택일 자료를 우선 사용하고 없는 자료만 기존 조회 경로에서 보완합니다.") :
         source === "operations" ? "수처리·석회석·터빈·Silo·SMP·날씨를 조회합니다." : control.title;
     }
@@ -448,7 +450,7 @@
       requeryButton.title = !isDate(date)
         ? "자료 기준일을 선택해 주세요."
         : reset.loading
-          ? "선택일의 초기화 상태를 확인하고 있습니다."
+          ? "선택일 자료삭제 상태를 확인하고 있습니다."
           : resetStatusUnavailable
             ? (reset.error || "선택일의 초기화 상태를 확인하지 못했습니다.")
             : "저장된 조회값을 재사용하지 않고 모든 현재 자료원을 처음부터 다시 조회합니다. 기존 값은 새 조회가 끝날 때까지 안전하게 유지합니다.";
@@ -456,14 +458,15 @@
     const resetButton = byId(RESET_BUTTON_ID);
     if (resetButton) {
       resetButton.hidden = !allowed;
-      resetButton.disabled = !allowed || !isDate(date) || busy || reset.loading;
-      resetButton.dataset.morningMeetingResetAction = resetActive ? "restore" : "reset";
-      resetButton.classList.toggle("is-reset-active", resetActive);
-      resetButton.setAttribute("aria-pressed", resetActive ? "true" : "false");
-      setText(resetButton, activeResetRequest?.date === date ? "처리 중…" : resetActive ? "초기화 취소" : "초기화");
-      resetButton.title = !isDate(date) ? "자료 기준일을 선택해 주세요." : reset.loading ? "선택일의 초기화 상태를 확인하고 있습니다." :
-        reset.error ? `${reset.error} 버튼을 누르면 상태를 다시 확인합니다.` : resetActive ? `${date} 자료 초기화를 취소하고 저장된 원본을 다시 표시합니다.` :
-        `${date} 조회 자료를 비웁니다. 원본 자료와 다른 날짜는 삭제하지 않습니다.`;
+      resetButton.disabled = !allowed || !isDate(date) || busy || reset.loading || resetActive;
+      resetButton.dataset.morningMeetingResetAction = "delete";
+      resetButton.classList.remove("is-reset-active");
+      resetButton.setAttribute("aria-pressed", "false");
+      setText(resetButton, "자료삭제");
+      resetButton.title = !isDate(date) ? "자료 기준일을 선택해 주세요." : reset.loading ? "선택일 자료삭제 상태를 확인하고 있습니다." :
+        reset.error ? `${reset.error} 최신 상태를 확인한 뒤 다시 시도해 주세요.` : resetActive ?
+        `${date} 자료가 삭제된 상태입니다. [전체조회] 또는 [재조회]로 다시 구성할 수 있습니다.` :
+        `${date} 오전회의자료 및 자동적산 저장자료만 삭제합니다. TO 전력·혼소율 원본은 유지됩니다.`;
     }
     if (typeof window.runEfficiencyMorningMeetingBulkLookup === "function") {
       for (const id of ["loadEfficiencyMorningMeetingWaterButton", "efficiencyMorningMeetingAutoPreviewStatus"]) {
@@ -487,7 +490,7 @@
     const state = await ensureResetStateForAction(selectedDate,
       Number.isSafeInteger(requestedRevision) && requestedRevision >= 0 ? requestedRevision : undefined);
     if (!state) {
-      showResetMessage("선택일 자료 초기화 상태를 확인하지 못했습니다.", "error");
+      showResetMessage("선택일 자료삭제 상태를 확인하지 못했습니다.", "error");
       return null;
     }
     if (activeRequest || activeResetRequest || externalQueryBusy()) return null;
@@ -543,7 +546,7 @@
     if (!state.loaded || state.error) {
       const loaded = await loadResetStatus(date, { force: true });
       if (!loaded) {
-        showResetMessage(state.error || "선택일 자료 초기화 상태를 확인하지 못했습니다.", "error");
+        showResetMessage(state.error || "선택일 자료삭제 상태를 확인하지 못했습니다.", "error");
         return null;
       }
       state = resetState(date);
@@ -607,44 +610,8 @@
     render();
 
     try {
-      // Compatibility recovery:
-      // R4/R5 requery could leave the selected date reset active after
-      // an operating-source partial failure. Restore that saved snapshot
-      // before starting the new non-destructive forced query.
-      if (state.active) {
-        const restored =
-          await postResetAction(
-            RESET_ACTIONS.restore,
-            date,
-            state.revision
-          );
-
-        if (!restored || restored.active) {
-          throw new Error(
-            "이전 재조회에서 남은 초기화 상태를 복원하지 못했습니다."
-          );
-        }
-
-        if (
-          targetDate() === date &&
-          typeof window
-            .restoreMorningMeetingSavedCompletedHistoryForDate ===
-            "function"
-        ) {
-          const restoredView =
-            await window
-              .restoreMorningMeetingSavedCompletedHistoryForDate(
-                date
-              );
-
-          if (restoredView === false) {
-            throw new Error(
-              "이전 저장값 화면 복원에 실패했습니다."
-            );
-          }
-        }
-      }
-
+      // Keep the selected-date blank tombstone active while a forced requery runs.
+      // query("all") releases it only after every required source stage succeeds.
       return await query(
         "all",
         {
@@ -698,6 +665,8 @@
 
     let operationsSucceeded = false;
     let steamSucceeded = source !== "all";
+    let powerSucceeded = source !== "all";
+    let closedSucceeded = source !== "all";
     const results = [];
 
     try {
@@ -852,12 +821,14 @@
           const name = currentSourceTasks[index][0];
           results.push({ source: name, ...result });
           if (name === "steam") steamSucceeded = result.status === "fulfilled";
+          if (name === "power") powerSucceeded = result.status === "fulfilled";
+          if (name === "closed") closedSucceeded = result.status === "fulfilled";
           // Steam fulfillment is possible only after the awaited provider result
           // has passed date/request validation, including legitimate partial data.
         });
       }
 
-      if (releaseAfterSuccess && operationsSucceeded && steamSucceeded) {
+      if (releaseAfterSuccess && operationsSucceeded && steamSucceeded && powerSucceeded && closedSucceeded) {
         let releasedItem = null;
         try {
           releasedItem = await postResetAction(RESET_ACTIONS.release, date, resetRevision);
@@ -888,8 +859,8 @@
             ? `${date} 초기화 해제는 완료됐지만 SMP 저장 또는 자동수치 기록 갱신을 완료하지 못했습니다. ${followupErrors.join(" ")}`
             : `${date} 현재 자료원을 다시 조회하고 초기화를 해제했습니다.`, followupErrors.length ? "error" : "");
         }
-      } else if (releaseAfterSuccess && (!operationsSucceeded || !steamSucceeded)) {
-        showResetMessage(`${date} 초기화 해제 조건을 충족하지 못했습니다. 운영정보와 증기 OIS 상태를 확인해 주세요.`, "error");
+      } else if (releaseAfterSuccess && (!operationsSucceeded || !steamSucceeded || !powerSucceeded || !closedSucceeded)) {
+        showResetMessage(`${date} 자료삭제 상태를 유지합니다. 운영정보·TO 전력·증기 OIS·혼소/유기성 마감자료 조회 상태를 확인해 주세요.`, "error");
       }
 
       return source === "all" ? results : results.find(item => item.source === "operations")?.value ?? null;

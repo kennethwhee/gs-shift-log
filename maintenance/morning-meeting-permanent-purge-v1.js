@@ -1,10 +1,10 @@
 (() => {
   "use strict";
 
-  const INSTALL_MARKER = "MORNING_MEETING_RESET_DELETE_V2";
+  const INSTALL_MARKER = "MORNING_MEETING_SELECTED_DATE_DATA_DELETE_V4";
   const API_URL = "/api/morning-meeting-purge";
   const RESET_BUTTON_ID = "morningMeetingResetButton";
-  const RESET_LABELS = new Set(["초기화", "초기화 취소", "선택일 자료 초기화"]);
+  const RESET_LABELS = new Set(["자료삭제", "초기화", "초기화 취소", "선택일 자료 초기화"]);
   const CACHE_KEYS = ["gsShiftLog.morningMeetingAutoDataCache.v1"];
 
   if (window.__morningMeetingResetDeleteV2Installed === true) return;
@@ -141,12 +141,12 @@
       try {
         data = JSON.parse(raw);
       } catch (_) {
-        throw new Error("초기화 서버 응답 형식이 올바르지 않습니다.");
+        throw new Error("자료삭제 서버 응답 형식이 올바르지 않습니다.");
       }
     }
     if (!response.ok || data.ok === false) {
       const error = new Error(
-        data.message || data.error || `초기화 요청에 실패했습니다. (HTTP ${response.status})`
+        data.message || data.error || `자료삭제 요청에 실패했습니다. (HTTP ${response.status})`
       );
       error.code = data.code || "";
       error.details = data;
@@ -219,11 +219,10 @@
   function normalizeButton(button) {
     if (!isMorningMeetingResetButton(button)) return;
     button.dataset.morningMeetingResetDeleteV2 = "true";
-    const nextText = busy ? "삭제 중…" : "초기화";
+    const nextText = busy ? "삭제 중…" : "자료삭제";
     const nextTitle = busy
-      ? "선택일 저장자료를 삭제하고 있습니다."
-      : "선택일의 저장된 오전회의 조회자료를 삭제합니다. 삭제 후에는 복원할 수 없습니다.";
-
+      ? "선택일 오전회의자료 및 자동적산 저장자료를 삭제하고 있습니다."
+      : "선택일 오전회의자료 및 자동적산 저장자료만 삭제합니다. TO 전력 입력과 혼소율 원본은 유지됩니다.";
     if (text(button.textContent) !== nextText) button.textContent = nextText;
     if (button.title !== nextTitle) button.title = nextTitle;
     if (button.dataset.morningMeetingResetAction !== "delete") {
@@ -237,7 +236,6 @@
     }
     if (busy && !button.disabled) button.disabled = true;
   }
-
   function normalizeButtons() {
     for (const button of resetButtons()) normalizeButton(button);
   }
@@ -271,19 +269,26 @@
     });
   }
 
-  function confirmDelete(date) {
+  async function confirmDelete(date) {
     const message = [
-      `${date} 오전회의 조회 데이터를 삭제하시겠습니까?`,
+      `${date} 오전회의자료 및 자동적산자료를 삭제합니다.`,
       "",
-      "[확인]을 누르면 선택일의 저장된 조회 결과를 삭제합니다.",
-      "수처리 · 석회석 · Turbine · Silo Level · 레거시 일일DATA 기록 · 유기성 Silo",
+      "TO 전력 입력 및 혼소율 계산 원본은 삭제되지 않습니다.",
+      "유기성 입고/하역기록, 혼소율 설정값, 다른 날짜 데이터도 그대로 유지됩니다.",
       "",
-      "삭제 후에는 기존 값을 복원할 수 없습니다. 취소하려면 [취소]를 눌러주세요.",
-      "다른 날짜와 혼소율 기간 계산 이력은 삭제하지 않습니다."
+      "삭제 직후 선택일 오전회의 카드와 자동적산자료는 빈 상태로 유지됩니다.",
+      "[전체조회] 또는 [재조회]를 실행했을 때만 원본 소스로부터 다시 구성됩니다."
     ].join("\n");
+    if (typeof showCompactConfirm === "function") {
+      return Boolean(await showCompactConfirm({
+        title: "선택일 자료삭제",
+        message,
+        confirmText: "삭제",
+        cancelText: "취소"
+      }));
+    }
     return typeof window.confirm === "function" && window.confirm(message) === true;
   }
-
   async function getResetRevision(date) {
     const api = window.morningMeetingQuerySources;
     if (!api) return 0;
@@ -327,17 +332,17 @@
     if (busy) return;
     const date = selectedDate();
     if (!date) {
-      notify("초기화할 오전회의 날짜를 확인하지 못했습니다.", "error");
+      notify("자료삭제할 오전회의 날짜를 확인하지 못했습니다.", "error");
       return;
     }
-    if (!confirmDelete(date)) return;
+    if (!(await confirmDelete(date))) return;
 
     busy = true;
     normalizeButtons();
     try {
       const expectedRevision = await getResetRevision(date);
       applyTemporaryBlankMask(date, expectedRevision);
-      notify(`${date} 저장된 오전회의 조회자료 삭제 중…`);
+      notify(`${date} 오전회의자료 및 자동적산 저장자료 삭제 중…`);
 
       const response = await fetch(API_URL, {
         method: "POST",
@@ -348,7 +353,7 @@
           targetDate: date,
           expectedRevision,
           confirmPermanentDelete: true,
-          mode: "selected_date_reset_delete_v2"
+          mode: "selected_date_data_delete_v4"
         })
       });
       const data = await parseResponse(response);
@@ -361,12 +366,12 @@
           targetDate: date,
           deletedRows: Number(data.deletedRows || 0),
           deletedByType: data.deletedByType || {},
-          source: "reset_button_v2"
+          source: "selected_date_data_delete_v4"
         }
       }));
 
       notify(
-        `${date} 오전회의 저장자료 ${Number(data.deletedRows || 0)}건을 삭제했습니다. 이제 [전체자료] 또는 [운영정보조회]로 새로 조회할 수 있습니다.`
+        `${date} 오전회의자료 및 자동적산 저장자료 ${Number(data.deletedRows || 0)}건을 삭제했습니다. [전체조회] 또는 [재조회]를 실행하면 원본 소스로 다시 구성됩니다.`
       );
     } catch (error) {
       await refreshResetState(date);
@@ -376,7 +381,7 @@
       notify(
         activeTypes
           ? `${error.message} (${activeTypes})`
-          : (error?.message || "초기화 중 오류가 발생했습니다."),
+          : (error?.message || "자료삭제 중 오류가 발생했습니다."),
         "error"
       );
     } finally {
@@ -392,6 +397,8 @@
     event.stopImmediatePropagation();
     void deleteSelectedDate();
   }
+
+  window.deleteMorningMeetingSelectedDateData = deleteSelectedDate;
 
   function start() {
     watchButtons();
