@@ -538,11 +538,11 @@
       card.title = date + ' 자료삭제 상태 · TO 원본 입력은 유지됩니다.';
       return;
     }
+    // MORNING_MEETING_DATE_NAV_SNAPSHOT_ONLY_V1
+    // Date navigation and ordinary repaint never refresh the TO source.
+    // Existing cache/D1 fallback stays visible until an explicit query requests
+    // current TO data.
     let entry = cache.get(date);
-    if (session && entry?.status === 'ready' && Date.now() - entry.at >= 30000) {
-      void load(date, true).catch(() => {});
-      entry = cache.get(date);
-    }
     if (session && entry?.payload?.item && entry.status !== 'ready') {
       for (const [key, , suffix] of FIELDS) setText(byId(PREFIX + suffix), entry.payload.item.values[key].toLocaleString('ko-KR', {maximumFractionDigits: 6}) + ' kWh');
       renderSolarCumulative(entry.payload);
@@ -556,7 +556,8 @@
       setText(byId(PREFIX + 'PowerDate'), date);
       badge(!session ? '로그인 필요' : entry?.status === 'error' ? 'TO 전력 재조회 필요' : 'TO 저장자료 확인 중', entry?.status === 'error' ? 'error' : session ? 'loading' : 'idle');
       if (entry?.status === 'error') card.title = entry.error;
-      if (session && !entry) void load(date).catch(() => {});
+      // No automatic load here. Saved D1/display fallback may repaint shortly;
+      // source loading is reserved for refreshMeeting / explicit query paths.
       return;
     }
     if (entry.payload.item) {
@@ -615,15 +616,15 @@
     root.addEventListener('storage', event => {
       if (event.key === 'gsShiftLog.currentUser') { checkSession(); queueUI(); redrawMeeting(); }
     });
-    root.addEventListener('focus', () => { selectionStamp = ''; queueUI(); void refreshMeeting(); });
+    root.addEventListener('focus', () => { selectionStamp = ''; queueUI(); redrawMeeting(); });
     // The existing app dispatches this non-bubbling event on document.
-    doc.addEventListener('efficiencyMorningMeetingSteamStatusLoaded', () => { void refreshMeeting(); });
+    doc.addEventListener('efficiencyMorningMeetingSteamStatusLoaded', () => { redrawMeeting(); });
     const meetingView = byId('efficiencyMorningMeetingView');
     if (meetingView) {
       let wasVisible = !meetingView.hidden && meetingView.getClientRects().length > 0;
       new MutationObserver(() => {
         const visible = !meetingView.hidden && meetingView.getClientRects().length > 0;
-        if (visible && !wasVisible) void refreshMeeting();
+        if (visible && !wasVisible) redrawMeeting();
         wasVisible = visible;
       }).observe(meetingView, {attributes: true, attributeFilter: ['hidden', 'class', 'style', 'aria-hidden']});
     }

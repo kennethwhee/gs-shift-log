@@ -556,10 +556,15 @@
     }
   }
 
+  // MORNING_MEETING_DATE_NAV_SNAPSHOT_ONLY_V1
+  // Passive date movement only repaints the selected date from already-restored
+  // D1/display state. Current Closed / receipt APIs are loaded only by an
+  // explicit user query path.
   function sync() {
     const date = targetDate();
-    if (date !== observedDate) { observedDate = date; notify(date); }
-    void refresh();
+    if (!dateValid(date)) return;
+    if (date !== observedDate) observedDate = date;
+    notify(date);
   }
   function scheduleSync() {
     if (timer !== null) return;
@@ -610,9 +615,9 @@
     if (doc.hidden || (!byId('efficiencyMorningMeetingAutoCofiringCard') && !byId(PREFIX + 'SludgeCard'))) return;
     const date = targetDate();
     if (!dateValid(date) || isBlocked(date)) return;
-    // Also pick up saves from another browser/PC when this tab is revisited.
-    // Concurrent focus + visibility events share the existing pending request.
-    void load(date, {force: true}).catch(() => {});
+    // Focus/visibility changes are display-only. Do not start a source request.
+    // [전체자료] / card refresh still calls refreshOrganicFromClosing explicitly.
+    notify(date);
   }
   function initialize() {
     doc.addEventListener('click', event => {

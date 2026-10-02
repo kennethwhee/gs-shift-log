@@ -927,9 +927,15 @@
 
 
 
+  // MORNING_MEETING_DATE_NAV_SNAPSHOT_ONLY_V1
+  // Mutation/date/layout observers must repaint only. Network/provider loading
+  // remains behind the explicit refresh button and the [전체자료] coordinator.
   function scheduleRefresh(delay = 180) {
     window.clearTimeout(refreshTimerId);
-    refreshTimerId = window.setTimeout(refreshCard, delay);
+    refreshTimerId = window.setTimeout(() => {
+      refreshTimerId = null;
+      renderClosedState();
+    }, delay);
   }
 
   function handleSelectedDateResetStateChanged(event) {
