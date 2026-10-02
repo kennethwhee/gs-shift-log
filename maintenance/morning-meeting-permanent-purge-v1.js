@@ -203,7 +203,19 @@
         if (!itemDate || itemDate === date) delete state[key];
       }
     }
-  }
+
+    // MORNING_MEETING_BOILER_D1_PURGE_STATE_V3
+    const purgeState = window.efficiencyMorningMeetingUploadState;
+    const purgeBoiler = purgeState?.boilerTemperatures;
+    if (purgeState && purgeBoiler && typeof purgeBoiler === "object") {
+      const purgeBoilerDate =
+        validDate(purgeBoiler.snapshotTargetDate) ||
+        validDate(purgeBoiler.reportDate);
+      if (!purgeBoilerDate || purgeBoilerDate === date) {
+        delete purgeState.boilerTemperatures;
+      }
+    }
+}
 
   function rerender() {
     try { window.renderEfficiencyMorningMeetingAutoPreview?.(); } catch (_) {}
@@ -214,7 +226,10 @@
     try { window.refreshMorningMeetingCofiringCard?.(); } catch (_) {}
     try { window.updateEfficiencyMorningMeetingCreateButton?.(); } catch (_) {}
     try { window.morningMeetingQuerySources?.render?.(); } catch (_) {}
-  }
+
+    // MORNING_MEETING_BOILER_D1_PURGE_RENDER_V3
+    try { window.renderEfficiencyMorningMeetingBoilerTemperatures?.(); } catch (_) {}
+}
 
   function normalizeButton(button) {
     if (!isMorningMeetingResetButton(button)) return;

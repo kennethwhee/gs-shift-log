@@ -177,6 +177,14 @@ export async function onRequestPost(context) {
     }
 
     const database = context.env.DB;
+    await database.prepare(`CREATE TABLE IF NOT EXISTS morning_meeting_boiler_snapshots (
+      target_date TEXT PRIMARY KEY,
+      values_json TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1 CHECK (revision >= 1),
+      updated_by_id TEXT NOT NULL,
+      updated_by_name TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`).run();
     const resetRow = await database.prepare(`
       SELECT target_date, revision
       FROM morning_meeting_auto_history_overrides
@@ -262,6 +270,8 @@ export async function onRequestPost(context) {
         .bind(targetDate),
       database.prepare(`SELECT COUNT(*) AS row_count FROM ois_data_requests
         WHERE target_date = ? AND request_type IN (${marks})`).bind(targetDate, ...PURGE_REQUEST_TYPES)
+    ,
+      database.prepare(`DELETE FROM morning_meeting_boiler_snapshots WHERE target_date = ?`).bind(targetDate)
     ];
     let results;
     try {
