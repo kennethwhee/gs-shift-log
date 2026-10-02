@@ -529,20 +529,40 @@
       setText(status, text);
       for (const value of ['loading', 'complete', 'error']) status?.classList.toggle('is-' + value, state === value);
     };
-    if (blocked(date)) {
+
+    const hasVisibleD1Values = () =>
+      FIELDS.some(([, , suffix]) => {
+        const text = String(byId(PREFIX + suffix)?.textContent || '').trim();
+        return text !== '' && text !== '-' && /\d/.test(text);
+      });
+
+    const clearVisiblePowerValues = () => {
       for (const [, , suffix] of FIELDS) setText(byId(PREFIX + suffix), '-');
       setText(byId('efficiencyMorningMeetingAutoSolarMonthlyCumulative'), '-');
       setText(byId('efficiencyMorningMeetingAutoSolarYearlyCumulative'), '-');
+    };
+
+    if (blocked(date)) {
+      clearVisiblePowerValues();
       setText(byId(PREFIX + 'PowerDate'), date);
       badge('조회 대기', 'idle');
       card.title = date + ' 자료삭제 상태 · TO 원본 입력은 유지됩니다.';
       return;
     }
+
     // MORNING_MEETING_DATE_NAV_SNAPSHOT_ONLY_V1
-    // Date navigation and ordinary repaint never refresh the TO source.
-    // Existing cache/D1 fallback stays visible until an explicit query requests
-    // current TO data.
+    // MORNING_TO_D1_DISPLAY_PRESERVE_V1_R2
+    //
+    // Date movement itself must never erase a D1 snapshot merely because
+    // the TO provider cache is empty. Source loading is explicit only.
+    //
+    // Flow:
+    //  - no cache on date navigation -> keep restored D1/display values
+    //  - explicit load in progress/error -> keep current D1/display values
+    //  - ready + TO row -> render confirmed TO source values
+    //  - ready + no TO row -> explicit source check confirmed empty, clear '-'
     let entry = cache.get(date);
+
     if (session && entry?.payload?.item && entry.status !== 'ready') {
       for (const [key, , suffix] of FIELDS) setText(byId(PREFIX + suffix), entry.payload.item.values[key].toLocaleString('ko-KR', {maximumFractionDigits: 6}) + ' kWh');
       renderSolarCumulative(entry.payload);
@@ -551,15 +571,41 @@
       card.title = `${date} N/S TO · ${entry.payload.item.updatedBy || 'TO 담당자'} · ${entry.payload.item.updatedAt || ''} · 마지막 저장값 (재확인 전)` + (entry.error ? ` · ${entry.error}` : '');
       return;
     }
+
     if (!session || !entry || entry.status === 'loading' || entry.status === 'error') {
-      for (const [, , suffix] of FIELDS) setText(byId(PREFIX + suffix), '-');
+      const hasExisting = hasVisibleD1Values();
+
       setText(byId(PREFIX + 'PowerDate'), date);
-      badge(!session ? '로그인 필요' : entry?.status === 'error' ? 'TO 전력 재조회 필요' : 'TO 저장자료 확인 중', entry?.status === 'error' ? 'error' : session ? 'loading' : 'idle');
-      if (entry?.status === 'error') card.title = entry.error;
-      // No automatic load here. Saved D1/display fallback may repaint shortly;
-      // source loading is reserved for refreshMeeting / explicit query paths.
+
+      if (!session) {
+        badge(hasExisting ? '저장값' : '로그인 필요', hasExisting ? 'complete' : 'idle');
+        card.title = hasExisting
+          ? `${date} 오전회의 저장값 · 로그인 후 TO 원본 확인 가능`
+          : `${date} 로그인 후 TO 원본 확인 가능`;
+        return;
+      }
+
+      if (!entry) {
+        badge(hasExisting ? '저장값' : '조회 대기', hasExisting ? 'complete' : 'idle');
+        card.title = hasExisting
+          ? `${date} 오전회의 D1 저장값 · 날짜 이동 시 TO 원본 자동조회 안 함`
+          : `${date} 오전회의 저장값 없음 · [전체조회] 또는 명시적 조회 시 TO 원본 확인`;
+        return;
+      }
+
+      if (entry.status === 'loading') {
+        badge(hasExisting ? 'TO 확인 중 · 화면값 유지' : 'TO 확인 중', 'loading');
+        card.title = hasExisting
+          ? `${date} TO 원본 확인 중 · 현재 오전회의 저장값 유지`
+          : `${date} TO 원본 확인 중`;
+        return;
+      }
+
+      badge(hasExisting ? '재조회 실패 · 화면값 유지' : 'TO 전력 재조회 필요', 'error');
+      card.title = entry.error || `${date} TO 전력 재조회가 필요합니다.`;
       return;
     }
+
     if (entry.payload.item) {
       for (const [key, , suffix] of FIELDS) setText(byId(PREFIX + suffix), entry.payload.item.values[key].toLocaleString('ko-KR', {maximumFractionDigits: 6}) + ' kWh');
       renderSolarCumulative(entry.payload);
@@ -567,8 +613,15 @@
       badge('TO 입력 완료', 'complete');
       card.title = `${date} N/S TO · ${entry.payload.item.updatedBy || 'TO 담당자'} · ${entry.payload.item.updatedAt || ''} · kWh`;
     } else {
-      const hasExisting = FIELDS.some(([, , suffix]) => /\d/.test(byId(PREFIX + suffix)?.textContent || ''));
-      badge(hasExisting ? 'TO 미입력 · 기존 조회값' : 'TO 미입력', hasExisting ? 'complete' : 'idle');
+      /*
+        This is the only ordinary path that may clear a previously displayed
+        D1 fallback: an explicit TO GET completed successfully and confirmed
+        that the selected date has no TO source record.
+      */
+      clearVisiblePowerValues();
+      setText(byId(PREFIX + 'PowerDate'), date);
+      badge('TO 미입력', 'idle');
+      card.title = `${date} N/S TO · 저장된 전력 원본 없음`;
     }
   }
   async function refreshMeeting(options = {}) {
