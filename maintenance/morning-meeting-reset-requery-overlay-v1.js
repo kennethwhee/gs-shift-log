@@ -250,162 +250,46 @@
     items,
     date
   ) {
-    const oisKeys =
-      new Set([
-        "water",
-        "limestone",
-        "gear-pinion",
-        "silo-level"
-      ]);
+    /* MORNING_MEETING_OIS_PREQUEUE_V12
+     * Queue required OIS requests immediately. The company-PC Agent still
+     * processes one OIS browser request at a time; only request creation is
+     * overlapped so the Agent does not fall into idle polling between cards.
+     */
+    const oisKeys = new Set([
+      "water",
+      "limestone",
+      "gear-pinion",
+      "silo-level"
+    ]);
+    const oisItems = items.filter(item => oisKeys.has(String(item?.key || "")));
+    const parallelItems = items.filter(item => !oisKeys.has(String(item?.key || "")));
 
-    const oisItems =
-      items.filter(
-        item =>
-          oisKeys.has(
-            String(
-              item?.key ||
-              ""
-            )
-          )
-      );
-
-    const parallelItems =
-      items.filter(
-        item =>
-          !oisKeys.has(
-            String(
-              item?.key ||
-              ""
-            )
-          )
-      );
-
-    const parallelPromise =
-      Promise.allSettled(
-        parallelItems.map(
-          item =>
-            runFreshItem(
-              item,
-              date
-            )
-        )
-      );
-
-    const oisResults =
-      [];
-
-    for (
-      const item
-      of oisItems
-    ) {
-      const key =
-        String(
-          item?.key ||
-          "unknown"
+    const timed = (item, lane) => {
+      const key = String(item?.key || "unknown");
+      const startedAt = Date.now();
+      console.info?.("[MORNING OIS PREQUEUE V12] QUEUE", lane, key);
+      return Promise.resolve()
+        .then(() => runFreshItem(item, date))
+        .then(
+          value => {
+            console.info?.("[MORNING OIS PREQUEUE V12] DONE", lane, key, Date.now() - startedAt, "ms");
+            return value;
+          },
+          reason => {
+            console.warn("[MORNING OIS PREQUEUE V12] FAILED", lane, key, Date.now() - startedAt, "ms", reason);
+            throw reason;
+          }
         );
+    };
 
-      const startedAt =
-        Date.now();
+    const oisPromise = Promise.allSettled(oisItems.map(item => timed(item, "ois")));
+    const parallelPromise = Promise.allSettled(parallelItems.map(item => timed(item, "parallel")));
+    const [oisResults, parallelResults] = await Promise.all([oisPromise, parallelPromise]);
 
-      console.info?.(
-        "[MORNING OIS RESET R2A V2.3] START",
-        key
-      );
-
-      try {
-
-        const value =
-          await runFreshItem(
-            item,
-            date
-          );
-
-        oisResults.push({
-          status:
-            "fulfilled",
-          value
-        });
-
-        console.info?.(
-          "[MORNING OIS RESET R2A V2.3] DONE",
-          key,
-          Date.now() -
-            startedAt,
-          "ms"
-        );
-
-      } catch (
-        reason
-      ) {
-
-        oisResults.push({
-          status:
-            "rejected",
-          reason
-        });
-
-        console.warn(
-          "[MORNING OIS RESET R2A V2.3] FAILED",
-          key,
-          Date.now() -
-            startedAt,
-          "ms",
-          reason
-        );
-      }
-    }
-
-    const parallelResults =
-      await parallelPromise;
-
-    const resultByKey =
-      new Map();
-
-    parallelItems.forEach(
-      (
-        item,
-        index
-      ) => {
-
-        resultByKey.set(
-          String(
-            item?.key ||
-            ""
-          ),
-          parallelResults[
-            index
-          ]
-        );
-      }
-    );
-
-    oisItems.forEach(
-      (
-        item,
-        index
-      ) => {
-
-        resultByKey.set(
-          String(
-            item?.key ||
-            ""
-          ),
-          oisResults[
-            index
-          ]
-        );
-      }
-    );
-
-    return items.map(
-      item =>
-        resultByKey.get(
-          String(
-            item?.key ||
-            ""
-          )
-        )
-    );
+    const resultByKey = new Map();
+    oisItems.forEach((item, index) => resultByKey.set(String(item?.key || ""), oisResults[index]));
+    parallelItems.forEach((item, index) => resultByKey.set(String(item?.key || ""), parallelResults[index]));
+    return items.map(item => resultByKey.get(String(item?.key || "")));
   }
 
   function runFreshOperations(date) {

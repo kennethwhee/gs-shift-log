@@ -687,7 +687,7 @@ const BUTTON_LABELS = { all: "전체조회", operations: "운영정보조회", r
     const releaseAfterSuccess = source === "all" && reset.active;
     const forceFresh = releaseAfterSuccess || options.forceRefresh === true;
     const resetRevision = reset.revision;
-    const current = { date, source, stage: "operations", startedAt: Date.now() };
+    const current = { date, source, stage: "operations", startedAt: Date.now(), timings: {} };
     activeRequest = current;
     setSourceState(date, "operations", { status: "loading", busy: true });
     if (source === "all") {
@@ -715,54 +715,84 @@ const BUTTON_LABELS = { all: "전체조회", operations: "운영정보조회", r
        * Start them immediately while operating OIS runs.
        */
       const settleCurrentSourceTask =
-        task =>
-          Promise
+        (name, task) => {
+          const startedAt = Date.now();
+          current.timings[name] = { startedAt };
+          return Promise
             .resolve()
             .then(task)
             .then(
-              value => ({
-                status:
-                  "fulfilled",
-                value
-              }),
-              reason => ({
-                status:
-                  "rejected",
-                reason
-              })
+              value => {
+                const endedAt = Date.now();
+                current.timings[name] = { startedAt, endedAt, durationMs: endedAt - startedAt, status: "fulfilled" };
+                return { status: "fulfilled", value };
+              },
+              reason => {
+                const endedAt = Date.now();
+                current.timings[name] = { startedAt, endedAt, durationMs: endedAt - startedAt, status: "rejected", error: text(reason?.message) };
+                return { status: "rejected", reason };
+              }
             );
-
+        };
       const earlyCurrentSourceTasks =
         source === "all"
           ? {
-              power:
-                settleCurrentSourceTask(
-                  () =>
-                    window
-                      .toNightPower
-                      ?.refreshMeeting
-                      ?.({
-                        allowBlockedRebuild: releaseAfterSuccess || options.requery === true
-                      })
-                ),
-
-              closed:
-                settleCurrentSourceTask(
-                  () =>
-                    window
-                      .morningMeetingClosedCofiring
-                      ?.refreshOrganicFromClosing
-                      ?.({
-                        userInitiated:
-                          true,
-                        allowBlockedRebuild: releaseAfterSuccess || options.requery === true
-                      })
-                )
+              power: settleCurrentSourceTask(
+                "power",
+                () => window.toNightPower?.refreshMeeting?.({
+                  allowBlockedRebuild: releaseAfterSuccess || options.requery === true
+                })
+              ),
+              closed: settleCurrentSourceTask(
+                "closed",
+                () => window.morningMeetingClosedCofiring?.refreshOrganicFromClosing?.({
+                  userInitiated: true,
+                  allowBlockedRebuild: releaseAfterSuccess || options.requery === true
+                })
+              ),
+              steam: settleCurrentSourceTask(
+                "steam",
+                async () => {
+                  setSourceState(date, "steam", { status: "loading", error: "" });
+                  recordAllSteamFlow(current, "steam-start");
+                  render();
+                  try {
+                    if (targetDate() !== date || !canQuery()) {
+                      throw new Error("기준일 또는 로그인 상태가 변경되어 증기 조회를 시작하지 않았습니다.");
+                    }
+                    const steamLoader = window.loadEfficiencyMorningMeetingSteamOis;
+                    if (typeof steamLoader !== "function") {
+                      throw new Error("증기 OIS 조회 기능이 로드되지 않았습니다. 새로고침 후 전체조회를 다시 실행해 주세요.");
+                    }
+                    const pending = steamLoader.call(window, {
+                      userInitiated: true,
+                      targetDate: date,
+                      forceRefresh: forceFresh,
+                      ignoreSaved: forceFresh,
+                      silent: true,
+                      requireComplete: false
+                    });
+                    if (!pending || typeof pending.then !== "function") {
+                      throw new Error("증기 OIS 조회의 완료 대기 연결을 확인하지 못했습니다.");
+                    }
+                    const value = validateAllSteamCompletion(await pending, date);
+                    setSourceState(date, "steam", { status: "complete", error: "", requestId: value.requestId });
+                    recordAllSteamFlow(current, "steam-complete", { requestId: value.requestId });
+                    return value;
+                  } catch (error) {
+                    setSourceState(date, "steam", { status: "error", error: text(error?.message) || "증기 OIS 조회에 실패했습니다." });
+                    recordAllSteamFlow(current, "steam-failed", { error: text(error?.message) });
+                    if (targetDate() === date) showResetMessage(text(error?.message) || "증기 OIS 조회에 실패했습니다.", "error");
+                    throw error;
+                  }
+                }
+              )
             }
           : null;
 
       try {
         recordAllSteamFlow(current, "operations-start");
+        current.timings.operations = { startedAt: Date.now() };
         const result = await loader({
           userInitiated: true,
           targetDate: date,
@@ -779,6 +809,15 @@ const BUTTON_LABELS = { all: "전체조회", operations: "운영정보조회", r
         setSourceState(date, "operations", { status: "error", error: text(error?.message) || "운영정보 조회에 실패했습니다." });
       }
 
+      if (current.timings.operations?.startedAt) {
+        const endedAt = Date.now();
+        current.timings.operations = {
+          ...current.timings.operations,
+          endedAt,
+          durationMs: endedAt - current.timings.operations.startedAt,
+          status: operationsSucceeded ? "fulfilled" : "rejected"
+        };
+      }
       recordAllSteamFlow(current, "operations-settled", { operationsSucceeded });
       if (source === "all") {
         /*
@@ -788,65 +827,12 @@ const BUTTON_LABELS = { all: "전체조회", operations: "운영정보조회", r
           serial lane has settled.
         */
         const currentSourceTasks = [
-          [
-            "power",
-            earlyCurrentSourceTasks
-              ?.power
-          ],
-
-          [
-            "steam",
-            settleCurrentSourceTask(
-              async () => {
-                current.stage = "steam";
-                setSourceState(date, "steam", { status: "loading", error: "" });
-                recordAllSteamFlow(current, "steam-start");
-                render();
-                try {
-                  if (targetDate() !== date || !canQuery()) {
-                    throw new Error("기준일 또는 로그인 상태가 변경되어 증기 조회를 시작하지 않았습니다.");
-                  }
-                  // Required step, not an optional call. The exact same provider
-                  // is used by the card's individual refresh button.
-                  const steamLoader = window.loadEfficiencyMorningMeetingSteamOis;
-                  if (typeof steamLoader !== "function") {
-                    throw new Error("증기 OIS 조회 기능이 로드되지 않았습니다. 새로고침 후 전체조회를 다시 실행해 주세요.");
-                  }
-                  const pending = steamLoader.call(window, {
-                     userInitiated: true,
-                     targetDate: date,
-                     forceRefresh: forceFresh,
-                     ignoreSaved: forceFresh,
-                     silent: true,
-                     requireComplete: true
-                   });
-                  if (!pending || typeof pending.then !== "function") {
-                    throw new Error("증기 OIS 조회의 완료 대기 연결을 확인하지 못했습니다.");
-                  }
-                  const value = validateAllSteamCompletion(await pending, date);
-                  setSourceState(date, "steam", { status: "complete", error: "", requestId: value.requestId });
-                  recordAllSteamFlow(current, "steam-complete", { requestId: value.requestId });
-                  return value;
-                } catch (error) {
-                  setSourceState(date, "steam", { status: "error", error: text(error?.message) || "증기 OIS 조회에 실패했습니다." });
-                  recordAllSteamFlow(current, "steam-failed", { error: text(error?.message) });
-                  if (targetDate() === date) showResetMessage(text(error?.message) || "증기 OIS 조회에 실패했습니다.", "error");
-                  throw error;
-                } finally {
-                  current.stage = "finishing";
-                  render();
-                }
-              }
-            )
-          ],
-
-          [
-            "closed",
-            earlyCurrentSourceTasks
-              ?.closed
-          ]
+          ["power", earlyCurrentSourceTasks?.power],
+          ["steam", earlyCurrentSourceTasks?.steam],
+          ["closed", earlyCurrentSourceTasks?.closed]
         ];
-
+        current.stage = "finishing";
+        render();
         const currentResults =
           await Promise.all(
             currentSourceTasks.map(
@@ -909,6 +895,21 @@ const BUTTON_LABELS = { all: "전체조회", operations: "운영정보조회", r
         }
         current.stage = "settled";
         recordAllSteamFlow(current, "all-settled", { operationsSucceeded, steamSucceeded });
+        const endedAt = Date.now();
+        const summary = {
+          date,
+          source,
+          startedAt: current.startedAt,
+          endedAt,
+          totalMs: endedAt - current.startedAt,
+          operationsSucceeded,
+          steamSucceeded,
+          powerSucceeded,
+          closedSucceeded,
+          sources: { ...current.timings }
+        };
+        window.__morningMeetingAllLastTiming = summary;
+        console.info?.("[MORNING ALL PERF V12] SUMMARY", summary);
       }
       if (activeRequest === current) activeRequest = null;
       notifyQueryState();
