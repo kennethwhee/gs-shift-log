@@ -539,8 +539,11 @@
       observer = new MutationObserver(mutations => {
         const dateChanged = mutations.some(mutation =>
           mutation.type === "attributes" && mutation.attributeName === "data-morning-meeting-auto-base-date");
-        if (dateChanged) scheduleLoad();
-        else scheduleRender();
+        // MORNING_MEETING_LEGACY_PASSIVE_DATE_V3
+        // Main date navigation already performs the single completed_history
+        // restore. This compatibility layer only repaints that restored state.
+        if (dateChanged) observedDate = targetDate();
+        scheduleRender();
       });
       observer.observe(panel, {
         subtree: true,
@@ -560,9 +563,9 @@
 
     doc.addEventListener("morningMeetingSelectedDateResetStateChanged", onReset);
     doc.addEventListener("morningMeetingResetStateChanged", onReset);
-    root.addEventListener("focus", () => scheduleLoad({force: true}));
+    root.addEventListener("focus", scheduleRender);
     doc.addEventListener("visibilitychange", () => {
-      if (!doc.hidden) scheduleLoad();
+      if (!doc.hidden) scheduleRender();
     });
 
     scheduleLoad();

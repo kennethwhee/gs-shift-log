@@ -12259,7 +12259,7 @@ async function handleAgentNextLaneRequests(
   - revision으로 동시 수정 충돌을 방지한다.
 ========================================================= */
 
-async function ensureMorningMeetingAutoHistoryOverridesTable(
+async function ensureMorningMeetingAutoHistoryOverridesTableUncached(
   database
 ) {
   await database
@@ -12414,6 +12414,117 @@ async function ensureMorningMeetingAutoHistoryOverridesTable(
       }
     }
   }
+}
+
+
+
+
+/* MORNING_MEETING_COMPLETED_HISTORY_FAST_V3
+   completed_history is read on every selected-date move. Cache the override
+   table migration check for this Worker DB binding, and create one small
+   partial index specialized for saved Morning Meeting history.
+*/
+const morningMeetingAutoHistorySchemaPromises =
+  new WeakMap();
+
+async function ensureMorningMeetingAutoHistoryOverridesTable(
+  database
+) {
+  const existing =
+    morningMeetingAutoHistorySchemaPromises.get(
+      database
+    );
+
+  if (
+    existing
+  ) {
+    return await existing;
+  }
+
+  const promise =
+    ensureMorningMeetingAutoHistoryOverridesTableUncached(
+      database
+    )
+      .catch(
+        error => {
+          morningMeetingAutoHistorySchemaPromises.delete(
+            database
+          );
+
+          throw error;
+        }
+      );
+
+  morningMeetingAutoHistorySchemaPromises.set(
+    database,
+    promise
+  );
+
+  return await promise;
+}
+
+
+const morningMeetingCompletedHistoryIndexPromises =
+  new WeakMap();
+
+async function ensureMorningMeetingCompletedHistoryIndex(
+  database
+) {
+  const existing =
+    morningMeetingCompletedHistoryIndexPromises.get(
+      database
+    );
+
+  if (
+    existing
+  ) {
+    return await existing;
+  }
+
+  const promise =
+    database
+      .prepare(`
+        CREATE INDEX IF NOT EXISTS
+          idx_ois_data_requests_morning_completed_history_v3
+
+        ON ois_data_requests (
+          target_date,
+          request_type,
+          completed_at DESC,
+          updated_at DESC,
+          requested_at DESC,
+          id DESC
+        )
+
+        WHERE
+          status = 'complete'
+          AND result_json IS NOT NULL
+          AND request_type IN (
+            'water_environment',
+            'turbine_gear_pinion',
+            'silo_level',
+            'daily_data_excel',
+            'organic_silo_dataparc',
+            'steam_status'
+          )
+      `)
+      .run()
+      .catch(
+        error => {
+          morningMeetingCompletedHistoryIndexPromises.delete(
+            database
+          );
+
+          throw error;
+        }
+      );
+
+  morningMeetingCompletedHistoryIndexPromises.set(
+    database,
+    promise
+  );
+
+  return await promise;
 }
 
 
@@ -15403,6 +15514,36 @@ async function handleCompletedHistoryGet(
     새로운 OIS 요청 생성이나
     자동 재조회는 실행하지 않는다.
   */
+  /*
+    MORNING_MEETING_COMPLETED_HISTORY_FAST_V3
+    Date navigation reads saved D1 history only. Prepare the tiny reset/override
+    lookups before the main SELECT so their I/O overlaps instead of running
+    serially after the history query.
+  */
+  await Promise.all([
+    ensureMorningMeetingAutoHistoryOverridesTable(
+      context.env.DB
+    ),
+    ensureMorningMeetingCompletedHistoryIndex(
+      context.env.DB
+    )
+  ]);
+
+  const resetsPromise =
+    findMorningMeetingAutoHistoryResets(
+      context.env.DB,
+      startDate,
+      endDate
+    );
+
+  const overridesPromise =
+    findMorningMeetingAutoHistoryOverrides(
+      context.env.DB,
+      startDate,
+      endDate
+    );
+
+
   const queryResult =
     await context.env.DB
       .prepare(`
@@ -15427,17 +15568,6 @@ async function handleCompletedHistoryGet(
           AND TRIM(
             result_json
           ) <> ''
-          AND CASE
-            WHEN json_valid(result_json)
-              THEN json_type(result_json)
-            ELSE ''
-          END = 'object'
-          AND CASE
-            WHEN json_valid(result_json)
-              THEN json(result_json) <> '{}'
-            ELSE 0
-          END
-
         ORDER BY
           target_date DESC,
 
@@ -15484,11 +15614,7 @@ async function handleCompletedHistoryGet(
     가장 최신 자료 하나만 남긴다.
   */
   const resets =
-    await findMorningMeetingAutoHistoryResets(
-      context.env.DB,
-      startDate,
-      endDate
-    );
+    await resetsPromise;
 
 
   const activeResetByDate =
@@ -15634,11 +15760,7 @@ async function handleCompletedHistoryGet(
     추가로 보내지 않기 위한 구조다.
   */
   const overrides =
-    await findMorningMeetingAutoHistoryOverrides(
-      context.env.DB,
-      startDate,
-      endDate
-    );
+    await overridesPromise;
 
   return jsonResponse({
     ok:
