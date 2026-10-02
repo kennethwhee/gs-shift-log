@@ -454,9 +454,13 @@
       settingsButton.dataset.bound = "true";
     }
 
-    if (settingsButton instanceof HTMLButtonElement && closedProvider()) {
-      settingsButton.disabled = true;
-      settingsButton.title = "발열량은 혼소율 메뉴에서 변경한 뒤 마감자료를 다시 저장해 주세요.";
+    if (settingsButton instanceof HTMLButtonElement) {
+      settingsButton.disabled = false;
+      settingsButton.title = "선택일 발열량 확인 및 수정";
+      settingsButton.setAttribute("aria-label", "선택일 발열량 확인 및 수정");
+    }
+
+    if (closedProvider()) {
       closeSettingsModal();
     }
 
@@ -525,17 +529,31 @@
     }
   }
 
+  // MORNING_MEETING_COFIRING_SHARED_CALORIFIC_V3
   async function openSettingsModal() {
-    if (closedProvider()) {
-      closeSettingsModal();
-      return;
-    }
     ensureCard();
 
     const targetDate = getTargetDate();
 
     if (!targetDate) {
       window.alert("혼소율 계산 기준일을 확인하지 못했습니다. 기준일을 선택한 뒤 다시 시도해 주세요.");
+      return;
+    }
+
+    const shared = window.CofiringCalorificHistoryAdjustV1;
+
+    if (shared && typeof shared.open === "function") {
+      try {
+        await shared.open(targetDate);
+      } catch (error) {
+        console.warn("공용 발열량 설정창 열기 실패:", error);
+        window.alert(error?.message || "발열량 설정창을 열지 못했습니다.");
+      }
+      return;
+    }
+
+    if (closedProvider()) {
+      window.alert("공용 발열량 설정창을 불러오지 못했습니다. Ctrl+F5 후 다시 시도해 주세요.");
       return;
     }
 
