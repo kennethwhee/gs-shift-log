@@ -409,6 +409,11 @@
   async function fillDialog() {
     const state = modalState;
     if (!state || busy) return;
+    // TO_POWER_READONLY_CLEAN_VIEW_V2
+    const reloadButton = Array.from(dialog.querySelectorAll('button')).find(button =>
+      /저장자료.*불러오기/.test(String(button.textContent || '').replace(/\s+/g, ' ').trim())
+    );
+    if (reloadButton) reloadButton.hidden = true;
     setBusy(true); say('저장자료와 TO 담당자를 확인하고 있습니다.');
     try {
       const payload = await load(state.date, true);
@@ -443,6 +448,7 @@
         const canEdit = state.payload?.canEdit === true;
         const saveButton = byId('toNightPowerSave');
         if (saveButton) { saveButton.hidden = !canEdit; saveButton.disabled = !canEdit; }
+        if (reloadButton) reloadButton.hidden = !canEdit;
         const footerClose = dialog.querySelector('footer [data-close]');
         if (footerClose) setText(footerClose, canEdit ? '취소' : '닫기');
         if (canEdit) form.elements.namedItem(FORM_FIELDS[0][0]).focus();
@@ -566,7 +572,7 @@
     if (entry?.status !== 'ready') throw new Error('TO 전력 저장자료를 확인하지 못했습니다. 전력 카드에서 재조회 후 다시 생성해 주세요.');
     return mergeValues(dailyData, entry.payload, date);
   }
-  root.toNightPower = {version: '20261002-v1-r7-readonly', targetDate, renderMeeting, refreshMeeting, ensureForWorkbook, valuesForWorkbook,
+  root.toNightPower = {version: '20261002-v1-r8-readonly-clean', targetDate, renderMeeting, refreshMeeting, ensureForWorkbook, valuesForWorkbook,
     refreshDuty: () => { selectionStamp = ''; queueUI(); }};
   function init() {
     const original = root.updateShiftMemberCardStates;
