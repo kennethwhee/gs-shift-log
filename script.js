@@ -242820,12 +242820,77 @@ const readOnlyFieldSelector = [
     event.stopImmediatePropagation();
   }
 
-  function initializeEfficiencyTeamMobileMonitorOnlyPolicy() {
+    /* EFFICIENCY_MOBILE_MONITOR_OBSERVER_FIX_V1
+     This policy is only meaningful while the mobile media query matches.
+     On desktop, the MutationObserver must not rescan and rewrite the entire
+     Efficiency Team modal for every childList change.
+
+     On mobile, many DOM changes can arrive in one burst. Coalesce them to
+     one policy pass per animation frame instead of one full querySelectorAll
+     sweep per MutationObserver callback.
+  */
+  let efficiencyTeamMobileMonitorApplyFrame =
+    0;
+
+
+  function scheduleEfficiencyTeamMobileMonitorOnlyPolicy() {
+    if (
+      !mobileMediaQuery.matches ||
+      efficiencyTeamMobileMonitorApplyFrame
+    ) {
+      return;
+    }
+
+
+    const applyOnFrame =
+      () => {
+        efficiencyTeamMobileMonitorApplyFrame =
+          0;
+
+
+        if (
+          mobileMediaQuery.matches
+        ) {
+          applyEfficiencyTeamMobileMonitorOnlyPolicy();
+        }
+      };
+
+
+    if (
+      typeof window.requestAnimationFrame ===
+        "function"
+    ) {
+      efficiencyTeamMobileMonitorApplyFrame =
+        window.requestAnimationFrame(
+          applyOnFrame
+        );
+
+      return;
+    }
+
+
+    efficiencyTeamMobileMonitorApplyFrame =
+      window.setTimeout(
+        applyOnFrame,
+        16
+      );
+  }
+
+
+function initializeEfficiencyTeamMobileMonitorOnlyPolicy() {
+    /*
+      Initial pass preserves the existing behavior:
+      - mobile: enforce monitor-only state
+      - desktop: restore any state left by a prior mobile viewport
+    */
     applyEfficiencyTeamMobileMonitorOnlyPolicy();
 
-    const modal = document.getElementById(
-      "efficiencyTeamModal"
-    );
+
+    const modal =
+      document.getElementById(
+        "efficiencyTeamModal"
+      );
+
 
     if (
       modal &&
@@ -242833,39 +242898,72 @@ const readOnlyFieldSelector = [
         .efficiencyMobileMonitorObserved !==
         "true"
     ) {
-      const observer = new MutationObserver(
-        mutationList => {
-          if (
-            mutationList.some(
-              mutation =>
-                mutation.type === "childList"
-            )
-          ) {
-            applyEfficiencyTeamMobileMonitorOnlyPolicy();
+      const observer =
+        new MutationObserver(
+          mutationList => {
+            /*
+              Critical desktop fast path.
+
+              The previous implementation ran the complete modal-wide
+              policy after every childList mutation even on PC.
+            */
+            if (
+              !mobileMediaQuery.matches
+            ) {
+              return;
+            }
+
+
+            if (
+              !mutationList.some(
+                mutation =>
+                  mutation.type ===
+                    "childList"
+              )
+            ) {
+              return;
+            }
+
+
+            scheduleEfficiencyTeamMobileMonitorOnlyPolicy();
           }
+        );
+
+
+      observer.observe(
+        modal,
+        {
+          childList:
+            true,
+
+          subtree:
+            true
         }
       );
 
-      observer.observe(modal, {
-        childList: true,
-        subtree: true
-      });
 
       modal.dataset
         .efficiencyMobileMonitorObserved =
         "true";
     }
 
+
+    /*
+      A real viewport mode change still applies immediately.
+      This keeps PC <-> mobile behavior identical to before.
+    */
     mobileMediaQuery.addEventListener(
       "change",
       applyEfficiencyTeamMobileMonitorOnlyPolicy
     );
+
 
     document.addEventListener(
       "click",
       blockMobileMutationEvent,
       true
     );
+
 
     document.addEventListener(
       "submit",
