@@ -813,7 +813,8 @@ async function run(button, options = {}) {
     if (stored) adoptStoredSteamResult(stored);
     applySourceOwnership();
   }
-
+  /* GS_SELECTED_DATE_DELETE_V8_RESET_REPAINT */
+  document.addEventListener("morningMeetingResetStateChanged", applySourceOwnership);
   document.addEventListener(
     "efficiencyMorningMeetingSteamStatusLoaded",
     event => {

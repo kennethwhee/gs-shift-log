@@ -223,36 +223,69 @@
   }
 
   function operationsOutcome(result, date) {
+    /* GS_SELECTED_DATE_DELETE_V8_REQUIRED_OPERATION_OUTCOME */
     const outcomes = Array.isArray(result) ? result : [];
     let failed = 0;
     let complete = 0;
     const errors = [];
+
     for (const outcome of outcomes) {
       const item = outcome?.value;
+
       if (outcome?.status === "rejected") {
         failed += 1;
-        errors.push(text(outcome.reason?.message) || "운영정보 일부 항목을 불러오지 못했습니다.");
-      } else if (outcome?.status === "fulfilled" && ["skipped-complete", "waited-existing"].includes(item?.status)) {
+        errors.push(text(outcome.reason?.message) || "운영정보 필수 항목을 불러오지 못했습니다.");
+        continue;
+      }
+
+      if (outcome?.status === "fulfilled" && ["skipped-complete", "waited-existing"].includes(item?.status)) {
         complete += 1;
-      } else if (outcome?.status === "fulfilled" && item?.status === "fulfilled") {
+        continue;
+      }
+
+      if (outcome?.status === "fulfilled" && item?.status === "fulfilled") {
+        const optional =
+          ["smp-price", "weather"].includes(text(item?.key)) ||
+          Boolean(text(item?.optionalError));
+
+        if (optional) {
+          // SMP/weather are optional presentation sources. Their failure must not
+          // keep an otherwise successful selected-date rebuild tombstoned.
+          complete += 1;
+          continue;
+        }
+
         if (item.result === null || item.result === false) {
           failed += 1;
-          errors.push("운영정보 일부 항목을 불러오지 못했습니다. 해당 카드의 상태를 확인해 주세요.");
-        } else if (item.result !== undefined) complete += 1;
+          errors.push("운영정보 필수 항목을 불러오지 못했습니다. 해당 카드의 상태를 확인해 주세요.");
+        } else if (item.result !== undefined) {
+          complete += 1;
+        }
       }
     }
+
     if (targetDate() === date) {
-      const statusIds = ["efficiencyMorningMeetingAutoWaterStatus", "efficiencyMorningMeetingAutoLimestoneStatus",
-        "efficiencyMorningMeetingAutoGearPinionStatus", "efficiencyMorningMeetingAutoSiloStatus"];
+      const statusIds = [
+        "efficiencyMorningMeetingAutoWaterStatus",
+        "efficiencyMorningMeetingAutoLimestoneStatus",
+        "efficiencyMorningMeetingAutoGearPinionStatus",
+        "efficiencyMorningMeetingAutoSiloStatus"
+      ];
       if (statusIds.some(id => ["is-error", "is-failed"].some(name => byId(id)?.classList.contains(name))) && !failed) {
         failed = 1;
-        errors.push("운영정보 일부 항목을 불러오지 못했습니다. 해당 카드의 상태를 확인해 주세요.");
+        errors.push("운영정보 필수 항목을 불러오지 못했습니다. 해당 카드의 상태를 확인해 주세요.");
       }
     }
-    return { status: failed ? (complete ? "partial" : "error") : outcomes.length && complete === outcomes.length ? "complete" : "ended",
-      error: [...new Set(errors)].join(" ") };
-  }
 
+    return {
+      status: failed
+        ? (complete ? "partial" : "error")
+        : outcomes.length && complete === outcomes.length
+          ? "complete"
+          : "ended",
+      error: [...new Set(errors)].join(" ")
+    };
+  }
   function recordAllSteamFlow(current, event, extra = {}) {
     if (current?.source !== "all") return;
     // Diagnostics only: no credentials, measurements, persistence, or network calls.

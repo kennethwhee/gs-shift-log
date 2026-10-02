@@ -502,7 +502,10 @@
     meetingQueued = true;
     queueMicrotask(() => {
       meetingQueued = false;
-      if (typeof root.renderEfficiencyMorningMeetingSteamStatus === 'function') root.renderEfficiencyMorningMeetingSteamStatus();
+      const date = targetDate();
+      if ((!dateValid(date) || !blocked(date)) && typeof root.renderEfficiencyMorningMeetingSteamStatus === 'function') {
+        root.renderEfficiencyMorningMeetingSteamStatus();
+      }
       renderMeeting();
     });
   }
@@ -594,6 +597,8 @@
   root.toNightPower = {version: '20261002-v1-r9-readonly-neutral', targetDate, renderMeeting, refreshMeeting, ensureForWorkbook, valuesForWorkbook,
     refreshDuty: () => { selectionStamp = ''; queueUI(); }};
   function init() {
+    // GS_SELECTED_DATE_DELETE_V8_TO_RESET_REPAINT
+    doc.addEventListener('morningMeetingResetStateChanged', redrawMeeting);
     const original = root.updateShiftMemberCardStates;
     if (typeof original === 'function') root.updateShiftMemberCardStates = function (...args) {
       const result = original.apply(this, args); queueUI(); return result;
