@@ -14,7 +14,7 @@ function db(){
 const defaults=()=>({unit1:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}},unit2:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}}});
 let id=0;
 async function call(DB,{method='GET',day='2026-09-08',body=null,auth=true,headers={}}={}){
- const request=new Request('https://shift.test/api/cofiring-calculation-settings?targetDate='+day,{method,headers:{...(auth?{Authorization:'Bearer '+token}:{}),...(method==='POST'?{'Content-Type':'application/json','X-ShiftLog-Client':'desktop'}:{}),...headers},...(method==='POST'?{body:JSON.stringify(body)}:{})});
+ const query=(method==='DELETE'?'effectiveDate=':'targetDate=')+day; const request=new Request('https://shift.test/api/cofiring-calculation-settings?'+query,{method,headers:{...(auth?{Authorization:'Bearer '+token}:{}),...((method==='POST'||method==='DELETE')?{'X-ShiftLog-Client':'desktop'}:{}),...(method==='POST'?{'Content-Type':'application/json'}:{}),...headers},...(method==='POST'?{body:JSON.stringify(body)}:{})});
  const res=await api.onRequest({request,env:{DB}});return {status:res.status,data:await res.json()};
 }
 function saveBody(day='2026-09-08',settings=defaults()){return {effectiveDate:day,settings,requestId:String(++id).padStart(32,'0')};}
@@ -24,3 +24,27 @@ test('saved settings apply from their effective date and preserve prior dates',a
 test('later effective settings supersede only later calculation days',async()=>{const DB=db(),a=defaults(),b=defaults();a.unit1.bio.calorific=3000;b.unit1.bio.calorific=3100;await call(DB,{method:'POST',body:saveBody('2026-09-01',a)});await call(DB,{method:'POST',body:saveBody('2026-09-10',b)});assert.equal((await call(DB,{day:'2026-09-09'})).data.settings.unit1.bio.calorific,3000);assert.equal((await call(DB,{day:'2026-09-10'})).data.settings.unit1.bio.calorific,3100);});
 test('invalid factors and mobile POST fail closed',async()=>{const DB=db(),bad=defaults();bad.unit1.coal.coefficient=0;assert.equal((await call(DB,{method:'POST',body:saveBody('2026-09-08',bad)})).status,400);assert.equal((await call(DB,{method:'POST',body:saveBody(),headers:{'User-Agent':'iPhone Mobile'}})).status,403);});
 test('same request id is idempotent',async()=>{const DB=db(),body=saveBody();assert.equal((await call(DB,{method:'POST',body})).status,200);const second=await call(DB,{method:'POST',body});assert.equal(second.status,200);assert.equal(second.data.replayed,true);assert.equal(DB.raw.prepare('SELECT COUNT(*) n FROM cofiring_calculation_settings_history').get().n,1);});
+
+// COFIRING_CALORIFIC_HISTORY_MANAGE_V2
+test('DELETE removes every revision for one effective date and exposes the prior effective setting',async()=>{
+  const DB=db(),prior=defaults(),a=defaults(),b=defaults();
+  prior.unit1.coal.calorific=5800;
+  a.unit1.coal.calorific=5900;
+  b.unit1.coal.calorific=6000;
+  await call(DB,{method:'POST',body:saveBody('2026-09-01',prior)});
+  await call(DB,{method:'POST',body:saveBody('2026-09-10',a)});
+  await call(DB,{method:'POST',body:saveBody('2026-09-10',b)});
+  const deleted=await call(DB,{method:'DELETE',day:'2026-09-10'});
+  assert.equal(deleted.status,200);
+  assert.equal(deleted.data.deletedRows,2);
+  assert.equal(DB.raw.prepare("SELECT COUNT(*) n FROM cofiring_calculation_settings_history WHERE effective_date='2026-09-10'").get().n,0);
+  const after=await call(DB,{day:'2026-09-10'});
+  assert.equal(after.data.effectiveDate,'2026-09-01');
+  assert.equal(after.data.settings.unit1.coal.calorific,5800);
+});
+test('mobile DELETE fails closed',async()=>{
+  const DB=db();
+  await call(DB,{method:'POST',body:saveBody('2026-09-08')});
+  const response=await call(DB,{method:'DELETE',day:'2026-09-08',headers:{'User-Agent':'iPhone Mobile'}});
+  assert.equal(response.status,403);
+});

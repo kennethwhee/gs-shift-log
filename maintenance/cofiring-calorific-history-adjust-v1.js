@@ -17,6 +17,8 @@
   let loadedSettings = null;
   let loadedEffectiveDate = "";
   let previousBodyOverflow = "";
+  let lockEffectiveDate = false;
+  // COFIRING_CALORIFIC_HISTORY_MANAGE_V2
 
   function textOf(node) {
     return String(node?.textContent || "").replace(/\s+/g, " ").trim();
@@ -319,7 +321,7 @@
   function setModalBusy(busy) {
     const { modal, date, save, inputs } = modalNodes();
     modal.classList.toggle("is-busy", Boolean(busy));
-    if (date) date.disabled = Boolean(busy);
+    if (date) date.disabled = Boolean(busy) || lockEffectiveDate;
     if (save) save.disabled = Boolean(busy);
     for (const input of Object.values(inputs)) {
       if (input) input.disabled = Boolean(busy);
@@ -566,9 +568,10 @@
     }
   }
 
-  async function openModal(targetDate = "") {
+  async function openModal(targetDate = "", options = {}) {
     const { modal, date } = modalNodes();
     showError("");
+    lockEffectiveDate = options?.lockDate === true;
 
     previousBodyOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -578,7 +581,11 @@
     date.value = validDate(targetDate) ? targetDate : koreanToday();
 
     await loadSettings(date.value);
-    date.focus();
+    if (lockEffectiveDate) {
+      modal.querySelector("[data-cfv-cal-fuel]")?.focus();
+    } else {
+      date.focus();
+    }
   }
 
   function closeModal() {
@@ -586,13 +593,14 @@
     if (!modal || modal.hidden) return;
 
     modal.hidden = true;
+    lockEffectiveDate = false;
     document.body.classList.remove("is-cfv-cal-adjust-open");
     document.body.style.overflow = previousBodyOverflow;
     showError("");
   }
 
   window.CofiringCalorificHistoryAdjustV1 = Object.freeze({
-    open: (targetDate = '') => openModal(targetDate),
+    open: (targetDate = '', options = {}) => openModal(targetDate, options),
     close: () => closeModal(),
     reload: (targetDate = '') => loadSettings(validDate(targetDate) ? targetDate : koreanToday())
   });

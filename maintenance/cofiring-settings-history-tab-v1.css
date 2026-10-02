@@ -70,3 +70,60 @@
   #efficiencyCofiringDraftView .cfv13-settings-panel .cfv12-history-head { align-items:flex-start; flex-wrap:wrap; gap:10px; }
   #efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-history-actions-v1 { margin-left:auto; }
 }
+
+
+/* COFIRING_CALORIFIC_HISTORY_MANAGE_V2_CSS */
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-native-history{
+  min-width:790px;
+}
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-native-history th:first-child{
+  width:18%;
+}
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-native-history th:nth-last-child(2){
+  width:20%;
+}
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-native-history th:last-child{
+  width:13%;
+  text-align:center;
+}
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-native-history .cfv-cal-manage{
+  padding-left:7px;
+  padding-right:7px;
+  text-align:center;
+}
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-manage{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+}
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-manage button{
+  height:28px;
+  min-width:44px;
+  padding:0 8px;
+  border:1px solid #ccd8e2;
+  border-radius:6px;
+  background:#fff;
+  color:#4b6074;
+  font-size:11px;
+  font-weight:700;
+  cursor:pointer;
+}
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-manage .cfv-cal-row-edit{
+  border-color:#a9cdbf;
+  background:#eef8f4;
+  color:#216a56;
+}
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-manage .cfv-cal-row-delete{
+  border-color:#e8c7c3;
+  background:#fff7f6;
+  color:#a95349;
+}
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-manage button:hover:not(:disabled){
+  filter:brightness(.98);
+  box-shadow:0 2px 5px rgba(28,49,68,.07);
+}
+#efficiencyCofiringDraftView .cfv13-settings-panel .cfv-cal-manage button:disabled{
+  opacity:.5;
+  cursor:not-allowed;
+}

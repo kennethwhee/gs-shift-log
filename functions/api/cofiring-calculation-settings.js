@@ -1,6 +1,7 @@
 /* Co-firing calculation assumptions V1.
    GET  ?targetDate=YYYY-MM-DD: latest effective setting on/before the selected day.
    POST {effectiveDate,settings,requestId}: append a new effective-date setting.
+   DELETE ?effectiveDate=YYYY-MM-DD: remove all revisions for one effective date.
    Calculation settings are intentionally separate from morning-meeting settings. */
 const TABLE = 'cofiring_calculation_settings_history';
 const FUELS = ['coal','bio','organic','manure'];
@@ -82,6 +83,7 @@ function convert(row){
 async function latest(db,date){
   return convert(await db.prepare(`SELECT * FROM ${TABLE} WHERE effective_date <= ? ORDER BY effective_date DESC, id DESC LIMIT 1`).bind(date).first());
 }
+// COFIRING_CALORIFIC_HISTORY_MANAGE_V2
 export async function onRequestGet(context){
   try{
     const auth=await authenticate(context);if(auth.error)return auth.error;
@@ -151,8 +153,31 @@ export async function onRequestPost(context){
     return json({ok:false,message:'발열량·보정계수 설정을 저장하지 못했습니다. 입력값은 유지됩니다.'},500);
   }
 }
+export async function onRequestDelete(context){
+  try{
+    const auth=await authenticate(context);if(auth.error)return auth.error;
+    const req=context.request,origin=req.headers.get('Origin');
+    if(origin&&origin!==new URL(req.url).origin)return json({ok:false,message:'같은 업무일지 화면에서 삭제해 주세요.'},403);
+    if(req.headers.get('X-ShiftLog-Client')!=='desktop'||/Android|iPhone|iPad|iPod|Mobile/i.test(req.headers.get('User-Agent')||''))
+      return json({ok:false,message:'발열량 저장 이력 삭제는 로그인한 PC 화면에서 할 수 있습니다.'},403);
+    const effectiveDate=new URL(req.url).searchParams.get('effectiveDate');
+    if(!validDate(effectiveDate))return json({ok:false,message:'삭제할 적용 시작일을 확인해 주세요.'},400);
+    const db=context.env.DB;await ensureTable(db);
+    const countRow=await db.prepare(`SELECT COUNT(*) AS n FROM ${TABLE} WHERE effective_date = ?`).bind(effectiveDate).first();
+    const deletedRows=Number(countRow?.n)||0;
+    if(deletedRows>0){
+      await db.prepare(`DELETE FROM ${TABLE} WHERE effective_date = ?`).bind(effectiveDate).run();
+    }
+    const fallback=await latest(db,effectiveDate);
+    return json({ok:true,effectiveDate,deletedRows,fallback});
+  }catch(error){
+    console.error('cofiring calculation settings delete failed:',error instanceof Error?error.message:'unknown error');
+    return json({ok:false,message:'발열량 저장 이력을 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.'},500);
+  }
+}
 export async function onRequest(context){
   if(context.request.method==='GET')return onRequestGet(context);
   if(context.request.method==='POST')return onRequestPost(context);
+  if(context.request.method==='DELETE')return onRequestDelete(context);
   return json({ok:false,message:'지원하지 않는 요청 방식입니다.'},405);
 }

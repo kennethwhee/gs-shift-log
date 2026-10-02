@@ -60,6 +60,25 @@
     return payload;
   }
 
+  // COFIRING_CALORIFIC_HISTORY_MANAGE_V2
+  async function deleteHistory(effectiveDate){
+    const response=await root.fetch(API+'?effectiveDate='+encodeURIComponent(effectiveDate),{
+      method:'DELETE',
+      credentials:'same-origin',
+      cache:'no-store',
+      headers:{
+        ...authHeaders(),
+        Accept:'application/json',
+        'X-ShiftLog-Client':'desktop'
+      }
+    });
+    let payload=null;
+    try{payload=await response.json();}catch(_){ }
+    if(!response.ok||payload?.ok!==true){
+      throw new Error(payload?.message||'발열량 저장 이력을 삭제하지 못했습니다.');
+    }
+    return payload;
+  }
   function calorific(settings,key){
     return formatNumber(settings?.unit1?.[key]?.calorific);
   }
@@ -99,8 +118,8 @@
       <div class="cfv-cal-table-scroll" tabindex="0" role="region" aria-label="적용일별 발열량 이력">
         <table class="cfv-cal-native-history">
           <caption>적용일별 연료 발열량과 저장 시각. 발열량 단위 kcal/kg, 저장 시각 한국 시간.</caption>
-          <thead><tr><th scope="col">적용 시작일</th>${FUELS.map(([,label])=>`<th scope="col">${label}</th>`).join('')}<th scope="col">저장 시각 <span>· 한국 시간</span></th></tr></thead>
-          <tbody>${items.map(item=>`<tr><th scope="row">${dateLabel(item.effectiveDate)}</th>${FUELS.map(([fuel])=>`<td class="cfv-cal-value">${escapeHtml(valueText(item,fuel))}</td>`).join('')}<td class="cfv-cal-saved-time">${escapeHtml(savedTime(item.updatedAt))}</td></tr>`).join('')}</tbody>
+          <thead><tr><th scope="col">적용 시작일</th>${FUELS.map(([,label])=>`<th scope="col">${label}</th>`).join('')}<th scope="col">저장 시각 <span>· 한국 시간</span></th><th scope="col" class="cfv-cal-manage-head">관리</th></tr></thead>
+          <tbody>${items.map(item=>`<tr data-cfv-cal-history-date="${escapeHtml(item.effectiveDate)}"><th scope="row">${dateLabel(item.effectiveDate)}</th>${FUELS.map(([fuel])=>`<td class="cfv-cal-value">${escapeHtml(valueText(item,fuel))}</td>`).join('')}<td class="cfv-cal-saved-time">${escapeHtml(savedTime(item.updatedAt))}</td><td class="cfv-cal-manage"><button type="button" class="cfv-cal-row-edit" data-cfv-cal-edit="${escapeHtml(item.effectiveDate)}">수정</button><button type="button" class="cfv-cal-row-delete" data-cfv-cal-delete="${escapeHtml(item.effectiveDate)}">삭제</button></td></tr>`).join('')}</tbody>
         </table>
       </div>`;
   }
@@ -160,6 +179,27 @@
       }
     }
 
+    async function editHistoryDate(effectiveDate){
+      const modal=root.CofiringCalorificHistoryAdjustV1;
+      if(!modal?.open){
+        root.alert?.('발열량 수정창을 불러오지 못했습니다. Ctrl+F5 후 다시 시도해 주세요.');
+        return;
+      }
+      await modal.open(effectiveDate,{lockDate:true});
+    }
+    async function deleteHistoryDate(effectiveDate,button){
+      const ok=root.confirm?.(`${effectiveDate} 적용 발열량 이력을 삭제할까요?\n삭제하면 해당 적용일의 저장 revision 전체가 제거되며 이후 계산은 직전 적용값을 사용합니다.`);
+      if(ok===false)return;
+      const previous=button?.textContent||'삭제';
+      if(button){button.disabled=true;button.textContent='삭제 중';}
+      try{
+        await deleteHistory(effectiveDate);
+        await loadList();
+      }catch(error){
+        root.alert?.(error?.message||'발열량 저장 이력을 삭제하지 못했습니다.');
+        if(button?.isConnected){button.disabled=false;button.textContent=previous;}
+      }
+    }
     function leaveSettingsTab(){
       panel.hidden=true;
       settingsTab.setAttribute('aria-selected','false');
@@ -180,6 +220,12 @@
     calc.addEventListener('click',leaveSettingsTab);
     history.addEventListener('click',leaveSettingsTab);
     refresh?.addEventListener('click',()=>void loadList());
+    body.addEventListener('click',(event)=>{
+      const edit=event.target.closest?.('[data-cfv-cal-edit]');
+      if(edit){void editHistoryDate(edit.dataset.cfvCalEdit);return;}
+      const del=event.target.closest?.('[data-cfv-cal-delete]');
+      if(del){void deleteHistoryDate(del.dataset.cfvCalDelete,del);}
+    });
 
     sheet.dataset.cfv14SettingsHistory='1';
     return true;
