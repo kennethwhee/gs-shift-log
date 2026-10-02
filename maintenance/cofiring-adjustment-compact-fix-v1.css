@@ -579,3 +579,45 @@
   opacity:.48;
   cursor:not-allowed;
 }
+
+
+/* COFIRING_CALORIFIC_BUTTON_EMPHASIS_V2_CSS */
+.cfv56-adjust-modal .cfv56-adjust-dialog>header .cfv56-header-actions{
+  gap:8px !important;
+}
+.cfv56-adjust-modal .cfv56-adjust-dialog>header .cfv56-calorific-button{
+  min-width:92px !important;
+  height:36px !important;
+  padding:0 14px !important;
+  border:1px solid #97c9b6 !important;
+  border-radius:10px !important;
+  background:linear-gradient(180deg,#f3fbf7 0%,#e7f7ef 100%) !important;
+  color:#15795f !important;
+  box-shadow:0 0 0 1px rgba(21,121,95,.06), 0 4px 10px rgba(21,121,95,.08) !important;
+  font-size:12px !important;
+  font-weight:800 !important;
+  letter-spacing:-.1px !important;
+}
+.cfv56-adjust-modal .cfv56-adjust-dialog>header .cfv56-calorific-button::before{
+  content:"●";
+  display:inline-block;
+  margin-right:6px;
+  color:#11a474;
+  font-size:9px;
+  line-height:1;
+  vertical-align:middle;
+}
+.cfv56-adjust-modal .cfv56-adjust-dialog>header .cfv56-calorific-button:hover:not(:disabled){
+  border-color:#39a77f !important;
+  background:linear-gradient(180deg,#eafaf2 0%,#dff5ea 100%) !important;
+  color:#0e6f56 !important;
+  box-shadow:0 0 0 1px rgba(21,121,95,.08), 0 6px 14px rgba(21,121,95,.12) !important;
+}
+.cfv56-adjust-modal .cfv56-adjust-dialog>header .cfv56-calorific-button:focus-visible{
+  outline:2px solid rgba(28,148,107,.28) !important;
+  outline-offset:2px !important;
+}
+.cfv56-adjust-modal .cfv56-adjust-dialog>header .cfv56-calorific-button:disabled{
+  opacity:.55 !important;
+  box-shadow:none !important;
+}
