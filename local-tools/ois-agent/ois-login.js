@@ -1,4 +1,4 @@
-﻿"use strict";
+"use strict";
 const { parseOisSteamSalesApiResponseV13 } = require("./steam-sales-api-v13");
 // [COFIRING-WEB-BRIDGE-V1] Shares the existing Excel lane; no startup query.
 const {
@@ -305,8 +305,9 @@ const OIS_REQUEST_API_PATH =
   "/api/ois-data-requests";
 
 
+// OIS_AGENT_IDLE_POLL_10S_V2
 const OIS_AGENT_POLL_INTERVAL =
-  1000;
+  10000;
 
 
 const OIS_AGENT_ERROR_RETRY_INTERVAL =
@@ -26212,7 +26213,7 @@ async function loginOis() {
         한 번의 기존 폴링으로
         OIS 최대 한 건과 Excel 최대 한 건을 가져온다.
 
-        요청이 없을 때만 30초 대기하므로
+        요청이 없을 때만 10초 대기하므로
         유휴 HTTP 요청 수는 기존과 동일하다.
       */
       if (
