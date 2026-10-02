@@ -279,3 +279,22 @@
     gap: 4px;
   }
 }
+
+/* TO_POWER_READONLY_NEUTRAL_BUTTON_V3
+   Non-TO users have a stable read-only action, not an input/completion status color.
+   TO users keep the original blue -> green input state treatment.
+*/
+#shiftMemberGrid .to-night-power-button.is-readonly {
+  border-color: #c8d3de;
+  background: #f7f9fb;
+  color: #53697f;
+  box-shadow: none;
+}
+#shiftMemberGrid .to-night-power-button.is-readonly:hover:not(:disabled) {
+  border-color: #b6c4d1;
+  background: #eef3f7;
+  color: #3f566d;
+}
+#shiftMemberGrid .to-night-power-button.is-readonly:focus-visible {
+  outline-color: #cbd6e1;
+}
