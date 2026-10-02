@@ -5,12 +5,12 @@
  */
 (function installMorningMeetingCardOverridesV1(root) {
   "use strict";
-  if (!root || !root.document || root.morningMeetingCardOverrides?.version === "20261003-v1") return;
+  if (!root || !root.document || root.morningMeetingCardOverrides?.version === "20261003-v3") return;
 
   const doc = root.document;
   const API = "/api/morning-meeting-card-overrides";
   const PANEL_ID = "efficiencyMorningMeetingWaterPanel";
-  const VERSION = "20261003-v1";
+  const VERSION = "20261003-v3";
   const MAX_VALUE = 1e12;
 
   const CARDS = Object.freeze({
@@ -315,7 +315,8 @@
     const config = CARDS[cardKey];
     const card = byId(config.cardId);
     if (!card) return null;
-    const meta = card.querySelector(".efficiency-morning-meeting-auto-card__meta") || card.querySelector("header") || card;
+    const header = card.querySelector(".efficiency-morning-meeting-auto-card__header");
+    const meta = card.querySelector(".efficiency-morning-meeting-auto-card__meta") || header || card;
     let group = controls(cardKey);
     if (!group) {
       group = doc.createElement("span");
@@ -336,6 +337,15 @@
       group.append(badge, edit, restore, save, cancel);
       meta.appendChild(group);
     }
+
+    /* GS_MORNING_CARD_OVERRIDE_V3_STEAM_HEADER
+     * Steam has the longest title and date/status controls. Keep its
+     * override actions on a dedicated compact second header row.
+     */
+    if (cardKey === "steam" && header && group.parentElement !== header) {
+      header.appendChild(group);
+    }
+
     for (const field of config.fields) ensureInput(cardKey, field);
     return group;
   }
@@ -551,7 +561,7 @@
     const originalCollect = current.collect.bind(current);
     const wrapped = {
       ...current,
-      version: `${current.version || "current"}+card-overrides-v1`,
+      version: `${current.version || "current"}+card-overrides-v3`,
       async collect(options = {}) {
         const bundle = await originalCollect(options);
         const date = dateValid(bundle?.targetDate) ? bundle.targetDate : targetDate();

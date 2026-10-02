@@ -97,3 +97,37 @@
     width: 112px;
   }
 }
+
+
+/* GS_MORNING_CARD_OVERRIDE_V3_STEAM_HEADER
+   Keep the Steam title readable while edit/restore controls are present. */
+#efficiencyTeamModal #efficiencyMorningMeetingAutoSteamCard
+.efficiency-morning-meeting-auto-card__header {
+  grid-template-columns: minmax(118px, 1fr) auto;
+  align-items: start;
+  row-gap: 3px;
+}
+
+#efficiencyTeamModal #efficiencyMorningMeetingAutoSteamCard
+.efficiency-morning-meeting-auto-card__header > div:first-child {
+  min-width: 118px;
+  overflow: visible;
+}
+
+#efficiencyTeamModal #efficiencyMorningMeetingAutoSteamCard
+.efficiency-morning-meeting-auto-card__header > div:first-child > span,
+#efficiencyTeamModal #efficiencyMorningMeetingAutoSteamCard
+.efficiency-morning-meeting-auto-card__header > div:first-child > strong {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+#efficiencyTeamModal #efficiencyMorningMeetingAutoSteamCard
+> .efficiency-morning-meeting-auto-card__header
+> .morning-card-override-controls {
+  grid-column: 1 / -1;
+  justify-self: end;
+  align-self: center;
+  margin-top: 0;
+}

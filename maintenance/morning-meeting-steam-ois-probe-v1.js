@@ -611,6 +611,13 @@ function applySourceOwnership() {
       for (const [key, id] of Object.entries(VALUE_IDS)) {
         const element = document.getElementById(id);
         if (!element) continue;
+
+        /* GS_MORNING_CARD_OVERRIDE_V3_STEAM_OWNERSHIP
+         * A saved Morning Meeting override owns the visible field until
+         * the user explicitly restores the card to the OIS source.
+         */
+        if (element.dataset?.morningCardOverride === "true") continue;
+
         const sideReady =
           salesKeys.has(key)
             ? lastResult?.salesComplete === true
