@@ -1,0 +1,99 @@
+/* Morning Meeting card value override editor v1 */
+#efficiencyTeamModal .morning-card-override-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+#efficiencyTeamModal .morning-card-override-button {
+  min-height: 21px;
+  padding: 2px 8px;
+  border: 1px solid #b8c7d8;
+  border-radius: 6px;
+  background: #fff;
+  color: #35506f;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.2;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+#efficiencyTeamModal .morning-card-override-button:hover:not(:disabled) {
+  border-color: #7aa5d5;
+  background: #f3f8fe;
+  color: #1f5fae;
+}
+
+#efficiencyTeamModal .morning-card-override-button:disabled {
+  opacity: .5;
+  cursor: wait;
+}
+
+#efficiencyTeamModal .morning-card-override-button.is-save {
+  border-color: #309d8d;
+  background: #eaf8f4;
+  color: #147868;
+}
+
+#efficiencyTeamModal .morning-card-override-button.is-restore {
+  border-color: #d8b27a;
+  background: #fff9ef;
+  color: #8a5a16;
+}
+
+#efficiencyTeamModal .morning-card-override-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 2px 7px;
+  border: 1px solid #efc47d;
+  border-radius: 999px;
+  background: #fff7e7;
+  color: #9a6209;
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+#efficiencyTeamModal .morning-card-override-input {
+  width: min(132px, 100%);
+  min-width: 72px;
+  height: 26px;
+  box-sizing: border-box;
+  border: 1px solid #7faee3;
+  border-radius: 6px;
+  padding: 3px 7px;
+  background: #fff;
+  color: #163b67;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: right;
+  outline: none;
+}
+
+#efficiencyTeamModal .morning-card-override-input:focus {
+  border-color: #357ed0;
+  box-shadow: 0 0 0 2px rgba(53, 126, 208, .12);
+}
+
+#efficiencyTeamModal .morning-card-override-editing .efficiency-morning-meeting-auto-row {
+  min-height: 31px;
+}
+
+#efficiencyTeamModal .morning-card-override-editing .morning-card-override-input {
+  display: inline-block;
+}
+
+@media (max-width: 900px) {
+  #efficiencyTeamModal .morning-card-override-button {
+    padding-inline: 6px;
+  }
+  #efficiencyTeamModal .morning-card-override-input {
+    width: 112px;
+  }
+}
