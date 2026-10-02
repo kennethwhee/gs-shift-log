@@ -547,3 +547,35 @@
     white-space:normal !important;
   }
 }
+
+
+/* COFIRING_ADJUSTMENT_CALORIFIC_LINK_V1_CSS */
+.cfv56-adjust-modal .cfv56-adjust-dialog>header .cfv56-header-actions{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  flex:0 0 auto;
+}
+.cfv56-adjust-modal .cfv56-adjust-dialog>header .cfv56-calorific-button{
+  width:auto !important;
+  min-width:66px;
+  height:34px !important;
+  padding:0 12px !important;
+  border:1px solid #d6e1ea !important;
+  border-radius:9px !important;
+  background:#f8fbfd !important;
+  color:#506b82 !important;
+  font-size:11.5px !important;
+  font-weight:750 !important;
+  line-height:1 !important;
+  white-space:nowrap;
+}
+.cfv56-adjust-modal .cfv56-adjust-dialog>header .cfv56-calorific-button:hover:not(:disabled){
+  border-color:#a9c7bc !important;
+  background:#f1f8f5 !important;
+  color:#246956 !important;
+}
+.cfv56-adjust-modal .cfv56-adjust-dialog>header .cfv56-calorific-button:disabled{
+  opacity:.48;
+  cursor:not-allowed;
+}

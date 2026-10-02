@@ -482,6 +482,18 @@
     }
   }
 
+  // COFIRING_ADJUSTMENT_CALORIFIC_LINK_V1
+  function notifySettingsSaved(effectiveDate, settings) {
+    try {
+      const detail = { effectiveDate: String(effectiveDate || ''), settings };
+      if (typeof window.CustomEvent === 'function') {
+        window.dispatchEvent(new CustomEvent('cofiring:calorific-settings-saved', { detail }));
+      } else if (typeof window.Event === 'function') {
+        window.dispatchEvent(new Event('cofiring:calorific-settings-saved'));
+      }
+    } catch (_) {}
+  }
+
   function refreshHistory() {
     const root = document.querySelector(ROOT_SELECTOR);
     const panel = root ? findHistoryPanel(root) : null;
@@ -545,6 +557,7 @@
       syncHiddenInputs(root, savedSettings);
       closeModal();
       refreshHistory();
+      notifySettingsSaved(loadedEffectiveDate, savedSettings);
     } catch (error) {
       showError(error?.message || "발열량 설정을 저장하지 못했습니다.");
     } finally {
@@ -553,7 +566,7 @@
     }
   }
 
-  async function openModal() {
+  async function openModal(targetDate = "") {
     const { modal, date } = modalNodes();
     showError("");
 
@@ -562,7 +575,7 @@
     document.body.classList.add("is-cfv-cal-adjust-open");
 
     modal.hidden = false;
-    date.value = koreanToday();
+    date.value = validDate(targetDate) ? targetDate : koreanToday();
 
     await loadSettings(date.value);
     date.focus();
@@ -577,6 +590,12 @@
     document.body.style.overflow = previousBodyOverflow;
     showError("");
   }
+
+  window.CofiringCalorificHistoryAdjustV1 = Object.freeze({
+    open: (targetDate = '') => openModal(targetDate),
+    close: () => closeModal(),
+    reload: (targetDate = '') => loadSettings(validDate(targetDate) ? targetDate : koreanToday())
+  });
 
   function scheduleEnhance() {
     window.setTimeout(enhance, 0);
