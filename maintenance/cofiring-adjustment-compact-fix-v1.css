@@ -1,226 +1,340 @@
-/* GS co-firing adjustment modal: compact but readable desktop rebalance */
+/* GS co-firing adjustment modal redesign V3
+   Goal: closer to the cleaner "settings" modal density while preserving readability.
+   Scope: 혼소 조정 modal only. Logic/API/DB unchanged. */
+
 .cfv56-adjust-modal{
-  padding:20px !important;
+  padding:16px !important;
 }
+
 .cfv56-adjust-modal .cfv56-adjust-dialog{
-  width:min(920px,100%) !important;
-  max-height:calc(100dvh - 40px);
-  border-radius:20px !important;
+  width:min(840px, 100%) !important;
+  max-height:calc(100dvh - 32px) !important;
+  border-radius:18px !important;
+  box-shadow:0 28px 64px rgba(15, 45, 80, 0.18) !important;
 }
-.cfv56-adjust-modal .cfv56-adjust-dialog>header{
-  padding:22px 24px 16px !important;
+
+.cfv56-adjust-modal .cfv56-adjust-dialog > header{
+  padding:18px 22px 10px !important;
 }
-.cfv56-adjust-modal .cfv56-adjust-dialog>header>div>span{
-  font-size:11px !important;
-  letter-spacing:1.8px !important;
+
+.cfv56-adjust-modal .cfv56-adjust-dialog > header > div > span{
+  font-size:10px !important;
+  letter-spacing:1.6px !important;
+  opacity:0.9 !important;
 }
-.cfv56-adjust-modal .cfv56-adjust-dialog>header h3{
-  margin:6px 0 8px !important;
-  font-size:42px !important;
-  line-height:1.05 !important;
-  letter-spacing:-1.4px !important;
+
+.cfv56-adjust-modal .cfv56-adjust-dialog > header h3{
+  margin:4px 0 8px !important;
+  font-size:30px !important;
+  line-height:1.1 !important;
+  letter-spacing:-0.8px !important;
 }
-.cfv56-adjust-modal .cfv56-adjust-dialog>header p{
-  font-size:14px !important;
+
+.cfv56-adjust-modal .cfv56-adjust-dialog > header p{
+  margin:0 !important;
+  font-size:13px !important;
   line-height:1.5 !important;
+  color:#6a8098 !important;
 }
-.cfv56-adjust-modal .cfv56-adjust-dialog>header button{
-  width:44px !important;
-  height:44px !important;
+
+.cfv56-adjust-modal .cfv56-adjust-dialog > header button{
+  width:40px !important;
+  height:40px !important;
   border-radius:12px !important;
-  font-size:26px !important;
+  font-size:24px !important;
 }
+
 .cfv56-adjust-modal .cfv56-adjust-body{
-  padding:4px 24px 22px !important;
+  padding:4px 22px 18px !important;
 }
+
 .cfv56-adjust-modal .cfv56-adjust-body section{
-  margin-top:16px !important;
+  margin-top:14px !important;
 }
+
 .cfv56-adjust-modal .cfv56-adjust-top-grid{
-  grid-template-columns:minmax(0,1fr) minmax(290px,360px) !important;
+  grid-template-columns:minmax(0, 1fr) minmax(260px, 330px) !important;
   gap:12px !important;
 }
+
 .cfv56-adjust-modal .cfv56-top-card{
   gap:8px !important;
-  padding:16px 18px !important;
+  padding:14px 16px !important;
   border-radius:14px !important;
 }
+
 .cfv56-adjust-modal .cfv56-top-card-label{
-  font-size:14px !important;
+  font-size:13px !important;
+  line-height:1.35 !important;
 }
+
 .cfv56-adjust-modal .cfv56-top-card-period [data-cfv56-period]{
-  font-size:24px !important;
-  line-height:1.22 !important;
+  font-size:22px !important;
+  line-height:1.28 !important;
+  letter-spacing:-0.4px !important;
 }
+
 .cfv56-adjust-modal .cfv56-top-card-cap .cfv56-cap-row{
-  grid-template-columns:minmax(0,1fr) 118px auto auto !important;
-  gap:10px !important;
+  grid-template-columns:minmax(0, 1fr) 112px auto auto !important;
+  gap:8px !important;
+  align-items:center !important;
 }
+
 .cfv56-adjust-modal .cfv56-top-card-cap [data-cfv56-max]{
-  height:46px !important;
+  height:42px !important;
   padding:8px 12px !important;
   border-radius:10px !important;
-  font-size:20px !important;
+  font-size:17px !important;
+  font-weight:800 !important;
 }
+
 .cfv56-adjust-modal .cfv56-top-card-cap .cfv56-unit{
-  font-size:18px !important;
-}
-.cfv56-adjust-modal .cfv56-top-card-cap [data-cfv56-save-max]{
-  height:46px !important;
-  padding:0 14px !important;
-  border-radius:10px !important;
   font-size:14px !important;
+  font-weight:700 !important;
 }
-.cfv56-adjust-modal .cfv56-cap-note{
+
+.cfv56-adjust-modal .cfv56-top-card-cap [data-cfv56-save-max]{
+  height:42px !important;
+  padding:0 12px !important;
+  border-radius:10px !important;
   font-size:13px !important;
+  font-weight:700 !important;
+}
+
+.cfv56-adjust-modal .cfv56-cap-note{
+  font-size:12px !important;
   line-height:1.45 !important;
+  color:#7a8fa6 !important;
 }
+
 .cfv56-adjust-modal .cfv56-section-head{
-  gap:10px !important;
-  margin-bottom:10px !important;
+  gap:8px !important;
+  margin-bottom:8px !important;
+  align-items:baseline !important;
 }
+
 .cfv56-adjust-modal .cfv56-section-head h4,
 .cfv56-adjust-modal .cfv56-final-head h4{
-  font-size:22px !important;
-  letter-spacing:-0.5px !important;
+  font-size:18px !important;
+  line-height:1.25 !important;
+  letter-spacing:-0.3px !important;
 }
+
 .cfv56-adjust-modal .cfv56-section-head p,
 .cfv56-adjust-modal .cfv56-final-head p{
-  font-size:14px !important;
+  font-size:13px !important;
   line-height:1.45 !important;
+  color:#7187a0 !important;
 }
+
 .cfv56-adjust-modal .cfv56-dir{
   gap:10px !important;
 }
+
 .cfv56-adjust-modal .cfv56-dir button{
-  height:54px !important;
+  height:48px !important;
   border-radius:12px !important;
-  font-size:21px !important;
+  font-size:18px !important;
+  font-weight:800 !important;
 }
+
 .cfv56-adjust-modal .cfv56-transfer{
-  grid-template-columns:132px minmax(160px,250px) auto auto !important;
+  grid-template-columns:118px minmax(160px, 220px) auto auto !important;
   gap:10px !important;
-  margin-top:14px !important;
-  font-size:14px !important;
+  margin-top:12px !important;
 }
+
 .cfv56-adjust-modal .cfv56-field-label{
-  font-size:17px !important;
+  font-size:14px !important;
+  font-weight:700 !important;
+  align-self:center !important;
 }
+
 .cfv56-adjust-modal .cfv56-transfer input,
 .cfv56-adjust-modal .cfv56-final-edit input{
-  height:46px !important;
+  height:42px !important;
   padding:8px 12px !important;
   border-radius:10px !important;
-  font-size:20px !important;
+  font-size:16px !important;
+  font-weight:800 !important;
 }
-.cfv56-adjust-modal .cfv56-transfer>span{
-  font-size:14px !important;
+
+.cfv56-adjust-modal .cfv56-transfer > span{
+  font-size:13px !important;
+  line-height:1.4 !important;
+  color:#6e849b !important;
 }
+
 .cfv56-adjust-modal .cfv56-transfer button,
 .cfv56-adjust-modal .cfv56-final-head button,
 .cfv56-adjust-modal .cfv56-final-edit button{
-  height:46px !important;
-  padding:0 16px !important;
+  height:42px !important;
+  padding:0 14px !important;
   border-radius:10px !important;
-  font-size:14px !important;
+  font-size:13px !important;
+  font-weight:700 !important;
 }
+
 .cfv56-adjust-modal .cfv56-auto{
-  grid-template-columns:minmax(0,1fr) auto !important;
-  gap:16px !important;
-  padding:16px 18px !important;
-  border-radius:14px !important;
-}
-.cfv56-adjust-modal .cfv56-auto h4{
-  margin:0 0 6px !important;
-  font-size:20px !important;
-}
-.cfv56-adjust-modal .cfv56-auto p{
-  font-size:14px !important;
-  line-height:1.55 !important;
-}
-.cfv56-adjust-modal .cfv56-auto button{
-  min-width:170px !important;
-  height:50px !important;
-  padding:0 20px !important;
-  border-radius:12px !important;
-  font-size:18px !important;
-}
-.cfv56-adjust-modal .cfv56-adjust-msg{
-  min-height:52px !important;
-  margin-top:12px !important;
-  padding:14px 16px !important;
-  border-radius:12px !important;
-  font-size:14px !important;
-  line-height:1.5 !important;
-}
-.cfv56-adjust-modal .cfv56-final-head{
+  grid-template-columns:minmax(0, 1fr) auto !important;
   gap:14px !important;
-  margin-bottom:10px !important;
-}
-.cfv56-adjust-modal .cfv56-adjust-body table{
+  padding:14px 16px !important;
   border-radius:14px !important;
 }
-.cfv56-adjust-modal .cfv56-adjust-body thead th{
-  height:46px !important;
-  font-size:13px !important;
+
+.cfv56-adjust-modal .cfv56-auto h4{
+  margin:0 0 4px !important;
+  font-size:17px !important;
+  line-height:1.3 !important;
 }
-.cfv56-adjust-modal .cfv56-adjust-body th,
-.cfv56-adjust-modal .cfv56-adjust-body td{
-  height:54px !important;
-  padding:10px 8px !important;
-  font-size:14px !important;
-  line-height:1.4 !important;
-}
-.cfv56-adjust-modal .cfv56-adjust-body tbody th{
-  font-size:14px !important;
-}
-.cfv56-adjust-modal .cfv56-adjust-body tbody td:last-child{
-  font-size:15px !important;
-}
-.cfv56-adjust-modal .cfv56-final-edit{
-  gap:12px !important;
-  margin-top:12px !important;
-  padding:14px !important;
-  border-radius:12px !important;
-}
-.cfv56-adjust-modal .cfv56-final-edit label{
-  font-size:13px !important;
-}
-.cfv56-adjust-modal .cfv56-formula{
-  margin-top:10px !important;
+
+.cfv56-adjust-modal .cfv56-auto p{
   font-size:13px !important;
   line-height:1.55 !important;
+  color:#6c8298 !important;
 }
-.cfv56-adjust-modal .cfv56-adjust-dialog>footer{
-  gap:10px !important;
-  padding:16px 24px 20px !important;
-}
-.cfv56-adjust-modal .cfv56-adjust-dialog>footer button{
-  height:48px !important;
-  min-width:96px !important;
+
+.cfv56-adjust-modal .cfv56-auto button{
+  min-width:160px !important;
+  height:44px !important;
   padding:0 18px !important;
   border-radius:12px !important;
-  font-size:15px !important;
+  font-size:16px !important;
+  font-weight:800 !important;
 }
-@media (max-width: 960px){
-  .cfv56-adjust-modal{padding:14px !important;}
-  .cfv56-adjust-modal .cfv56-adjust-dialog{width:min(100%, 100%) !important;max-height:calc(100dvh - 28px);} 
-  .cfv56-adjust-modal .cfv56-adjust-dialog>header h3{font-size:34px !important;}
-  .cfv56-adjust-modal .cfv56-adjust-body{padding:2px 18px 18px !important;}
-  .cfv56-adjust-modal .cfv56-adjust-top-grid{grid-template-columns:minmax(0,1fr) !important;}
-  .cfv56-adjust-modal .cfv56-transfer{grid-template-columns:minmax(0,1fr) 130px auto !important;}
-  .cfv56-adjust-modal .cfv56-field-label{grid-column:1/-1;}
-  .cfv56-adjust-modal .cfv56-auto{grid-template-columns:minmax(0,1fr) !important;}
-  .cfv56-adjust-modal .cfv56-auto button{width:100% !important;}
+
+.cfv56-adjust-modal .cfv56-adjust-msg{
+  min-height:48px !important;
+  margin-top:12px !important;
+  padding:13px 14px !important;
+  border-radius:12px !important;
+  font-size:13px !important;
+  line-height:1.5 !important;
 }
+
+.cfv56-adjust-modal .cfv56-final-head{
+  gap:10px !important;
+  margin-bottom:8px !important;
+  align-items:baseline !important;
+}
+
+.cfv56-adjust-modal .cfv56-adjust-body table{
+  border-radius:14px !important;
+  overflow:hidden !important;
+}
+
+.cfv56-adjust-modal .cfv56-adjust-body thead th{
+  height:42px !important;
+  padding:8px 8px !important;
+  font-size:12px !important;
+  font-weight:700 !important;
+}
+
+.cfv56-adjust-modal .cfv56-adjust-body th,
+.cfv56-adjust-modal .cfv56-adjust-body td{
+  height:46px !important;
+  padding:8px 8px !important;
+  font-size:13px !important;
+  line-height:1.35 !important;
+}
+
+.cfv56-adjust-modal .cfv56-adjust-body tbody th{
+  font-size:13px !important;
+}
+
+.cfv56-adjust-modal .cfv56-adjust-body tbody td:last-child{
+  font-size:14px !important;
+  font-weight:800 !important;
+}
+
+.cfv56-adjust-modal .cfv56-final-scroll{
+  max-height:220px !important;
+}
+
+.cfv56-adjust-modal .cfv56-final-edit{
+  gap:10px !important;
+  margin-top:10px !important;
+  padding:12px !important;
+  border-radius:12px !important;
+}
+
+.cfv56-adjust-modal .cfv56-final-edit label{
+  font-size:12px !important;
+  font-weight:700 !important;
+}
+
+.cfv56-adjust-modal .cfv56-formula{
+  margin-top:10px !important;
+  font-size:12px !important;
+  line-height:1.55 !important;
+  color:#7187a0 !important;
+}
+
+.cfv56-adjust-modal .cfv56-adjust-dialog > footer{
+  gap:10px !important;
+  padding:14px 22px 18px !important;
+}
+
+.cfv56-adjust-modal .cfv56-adjust-dialog > footer button{
+  height:42px !important;
+  min-width:92px !important;
+  padding:0 16px !important;
+  border-radius:12px !important;
+  font-size:14px !important;
+  font-weight:700 !important;
+}
+
+@media (max-width: 900px){
+  .cfv56-adjust-modal{
+    padding:12px !important;
+  }
+  .cfv56-adjust-modal .cfv56-adjust-dialog{
+    width:100% !important;
+    max-height:calc(100dvh - 24px) !important;
+  }
+  .cfv56-adjust-modal .cfv56-adjust-dialog > header h3{
+    font-size:26px !important;
+  }
+  .cfv56-adjust-modal .cfv56-adjust-body{
+    padding:2px 18px 16px !important;
+  }
+  .cfv56-adjust-modal .cfv56-adjust-top-grid{
+    grid-template-columns:minmax(0, 1fr) !important;
+  }
+  .cfv56-adjust-modal .cfv56-auto{
+    grid-template-columns:minmax(0, 1fr) !important;
+  }
+  .cfv56-adjust-modal .cfv56-auto button{
+    width:100% !important;
+  }
+}
+
 @media (max-width: 720px){
-  .cfv56-adjust-modal .cfv56-dir{grid-template-columns:minmax(0,1fr) !important;}
-  .cfv56-adjust-modal .cfv56-transfer{grid-template-columns:minmax(0,1fr) auto !important;}
-  .cfv56-adjust-modal .cfv56-transfer input{grid-column:1/2;}
-  .cfv56-adjust-modal .cfv56-transfer>span{grid-column:2/3;grid-row:2/3;align-self:center;}
-  .cfv56-adjust-modal .cfv56-transfer button{grid-column:1/-1;}
-  .cfv56-adjust-modal .cfv56-final-edit{grid-template-columns:minmax(0,1fr) !important;}
-  .cfv56-adjust-modal .cfv56-adjust-body thead th{font-size:12px !important;}
+  .cfv56-adjust-modal .cfv56-dir{
+    grid-template-columns:minmax(0, 1fr) !important;
+  }
+  .cfv56-adjust-modal .cfv56-transfer{
+    grid-template-columns:minmax(0, 1fr) auto !important;
+  }
+  .cfv56-adjust-modal .cfv56-field-label{
+    grid-column:1 / -1 !important;
+  }
+  .cfv56-adjust-modal .cfv56-transfer > span{
+    grid-column:2 / 3 !important;
+    grid-row:2 / 3 !important;
+    align-self:center !important;
+  }
+  .cfv56-adjust-modal .cfv56-transfer button{
+    grid-column:1 / -1 !important;
+  }
+  .cfv56-adjust-modal .cfv56-final-edit{
+    grid-template-columns:minmax(0, 1fr) !important;
+  }
+  .cfv56-adjust-modal .cfv56-adjust-body thead th{
+    font-size:11px !important;
+  }
   .cfv56-adjust-modal .cfv56-adjust-body th,
-  .cfv56-adjust-modal .cfv56-adjust-body td{font-size:13px !important;}
+  .cfv56-adjust-modal .cfv56-adjust-body td{
+    font-size:12px !important;
+  }
 }
