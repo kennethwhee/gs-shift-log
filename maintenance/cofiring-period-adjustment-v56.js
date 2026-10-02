@@ -431,12 +431,13 @@ function modalHtml(){return `<div class="cfv56-adjust-modal" data-cfv56-adjust-m
       for(const sel of ['[data-cfv56-close]','[data-cfv56-cancel]'])q(sel).disabled=busy;
       modal.setAttribute('aria-busy',(!ready||busy)?'true':'false');
     }
+    // COFIRING_ADJUSTMENT_CLEAN_CURRENT_V6
     function render(r){const result=r?.result||base;if(!result)return;
       const hasPreview=Boolean(r?.ok);
       const signed=(value,p=2)=>{const n=Number(value);if(!Number.isFinite(n))return '—';const abs=Math.abs(n).toLocaleString('ko-KR',{minimumFractionDigits:p,maximumFractionDigits:p});return `${n>0?'+':n<0?'-':'±'} ${abs}`;};
       const metric=(finalValue,baseValue,type='ton')=>{
         const finalNum=Number(finalValue),baseNum=Number(baseValue),decimals=type==='pct'?2:2,main=type==='pct'?pct(finalNum):fmt(finalNum,decimals),baseText=type==='pct'?pct(baseNum):fmt(baseNum,decimals);
-        if(!hasPreview)return `<div class="cfv56-metric"><div class="cfv56-metric-main">${main}</div><div class="cfv56-metric-base">원본 ${baseText}</div><div class="cfv56-metric-delta is-muted">조정 전</div></div>`;
+        if(!hasPreview)return `<div class="cfv56-metric cfv56-metric-current"><div class="cfv56-metric-main">${main}</div></div>`;
         const delta=(Number.isFinite(finalNum)&&Number.isFinite(baseNum))?round(finalNum-baseNum,decimals):null;
         const cls=delta>0?'is-pos':delta<0?'is-neg':'is-zero';
         const suffix=type==='pct'?'%p':'';
@@ -444,7 +445,10 @@ function modalHtml(){return `<div class="cfv56-adjust-modal" data-cfv56-adjust-m
         return `<div class="cfv56-metric"><div class="cfv56-metric-main">${main}</div><div class="cfv56-metric-base">원본 ${baseText}</div><div class="cfv56-metric-delta ${cls}">${icon} ${signed(delta,decimals)}${suffix}</div></div>`;
       };
       q('[data-cfv56-final]').innerHTML=UNITS.map((u,i)=>{const x=result.units[u],b=base.units[u];return `<tr><th>${i+1}호기</th><td data-label="Coal (t)">${metric(x.coal.quantity,b.coal.quantity,'ton')}</td><td data-label="Bio (t)">${metric(x.bio.quantity,b.bio.quantity,'ton')}</td><td data-label="바이오 혼소율">${metric(ratioBio(x),ratioBio(b),'pct')}</td><td data-label="유기성 및 축분 혼소율">${metric(x.fuelRatios?.organicGroup,b.fuelRatios?.organicGroup,'pct')}</td><td data-label="종합혼소율">${metric(x.fuelRatios?.total,b.fuelRatios?.total,'pct')}</td></tr>`;}).join('');
-      q('[data-cfv56-result-note]').textContent=hasPreview?'위 수치는 선택기간 기준 미리보기 결과이며, 적용 전 예상 변화량입니다.':'조정 전 원본 수치입니다. 이동 또는 자동 조정으로 미리보기를 만드세요.';
+      const resultTitle=q('.cfv56-final-head h4'),resultSubtitle=q('.cfv56-final-head p'),resultNote=q('[data-cfv56-result-note]');
+      if(resultTitle)resultTitle.textContent=hasPreview?'조정 결과 (미리보기)':'현재 계산값';
+      if(resultSubtitle)resultSubtitle.textContent=hasPreview?'원본 수치 대비 조정된 결과와 변화를 확인하세요.':'현재 계산된 원본 수치입니다.';
+      if(resultNote){resultNote.hidden=!hasPreview;if(hasPreview)resultNote.textContent='위 수치는 선택기간 기준 미리보기 결과이며, 적용 전 예상 변화량입니다.';}
       q('[data-cfv56-final1]').value=String(round(result.units.unit1.bio.quantity,2));q('[data-cfv56-final2]').value=String(round(result.units.unit2.bio.quantity,2));controls();
     }
     function cap(){q('[data-cfv56-cap]').textContent=`선택기간 ${base.period.durationHours.toFixed(2)}시간 환산 최대: 호기당 ${fmt(periodCap(Number(q('[data-cfv56-max]').value),base.period.durationHours),2)} t`;}
