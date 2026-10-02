@@ -18,7 +18,8 @@
     "efficiencyMorningMeetingAutoCofiringCard", "efficiencyMorningMeetingAutoDailySludgeCard"];
   const QUERY_BUTTONS = { all: "morningMeetingAllQueryButton", operations: "morningMeetingOperationsQueryButton" };
   const REQUERY_BUTTON_ID = "morningMeetingRequeryButton";
-  const BUTTON_LABELS = { all: "전체조회", operations: "운영정보조회", requery: "재조회" };
+  // MORNING_MEETING_NEW_QUERY_LABEL_V3 · UI wording only
+const BUTTON_LABELS = { all: "전체조회", operations: "운영정보조회", requery: "새로 조회" };
   const BUTTON_IDS = ["morningMeetingAllQueryButton", "morningMeetingOperationsQueryButton", "morningMeetingCofiringRefreshButton",
     "efficiencyMorningMeetingAutoDailyPowerRefreshButton", "efficiencyMorningMeetingAutoSteamRefreshButton",
     "efficiencyMorningMeetingAutoDailySludgeRefreshButton", "efficiencyMorningMeetingAutoRetry-water",
@@ -478,7 +479,7 @@
         resetStatusUnavailable;
       setText(
         requeryButton,
-        requeryBusyDate === date ? "재조회 중…" : BUTTON_LABELS.requery
+        requeryBusyDate === date ? "새로 조회 중…" : BUTTON_LABELS.requery
       );
       requeryButton.title = !isDate(date)
         ? "자료 기준일을 선택해 주세요."
@@ -498,7 +499,7 @@
       setText(resetButton, "자료삭제");
       resetButton.title = !isDate(date) ? "자료 기준일을 선택해 주세요." : reset.loading ? "선택일 자료삭제 상태를 확인하고 있습니다." :
         reset.error ? `${reset.error} 최신 상태를 확인한 뒤 다시 시도해 주세요.` : resetActive ?
-        `${date} 자료가 삭제된 상태입니다. [전체조회] 또는 [재조회]로 다시 구성할 수 있습니다.` :
+        `${date} 자료가 삭제된 상태입니다. [전체조회] 또는 [새로 조회]로 다시 구성할 수 있습니다.` :
         `${date} 오전회의자료 및 자동적산 저장자료만 삭제합니다. TO 전력·혼소율 원본은 유지됩니다.`;
     }
     if (typeof window.runEfficiencyMorningMeetingBulkLookup === "function") {
@@ -656,7 +657,7 @@
     } catch (error) {
       showResetMessage(
         text(error?.message) ||
-        "선택일 전체 재조회에 실패했습니다.",
+        "선택일 전체 새로 조회에 실패했습니다.",
         "error"
       );
 
