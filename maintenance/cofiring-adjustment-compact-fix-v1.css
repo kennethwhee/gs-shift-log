@@ -1,0 +1,226 @@
+/* GS co-firing adjustment modal: compact but readable desktop rebalance */
+.cfv56-adjust-modal{
+  padding:20px !important;
+}
+.cfv56-adjust-modal .cfv56-adjust-dialog{
+  width:min(920px,100%) !important;
+  max-height:calc(100dvh - 40px);
+  border-radius:20px !important;
+}
+.cfv56-adjust-modal .cfv56-adjust-dialog>header{
+  padding:22px 24px 16px !important;
+}
+.cfv56-adjust-modal .cfv56-adjust-dialog>header>div>span{
+  font-size:11px !important;
+  letter-spacing:1.8px !important;
+}
+.cfv56-adjust-modal .cfv56-adjust-dialog>header h3{
+  margin:6px 0 8px !important;
+  font-size:42px !important;
+  line-height:1.05 !important;
+  letter-spacing:-1.4px !important;
+}
+.cfv56-adjust-modal .cfv56-adjust-dialog>header p{
+  font-size:14px !important;
+  line-height:1.5 !important;
+}
+.cfv56-adjust-modal .cfv56-adjust-dialog>header button{
+  width:44px !important;
+  height:44px !important;
+  border-radius:12px !important;
+  font-size:26px !important;
+}
+.cfv56-adjust-modal .cfv56-adjust-body{
+  padding:4px 24px 22px !important;
+}
+.cfv56-adjust-modal .cfv56-adjust-body section{
+  margin-top:16px !important;
+}
+.cfv56-adjust-modal .cfv56-adjust-top-grid{
+  grid-template-columns:minmax(0,1fr) minmax(290px,360px) !important;
+  gap:12px !important;
+}
+.cfv56-adjust-modal .cfv56-top-card{
+  gap:8px !important;
+  padding:16px 18px !important;
+  border-radius:14px !important;
+}
+.cfv56-adjust-modal .cfv56-top-card-label{
+  font-size:14px !important;
+}
+.cfv56-adjust-modal .cfv56-top-card-period [data-cfv56-period]{
+  font-size:24px !important;
+  line-height:1.22 !important;
+}
+.cfv56-adjust-modal .cfv56-top-card-cap .cfv56-cap-row{
+  grid-template-columns:minmax(0,1fr) 118px auto auto !important;
+  gap:10px !important;
+}
+.cfv56-adjust-modal .cfv56-top-card-cap [data-cfv56-max]{
+  height:46px !important;
+  padding:8px 12px !important;
+  border-radius:10px !important;
+  font-size:20px !important;
+}
+.cfv56-adjust-modal .cfv56-top-card-cap .cfv56-unit{
+  font-size:18px !important;
+}
+.cfv56-adjust-modal .cfv56-top-card-cap [data-cfv56-save-max]{
+  height:46px !important;
+  padding:0 14px !important;
+  border-radius:10px !important;
+  font-size:14px !important;
+}
+.cfv56-adjust-modal .cfv56-cap-note{
+  font-size:13px !important;
+  line-height:1.45 !important;
+}
+.cfv56-adjust-modal .cfv56-section-head{
+  gap:10px !important;
+  margin-bottom:10px !important;
+}
+.cfv56-adjust-modal .cfv56-section-head h4,
+.cfv56-adjust-modal .cfv56-final-head h4{
+  font-size:22px !important;
+  letter-spacing:-0.5px !important;
+}
+.cfv56-adjust-modal .cfv56-section-head p,
+.cfv56-adjust-modal .cfv56-final-head p{
+  font-size:14px !important;
+  line-height:1.45 !important;
+}
+.cfv56-adjust-modal .cfv56-dir{
+  gap:10px !important;
+}
+.cfv56-adjust-modal .cfv56-dir button{
+  height:54px !important;
+  border-radius:12px !important;
+  font-size:21px !important;
+}
+.cfv56-adjust-modal .cfv56-transfer{
+  grid-template-columns:132px minmax(160px,250px) auto auto !important;
+  gap:10px !important;
+  margin-top:14px !important;
+  font-size:14px !important;
+}
+.cfv56-adjust-modal .cfv56-field-label{
+  font-size:17px !important;
+}
+.cfv56-adjust-modal .cfv56-transfer input,
+.cfv56-adjust-modal .cfv56-final-edit input{
+  height:46px !important;
+  padding:8px 12px !important;
+  border-radius:10px !important;
+  font-size:20px !important;
+}
+.cfv56-adjust-modal .cfv56-transfer>span{
+  font-size:14px !important;
+}
+.cfv56-adjust-modal .cfv56-transfer button,
+.cfv56-adjust-modal .cfv56-final-head button,
+.cfv56-adjust-modal .cfv56-final-edit button{
+  height:46px !important;
+  padding:0 16px !important;
+  border-radius:10px !important;
+  font-size:14px !important;
+}
+.cfv56-adjust-modal .cfv56-auto{
+  grid-template-columns:minmax(0,1fr) auto !important;
+  gap:16px !important;
+  padding:16px 18px !important;
+  border-radius:14px !important;
+}
+.cfv56-adjust-modal .cfv56-auto h4{
+  margin:0 0 6px !important;
+  font-size:20px !important;
+}
+.cfv56-adjust-modal .cfv56-auto p{
+  font-size:14px !important;
+  line-height:1.55 !important;
+}
+.cfv56-adjust-modal .cfv56-auto button{
+  min-width:170px !important;
+  height:50px !important;
+  padding:0 20px !important;
+  border-radius:12px !important;
+  font-size:18px !important;
+}
+.cfv56-adjust-modal .cfv56-adjust-msg{
+  min-height:52px !important;
+  margin-top:12px !important;
+  padding:14px 16px !important;
+  border-radius:12px !important;
+  font-size:14px !important;
+  line-height:1.5 !important;
+}
+.cfv56-adjust-modal .cfv56-final-head{
+  gap:14px !important;
+  margin-bottom:10px !important;
+}
+.cfv56-adjust-modal .cfv56-adjust-body table{
+  border-radius:14px !important;
+}
+.cfv56-adjust-modal .cfv56-adjust-body thead th{
+  height:46px !important;
+  font-size:13px !important;
+}
+.cfv56-adjust-modal .cfv56-adjust-body th,
+.cfv56-adjust-modal .cfv56-adjust-body td{
+  height:54px !important;
+  padding:10px 8px !important;
+  font-size:14px !important;
+  line-height:1.4 !important;
+}
+.cfv56-adjust-modal .cfv56-adjust-body tbody th{
+  font-size:14px !important;
+}
+.cfv56-adjust-modal .cfv56-adjust-body tbody td:last-child{
+  font-size:15px !important;
+}
+.cfv56-adjust-modal .cfv56-final-edit{
+  gap:12px !important;
+  margin-top:12px !important;
+  padding:14px !important;
+  border-radius:12px !important;
+}
+.cfv56-adjust-modal .cfv56-final-edit label{
+  font-size:13px !important;
+}
+.cfv56-adjust-modal .cfv56-formula{
+  margin-top:10px !important;
+  font-size:13px !important;
+  line-height:1.55 !important;
+}
+.cfv56-adjust-modal .cfv56-adjust-dialog>footer{
+  gap:10px !important;
+  padding:16px 24px 20px !important;
+}
+.cfv56-adjust-modal .cfv56-adjust-dialog>footer button{
+  height:48px !important;
+  min-width:96px !important;
+  padding:0 18px !important;
+  border-radius:12px !important;
+  font-size:15px !important;
+}
+@media (max-width: 960px){
+  .cfv56-adjust-modal{padding:14px !important;}
+  .cfv56-adjust-modal .cfv56-adjust-dialog{width:min(100%, 100%) !important;max-height:calc(100dvh - 28px);} 
+  .cfv56-adjust-modal .cfv56-adjust-dialog>header h3{font-size:34px !important;}
+  .cfv56-adjust-modal .cfv56-adjust-body{padding:2px 18px 18px !important;}
+  .cfv56-adjust-modal .cfv56-adjust-top-grid{grid-template-columns:minmax(0,1fr) !important;}
+  .cfv56-adjust-modal .cfv56-transfer{grid-template-columns:minmax(0,1fr) 130px auto !important;}
+  .cfv56-adjust-modal .cfv56-field-label{grid-column:1/-1;}
+  .cfv56-adjust-modal .cfv56-auto{grid-template-columns:minmax(0,1fr) !important;}
+  .cfv56-adjust-modal .cfv56-auto button{width:100% !important;}
+}
+@media (max-width: 720px){
+  .cfv56-adjust-modal .cfv56-dir{grid-template-columns:minmax(0,1fr) !important;}
+  .cfv56-adjust-modal .cfv56-transfer{grid-template-columns:minmax(0,1fr) auto !important;}
+  .cfv56-adjust-modal .cfv56-transfer input{grid-column:1/2;}
+  .cfv56-adjust-modal .cfv56-transfer>span{grid-column:2/3;grid-row:2/3;align-self:center;}
+  .cfv56-adjust-modal .cfv56-transfer button{grid-column:1/-1;}
+  .cfv56-adjust-modal .cfv56-final-edit{grid-template-columns:minmax(0,1fr) !important;}
+  .cfv56-adjust-modal .cfv56-adjust-body thead th{font-size:12px !important;}
+  .cfv56-adjust-modal .cfv56-adjust-body th,
+  .cfv56-adjust-modal .cfv56-adjust-body td{font-size:13px !important;}
+}
