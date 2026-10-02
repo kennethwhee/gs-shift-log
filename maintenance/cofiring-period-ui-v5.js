@@ -224,6 +224,19 @@
     for(const fuel of ['organic','manure']){
       out.receipts[fuel]=manualApi.parseValue(container.querySelector(`[data-cfv5-receipt="${fuel}"]`)?.value??'');
     }
+    // COFIRING_DIRECT_BLANK_ZERO_V2
+    // In direct/manual mode the UI displays blank quantities as 0. Treat those blanks
+    // as numeric zero for validation and saving, while keeping automatic mode unchanged.
+    if(out.inputMode==='manual'){
+      for(const unit of UNITS){
+        for(const fuel of ['organic','manure']){
+          if(out[unit][fuel]===null)out[unit][fuel]=0;
+        }
+      }
+      for(const fuel of ['organic','manure']){
+        if(out.receipts[fuel]===null)out.receipts[fuel]=0;
+      }
+    }
     return out;
   }
   function manualForCalculation(values){const out={unit1:{},unit2:{}};for(const unit of UNITS)for(const fuel of ['organic','manure']){const value=values?.[unit]?.[fuel];out[unit][fuel]=typeof value==='number'&&Number.isFinite(value)?value:0;}return out;}
