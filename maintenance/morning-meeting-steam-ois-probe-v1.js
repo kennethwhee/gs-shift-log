@@ -853,19 +853,182 @@ async function run(button, options = {}) {
     true
   );
 
-  const observer = new MutationObserver(() => {
-    applySourceOwnership();
-  });
+  /* MORNING_MEETING_STEAM_DATE_NAV_PINGPONG_FIX_V1_R3
+   *
+   * Selected-date restore must own the visible saved Steam snapshot without
+   * being overwritten again by every text mutation inside the Steam card.
+   *
+   * Keep source ownership synchronization for:
+   * - selected Morning Meeting date attribute changes
+   * - Steam target/status date attribute changes
+   * - the Steam card itself being inserted/removed/replaced
+   *
+   * Ignore text/child mutations inside the already-mounted Steam card.
+   */
+  let sourceOwnershipSyncQueued =
+    false;
 
-  observer.observe(document.documentElement, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: [
-      "data-morning-meeting-auto-base-date",
-      "data-steam-status-target-date"
-    ]
-  });
+
+  function scheduleSourceOwnershipSync() {
+    if (
+      sourceOwnershipSyncQueued
+    ) {
+      return;
+    }
+
+
+    sourceOwnershipSyncQueued =
+      true;
+
+
+    const runSync =
+      () => {
+        sourceOwnershipSyncQueued =
+          false;
+
+        applySourceOwnership();
+      };
+
+
+    if (
+      typeof window.queueMicrotask ===
+        "function"
+    ) {
+      window.queueMicrotask(
+        runSync
+      );
+
+      return;
+    }
+
+
+    Promise
+      .resolve()
+      .then(
+        runSync
+      );
+  }
+
+
+  function nodeContainsSteamCard(
+    node
+  ) {
+    if (
+      !(node instanceof Element)
+    ) {
+      return false;
+    }
+
+
+    if (
+      node.id ===
+      CARD_ID
+    ) {
+      return true;
+    }
+
+
+    return Boolean(
+      node.querySelector?.(
+        `#${CARD_ID}`
+      )
+    );
+  }
+
+
+  function mutationTouchesSteamCardStructure(
+    mutation
+  ) {
+    if (
+      !mutation ||
+      mutation.type !==
+        "childList"
+    ) {
+      return false;
+    }
+
+
+    const currentCard =
+      document.getElementById(
+        CARD_ID
+      );
+
+
+    /*
+      textContent writes inside the mounted card produce childList mutations.
+      Those are display updates, not a reason to re-run source ownership.
+    */
+    if (
+      currentCard &&
+      mutation.target instanceof Node &&
+      currentCard.contains(
+        mutation.target
+      )
+    ) {
+      return false;
+    }
+
+
+    const changedNodes = [
+      ...mutation.addedNodes,
+      ...mutation.removedNodes
+    ];
+
+
+    return changedNodes.some(
+      nodeContainsSteamCard
+    );
+  }
+
+
+  const observer =
+    new MutationObserver(
+      mutationList => {
+        const shouldSync =
+          mutationList.some(
+            mutation => {
+              if (
+                mutation.type ===
+                  "attributes"
+              ) {
+                return true;
+              }
+
+
+              return mutationTouchesSteamCardStructure(
+                mutation
+              );
+            }
+          );
+
+
+        if (
+          shouldSync
+        ) {
+          scheduleSourceOwnershipSync();
+        }
+      }
+    );
+
+
+  observer.observe(
+    document.documentElement,
+    {
+      childList:
+        true,
+
+      subtree:
+        true,
+
+      attributes:
+        true,
+
+      attributeFilter: [
+        "data-morning-meeting-auto-base-date",
+        "data-steam-status-target-date"
+      ]
+    }
+  );
 
   window.getEfficiencyMorningMeetingSteamOisValues = () => {
     const targetDate = resolveTargetDate();
