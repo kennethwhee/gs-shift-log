@@ -260,3 +260,178 @@
     flex:auto !important;
   }
 }
+
+
+/* COFIRING_ADJUSTMENT_MANUAL_AUTO_COMPACT_V8_CSS */
+
+/* Manual move: denser header + [미리보기][취소] action pair */
+.cfv56-adjust-modal .cfv56-manual-card{
+  padding:9px 11px !important;
+}
+.cfv56-adjust-modal .cfv56-manual-card .cfv56-section-head{
+  margin-bottom:6px !important;
+}
+.cfv56-adjust-modal .cfv56-manual-card .cfv56-section-head>div{
+  display:flex;
+  align-items:baseline;
+  gap:8px;
+  min-width:0;
+}
+.cfv56-adjust-modal .cfv56-manual-card .cfv56-section-head h4{
+  flex:0 0 auto;
+  margin:0 !important;
+  font-size:15px !important;
+  white-space:nowrap;
+}
+.cfv56-adjust-modal .cfv56-manual-card .cfv56-section-head p{
+  margin:0 !important;
+  font-size:10.5px !important;
+  white-space:nowrap;
+}
+.cfv56-adjust-modal .cfv56-manual-card .cfv56-dir{
+  gap:6px !important;
+}
+.cfv56-adjust-modal .cfv56-manual-card .cfv56-dir button{
+  height:35px !important;
+  font-size:14px !important;
+}
+.cfv56-adjust-modal .cfv56-manual-card .cfv56-transfer{
+  grid-template-columns:42px minmax(82px,112px) 14px minmax(78px,1fr) minmax(64px,.78fr) !important;
+  gap:6px !important;
+  margin-top:6px !important;
+}
+.cfv56-adjust-modal .cfv56-manual-card .cfv56-transfer input{
+  height:34px !important;
+  font-size:13.5px !important;
+}
+.cfv56-adjust-modal .cfv56-manual-card .cfv56-transfer button{
+  height:34px !important;
+  padding:0 9px !important;
+  font-size:11.5px !important;
+}
+.cfv56-adjust-modal .cfv56-manual-card [data-cfv56-preview-transfer]{
+  border-color:#bcd7ce !important;
+  background:#f8fcfa !important;
+  color:#266b59 !important;
+}
+.cfv56-adjust-modal .cfv56-manual-card [data-cfv56-cancel-transfer]{
+  border-color:#dbe4eb !important;
+  background:#fbfcfd !important;
+  color:#718395 !important;
+}
+
+/* Max Bio: one true grouped box */
+.cfv56-adjust-modal .cfv56-top-card-cap{
+  padding:0 !important;
+  border:0 !important;
+  background:transparent !important;
+}
+.cfv56-adjust-modal .cfv56-cap-group-all{
+  display:grid !important;
+  grid-template-columns:minmax(116px,1fr) 88px 42px 86px !important;
+  align-items:center !important;
+  overflow:hidden !important;
+  border:1px solid #d7e2eb !important;
+  border-radius:12px !important;
+  background:#fff !important;
+}
+.cfv56-adjust-modal .cfv56-cap-group-all .cfv56-cap-group-label{
+  display:flex;
+  align-items:center;
+  align-self:stretch;
+  padding:0 11px;
+  border-right:1px solid #e4ecf3;
+  color:#50687e;
+  font-size:11.5px;
+  font-weight:750;
+  white-space:nowrap;
+}
+.cfv56-adjust-modal .cfv56-cap-group-all [data-cfv56-max]{
+  width:100% !important;
+  height:38px !important;
+  margin:0 !important;
+  padding:0 9px !important;
+  border:0 !important;
+  border-radius:0 !important;
+  text-align:center !important;
+  font-size:15px !important;
+}
+.cfv56-adjust-modal .cfv56-cap-group-all .cfv56-unit{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  align-self:stretch !important;
+  padding:0 !important;
+  border-left:1px solid #e4ecf3 !important;
+  border-right:1px solid #e4ecf3 !important;
+  color:#60768b !important;
+  font-size:12px !important;
+  font-weight:700 !important;
+}
+.cfv56-adjust-modal .cfv56-cap-group-all [data-cfv56-save-max]{
+  width:100% !important;
+  min-width:0 !important;
+  height:38px !important;
+  margin:0 !important;
+  padding:0 9px !important;
+  border:0 !important;
+  border-radius:0 !important;
+  background:#fbfdff !important;
+  font-size:11.5px !important;
+}
+.cfv56-adjust-modal .cfv56-cap-group-all .cfv56-cap-note{
+  grid-column:1/-1;
+  margin:0 !important;
+  padding:6px 10px !important;
+  border-top:1px solid #edf2f6;
+  background:#fbfcfe;
+  color:#71859a !important;
+  font-size:10px !important;
+  line-height:1.25 !important;
+  text-align:right;
+  white-space:nowrap;
+}
+
+/* Auto adjust: text uses full width, button below */
+.cfv56-adjust-modal .cfv56-auto-card{
+  display:grid !important;
+  grid-template-columns:minmax(0,1fr) !important;
+  grid-template-rows:auto 35px !important;
+  align-content:start !important;
+  gap:7px !important;
+  padding:9px 11px !important;
+}
+.cfv56-adjust-modal .cfv56-auto-head{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:8px;
+  min-width:0;
+}
+.cfv56-adjust-modal .cfv56-auto-head h4{
+  margin:0 !important;
+  color:#255f50 !important;
+  font-size:14.5px !important;
+  line-height:1.2 !important;
+  white-space:nowrap;
+}
+.cfv56-adjust-modal .cfv56-auto-head p{
+  margin:0 !important;
+  min-width:0;
+  color:#688195 !important;
+  font-size:10.5px !important;
+  line-height:1.2 !important;
+  text-align:right;
+  white-space:nowrap;
+}
+.cfv56-adjust-modal .cfv56-auto-card [data-cfv56-auto]{
+  width:100% !important;
+  height:35px !important;
+  font-size:14px !important;
+  border-radius:10px !important;
+}
+
+/* Keep the two action cards visually balanced and compact */
+.cfv56-adjust-modal .cfv56-action-grid{
+  align-items:stretch !important;
+}
