@@ -305,9 +305,11 @@
     uiQueued = true; queueMicrotask(() => { uiQueued = false; syncCard(); });
   }
   function paintInputButton(button, entry, eligible) {
-    const ready = eligible && entry?.status === 'ready' && entry?.payload?.canEdit === true;
+    // TO_POWER_READONLY_VIEW_V1
+    const ready = eligible && entry?.status === 'ready';
     const checking = eligible && (!entry || entry.status === 'loading');
-    const complete = ready && Boolean(entry.payload.item);
+    const editable = ready && entry.payload?.canEdit === true;
+    const complete = ready && Boolean(entry.payload?.item);
     setHidden(button, !(ready || checking));
     button.disabled = checking;
     button.classList.toggle('is-pending', ready && !complete);
@@ -319,11 +321,15 @@
       setText(button, '확인 중…');
       button.title = '저장된 전력 입력 여부를 확인하고 있습니다.';
     } else if (complete) {
-      setText(button, '✓ 입력 완료');
-      button.title = '전력 입력 완료 · 클릭하여 저장값 확인/수정';
+      setText(button, editable ? '✓ 입력 완료' : '✓ 전력 확인');
+      button.title = editable
+        ? '전력 입력 완료 · 클릭하여 저장값 확인/수정'
+        : '전력 입력 완료 · 클릭하여 저장값 확인 (읽기 전용)';
     } else if (ready) {
-      setText(button, '전력 입력');
-      button.title = 'N/S TO 전력 실적 입력 (kWh)';
+      setText(button, editable ? '전력 입력' : '전력 미입력');
+      button.title = editable
+        ? 'N/S TO 전력 실적 입력 (kWh)'
+        : 'TO 담당자의 전력 입력을 기다리고 있습니다. 클릭하여 현재 상태 확인';
     }
   }
   function syncCard() {
@@ -407,19 +413,39 @@
     try {
       const payload = await load(state.date, true);
       if (state !== modalState || state.session !== checkSession()) return;
-      if (!payload.canEdit) throw new Error('해당 날짜 N/S TO 담당자만 입력·수정할 수 있습니다.');
       state.payload = payload; state.baseline = {};
+      const editable = payload.canEdit === true;
+      setText(byId('toNightPowerTitle'), editable ? '전력 실적 입력' : '전력 실적 확인');
+      setText(dialog.querySelector('.to-night-power-help'), editable
+        ? '선택한 야간 근무 시작일 기준 · 단위 kWh'
+        : '읽기 전용 · N/S TO 담당자가 저장한 전력 실적입니다.');
       for (const [key] of FORM_FIELDS) {
+        const input = form.elements.namedItem(key);
         const value = payload.item ? String(payload.item.values[key]) : '';
-        form.elements.namedItem(key).value = value; form.elements.namedItem(key).removeAttribute('aria-invalid'); state.baseline[key] = value;
+        input.value = value;
+        input.readOnly = !editable;
+        if (editable) input.removeAttribute('aria-readonly');
+        else input.setAttribute('aria-readonly', 'true');
+        input.removeAttribute('aria-invalid');
+        state.baseline[key] = value;
       }
-      say(payload.item ? `저장자료를 불러왔습니다. 입력자: ${payload.item.updatedBy || 'TO 담당자'}` : '네 항목을 모두 입력해 주세요. 사용량이 없으면 0을 입력해 주세요.');
+      say(payload.item
+        ? editable
+          ? `저장자료를 불러왔습니다. 입력자: ${payload.item.updatedBy || 'TO 담당자'}`
+          : `저장자료를 읽기 전용으로 불러왔습니다. 입력자: ${payload.item.updatedBy || 'TO 담당자'}`
+        : editable
+          ? '네 항목을 모두 입력해 주세요. 사용량이 없으면 0을 입력해 주세요.'
+          : '저장된 전력 자료가 없습니다. TO 담당자 입력 대기 중입니다.');
     } catch (error) { if (state === modalState) { state.payload = null; say(error.message, true); } }
     finally {
       setBusy(false);
       if (state === modalState) {
-        byId('toNightPowerSave').disabled = !state.payload?.canEdit;
-        if (state.payload?.canEdit) form.elements.namedItem(FORM_FIELDS[0][0]).focus();
+        const canEdit = state.payload?.canEdit === true;
+        const saveButton = byId('toNightPowerSave');
+        if (saveButton) { saveButton.hidden = !canEdit; saveButton.disabled = !canEdit; }
+        const footerClose = dialog.querySelector('footer [data-close]');
+        if (footerClose) setText(footerClose, canEdit ? '취소' : '닫기');
+        if (canEdit) form.elements.namedItem(FORM_FIELDS[0][0]).focus();
       }
     }
   }
@@ -540,7 +566,7 @@
     if (entry?.status !== 'ready') throw new Error('TO 전력 저장자료를 확인하지 못했습니다. 전력 카드에서 재조회 후 다시 생성해 주세요.');
     return mergeValues(dailyData, entry.payload, date);
   }
-  root.toNightPower = {version: '20260928-v1-r6-state1', targetDate, renderMeeting, refreshMeeting, ensureForWorkbook, valuesForWorkbook,
+  root.toNightPower = {version: '20261002-v1-r7-readonly', targetDate, renderMeeting, refreshMeeting, ensureForWorkbook, valuesForWorkbook,
     refreshDuty: () => { selectionStamp = ''; queueUI(); }};
   function init() {
     const original = root.updateShiftMemberCardStates;
