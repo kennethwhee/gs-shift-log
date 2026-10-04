@@ -20595,7 +20595,7 @@ function printOisAgentRequestResult(
   result
 ) {
   if (requestType === "cofiring_daily")  { console.log("혼소율 결과 서버 저장 완료 ·", result?.targetDate, result?.report?.status); return; }
-  if (requestType === "cofiring_period") { console.log("혼소율 기간 결과 서버 저장 완료 ·", result?.startLocal, "~", result?.endLocal, result?.report?.status); return; }
+  if (requestType === "cofiring_period") { console.log("혼소율 기간 결과 서버 저장 완료 ·", result?.request?.startLocal, "~", result?.request?.endLocal, result?.report?.status); return; }
   if (requestType === ORGANIC_SILO_REQUEST_TYPE) {
     console.table({ "조회일": result.targetDate, "Day Silo": result.organicDaySilo, "Storage A": result.organicStorageSiloA, "Storage B": result.organicStorageSiloB, "총 재고량": result.organicSiloTotal });
     return;
@@ -21053,6 +21053,27 @@ async function completeOisAgentRequest(
   requestId,
   result
 ) {
+  // COFIRING_PHASE1_DELIVERY_TIMING: keep result bytes stable after publication.
+  // Upload ACK timing belongs in the log, not in a second mutation of saved data.
+  if (result?.kind === "cofiring_period_live_result") {
+    const started = process.hrtime.bigint();
+    let outcome = "failed";
+    const trace = phase => {
+      try { console.log("__COFIRING_DELIVERY_TIMING__" + JSON.stringify({
+        requestId, phase, atUtc: new Date().toISOString(), outcome,
+        elapsedSeconds: Number(process.hrtime.bigint() - started) / 1e9
+      })); } catch (_) {}
+    };
+    trace("UPLOAD_START");
+    try {
+      const ack = await requestOisAgentApi(config, getOisAgentApiUrl(config), {
+        method: "POST", body: { action: "complete", requestId, result }
+      });
+      outcome = "returned";
+      return ack;
+    } finally { trace("UPLOAD_FINISHED"); }
+  }
+
   if (result?.kind === "cofiring_live_result") {
     let lastError;
     for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -26263,6 +26284,13 @@ async function loginOis() {
         getOisAgentRequestType(
           requestItem
         );
+
+      if (requestType === "cofiring_period") {
+        try { console.log("__COFIRING_CLAIM_TIMING__" + JSON.stringify({
+          requestId, phase: "CLAIM_RECEIVED", atUtc: new Date().toISOString(),
+          requestedAt: requestItem.requestedAt || null, startedAt: requestItem.startedAt || null
+        })); } catch (_) {}
+      }
 
       if (
         phase27aHasWaterRequest &&

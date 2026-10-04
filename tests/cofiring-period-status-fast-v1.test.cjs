@@ -19,10 +19,10 @@ function full({active=row(),saved=null,lastAttempt=active,spec=SPEC,value=null}=
 function completed(id=ID,spec=SPEC){const item=row('complete',id,spec);item.result=result(id,spec);return item;}
 function completedFull(id=ID,spec=SPEC){return full({active:null,saved:row('complete',id,spec),lastAttempt:row('complete',id,spec),spec,value:result(id,spec)});}
 function harness(){
-  const h={auth:'Bearer original',visible:true,timers:new Map(),calls:[],status:[],full:[],posts:[],results:[],changes:[]};let serial=0;
+  const h={auth:'Bearer original',visible:true,timers:new Map(),calls:[],status:[],full:[],posts:[],results:[],changes:[],timings:[]};let serial=0;
   h.live=createPeriod({getHeaders:()=>({Authorization:h.auth}),canQuery:()=>true,isVisible:()=>h.visible,makeId:()=>ID,
     setTimeout:(f,ms)=>{const id=++serial;h.timers.set(id,{f,ms});return id;},clearTimeout:id=>h.timers.delete(id),
-    onChange:s=>h.changes.push(s.item?.error||''),onResult:(r,s)=>h.results.push({r,s}),
+    onChange:s=>h.changes.push(s.item?.error||''),onTiming:event=>h.timings.push(event),onResult:(r,s)=>h.results.push({r,s}),
     fetch:async(url,init={})=>{
       const action=new URL(url,'https://example.invalid').searchParams.get('action'),method=init.method||'GET';h.calls.push({url,action,method,init});
       let response;if(method==='POST')response=h.posts.shift()||{ok:true,periodKey:contract.periodKey(SPEC),item:row()};
@@ -39,6 +39,27 @@ function harness(){
   h.count=action=>h.calls.filter(c=>c.action===action).length;
   return h;
 }
+
+test('phase1 validated active create ACK skips the initial history read, then still validates final result',async()=>{
+  for(const initial of ['pending','processing']){
+    const h=harness();h.posts.push({ok:true,bridgeVersion:2,periodKey:contract.periodKey(SPEC),item:{...row(initial),request:contract.periodEnvelope(SPEC)}});
+    await h.start();assert.equal(h.count('cofiring_period'),0);assert.equal(h.live.state().item.active.id,ID);assert.equal(h.results.length,0);
+    const complete=completed();h.status.push(status(complete));h.full.push(completedFull());await h.tick();
+    assert.equal(h.count('cofiring_period'),1);assert.equal(h.results.length,1);assert.equal(h.results[0].r.requestId,ID);assert.equal(h.polls().length,0);assert.deepEqual(h.timings.filter(e=>e.name!=='processing_seen').map(e=>e.name),['request_start','request_accepted','complete_seen','result_received']);h.live.dispose();
+  }
+});
+
+test('phase1 incomplete or foreign create metadata keeps the authoritative history fallback',async()=>{
+  for(const overrides of [{request:null},{request:contract.periodEnvelope(OTHER)},{targetDate:'2026-09-13'}]){
+    const h=harness();h.posts.push({ok:true,bridgeVersion:2,periodKey:contract.periodKey(SPEC),item:{...row(),request:contract.periodEnvelope(SPEC),...overrides}});
+    await h.start();assert.equal(h.count('cofiring_period'),1);assert.equal(h.results.length,0);h.live.dispose();
+  }
+});
+
+test('phase1 completed create ACK must load saved result, never pretend active success',async()=>{
+  const h=harness();h.posts.push({ok:true,bridgeVersion:2,periodKey:contract.periodKey(SPEC),item:{...row('complete'),request:contract.periodEnvelope(SPEC)}});h.full.push(completedFull());
+  await h.start();assert.equal(h.count('cofiring_period'),1);assert.equal(h.results.length,1);h.live.dispose();
+});
 
 test('pending and processing use exact-ID status reads, preserving progress without full range scans',async()=>{
   const h=harness();await h.start();assert.equal(h.count('cofiring_period'),1);

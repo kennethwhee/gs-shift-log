@@ -63,3 +63,23 @@ test('zero-delay timer fallback also needs two scheduled opportunities',()=>{
   for(let n=0;n<2;n++){const entry=[...f.timers].find(([,v])=>v.ms===0);assert.ok(entry);f.timers.delete(entry[0]);entry[1].f();if(n===0)assert.equal(f.timing.state().status,'finishing');}
   assert.equal(f.timing.state().status,'complete');assert.equal(f.timers.size,0);
 });
+
+test('phase1 stage timings separate monotonic browser observations and same-server queue time',()=>{
+  const f=fixture(),t=f.timing.start({mode:'new_query'});
+  f.advance(1000);f.timing.acceptRequest(t,'new');f.timing.mark(t,'request_accepted','new');
+  f.advance(2000);f.timing.mark(t,'processing_seen','new');
+  f.advance(47000);f.timing.mark(t,'complete_seen','new');
+  f.advance(1000);f.timing.mark(t,'result_received','new');
+  assert.equal(f.timing.mark(t,'result_received','foreign'),false);
+  f.timing.finish(t,{requestId:'new',source:'new_query',controllerSeconds:40,querySeconds:12,saved:{requestedAt:'2026-10-04T22:07:00Z',startedAt:'2026-10-04T22:07:03Z'},reportTiming:{agent:{workerStages:{preparationSeconds:20,cleanupSeconds:5},progressDrainSeconds:0.2},worker:{workerPhases:[{name:'setupComAttach',outcome:'complete',elapsedSeconds:10},{name:'cleanupCloseQuit',outcome:'complete',elapsedSeconds:3}]}}});
+  f.advance(20);f.frame();f.advance(20);f.frame();
+  const s=f.timing.state(),row=label=>s.details.find(x=>x.label===label)?.seconds;
+  assert.equal(row('서버 접수 → Agent 배정'),3);assert.equal(row('클릭 → 요청 확인'),1);assert.equal(row('결과 수신 → 화면 반영'),0.04);assert.equal(row('Excel 준비'),20);assert.equal(row('  Excel 연결 (준비에 포함)'),10);
+  assert.ok(Math.abs(row('PC 실행 전후·통신·화면 처리 (잔여)')-11.04)<1e-8);
+  s.marks.request_accepted=999;s.details[0].seconds=999;assert.equal(f.timing.state().marks.request_accepted,1000);assert.equal(f.timing.state().details[0].seconds,1);
+});
+
+test('phase1 missing timing is omitted and saved recalculation cannot show historical backend durations',()=>{
+  const f=fixture(),t=f.timing.start({mode:'saved_recalculate'});f.timing.finish(t,{requestId:'old',source:'saved_recalculate',querySeconds:99,reportTiming:{agent:{workerStages:{preparationSeconds:20}}}});f.frame();f.frame();assert.deepEqual(f.timing.state().details,[]);
+  const n=f.timing.start({mode:'new_query'});f.timing.acceptRequest(n,'new');f.timing.finish(n,{requestId:'new',source:'new_query',querySeconds:NaN,controllerSeconds:Infinity,saved:{requestedAt:'2026-10-05',startedAt:'2026-10-01'},reportTiming:{agent:{workerStages:{preparationSeconds:-1}}}});f.frame();f.frame();assert.deepEqual(f.timing.state().details,[]);
+});

@@ -82,6 +82,7 @@
     const periods=new Map(),latestReads=new Map(),activeStatuses=['pending','processing'],allStatuses=[...activeStatuses,'complete','failed'];
     let latestReadGeneration=0;
     const maxStatusFailures=3,maxStatusPolls=900;
+    function timing(name,requestId){try{options.onTiming?.({name,requestId});}catch(_){}}
     function auth(){let h={};try{h=options.getHeaders?.()||{};}catch(_){}return {headers:h,key:String(h.Authorization||h.authorization||'')};}
     function syncAuth(){const a=auth();if(a.key!==identity){identity=a.key;rejectedAuthKey='';generation++;periods.clear();latestReads.clear();loading=null;clearTimer?.(timer);timer=null;}return a;}
     function key(){return selected?contract.periodKey(selected):'';}
@@ -172,7 +173,7 @@
           if(data.saved){if(data.result)result=contract.periodResult(data.result,data.saved.id,p);else if(!d.result||d.saved?.id!==data.saved.id)throw new Error('기간 저장 결과 본문을 확인하지 못했습니다.');}
           else{if(data.result)throw new Error('저장 요청 없이 기간 결과가 반환됐습니다.');result=null;}
           d.saved=data.saved||null;d.result=result;d.active=data.active||null;d.lastAttempt=data.lastAttempt||null;d.error='';
-          if(result&&terminal?.status!=='failed')options.onResult?.(result,d.saved);
+          if(result&&terminal?.status!=='failed'){timing('result_received',d.saved?.id);options.onResult?.(result,d.saved);}
           return true;
         }catch(e){if(current(g,k,a.key)){if(e.code==='AUTH_EXPIRED')rejectAuth(a,d);if(terminal)d.statusStopped=true;d.error=errorText(e);}return false;}
         finally{if(current(g,k,a.key)){d.loading=false;loading=null;notify();schedule();}}
@@ -208,7 +209,8 @@
           const data=await request(api+'?'+q.toString(),{headers:a.headers});
           if(!current(g,k,a.key)||d.active?.id!==id)return false;
           const item=validateStatus(data,id,p);d.statusFailures=0;d.error='';
-          if(activeStatuses.includes(item.status)){d.active=item;d.lastAttempt=item;return true;}
+          if(activeStatuses.includes(item.status)){d.active=item;d.lastAttempt=item;if(item.status==='processing')timing('processing_seen',id);return true;}
+          if(item.status==='complete')timing('complete_seen',id);
           terminal={id,status:item.status};
           return true;
         }catch(e){
@@ -239,11 +241,20 @@
       if(!d.clientRequestId)d.clientRequestId=typeof root.crypto?.randomUUID==='function'?root.crypto.randomUUID():options.makeId?.();
       if(!contract.uuid(d.clientRequestId)){d.error='안전한 기간 조회 요청 ID를 만들 수 없습니다.';notify();return false;}
       paused=false;d.statusStopped=false;d.statusFailures=0;d.statusPolls=0;d.submitting=true;d.error='';notify();
+      timing('request_start',null);
       try{
         const data=await request(api,{method:'POST',headers:{...a.headers,'Content-Type':'application/json','X-ShiftLog-Client':'desktop'},body:JSON.stringify({action:'create',requestType:'cofiring_period',start:p.startLocal,end:p.endLocal,stepUnit:p.stepUnit,stepValue:p.stepValue,forceRefresh:force,clientRequestId:d.clientRequestId,expectedResultId:d.saved?.id||null})});
         if(!current(g,k,a.key))return false;
         if(data.periodKey!==k||data.item?.requestType!=='cofiring_period'||!contract.uuid(data.item?.id)||!allStatuses.includes(data.item.status))throw new Error('기간 조회 요청 확인 응답이 다릅니다.');
         d.clientRequestId=null;d.active=activeStatuses.includes(data.item.status)?data.item:null;d.lastAttempt=data.item;
+        timing('request_accepted',data.item.id);
+        // COFIRING_PHASE1_ACTIVE_ACK_FAST_PATH: the create response already
+        // describes this exact active range. Skip its redundant full-history GET.
+        // Older/incomplete response shapes retain the original load() fallback.
+        if(data.bridgeVersion===2&&d.active&&data.item.targetDate===p.targetDate&&data.item.request){
+          let exact=false;try{exact=contract.periodKey(data.item.request)===k;}catch(_){}
+          if(exact){if(data.item.status==='processing')timing('processing_seen',data.item.id);return true;}
+        }
         return await load({force:true});
       }catch(e){if(current(g,k,a.key)){if(e.code==='AUTH_EXPIRED')rejectAuth(a,d);d.error=errorText(e);}return false;}
       finally{if(current(g,k,a.key)){d.submitting=false;notify();schedule();}}

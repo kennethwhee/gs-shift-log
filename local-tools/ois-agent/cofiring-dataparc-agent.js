@@ -99,8 +99,10 @@ function periodRequestSpec(request) {
 function createPeriodProgressReader() {
   const phases=['WORKER_ENTERED','INITIALIZATION_COMPLETE','READY','EXCEL_START','QUERY_START','QUERY_COMPLETE','CLEANUP','COMPLETE'];
   let runId=null,lastPhase=-1,lastElapsed=-1,completedTags=0;
+  const observed={};
   return {
     get runId(){return runId;},
+    get timings(){return {...observed};},
     read(line){
       const prefix='__COFIRING_PROGRESS__';
       if(!line.startsWith(prefix)||line.length>2048)return null;
@@ -114,6 +116,7 @@ function createPeriodProgressReader() {
       if(!Number.isFinite(at)||(runId&&id!==runId)||phase<lastPhase||value.elapsedSeconds<lastElapsed)return null;
       // UTC is diagnostic metadata; wall-clock corrections must not freeze progress.
       runId=id;lastPhase=phase;lastElapsed=value.elapsedSeconds;
+      if(!Object.hasOwn(observed,value.phase))observed[value.phase]=value.elapsedSeconds;
       if(value.phase==='QUERY_COMPLETE')completedTags=10;
       return {phase:phase<4?'starting':phase<6?'reading':'cleanup',completedTags};
     }
@@ -135,12 +138,15 @@ function periodTimeoutDetail(report,spec,observedRunId) {
 }
 function createCofiringPeriodCollector(options={}) {
   const spawnProcess=options.spawnProcess||spawn,platform=options.platform||process.platform;
+  const monotonic=options.now||(()=>Number(process.hrtime.bigint())/1e6);
   const root=options.runsDirectory||runsDirectory,log=options.log||console.log;
   const controller=options.controllerPath||path.join(__dirname,'cofiring-period-v5','run-cofiring-period-v5.ps1');
   const worker=options.workerPath||path.join(__dirname,'cofiring-period-v5','cofiring-period-worker-v5.ps1');
   const blocked=path.join(root,'cleanup-blocked.json');
   let active=null;
   return async function collect(config,request,callbacks={}) {
+    const entered=monotonic(),agentTiming={schemaVersion:1,revision:'cofiring-phase1-20261005',receivedAtUtc:new Date().toISOString()};
+    const markAgent=name=>{agentTiming[name]=Math.max(0,(monotonic()-entered)/1000);};
     const id=request?.id,spec0=periodRequestSpec(request),spec=contract.period(spec0||{}),remainingMs=Date.parse(request?.expiresAt)-Date.now();
     if(request?.requestType!==COFIRING_PERIOD_REQUEST_TYPE||request.status!=='processing'||!contract.uuid(id)||request.agentId!==config.agentId||!request.agentId||!Number.isFinite(Date.parse(request.startedAt))||!Number.isFinite(remainingMs)||remainingMs<PERIOD_MIN_REMAINING_MS)throw new Error('혼소율 기간 요청 소유권 또는 남은 처리시간이 올바르지 않습니다.');
     if(platform!=='win32')throw new Error('혼소율 기간 DataPARC 조회는 회사 Windows PC에서 실행해야 합니다.');
@@ -180,7 +186,9 @@ function createCofiringPeriodCollector(options={}) {
     try{
       await new Promise((resolve,reject)=>{
         const args=['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',controller,'-Start',spec.startLocal,'-End',spec.endLocal,'-StepUnit',spec.stepUnit,'-StepValue',String(spec.stepValue),'-OutputDirectory',dir];
+        markAgent('beforeSpawnSeconds');
         const child=spawnProcess(executable,args,{windowsHide:true,shell:false,stdio:['ignore','pipe','pipe'],cwd:path.dirname(controller)});
+        markAgent('spawnReturnedSeconds');
         active=child;launched=true;child.stdout?.setEncoding('utf8');child.stderr?.setEncoding('utf8');
         const append=(text,isError)=>{
           if(isError){stderr=(stderr+text).slice(-2*1024*1024);return;}
@@ -196,12 +204,19 @@ function createCofiringPeriodCollector(options={}) {
         child.stdout?.on('data',chunk=>append(String(chunk),false));child.stderr?.on('data',chunk=>append(String(chunk),true));
         heartbeat=setInterval(()=>sendProgress(true),20000);heartbeat.unref?.();
         child.once('error',error=>{closed=true;if(!child.pid)launched=false;reject(error);});
-        child.once('close',(code,signal)=>{if(active===child)active=null;closed=true;if(signal||code!==0)reject(new Error(`혼소율 기간 조회 프로세스 종료 오류 (exit=${code}, signal=${signal||'none'})`));else resolve();});
+        child.once('close',(code,signal)=>{markAgent('controllerClosedSeconds');if(active===child)active=null;closed=true;if(signal||code!==0)reject(new Error(`혼소율 기간 조회 프로세스 종료 오류 (exit=${code}, signal=${signal||'none'})`));else resolve();});
       });
       await finishProgress();
+      markAgent('progressDrainedSeconds');
+      agentTiming.progressDrainSeconds=Math.max(0,agentTiming.progressDrainedSeconds-agentTiming.controllerClosedSeconds);
       const report=JSON.parse(fs.readFileSync(path.join(dir,'period-report.json'),'utf8').replace(/^\uFEFF/,''));
       const raw={kind:'cofiring_period_live_result',schemaVersion:1,requestId:id,request:{startLocal:spec.startLocal,endLocal:spec.endLocal,stepUnit:spec.stepUnit,stepValue:spec.stepValue},report};
       const result=contract.periodResult(raw,id,spec);
+      markAgent('validatedSeconds');
+      const phases=progressReader.runId===report.runId?.toLowerCase()?progressReader.timings:{};
+      const difference=(end,start)=>Number.isFinite(end)&&Number.isFinite(start)&&end>=start?end-start:null;
+      agentTiming.workerStages={preparationSeconds:phases.QUERY_START??null,queryAndReadSeconds:difference(phases.QUERY_COMPLETE,phases.QUERY_START),cleanupSeconds:difference(phases.COMPLETE,phases.CLEANUP)};
+      result.report.timing={...result.report.timing,agent:agentTiming};
       fs.writeFileSync(path.join(dir,'bridge-result.json'),JSON.stringify(result),'utf8');
       log(`[혼소율 기간] ${spec.startLocal} ~ ${spec.endLocal} 조회·정리 완료 · ${result.report.status} · 서버 저장 대기`);
       return result;
@@ -228,6 +243,11 @@ function createCofiringPeriodCollector(options={}) {
       // Preserve prompt cleanup blocking, but drain the real POST even when a
       // diagnostic write fails before the caller publishes terminal failure.
       await finishProgress();
+      markAgent('collectorFinishedSeconds');
+      try{
+        fs.writeFileSync(path.join(dir,'agent-timing.json'),JSON.stringify({requestId:id,...agentTiming},null,2),'utf8');
+        log('__COFIRING_AGENT_TIMING__'+JSON.stringify({requestId:id,...agentTiming}));
+      }catch(_){} // Diagnostic output cannot fail or release a live Excel operation.
       fs.writeFileSync(path.join(dir,'bridge-stdout.log'),stdout,'utf8');
       fs.writeFileSync(path.join(dir,'bridge-stderr.log'),stderr,'utf8');
     }
@@ -235,5 +255,4 @@ function createCofiringPeriodCollector(options={}) {
 }
 const collectCofiringPeriodValues=createCofiringPeriodCollector();
 module.exports={COFIRING_REQUEST_TYPE,COFIRING_PERIOD_REQUEST_TYPE,READER_SHA256,PERIOD_CONTROLLER_SHA256,PERIOD_WORKER_SHA256,createCofiringCollector,createCofiringPeriodCollector,collectCofiringDailyValues,collectCofiringPeriodValues,isCofiringExcelBlocked};
-
 

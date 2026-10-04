@@ -48,6 +48,20 @@ test('slow progress keeps one active POST and delivers only the newest unsent st
   h.close();assert.equal((await outcome).report.status,'PERIOD_READY');assert.equal(h.posts.length,2);
 });
 
+test('phase1 records real progress-drain duration and bound worker stages without changing result quantities',async t=>{
+  let ms=0;const gate=deferred();
+  const h=harness(t,{collectorOptions:{now:()=>ms},postProgress:()=>gate.promise});
+  const task=h.run();await turn();
+  h.emit('WORKER_ENTERED',0);h.emit('QUERY_START',26.124);h.emit('QUERY_COMPLETE',41.105);h.emit('CLEANUP',41.130);h.emit('COMPLETE',48.361);
+  ms=50000;h.close();await turn();ms=52000;gate.resolve();const result=await task;
+  assert.equal(result.report.timing.agent.progressDrainSeconds,2);
+  assert.equal(result.report.timing.agent.workerStages.preparationSeconds,26.124);
+  assert.ok(Math.abs(result.report.timing.agent.workerStages.cleanupSeconds-7.231)<1e-9);
+  assert.equal(result.report.summaries[0].usageTon,20);
+  const saved=JSON.parse(fs.readFileSync(path.join(h.child.dir,'agent-timing.json'),'utf8'));
+  assert.equal(saved.requestId,id);assert.equal(saved.collectorFinishedSeconds,52);assert.ok(h.logs.some(s=>s.startsWith('__COFIRING_AGENT_TIMING__')));
+});
+
 test('success discards unsent progress but waits for the actual active POST before terminal delivery',async t=>{
   const gate=deferred(),order=[];let settled=false;
   const h=harness(t,{postProgress:async value=>{order.push('post '+value.phase);if(value.phase==='reading')await gate.promise;order.push('ack '+value.phase);}});
