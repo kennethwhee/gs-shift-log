@@ -27,6 +27,121 @@ const BUTTON_LABELS = { all: "전체조회", operations: "운영정보조회", r
     "efficiencyMorningMeetingAutoRetry-silo-level", "efficiencyMorningMeetingAutoSmpRefreshButton",
     "efficiencyMorningMeetingAutoWeatherRefreshButton"];
   // MORNING_ALL_STEAM_COORDINATOR_V2: explicit, awaited steam stage.
+  /* MORNING_ALL_QUERY_ELAPSED_V1_START */
+  let morningElapsedRun = null;
+  let morningElapsedLast = null;
+  let morningElapsedTimer = null;
+  const morningElapsedNow = () => window.performance?.now?.() ?? Date.now();
+
+  function renderMorningElapsed() {
+    const date = targetDate();
+    const toolbar = byId(TOOLBAR_ID);
+    if (!toolbar) return;
+    const run = morningElapsedRun?.started != null ? morningElapsedRun : morningElapsedLast;
+    let badge = byId("morningMeetingElapsedTime");
+    if (!badge) {
+      const actions = toolbar.querySelector(".morning-meeting-workbook-query__actions");
+      if (!actions) return;
+      badge = makeElement("span", "morning-meeting-elapsed");
+      badge.id = "morningMeetingElapsedTime";
+      badge.setAttribute("role", "status");
+      badge.setAttribute("aria-live", "off");
+      actions.insertBefore(badge, actions.firstChild);
+    }
+    const visible = Boolean(run && run.date === date && canQuery());
+    if (badge.hidden === visible) badge.hidden = !visible;
+    if (!visible) return;
+    const elapsed = run.status === "running"
+      ? Math.max(0, morningElapsedNow() - run.started) : run.elapsed;
+    const label = {
+      running: "조회 중", complete: "조회 완료", partial: "일부 실패",
+      failed: "조회 실패", ended: "조회 종료", interrupted: "측정 중단"
+    }[run.status] || "조회 종료";
+    setText(badge, `${run.kind === "requery" ? "새로 조회 · " : ""}${label} ${(elapsed / 1000).toFixed(1)}초`);
+    if (badge.dataset.state !== run.status) badge.dataset.state = run.status;
+    const title = `${run.date} · ${run.kind === "requery" ? "재조회 확인 후" : "전체조회 시작부터"} 전체 조회 처리 종료까지의 경과시간 (저장값 조회 포함)`;
+    if (badge.title !== title) badge.title = title;
+  }
+
+  function clearMorningElapsedTick() {
+    if (morningElapsedTimer !== null) window.clearTimeout(morningElapsedTimer);
+    morningElapsedTimer = null;
+  }
+
+  function startMorningElapsed(kind, date) {
+    const run = morningElapsedRun;
+    if (!run || run.date !== date || run.kind !== kind || run.started !== null) return;
+    run.started = morningElapsedNow();
+    run.status = "running";
+    function tick() {
+      morningElapsedTimer = null;
+      if (morningElapsedRun !== run || run.status !== "running") return;
+      if (targetDate() !== run.date) {
+        run.elapsed = Math.max(0, morningElapsedNow() - run.started);
+        run.status = "interrupted";
+        renderMorningElapsed();
+        return;
+      }
+      renderMorningElapsed();
+      morningElapsedTimer = window.setTimeout(tick, 200);
+    }
+    clearMorningElapsedTick();
+    tick();
+  }
+
+  function morningElapsedOutcome(result, date) {
+    if (!Array.isArray(result) || !result.length) return "ended";
+    const failures = result.some(item => item?.status === "rejected" ||
+      ["error", "failed", "partial"].includes(item?.status) ||
+      item?.value === null || item?.value === false || item?.value?.ok === false ||
+      ["error", "failed", "partial"].includes(item?.value?.status));
+    const operations = operationsState(date);
+    if (failures || ["error", "partial"].includes(operations?.status)) return "partial";
+    // A settled request does not prove that every source had data.
+    return "ended";
+  }
+
+  async function measureMorningAction(kind, options, action) {
+    const date = targetDate();
+    if (morningElapsedRun || options.userInitiated !== true || !canQuery() || !isDate(date) ||
+        activeRequest || activeResetRequest || externalQueryBusy()) return action();
+    const run = { kind, date, started: null, elapsed: 0, status: "pending" };
+    morningElapsedRun = run;
+    if (kind === "all") startMorningElapsed(kind, date);
+    let outcome = "ended";
+    try {
+      const result = await action();
+      outcome = morningElapsedOutcome(result, date);
+      return result;
+    } catch (error) {
+      outcome = "failed";
+      throw error;
+    } finally {
+      if (morningElapsedRun === run) {
+        clearMorningElapsedTick();
+        if (run.started !== null) {
+          if (run.status !== "interrupted") {
+            run.elapsed = Math.max(0, morningElapsedNow() - run.started);
+            run.status = targetDate() === date ? outcome : "interrupted";
+          }
+          morningElapsedLast = run;
+        }
+        morningElapsedRun = null;
+        renderMorningElapsed();
+      }
+    }
+  }
+
+  async function query(source, options = {}) {
+    if (source !== "all") return queryWithoutElapsedV1(source, options);
+    return measureMorningAction("all", options, () => queryWithoutElapsedV1(source, options));
+  }
+
+  async function requeryAll(options = {}) {
+    return measureMorningAction("requery", options, () => requeryWithoutElapsedV1(options));
+  }
+  /* MORNING_ALL_QUERY_ELAPSED_V1_END */
+
   const localStates = new Map();
   const resetStates = new Map();
   const resetStatusRequests = new Map();
@@ -397,6 +512,7 @@ const BUTTON_LABELS = { all: "전체조회", operations: "운영정보조회", r
   function render() {
     const toolbar = ensureToolbar();
     if (!toolbar) return;
+    renderMorningElapsed();
     const date = targetDate();
     const allowed = canQuery();
     const requestFetch = fetcher();
@@ -590,7 +706,7 @@ const BUTTON_LABELS = { all: "전체조회", operations: "운영정보조회", r
   }
 
   // GS_MORNING_REQUERY_NON_DESTRUCTIVE_R6
-  async function requeryAll(options = {}) {
+  async function requeryWithoutElapsedV1(options = {}) {
     const date = targetDate();
 
     if (
@@ -640,6 +756,7 @@ const BUTTON_LABELS = { all: "전체조회", operations: "운영정보조회", r
     }
 
     requeryBusyDate = date;
+    startMorningElapsed("requery", date);
     notifyQueryState();
     render();
 
@@ -672,7 +789,7 @@ const BUTTON_LABELS = { all: "전체조회", operations: "운영정보조회", r
     }
   }
 
-  async function query(source, options = {}) {
+  async function queryWithoutElapsedV1(source, options = {}) {
     const date = targetDate();
     if (!Object.hasOwn(QUERY_BUTTONS, source) || options.userInitiated !== true || !canQuery() || !isDate(date) ||
         activeRequest || activeResetRequest || externalQueryBusy()) return null;
