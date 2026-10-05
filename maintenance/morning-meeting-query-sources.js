@@ -319,6 +319,27 @@ const BUTTON_LABELS = { all: "전체조회", operations: "운영정보조회", r
     return localStates.get(date)?.operations || { status: "idle", error: "" };
   }
 
+  /* MORNING_OPERATIONS_STATUS_UNIFIED_V1 */
+  function unifiedOperationsState(date) {
+    const operations = operationsState(date);
+    const steam = localStates.get(date)?.steam || { status: "idle", error: "" };
+    const states = [operations, steam];
+    const labels = {
+      idle: "조회 전", waiting: "순서 대기", loading: "조회 중",
+      complete: "조회 완료", partial: "일부 실패", error: "조회 실패", ended: "조회 종료"
+    };
+    const detail = states.map((item, index) =>
+      `${index === 0 ? "운영 항목" : "증기"}: ${labels[item.status] || "조회 전"}${item.error ? ` · ${item.error}` : ""}`
+    ).join(" / ");
+    let status = "idle";
+    if (states.some(item => ["waiting", "loading"].includes(item.status))) status = "loading";
+    else if (states.some(item => ["partial", "error"].includes(item.status))) {
+      status = states.some(item => ["complete", "partial"].includes(item.status)) ? "partial" : "error";
+    } else if (states.every(item => item.status === "complete")) status = "complete";
+    else if (states.some(item => item.status !== "idle")) status = "ended";
+    return { status, error: `${date} · ${detail}` };
+  }
+
   function isBusy() { return Boolean(activeRequest || activeResetRequest); }
 
   function externalQueryBusy() {
@@ -448,12 +469,12 @@ const BUTTON_LABELS = { all: "전체조회", operations: "운영정보조회", r
       toolbar = makeElement("div", "morning-meeting-workbook-query");
       toolbar.id = TOOLBAR_ID;
       toolbar.setAttribute("aria-label", "오전회의 자료 조회");
-      const caption = makeElement("span", "morning-meeting-workbook-query__caption", "운영정보 · TO 전력 · 증기 OIS · 혼소/유기성 마감자료");
+      const caption = makeElement("span", "morning-meeting-workbook-query__caption", "운영정보 · TO 전력 · 혼소/유기성 마감자료");
       caption.id = "morningMeetingWorkbookSource";
       const statuses = makeElement("div", "morning-meeting-workbook-query__statuses");
-      for (const source of ["operations", "steam"]) {
+      for (const source of ["operations"]) {
         const group = makeElement("span", "morning-meeting-workbook-query__source-status");
-        group.append(makeElement("span", "morning-meeting-workbook-query__source-label", source === "steam" ? "증기 OIS" : "운영정보"));
+        group.append(makeElement("span", "morning-meeting-workbook-query__source-label", "운영정보"));
         const status = makeElement("span", "morning-meeting-workbook-query__status");
         status.id = `morningMeetingQuerySourceStatus-${source}`;
         status.setAttribute("role", "status");
@@ -523,7 +544,7 @@ const BUTTON_LABELS = { all: "전체조회", operations: "운영정보조회", r
     const reset = resetState(date);
     const resetActive = reset.active === true;
     const resetStatusUnavailable = Boolean(requestFetch && (!reset.loaded || reset.error));
-    const operations = operationsState(date);
+    const operations = unifiedOperationsState(date);
     const busy = isBusy() || externalQueryBusy() || requeryBusyDate === date;
     toolbar.dataset.resetActive = resetActive ? "true" : "false";
     toolbar.dataset.resetTargetDate = date;
@@ -539,20 +560,8 @@ const BUTTON_LABELS = { all: "전체조회", operations: "운영정보조회", r
       badge.title = operations.error || `${date} 운영정보 조회 상태`;
     }
 
-    const steam = localStates.get(date)?.steam || { status: "idle", error: "" };
-    const steamBadge = byId("morningMeetingQuerySourceStatus-steam");
-    if (steamBadge) {
-      setText(steamBadge, steam.status === "waiting" ? "순서 대기" :
-        steam.status === "loading" ? "조회 중" : steam.status === "complete" ? "조회 완료" :
-        steam.status === "error" ? "조회 실패" : "조회 전");
-      steamBadge.classList.toggle("is-loading", ["waiting", "loading"].includes(steam.status));
-      steamBadge.classList.toggle("is-complete", steam.status === "complete");
-      steamBadge.classList.toggle("is-error", steam.status === "error");
-      steamBadge.title = steam.error || `${date} 증기 조회 처리 상태 · 원본에 없는 수치는 기존 표시를 유지합니다.`;
-    }
-
     const caption = byId("morningMeetingWorkbookSource");
-    setText(caption, "운영정보 · TO 전력 · 증기 OIS · 혼소/유기성 마감자료");
+    setText(caption, "운영정보 · TO 전력 · 혼소/유기성 마감자료");
     if (caption) caption.title = "오전회의 카드는 일일 DATA Excel을 조회하지 않습니다.";
 
     for (const id of BUTTON_IDS) {
