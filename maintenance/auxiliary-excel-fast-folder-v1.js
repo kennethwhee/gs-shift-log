@@ -46,7 +46,9 @@
       const reset = document.createElement('button'); reset.id = 'auxiliaryExcelFolderReset'; reset.type = 'button'; reset.textContent = '기본 다운로드';
       reset.addEventListener('click', resetFolder);
       const status = document.createElement('span'); status.id = 'auxiliaryExcelProgress'; status.setAttribute('role','status');
-      group.append(choose, label, reset, status);
+      const info = document.createElement('span'); info.id = 'auxiliaryExcelFolderInfo';
+      info.append(label, status);
+      group.append(info, choose, reset);
     }
     group.hidden = false;
     if (download.nextSibling !== group) download.parentNode.insertBefore(group, download.nextSibling);

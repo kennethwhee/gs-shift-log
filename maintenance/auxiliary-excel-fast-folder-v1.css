@@ -1,7 +1,12 @@
-#auxiliaryExcelFolderControls { display:inline-flex; align-items:center; gap:5px; flex-wrap:wrap; max-width:100%; }
-#auxiliaryExcelFolderControls button { white-space:nowrap; min-height:32px; padding:5px 8px; font:inherit; font-size:11px; border:1px solid #b9cce4; border-radius:7px; background:#fff; color:#345475; cursor:pointer; }
+/* AUXILIARY_TOOLBAR_LAYOUT_V1: folder/status above the aligned action row. */
+#auxiliaryExcelFolderControls { display:inline-grid; grid-template-columns:max-content max-content; grid-template-rows:auto 34px; align-items:end; align-self:flex-end; column-gap:5px; row-gap:4px; flex:0 0 auto; max-width:100%; }
+#auxiliaryExcelFolderControls[hidden] { display:none; }
+#auxiliaryExcelFolderControls button { box-sizing:border-box; white-space:nowrap; height:34px; min-height:34px; margin:0; padding:0 8px; font:inherit; font-size:11px; border:1px solid #b9cce4; border-radius:7px; background:#fff; color:#345475; cursor:pointer; }
+#auxiliaryExcelFolderSelect { grid-row:2; grid-column:1; }
+#auxiliaryExcelFolderReset { grid-row:2; grid-column:2; }
+#auxiliaryExcelFolderInfo { grid-row:1; grid-column:1 / -1; display:flex; flex-direction:column; gap:2px; min-width:0; max-width:210px; }
 #auxiliaryExcelFolderControls button:disabled { opacity:.55; cursor:default; }
-#auxiliaryExcelFolderName { max-width:115px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; color:#397158; }
-#auxiliaryExcelFolderReset[hidden] { display:none; }
-#auxiliaryExcelProgress { width:100%; font-size:11px; color:#60738b; }
+#auxiliaryExcelFolderName { max-width:210px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; line-height:14px; color:#397158; }
+#auxiliaryExcelFolderReset[hidden], #auxiliaryExcelFolderName:empty { display:none; }
+#auxiliaryExcelProgress { max-width:210px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; line-height:14px; color:#60738b; }
 #auxiliaryExcelProgress:empty { display:none; }

@@ -96886,13 +96886,14 @@ function prepareAuxiliaryMaterialPcCompactControls() {
 
   /*
     실제 DOM 순서:
-    저장자료 → 새로고침 → OIS → 엑셀 등록 → 엑셀 다운로드
+    저장자료 → 새로고침 → OIS → 재조회 → 엑셀 등록 → 엑셀 다운로드
     → Slurry 고정값 → 상태 안내
   */
   actionControls.append(
     loadButton,
     refreshButton,
     queryButton,
+    ...[document.getElementById("requeryAuxiliaryMaterialOisButton")].filter(Boolean),
     excelButton,
     downloadButton,
     densityPanel
@@ -252993,7 +252994,7 @@ if (
   AUXILIARY MATERIAL SINGLE DAY OIS REQUERY V1
 
   목적:
-  - 기존 "선택일 OIS 조회 · 저장" 버튼 위에 작은 [재조회] 버튼 추가
+  - 기존 "선택일 OIS 조회 · 저장"과 "엑셀 등록" 사이에 [재조회] 버튼 배치
   - 현재 OIS 기준일 하루만 forceRefresh=true로 강제 재조회
   - 일반 조회의 forceRefresh=false 동작은 변경하지 않음
   - 재조회 성공 시 저장 자료를 다시 불러와 월 평균 재계산
@@ -253290,24 +253291,12 @@ if (
       REQUERY_STYLE_ID;
 
     style.textContent = `
-      #${REQUERY_STACK_ID} {
-        display: inline-flex;
-        flex-direction: column;
-        align-items: stretch;
-        gap: 4px;
-        vertical-align: top;
-        min-width: 0;
-      }
-
-      #${REQUERY_STACK_ID}
-      > #queryAuxiliaryMaterialOisButton {
-        width: 100%;
-      }
-
       #${REQUERY_BUTTON_ID} {
+        box-sizing: border-box;
         align-self: flex-end;
-        min-height: 22px;
-        padding: 3px 8px;
+        height: 34px;
+        min-height: 34px;
+        padding: 0 8px;
         border: 1px solid #a9b7c8;
         border-radius: 5px;
         background: #ffffff;
@@ -253350,8 +253339,8 @@ if (
   /* =====================================================
     버튼 배치
 
-    기존 파란 OIS 버튼은 그대로 유지하고
-    바로 위에 작은 [재조회] 버튼만 추가한다.
+    기존 파란 OIS 버튼 바로 뒤에 [재조회]를 배치한다.
+    버튼 노드를 유지하므로 이벤트와 중복 조회 방지 상태도 유지된다.
   ====================================================== */
 
   function ensureRequeryButton() {
@@ -253368,84 +253357,9 @@ if (
 
     installRequeryStyle();
 
-    let stack =
-      document.getElementById(
-        REQUERY_STACK_ID
-      );
-
-    if (
-      !stack ||
-      !stack.isConnected
-    ) {
-      const parent =
-        queryButton.parentElement;
-
-      if (
-        !parent
-      ) {
-        return null;
-      }
-
-      const parentStyle =
-        window.getComputedStyle(
-          parent
-        );
-
-      const buttonStyle =
-        window.getComputedStyle(
-          queryButton
-        );
-
-      stack =
-        document.createElement(
-          "span"
-        );
-
-      stack.id =
-        REQUERY_STACK_ID;
-
-      /*
-        기존 flex/grid 안에서 파란 버튼이 차지하던
-        배치 속성을 가능한 한 그대로 이어받는다.
-      */
-      if (
-        parentStyle.display.includes(
-          "flex"
-        )
-      ) {
-        stack.style.flex =
-          buttonStyle.flex;
-
-        stack.style.alignSelf =
-          buttonStyle.alignSelf;
-      }
-
-      if (
-        parentStyle.display.includes(
-          "grid"
-        )
-      ) {
-        stack.style.gridColumn =
-          buttonStyle.gridColumn;
-
-        stack.style.gridRow =
-          buttonStyle.gridRow;
-
-        stack.style.justifySelf =
-          buttonStyle.justifySelf;
-
-        stack.style.alignSelf =
-          buttonStyle.alignSelf;
-      }
-
-      parent.insertBefore(
-        stack,
-        queryButton
-      );
-
-      stack.append(
-        queryButton
-      );
+    const oldStack = document.getElementById(REQUERY_STACK_ID);
+    if (oldStack && queryButton.parentElement === oldStack) {
+      oldStack.before(queryButton);
     }
 
     let requeryButton =
@@ -253478,11 +253392,12 @@ if (
         "현재 OIS 기준일 하루 재조회"
       );
 
-      stack.insertBefore(
-        requeryButton,
-        queryButton
-      );
     }
+
+    if (queryButton.nextElementSibling !== requeryButton) {
+      queryButton.insertAdjacentElement("afterend", requeryButton);
+    }
+    if (oldStack && oldStack.childElementCount === 0) oldStack.remove();
 
     return requeryButton;
   }
