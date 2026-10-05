@@ -158769,6 +158769,18 @@ function restoreMorningMeetingWeekendReferenceLayout(
   }
 
 
+  // MORNING_HOLIDAY_COFIRING_SAVED_V1: templates use AI or AJ as the first date anchor.
+  const templateGroups = row => referenceLayout.mergeReferences
+    .map(parseMorningMeetingMergeReference)
+    .filter(range => range && range.startRow === row && range.endRow === row && range.startColumn !== "AG")
+    .sort((a, b) => getMorningMeetingColumnNumber(a.startColumn) - getMorningMeetingColumnNumber(b.startColumn))
+    .map(range => range.startColumn);
+  const bioValueColumns = templateGroups(25);
+  const powerValueColumns = templateGroups(31);
+  if (bioValueColumns.length !== 2 || powerValueColumns.length !== 3) {
+    throw new Error("첨부 주말 기준표의 날짜·전력단가 병합 범위를 확인하지 못했습니다.");
+  }
+
   const sheetData =
     worksheetDocument
       .getElementsByTagNameNS(
@@ -159166,7 +159178,7 @@ function restoreMorningMeetingWeekendReferenceLayout(
   ====================================================== */
 
   setText(
-    "AI25",
+    `${bioValueColumns[0]}25`,
     formatDate(
       weekendDates[0]
     )
@@ -159174,7 +159186,7 @@ function restoreMorningMeetingWeekendReferenceLayout(
 
 
   setText(
-    "AM25",
+    `${bioValueColumns[1]}25`,
     formatDate(
       weekendDates[1]
     )
@@ -159193,13 +159205,13 @@ function restoreMorningMeetingWeekendReferenceLayout(
   ].forEach(
     rowNumber => {
       setText(
-        `AI${rowNumber}`,
+        `${bioValueColumns[0]}${rowNumber}`,
         ""
       );
 
 
       setText(
-        `AM${rowNumber}`,
+        `${bioValueColumns[1]}${rowNumber}`,
         ""
       );
     }
@@ -159244,11 +159256,7 @@ function restoreMorningMeetingWeekendReferenceLayout(
         기존 템플릿 수치가 남지 않도록 비운다.
       */
 
-      [
-        "AI",
-        "AL",
-        "AN"
-      ].forEach(
+      powerValueColumns.forEach(
         columnName => {
           setText(
             `${columnName}${rowNumber}`,
@@ -169154,6 +169162,13 @@ const expectedWaterSourceDate =
 const closedValuesTargetDate =
   window.morningMeetingClosedCofiring?.targetDate() || expectedWaterSourceDate;
 
+// MORNING_HOLIDAY_COFIRING_SAVED_V1: freeze same-date values before export awaits.
+const holidayCofiringSavedCapture = isWeekendMode
+  ? window.morningMeetingHolidayCofiringSavedV1?.capture({
+      startDate: weekendStartDateText, endDate: weekendEndDateText
+    })
+  : null;
+
 
 const isSelectedAutomaticDateReset =
   window
@@ -169910,40 +169925,8 @@ console.log(
   - 누락된 날짜는 해당 날짜만 빈칸으로 유지한다.
 =================================================== */
 
-let longHolidayCofiringExcelResult =
-  null;
-
-if (
-  weekendSupplementResult
-    ?.longHoliday ===
-    true
-) {
-  if (
-    typeof window
-      .applyMorningMeetingLongHolidayCofiringExcelValues !==
-      "function"
-  ) {
-    throw new Error(
-      "장기휴무 혼소율 최종 Excel 반영 모듈을 찾지 못했습니다."
-    );
-  }
-
-  longHolidayCofiringExcelResult =
-    await window
-      .applyMorningMeetingLongHolidayCofiringExcelValues(
-        worksheetDocument,
-        weekendSupplementResult,
-        {targetDate: closedValuesTargetDate,
-          suppressClosedValues: suppressAutomaticWorkbookValues,
-          useSavedSnapshot: true,
-          savedCofiringValues: finalWorkbookCurrentValueBundleV9.cofiringValues}
-      );
-
-  console.log(
-    "장기휴무 혼소율 마감자료 최종 반영 완료:",
-    longHolidayCofiringExcelResult
-  );
-}
+// applyMorningMeetingLongHolidayCofiringExcelValues is retained for compatibility.
+// All holiday lengths now use the common saved-value writer after final layout.
 
 /* ===================================================
   MORNING MEETING COFIRING FINAL EXCEL V1.1 DIRECT FINAL HOOK
@@ -170088,13 +170071,27 @@ console.log(
     let finalHistoryAlignmentResultV10 =
       await window.applyMorningMeetingFinalHistoryAlignmentV10(
         worksheetDocument,
-        sharedStrings
+        sharedStrings,
+        {savedValuesHandledAfterLayout: isWeekendMode}
       );
 
     console.log(
       "최종 Excel Bio/전력단가 이력 정렬 V10:",
       finalHistoryAlignmentResultV10
     );
+
+    // Final date headers and merged anchors are authoritative for every length.
+    if (isWeekendMode) {
+      if (typeof window.morningMeetingHolidayCofiringSavedV1?.apply !== "function") {
+        throw new Error("주말 혼소율 저장값 반영 기능을 불러오지 못했습니다. Ctrl+F5 후 다시 생성해 주세요.");
+      }
+      const holidayCofiringResult = await window.morningMeetingHolidayCofiringSavedV1.apply(
+        worksheetDocument, sharedStrings, {
+          enabled: true, referenceDate: weekendEndDateText, captured: holidayCofiringSavedCapture
+        }
+      );
+      console.log("주말·공휴일 혼소율 저장값 최종 반영:", holidayCofiringResult);
+    }
 
     zip.file(
       worksheetPath,

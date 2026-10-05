@@ -449,6 +449,23 @@
     return promise;
   }
 
+  // MORNING_HOLIDAY_COFIRING_SAVED_V1: read only persisted ratios without
+  // refreshing organic receipts, changing the selected card, or queuing Agent work.
+  async function loadSavedForWorkbook(date) {
+    if (!dateValid(date) || isBlocked(date)) return null;
+    const identity = checkSession();
+    if (!identity) throw new Error('로그인이 필요합니다.');
+    const existing = cache.get(date);
+    if (existing?.status === 'complete') return existing.item;
+    if (typeof root.morningMeetingQuerySources?.loadResetStatus === 'function') {
+      const reset = await root.morningMeetingQuerySources.loadResetStatus(date);
+      if (!reset) throw new Error('선택일의 초기화 상태를 확인하지 못했습니다.');
+    }
+    if (isBlocked(date) || checkSession() !== identity) return null;
+    const payload = await getJson(API + '?targetDate=' + encodeURIComponent(date), authHeaders());
+    return isBlocked(date) || checkSession() !== identity ? null : normalizeItem(payload.item, date);
+  }
+
   function valuesForWorkbook(dailyData, options = {}) {
     const savedFirstV3Date = options.targetDate || targetDate();
     const savedFirstV3Closed =
@@ -652,6 +669,6 @@
     doc.addEventListener('visibilitychange', refreshCofiringOnActivation);
     sync();
   }
-  root.morningMeetingClosedCofiring = Object.freeze({version: '20261002-adjustsync-v1', targetDate, isBlocked, load, peek, state, refresh, refreshOrganicFromClosing, renderOrganic, valuesForWorkbook});
+  root.morningMeetingClosedCofiring = Object.freeze({version: '20261002-adjustsync-v1', targetDate, isBlocked, load, loadSavedForWorkbook, peek, state, refresh, refreshOrganicFromClosing, renderOrganic, valuesForWorkbook});
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', initialize, {once: true}); else initialize();
 })(typeof window !== 'undefined' ? window : null);

@@ -296,7 +296,7 @@
     return a === null || b === null ? null : (a + b) / 2;
   }
 
-  async function applyHistoryAlignment(worksheetDocument, sharedStrings = []) {
+  async function applyHistoryAlignment(worksheetDocument, sharedStrings = [], options = {}) {
     const titleCandidates = cells(worksheetDocument).map((cell) => {
       const parsed = parseAddress(cell.getAttribute?.("r"));
       const text = cellText(cell, sharedStrings);
@@ -417,6 +417,12 @@
       const date = alignedPowerDates[index];
       setCellText(worksheetDocument, item.cell, `${String(date.month).padStart(2, "0")}월 ${String(date.day).padStart(2, "0")}일`);
     });
+
+    // The common holiday writer fills saved values after every final layout move.
+    if (options.savedValuesHandledAfterLayout === true) {
+      return {enabled: true, rowDelta: 1, layoutAligned: true, valuesAligned: false,
+        reason: "saved-values-final-writer", bioDates: alignedPowerDates.map(item => item.label)};
+    }
 
     const provider = window.morningMeetingClosedCofiring;
     const referenceDate = typeof provider?.targetDate === "function" ? String(provider.targetDate() || "") : "";
