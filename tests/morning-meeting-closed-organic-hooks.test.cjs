@@ -77,7 +77,7 @@ test('actual workbook call sites propagate the same frozen source date and suppr
   for (const suppress of [false, true]) for (const hasProvider of [false, true]) {
     const observed = [];
     let previewDate = '2026-09-02';
-    const context = vm.createContext({ worksheetDocument: {}, dailyDataForWorkbook: {},
+    const context = vm.createContext({ worksheetDocument: {}, dailyDataForWorkbook: {}, finalWorkbookCurrentValueBundleV9: {cofiringValues: null},
       suppressAutomaticWorkbookValues: suppress, expectedWaterSourceDate: '2026-09-01',
       applyMorningMeetingDailyDataValues(_doc, _daily, options) {
         observed.push(['daily', JSON.parse(JSON.stringify(options))]);
@@ -92,8 +92,8 @@ test('actual workbook call sites propagate the same frozen source date and suppr
     vm.runInContext(select('const cofiringFinalExcelResult =', '\n\nif ('), context);
     const capturedDate = hasProvider ? '2026-09-02' : '2026-09-01';
     assert.deepEqual(observed, [
-      ['daily', { suppressClosedValues: suppress, targetDate: capturedDate }],
-      ['cofiring', { suppressClosedValues: suppress, targetDate: capturedDate }]
+      ['daily', { suppressClosedValues: suppress, targetDate: capturedDate, useSavedSnapshot: true, savedCofiringValues: null }],
+      ['cofiring', { suppressClosedValues: suppress, targetDate: capturedDate, useSavedSnapshot: true, savedCofiringValues: null }]
     ]);
   }
   const generation = select('async function createMorningMeetingWorkbook()', 'const closedValuesTargetDate =');

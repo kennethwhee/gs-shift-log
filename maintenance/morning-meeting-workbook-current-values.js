@@ -1,18 +1,14 @@
-/* MORNING MEETING FINAL WORKBOOK CURRENT SOURCES V9
- * Final workbook should mirror the values currently shown on the Morning Meeting cards.
- *
- * Current-source policy:
- * - First preserve same-date rendered card values that the operator can actually see.
- * - Then let canonical providers (TO / OIS / closing) overwrite only with finite values.
- * - Never start the removed Daily DATA Excel lookup.
- * - Never use a rendered value from a different date.
+/* MORNING MEETING SAVED WORKBOOK SNAPSHOT V1
+ * Capture selected-date saved card values once. Export never refreshes sources.
+ * Fill only missing fields from already-loaded, same-date saved providers.
+ * Zero is a saved value. Reset/deleted dates and other dates never leak in.
  */
 (function installMorningMeetingWorkbookCurrentValues(root) {
   "use strict";
 
   if (!root || !root.document) return;
 
-  const VERSION = "20260928-v9";
+  const VERSION = "20261005-saved-snapshot-v2";
   const doc = root.document;
 
   const IDS = Object.freeze({
@@ -125,32 +121,28 @@
   }
 
   function targetDate() {
-    /*
-     * The Morning Meeting card date is the operational/source date.
-     * Prefer an actually rendered card date over meeting/header dates.
-     */
-    const rendered = [
-      displayedDate(IDS.powerDate),
-      displayedDate(IDS.steamDate),
-      displayedDate(IDS.organicDate)
-    ].find(isDate);
-
-    if (rendered) return rendered;
-
     const candidates = [
+      doc.getElementById("efficiencyMorningMeetingWaterPanel")?.dataset?.morningMeetingAutoBaseDate,
       root.morningMeetingClosedCofiring?.targetDate?.(),
       root.toNightPower?.targetDate?.(),
-      doc.getElementById("efficiencyMorningMeetingWaterPanel")?.dataset?.morningMeetingAutoBaseDate,
+      displayedDate(IDS.powerDate),
+      displayedDate(IDS.steamDate),
+      displayedDate(IDS.organicDate),
       root.efficiencyMorningMeetingUploadState?.shiftPart?.reportDate,
       root.efficiencyMorningMeetingUploadState?.shiftPart?.loadedDate
     ];
-
     return candidates.map(text).find(isDate) || "";
   }
 
+  function blocked(date) {
+    return !isDate(date) ||
+      root.isMorningMeetingSelectedDateResetActive?.(date) === true ||
+      root.morningMeetingQuerySources?.resetState?.(date)?.active === true ||
+      root.morningMeetingClosedCofiring?.isBlocked?.(date) === true;
+  }
+
   function displayMatchesTarget(dateId, date) {
-    const sourceDate = displayedDate(dateId);
-    return !date || !sourceDate || sourceDate === date;
+    return isDate(date) && displayedDate(dateId) === date;
   }
 
   function copyFiniteKeys(target, source, keys, { overwrite = true } = {}) {
@@ -174,83 +166,31 @@
     return target;
   }
 
-  async function mergePower(values, date, sourceErrors) {
-    /* Visible same-date card values are retained even when TO row is not yet saved. */
-    copyRenderedCard(values, POWER_KEYS, IDS.powerDate, date);
-
-    const power = root.toNightPower;
-    if (
-      !date ||
-      !power ||
-      typeof power.ensureForWorkbook !== "function" ||
-      typeof power.valuesForWorkbook !== "function"
-    ) {
-      return values;
+  function fillSaved(values, keys, sourceName, read, sourceErrors) {
+    if (keys.every(key => finiteNumber(values[key]) !== null)) return;
+    try { copyFiniteKeys(values, read(), keys, {overwrite: false}); }
+    catch (error) {
+      sourceErrors.push({source: sourceName, message: text(error?.message) || "저장값 확인 실패"});
     }
-
-    try {
-      await power.ensureForWorkbook(date);
-      const provided = power.valuesForWorkbook({ ...values }, { targetDate: date }) || {};
-      copyFiniteKeys(values, provided, POWER_KEYS, { overwrite: true });
-    } catch (error) {
-      sourceErrors.push({
-        source: "power",
-        message: text(error?.message) || "TO 전력 저장자료 확인 실패"
-      });
-    }
-
-    return values;
   }
 
-  function mergeSteam(values, date) {
-    /* Preserve what is visibly shown first. */
-    copyRenderedCard(values, STEAM_KEYS, IDS.steamDate, date);
-
-    const raw =
-      root.__morningMeetingSteamOisProbeLastResult &&
-      typeof root.__morningMeetingSteamOisProbeLastResult === "object"
-        ? root.__morningMeetingSteamOisProbeLastResult
-        : null;
-
-    const rawDate = text(raw?.sourceDate || raw?.targetDate);
-    const sameDate = Boolean(raw) && (!date || !rawDate || rawDate === date);
-
-    if (sameDate) {
-      copyFiniteKeys(values, raw, STEAM_KEYS, { overwrite: true });
-    }
-
-    return values;
-  }
-
-  async function mergeOrganic(values, date, sourceErrors) {
-    /*
-     * Mirror the current card first. This does not start Daily DATA Excel lookup;
-     * it only reads values already rendered on the Morning Meeting screen.
-     */
-    copyRenderedCard(values, ORGANIC_KEYS, IDS.organicDate, date);
-
-    const closed = root.morningMeetingClosedCofiring;
-    if (!date || !closed || typeof closed.valuesForWorkbook !== "function") {
-      return values;
-    }
-
-    try {
-      let provided = closed.valuesForWorkbook({ ...values }, { targetDate: date }) || {};
-      copyFiniteKeys(values, provided, ORGANIC_KEYS, { overwrite: true });
-
-      if (typeof closed.load === "function") {
-        await closed.load(date);
-        provided = closed.valuesForWorkbook({ ...values }, { targetDate: date }) || {};
-        copyFiniteKeys(values, provided, ORGANIC_KEYS, { overwrite: true });
-      }
-    } catch (error) {
-      sourceErrors.push({
-        source: "organic",
-        message: text(error?.message) || "유기성 마감자료 확인 실패"
-      });
-    }
-
-    return values;
+  function legacyValues(date) {
+    const saved = root.morningMeetingLegacySavedDailyData?.peek?.(date);
+    if (!saved || typeof saved !== "object") return {};
+    return {
+      ...saved,
+      generatorEcmsGen1: saved.generatorEcmsGen1 ?? saved.powerGeneration,
+      ismartReception: saved.ismartReception ?? saved.electricityReceived,
+      epowerTransmission: saved.epowerTransmission ?? saved.electricityTransmitted,
+      solarDailyGeneration: saved.solarDailyGeneration ?? saved.solarDaily,
+      solarMonthlyCumulative: saved.solarMonthlyCumulative ?? saved.solarCumulative?.month?.total,
+      solarYearlyCumulative: saved.solarYearlyCumulative ?? saved.solarCumulative?.year?.total,
+      sludgeTruckCount: saved.sludgeTruckCount ?? saved.organicTruckCount,
+      sludgeTotal: saved.sludgeTotal ?? saved.organicReceivedAmount,
+      organicDaySilo: saved.organicDaySilo ?? saved.organicDaySiloLevel,
+      organicStorageSiloA: saved.organicStorageSiloA ?? saved.organicStorageSiloALevel,
+      organicStorageSiloB: saved.organicStorageSiloB ?? saved.organicStorageSiloBLevel
+    };
   }
 
   function getMissing(values) {
@@ -259,37 +199,45 @@
       .map(([key, label]) => ({ key, label }));
   }
 
-  async function collect(options = {}) {
+  function capture(options = {}) {
     const date = isDate(options.targetDate) ? options.targetDate : targetDate();
     const values = {};
     const sourceErrors = [];
-
-    await mergePower(values, date, sourceErrors);
-    mergeSteam(values, date);
-    await mergeOrganic(values, date, sourceErrors);
-
-    const missing = getMissing(values);
-
-    console.info("[MorningMeetingWorkbookCurrentValues V9]", {
-      targetDate: date,
-      values: { ...values },
-      missing: missing.map(item => item.key),
-      sourceErrors: sourceErrors.map(item => item.source)
+    const cofiringValues = root.captureMorningMeetingCofiringExcelValues?.({targetDate: date}) || null;
+    if (!blocked(date)) {
+      // All cards are read synchronously before any provider or asynchronous work.
+      copyRenderedCard(values, POWER_KEYS, IDS.powerDate, date);
+      copyRenderedCard(values, STEAM_KEYS, IDS.steamDate, date);
+      copyRenderedCard(values, ORGANIC_KEYS, IDS.organicDate, date);
+      const allKeys = [...POWER_KEYS, ...STEAM_KEYS, ...ORGANIC_KEYS];
+      fillSaved(values, allKeys, "cardOverrides", () =>
+        root.morningMeetingCardOverrides?.overrideValues?.({}, date), sourceErrors);
+      fillSaved(values, POWER_KEYS, "power", () =>
+        root.toNightPower?.valuesForWorkbook?.({}, {targetDate: date}), sourceErrors);
+      const steam = root.__morningMeetingSteamOisProbeLastResult;
+      if (text(steam?.sourceDate || steam?.targetDate) === date) {
+        copyFiniteKeys(values, steam, STEAM_KEYS, {overwrite: false});
+      }
+      fillSaved(values, ORGANIC_KEYS, "organic", () =>
+        root.morningMeetingClosedCofiring?.valuesForWorkbook?.({}, {targetDate: date}), sourceErrors);
+      fillSaved(values, allKeys, "legacy", () => legacyValues(date), sourceErrors);
+    }
+    return Object.freeze({
+      version: VERSION, targetDate: date, savedSnapshot: true, cofiringValues,
+      values: Object.freeze(values), missing: Object.freeze(getMissing(values)),
+      sourceErrors: Object.freeze(sourceErrors)
     });
+  }
 
-    return {
-      version: VERSION,
-      targetDate: date,
-      values,
-      missing,
-      sourceErrors
-    };
+  async function collect(options = {}) {
+    return capture(options);
   }
 
   root.morningMeetingWorkbookCurrentValues = Object.freeze({
     version: VERSION,
     targetDate,
     collect,
+    capture,
     getMissing,
     finiteNumber
   });

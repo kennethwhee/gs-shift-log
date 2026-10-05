@@ -127,6 +127,8 @@
       unitTwoOrganicRatio: normalizeNumber(unitTwo.organicRatio),
       bioAverageRatio: normalizeNumber(snapshot.combined?.bioRatio),
       organicAverageRatio: normalizeNumber(snapshot.combined?.organicRatio),
+      unitOneTotalRatio: normalizeNumber(unitOne.totalRatio),
+      unitTwoTotalRatio: normalizeNumber(unitTwo.totalRatio),
       adjustmentApplied: snapshot.adjustmentApplied === true,
       source: snapshot.source === "cofiring-closed-history" ? snapshot.source : "effective-snapshot"
     };
@@ -239,6 +241,68 @@
     return withDerivedAverages(displayed || {});
   }
 
+  // Final download reads independent same-date saved cards even when the
+  // closed provider is idle/missing/error. It never refreshes or recalculates.
+  function savedDateBlocked(date) {
+    return window.isMorningMeetingSelectedDateResetActive?.(date) === true ||
+      window.morningMeetingQuerySources?.resetState?.(date)?.active === true ||
+      window.morningMeetingClosedCofiring?.isBlocked?.(date) === true;
+  }
+
+  function captureSavedExcelValues(options = {}) {
+    const referenceDate = getReferenceDate();
+    const date = String(options.targetDate || referenceDate || "").trim();
+    const empty = {targetDate: date, referenceDate, source: "saved-card-display", savedSnapshot: true};
+    if (!/^20\d{2}-\d{2}-\d{2}$/.test(date) ||
+        (referenceDate && referenceDate !== date) || savedDateBlocked(date)) {
+      return Object.freeze({...empty, suppressed: savedDateBlocked(date), dateMismatch: Boolean(referenceDate && referenceDate !== date)});
+    }
+    const ids = {...VALUE_IDS,
+      unitOneTotalRatio: "efficiencyMorningMeetingCofiringUnit1TotalRatio",
+      unitTwoTotalRatio: "efficiencyMorningMeetingCofiringUnit2TotalRatio"};
+    const visible = {};
+    if (readDate("efficiencyMorningMeetingCofiringDate") === date) {
+      for (const [key, id] of Object.entries(ids)) {
+        const element = document.getElementById(id);
+        const value = normalizeNumber(element?.dataset?.rawValue ?? element?.textContent);
+        if (value !== null) visible[key] = value;
+      }
+    }
+    let saved = null;
+    try {
+      const provider = window.morningMeetingClosedCofiring;
+      const candidate = provider
+        ? provider.state(date).status === "complete" ? provider.peek(date) : null
+        : window.getMorningMeetingCofiringEffectiveValues?.();
+      if (candidate?.targetDate === date) saved = normalizeSnapshot(candidate);
+    } catch { /* Same-date visible saved data remains usable without this cache. */ }
+
+    // Use exact saved precision/combined ratios only if the visible card still
+    // matches that record at its displayed precision (normally two decimals).
+    // A different source record cannot overwrite an independent saved card.
+    const matches = saved && Object.entries(visible).every(([key, value]) => {
+      const exact = normalizeNumber(saved[key]);
+      if (exact === null) return true;
+      const element = document.getElementById(ids[key]);
+      const raw = element?.dataset?.rawValue;
+      if (raw !== undefined && raw !== "") return exact === value;
+      const token = String(element?.textContent || "").replaceAll(",", "").match(/-?\d+(?:\.\d+)?/)?.[0] || "";
+      const digits = (token.split(".")[1] || "").length;
+      return Number(exact.toFixed(Math.min(digits, 15))) === value;
+    });
+    const values = {...empty, ...visible};
+    if (matches) {
+      for (const [key, value] of Object.entries(saved)) {
+        if (normalizeNumber(value) !== null && typeof value === "number") values[key] = value;
+      }
+      values.source = saved.source;
+      values.adjustmentApplied = saved.adjustmentApplied;
+    } else {
+      values.adjustmentApplied = document.getElementById("morningMeetingCofiringAdjustmentButton")?.classList?.contains("is-active") === true;
+    }
+    return Object.freeze(withDerivedAverages(values));
+  }
+
   /* =====================================================
     Final Excel numeric cell writer compatibility
 
@@ -332,7 +396,11 @@
     const dateMismatch = Boolean(requestedDate && requestedDate !== referenceDate);
     // The export captures this guard before any asynchronous worksheet work.
     // Keep the original reset/date restriction even if UI state changes meanwhile.
-    const values = options.suppressClosedValues === true || dateMismatch
+    const savedSnapshot = options.savedCofiringValues;
+    const snapshotInvalid = options.useSavedSnapshot === true &&
+      (!savedSnapshot || savedSnapshot.savedSnapshot !== true || savedSnapshot.targetDate !== (requestedDate || referenceDate));
+    const values = options.suppressClosedValues === true || dateMismatch || snapshotInvalid ||
+      (options.useSavedSnapshot === true && savedDateBlocked(requestedDate || referenceDate))
       ? {
           targetDate: requestedDate || referenceDate,
           referenceDate,
@@ -340,7 +408,7 @@
           dateMismatch,
           suppressed: options.suppressClosedValues === true
         }
-      : getExcelValues();
+      : options.useSavedSnapshot === true ? savedSnapshot : getExcelValues();
     const results = [];
     const missingAddresses = [];
 
@@ -468,7 +536,8 @@
 
   async function applyLongHolidayValuesToWorksheet(
     worksheetDocument,
-    supplement = {}
+    supplement = {},
+    options = {}
   ) {
     if (
       supplement?.longHoliday !== true ||
@@ -507,10 +576,18 @@
         targets.map(
           async target => {
             try {
-              const item =
-                await provider.load(
-                  target.date
-                );
+              // The selected day's saved card is already frozen for this export.
+              // Other dates still read their own persisted closed history.
+              const frozen = options.savedCofiringValues;
+              const useFrozen = options.useSavedSnapshot === true && target.date === options.targetDate;
+              const item = useFrozen
+                ? frozen?.savedSnapshot === true && frozen.targetDate === target.date &&
+                  options.suppressClosedValues !== true && !savedDateBlocked(target.date)
+                  ? {targetDate: target.date,
+                      unitOne: {bioRatio: frozen.unitOneBioRatio, organicRatio: frozen.unitOneOrganicRatio, totalRatio: frozen.unitOneTotalRatio},
+                      unitTwo: {bioRatio: frozen.unitTwoBioRatio, organicRatio: frozen.unitTwoOrganicRatio, totalRatio: frozen.unitTwoTotalRatio}}
+                  : null
+                : await provider.load(target.date);
 
               return {
                 target,
@@ -717,6 +794,7 @@
     return true;
   }
 
+  window.captureMorningMeetingCofiringExcelValues = captureSavedExcelValues;
   window.getMorningMeetingCofiringExcelValues = getExcelValues;
   window.applyMorningMeetingCofiringExcelValues = applyValuesToWorksheet;
   window.applyMorningMeetingLongHolidayCofiringExcelValues =

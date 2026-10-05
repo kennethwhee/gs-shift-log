@@ -564,6 +564,9 @@
       version: `${current.version || "current"}+card-overrides-v3`,
       async collect(options = {}) {
         const bundle = await originalCollect(options);
+        // Snapshot already includes visible/cached manual saves. Do not refetch or
+        // repaint cards while exporting an earlier, fixed selection.
+        if (bundle?.savedSnapshot === true) return bundle;
         const date = dateValid(bundle?.targetDate) ? bundle.targetDate : targetDate();
         if (dateValid(date)) {
           try { await load(date, true); }

@@ -531,8 +531,10 @@
     };
 
     const hasVisibleD1Values = () =>
-      FIELDS.some(([, , suffix]) => {
-        const text = String(byId(PREFIX + suffix)?.textContent || '').trim();
+      [...FIELDS.map(([, , suffix]) => PREFIX + suffix),
+        'efficiencyMorningMeetingAutoSolarMonthlyCumulative',
+        'efficiencyMorningMeetingAutoSolarYearlyCumulative'].some(id => {
+        const text = String(byId(id)?.textContent || '').trim();
         return text !== '' && text !== '-' && /\d/.test(text);
       });
 
@@ -560,7 +562,7 @@
     //  - no cache on date navigation -> keep restored D1/display values
     //  - explicit load in progress/error -> keep current D1/display values
     //  - ready + TO row -> render confirmed TO source values
-    //  - ready + no TO row -> explicit source check confirmed empty, clear '-'
+    //  - ready + no TO row -> preserve independent same-date saved values
     let entry = cache.get(date);
 
     if (session && entry?.payload?.item && entry.status !== 'ready') {
@@ -613,11 +615,15 @@
       badge('TO 입력 완료', 'complete');
       card.title = `${date} N/S TO · ${entry.payload.item.updatedBy || 'TO 담당자'} · ${entry.payload.item.updatedAt || ''} · kWh`;
     } else {
-      /*
-        This is the only ordinary path that may clear a previously displayed
-        D1 fallback: an explicit TO GET completed successfully and confirmed
-        that the selected date has no TO source record.
-      */
+      // A missing TO record does not delete an independent same-date saved card.
+      const visibleDate = String(byId(PREFIX + 'PowerDate')?.textContent || '')
+        .match(/20\d{2}-\d{2}-\d{2}/)?.[0];
+      if (visibleDate === date && hasVisibleD1Values()) {
+        setText(byId(PREFIX + 'PowerDate'), date + ' · 기존 저장값');
+        badge('기존 저장값', 'complete');
+        card.title = `${date} 저장값 유지 · TO 원본 없음 · 최종 엑셀에 표시값 반영`;
+        return;
+      }
       clearVisiblePowerValues();
       setText(byId(PREFIX + 'PowerDate'), date);
       badge('TO 미입력', 'idle');

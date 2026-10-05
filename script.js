@@ -168138,12 +168138,16 @@ function applyMorningMeetingDailyDataValues(
   options = {}
 ) {
   const closedSource =
-    typeof window.morningMeetingClosedCofiring?.valuesForWorkbook === "function"
+    options.suppressClosedValues === true ? {} : options.useSavedSnapshot === true
+      ? { ...(dailyData && typeof dailyData === "object" ? dailyData : {}) }
+      : typeof window.morningMeetingClosedCofiring?.valuesForWorkbook === "function"
       ? window.morningMeetingClosedCofiring.valuesForWorkbook(dailyData, options)
       : dailyData && typeof dailyData === "object" ? dailyData : {};
-  const source = typeof window.toNightPower?.valuesForWorkbook === "function"
-    ? window.toNightPower.valuesForWorkbook(closedSource, options)
-    : closedSource;
+  const source = options.suppressClosedValues === true || options.useSavedSnapshot === true
+    ? closedSource
+    : typeof window.toNightPower?.valuesForWorkbook === "function"
+      ? window.toNightPower.valuesForWorkbook(closedSource, options)
+      : closedSource;
 
 
   /* =====================================================
@@ -169163,6 +169167,8 @@ const mustSuppressSelectedAutomaticDate =
   () => {
     return (
       isSelectedAutomaticDateReset ||
+      window.isMorningMeetingSelectedDateResetActive?.(closedValuesTargetDate) === true ||
+      window.morningMeetingQuerySources?.resetState?.(closedValuesTargetDate)?.active === true ||
       window
         .isMorningMeetingSelectedDateResetActive?.(
           expectedWaterSourceDate
@@ -169294,6 +169300,20 @@ const gearPinionForWorkbook =
 
 
   try {
+    // Freeze selected-date saved values before folder permission/template awaits.
+    const finalWorkbookCurrentValueCollectorV9 = window.morningMeetingWorkbookCurrentValues;
+    if (typeof finalWorkbookCurrentValueCollectorV9?.capture !== "function" ||
+        typeof window.captureMorningMeetingCofiringExcelValues !== "function") {
+      throw new Error("저장값 엑셀 반영 기능을 불러오지 못했습니다. Ctrl+F5 후 다시 시도해 주세요.");
+    }
+    const finalWorkbookCurrentValueBundleV9 =
+      finalWorkbookCurrentValueCollectorV9.capture({targetDate: closedValuesTargetDate});
+    const assertWorkbookSelection = () => {
+      if (finalWorkbookCurrentValueCollectorV9.targetDate() !== closedValuesTargetDate) {
+        throw new Error("엑셀 생성 중 기준일이 바뀌었습니다. 선택일을 확인하고 다시 생성해 주세요.");
+      }
+    };
+    assertWorkbookSelection();
     /*
       저장 폴더가 기억되어 있다면
       엑셀 생성 전에 쓰기 권한을 확인한다.
@@ -169451,29 +169471,14 @@ let suppressAutomaticWorkbookValues =
 =================================================== */
 
 /* ===================================================
-  MORNING MEETING FINAL WORKBOOK CURRENT SOURCES V9
+  MORNING MEETING SAVED WORKBOOK SNAPSHOT V1
 
-  실제 최종 Excel 생성 경로에서 현재 오전회의 카드 자료를 사용한다.
-  - 화면에 보이는 동일 날짜 값을 먼저 보존
-  - TO / OIS / 혼소율 마감 provider가 유효 숫자를 주면 덮어씀
+  최종 Excel은 생성 시작 시 고정한 동일 날짜 저장값을 사용한다.
+  - 화면값 우선, 누락 항목만 이미 불러온 저장자료에서 보완
+  - 생성 중 TO / OIS / 혼소율 마감 provider를 다시 조회하지 않음
   - Daily DATA Excel 조회는 실행하지 않음
   - 기존 초기화(suppressAutomaticWorkbookValues) 및 writer 흐름은 유지
 =================================================== */
-
-const finalWorkbookCurrentValueCollectorV9 =
-  window.morningMeetingWorkbookCurrentValues;
-
-if (
-  !finalWorkbookCurrentValueCollectorV9 ||
-  typeof finalWorkbookCurrentValueCollectorV9.collect !== "function"
-) {
-  throw new Error(
-    "최종 엑셀 현재 자료원 수집 기능을 불러오지 못했습니다. Ctrl+F5 후 다시 시도해 주세요."
-  );
-}
-
-const finalWorkbookCurrentValueBundleV9 =
-  await finalWorkbookCurrentValueCollectorV9.collect();
 
 /*
   호환을 위해 기존 변수명 dailyData를 유지한다.
@@ -169553,15 +169558,8 @@ if (
 }
 
 
-// TO power is a saved, date-scoped source, not a browser-only display overlay.
-if (!suppressAutomaticWorkbookValues) {
-  if (typeof window.toNightPower?.ensureForWorkbook !== "function") {
-    throw new Error("전력 입력 기능을 불러오지 못했습니다. Ctrl+F5 후 최종 엑셀을 다시 생성해 주세요.");
-  }
-  await window.toNightPower.ensureForWorkbook(closedValuesTargetDate);
-  suppressAutomaticWorkbookValues = mustSuppressSelectedAutomaticDate();
-  if (suppressAutomaticWorkbookValues) dailyDataForWorkbook = {};
-}
+// Export the captured values; a missing TO source is not a deletion instruction.
+assertWorkbookSelection();
 
 const dailyDataResult =
   applyMorningMeetingDailyDataValues(
@@ -169569,7 +169567,9 @@ const dailyDataResult =
     dailyDataForWorkbook,
     {
       suppressClosedValues: suppressAutomaticWorkbookValues,
-      targetDate: closedValuesTargetDate
+      targetDate: closedValuesTargetDate,
+      useSavedSnapshot: true,
+      savedCofiringValues: finalWorkbookCurrentValueBundleV9.cofiringValues
     }
   );
 
@@ -169932,7 +169932,11 @@ if (
     await window
       .applyMorningMeetingLongHolidayCofiringExcelValues(
         worksheetDocument,
-        weekendSupplementResult
+        weekendSupplementResult,
+        {targetDate: closedValuesTargetDate,
+          suppressClosedValues: suppressAutomaticWorkbookValues,
+          useSavedSnapshot: true,
+          savedCofiringValues: finalWorkbookCurrentValueBundleV9.cofiringValues}
       );
 
   console.log(
@@ -169967,7 +169971,9 @@ const cofiringFinalExcelResult =
       worksheetDocument,
       {
         suppressClosedValues: suppressAutomaticWorkbookValues,
-        targetDate: closedValuesTargetDate
+        targetDate: closedValuesTargetDate,
+        useSavedSnapshot: true,
+        savedCofiringValues: finalWorkbookCurrentValueBundleV9.cofiringValues
       }
     );
 
@@ -170230,6 +170236,10 @@ const outputFileName =
   `일일발전운전현황_${outputFileDateText}.xlsx`;
 
 
+    assertWorkbookSelection();
+    if (!suppressAutomaticWorkbookValues && mustSuppressSelectedAutomaticDate()) {
+      throw new Error("엑셀 생성 중 선택일 자료가 삭제되었습니다. 화면을 확인하고 다시 생성해 주세요.");
+    }
     const downloadResult =
       await downloadMorningMeetingWorkbook(
         resultBlob,

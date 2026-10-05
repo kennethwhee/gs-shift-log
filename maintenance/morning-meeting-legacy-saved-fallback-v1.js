@@ -341,7 +341,7 @@
       setText(byId(id), format(values[key], "kWh", 0, 6));
     }
     setText(byId(POWER_PREFIX + "PowerDate"), date + " · 기존 저장값");
-    setFallbackBadge(byId(POWER_PREFIX + "PowerStatus"), "TO 미입력 · 기존 저장값");
+    setFallbackBadge(byId(POWER_PREFIX + "PowerStatus"), "기존 저장값");
     markFallback(card, true, date + " 기존 자동수치 저장값 · Excel 재조회 없음");
   }
 

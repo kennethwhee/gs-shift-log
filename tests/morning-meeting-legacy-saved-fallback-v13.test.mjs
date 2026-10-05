@@ -32,7 +32,7 @@ test('current source owners remain first priority before legacy card values', ()
   assert.match(fallback, /currentPowerOwns\(date\)/);
   assert.match(fallback, /currentSteamOwns\(date\)/);
   assert.match(fallback, /closedOwns\(date\)/);
-  assert.match(fallback, /TO 미입력 · 기존 저장값/);
+  assert.match(fallback, /setFallbackBadge\(byId\(POWER_PREFIX \+ "PowerStatus"\), "기존 저장값"\)/);
   assert.match(fallback, /기존 저장값/);
 });
 

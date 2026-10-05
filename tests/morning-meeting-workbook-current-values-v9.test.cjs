@@ -104,7 +104,7 @@ test("same-date rendered Morning Meeting cards populate all final-workbook value
   }
 });
 
-test("canonical providers overwrite rendered fallback only when they provide finite values", async () => {
+test("saved displayed values remain fixed even when cached providers disagree", async () => {
   const elements = fullVisibleElements();
   const sandbox = installSandbox({
     elements,
@@ -128,11 +128,11 @@ test("canonical providers overwrite rendered fallback only when they provide fin
   });
 
   const bundle = await sandbox.morningMeetingWorkbookCurrentValues.collect();
-  assert.equal(bundle.values.generatorEcmsGen1, 9001);
+  assert.equal(bundle.values.generatorEcmsGen1, 4062287.3);
   assert.equal(bundle.values.ismartReception, 366.3);
-  assert.equal(bundle.values.unitOneProduction, 7001);
-  assert.equal(bundle.values.steamSalesHighPressure, 702);
-  assert.equal(bundle.values.organicDaySilo, 77.7);
+  assert.equal(bundle.values.unitOneProduction, 6441);
+  assert.equal(bundle.values.steamSalesHighPressure, 99.03);
+  assert.equal(bundle.values.organicDaySilo, 11.3);
   assert.equal(bundle.values.organicStorageSiloA, 20.24);
   assert.equal(bundle.missing.length, 0);
 });
@@ -156,7 +156,7 @@ test("transient provider failures do not erase same-date visible values", async 
   assert.equal(bundle.missing.length, 0);
   assert.equal(bundle.values.generatorEcmsGen1, 4062287.3);
   assert.equal(bundle.values.organicStorageSiloB, 0.41);
-  assert.deepEqual(Array.from(bundle.sourceErrors, item => item.source).sort(), ["organic", "power"]);
+  assert.equal(bundle.sourceErrors.length, 0);
 });
 
 test("stale rendered card values are not used for a different source date", async () => {
@@ -221,7 +221,7 @@ test("meeting date may be next day while rendered source date remains the workbo
 });
 
 
-test("collector exposes V9 version", () => {
+test("collector exposes saved snapshot version", () => {
   const sandbox = installSandbox({ elements: fullVisibleElements() });
-  assert.equal(sandbox.morningMeetingWorkbookCurrentValues.version, "20260928-v9");
+  assert.equal(sandbox.morningMeetingWorkbookCurrentValues.version, "20261005-saved-snapshot-v2");
 });

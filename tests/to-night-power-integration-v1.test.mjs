@@ -50,12 +50,15 @@ test('TO provider renders server-derived monthly/yearly solar cumulative fields'
   assert.match(providerSource, /solarMonthlyCumulative/);
   assert.match(providerSource, /solarYearlyCumulative/);
 });
-test('workbook awaits fresh TO data and rechecks reset before writing', () => {
-  const awaitAt = source.indexOf('await window.toNightPower.ensureForWorkbook(closedValuesTargetDate)');
-  assert.ok(awaitAt > source.indexOf('async function createMorningMeetingWorkbook'));
-  const writeAt = source.indexOf('const dailyDataResult =', awaitAt);
-  assert.ok(writeAt > awaitAt);
-  assert.match(source.slice(awaitAt, writeAt), /mustSuppressSelectedAutomaticDate\(\)/);
+test('workbook captures saved data before awaits and checks selection and reset before writing', () => {
+  const start = source.indexOf('async function createMorningMeetingWorkbook');
+  const capture = source.indexOf('finalWorkbookCurrentValueCollectorV9.capture(', start);
+  const firstAwait = source.indexOf('await ', start);
+  const write = source.indexOf('const dailyDataResult =', capture);
+  assert.ok(capture > start && capture < firstAwait && write > capture);
+  assert.doesNotMatch(source.slice(start, write), /toNightPower\.ensureForWorkbook/);
+  assert.match(source.slice(capture, write), /mustSuppressSelectedAutomaticDate\(\)/);
+  assert.match(source.slice(capture, write), /assertWorkbookSelection\(\)/);
 });
 const dateCases = [
   ['19:00', new Date(2026, 8, 26, 19, 0), '2026-09-26', 'NS'],
