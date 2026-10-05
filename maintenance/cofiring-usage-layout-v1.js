@@ -64,7 +64,10 @@
     // Preserve the original status nodes: the runtime continues to update them in place.
     body.append(source, receiptSource);
     details.append(summary, body);
-    head.after(context);
+    // Keep the live total beside the panel title instead of a full-width row.
+    const heading = head.firstElementChild;
+    heading.classList.add('cfv-usage-heading');
+    heading.append(context);
     panel.append(details);
 
     const receiptHead = element('div', 'cfv-usage-receipt-head');
