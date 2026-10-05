@@ -1,5 +1,5 @@
-/* COFIRING_SUMMARY_INLINE_V1_R3 / 20261006
- * Use balanced 54px inline rows for ratios, fuel usage and the Bio target.
+/* COFIRING_SUMMARY_INLINE_V1_R4 / 20261006
+ * Use 46px inline rows and let only expanded calculation details add a row.
  * Existing elements, values, event handlers and calculation logic stay in place.
  */
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv52-metrics {
@@ -17,9 +17,9 @@
   grid-column: auto;
   grid-row: 1;
   min-width: 0;
-  min-height: 54px;
+  min-height: 46px;
   box-sizing: border-box;
-  padding: 8px 10px;
+  padding: 5px 10px;
   margin: 0;
   text-align: left;
 }
@@ -84,8 +84,8 @@
   #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv52-metrics > .cfv52-metric:nth-child(n) {
     grid-column: 1;
     grid-row: auto;
-    min-height: 54px;
-    padding-block: 8px;
+    min-height: 46px;
+    padding-block: 5px;
   }
   #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv52-metrics > .cfv52-metric-emphasis {
     order: -1;
@@ -103,9 +103,9 @@
   justify-content: space-between;
   gap: 8px;
   min-width: 0;
-  min-height: 54px;
+  min-height: 46px;
   box-sizing: border-box;
-  padding: 8px 10px;
+  padding: 5px 10px;
 }
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv10-fuels > .cfv10-fuel-grid > .cfv10-fuel > .cfv10-fuel-label {
   display: inline;
@@ -139,9 +139,9 @@
   column-gap: 10px;
   row-gap: 0;
   align-items: center;
-  min-height: 54px;
+  min-height: 46px;
   box-sizing: border-box;
-  padding: 8px 10px;
+  padding: 5px 10px;
 }
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target > .cfv10-target-head > .cfv-target-inline {
   grid-column: 1;
@@ -232,5 +232,69 @@
 @container cf-target-unit (max-width: 380px) {
   #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv10-fuels > .cfv10-fuel-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* R4: a collapsed disclosure occupies a column beside the values, not a new row. */
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target:has(> .cfv10-target-details:not([open])) {
+  grid-template-columns: max-content minmax(0, 1fr) minmax(0, 1.1fr) max-content;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target > .cfv10-target-details:not([open]) {
+  grid-column: 4;
+  grid-row: 1 / 3;
+  align-self: center;
+  justify-self: end;
+  margin: 0;
+  padding: 0;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target > .cfv10-target-details:not([open]) > summary {
+  margin: 0;
+  padding: 0;
+  white-space: nowrap;
+}
+
+@container cf-target-unit (max-width: 480px) {
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target:has(> .cfv10-target-details:not([open])) {
+    grid-template-columns: minmax(0, 1fr) max-content max-content;
+  }
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target:has(> .cfv10-target-details:not([open])) > .cfv10-target-head > .cfv-target-inline {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target:has(> .cfv10-target-details:not([open])) > .cfv10-target-main {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target:has(> .cfv10-target-details:not([open])) > .cfv10-target-details:not([open]) {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target:has(> .cfv10-target-details:not([open])) > .cfv10-target-head > .cfv10-target-deadline {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target:has(> .cfv10-target-details:not([open])) > p.cfv10-target-warning {
+    grid-column: 2 / -1;
+    grid-row: 2;
+  }
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target:has(> .cfv10-target-details:not([open])):has([data-cfv-target-control]:not([hidden])) > .cfv10-target-head > .cfv-target-inline {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target:has(> .cfv10-target-details:not([open])):has([data-cfv-target-control]:not([hidden])) > .cfv10-target-main {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target:has(> .cfv10-target-details:not([open])):has([data-cfv-target-control]:not([hidden])) > .cfv10-target-details:not([open]) {
+    grid-column: 2 / -1;
+    grid-row: 2;
+  }
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target:has(> .cfv10-target-details:not([open])):has([data-cfv-target-control]:not([hidden])) > .cfv10-target-head > .cfv10-target-deadline {
+    grid-column: 1;
+    grid-row: 3;
+  }
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target:has(> .cfv10-target-details:not([open])):has([data-cfv-target-control]:not([hidden])) > p.cfv10-target-warning {
+    grid-column: 2 / -1;
+    grid-row: 3;
   }
 }
