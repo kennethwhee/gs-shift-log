@@ -166101,18 +166101,9 @@ async function applyMorningMeetingManualInputCellFills(
 ) {
   /*
     options는 기존 호출부 호환을 위해 유지한다.
-
-    이제 평일 / 주말 여부와 관계없이
-    사용자가 지정한 고정 직접입력 영역만
-    연한 노란색으로 남긴다.
+    평일 및 주말·공휴일 혼소율은 저장값을 자동 반영하므로
+    기존 연한 노란색 수기 입력 표시를 제거한다.
   */
-  /*
-    [WEEKEND-BIO-MANUAL-YELLOW-V2]
-    Weekend supplement metadata is used below to mark only the
-    intentionally blank Bio / organic co-firing input area.
-  */
-
-
   const stylesFile =
     zip.file(
       "xl/styles.xml"
@@ -166769,91 +166760,9 @@ async function applyMorningMeetingManualInputCellFills(
   const manualInputRanges = [];
 
 
-  /*
-    Weekend Bio / organic co-firing values are manual entry.
-
-    Keep the values blank.
-    Only add the same pale-yellow fill used by other manual cells.
-
-    Restored legacy 2-day layout:
-    - labels are left of AI
-    - manual value area is AI:AO
-
-    Generated 1-4 day layout:
-    - first 3-column group is labels
-    - all groups to its right are manual value cells
-  */
-  if (
-    options.isWeekendMode ===
-      true
-  ) {
-    const weekendSupplement =
-      options.weekendSupplementResult &&
-      typeof options.weekendSupplementResult ===
-        "object"
-        ? options.weekendSupplementResult
-        : {};
-
-
-    const holidayCount =
-      Number(
-        weekendSupplement.holidayCount ||
-        0
-      );
-
-
-    /*
-      4일 이상 장기휴무 표는 마감 혼소율을 자동 입력하므로
-      수기 노란색 입력칸을 만들지 않는다.
-    */
-    if (
-      weekendSupplement.longHoliday !==
-        true &&
-      holidayCount >=
-        1 &&
-      holidayCount <=
-        3
-    ) {
-      if (
-        weekendSupplement.restored ===
-          true &&
-        holidayCount ===
-          2
-      ) {
-        manualInputRanges.push(
-          "AI26:AO29"
-        );
-
-      } else {
-        const tableStartColumnNumber =
-          columnNameToNumber(
-            weekendSupplement.tableStartColumn
-          );
-
-
-        if (
-          Number.isFinite(
-            tableStartColumnNumber
-          ) &&
-          tableStartColumnNumber >
-            0
-        ) {
-          const firstBioValueColumn =
-            columnNumberToName(
-              tableStartColumnNumber +
-              3
-            );
-
-
-          manualInputRanges.push(
-            `${firstBioValueColumn}26:AO29`
-          );
-        }
-      }
-    }
-  }
-
-
+  /* HOLIDAY COFIRING NO FILL V1
+     All holiday lengths now use saved values. Leave the cleared fill in place;
+     the copied style preserves borders, fonts, number formats and alignment. */
   const manualInputAddresses =
     manualInputRanges.flatMap(
       expandCellRange
@@ -169994,19 +169903,9 @@ console.log(
 );
 
 /* ===================================================
-  직접 입력 셀 연한 노란색 표시
-
-  평일:
-  - 상단 직접 입력 셀만 표시
-
-  주말:
-  - 상단 직접 입력 셀
-  - Bio 날짜별 입력칸 표시
-
-  전력단가 및 I9:K10:
-  - 바탕색 없음
+  기존 수기 입력 셀의 연한 노란색 제거
+  평일 / 주말 / 공휴일 모두 자동 입력값과 기존 서식 유지
 ==================================================== */
-
 const manualInputFillResult =
   await applyMorningMeetingManualInputCellFills(
     zip,
@@ -170020,7 +169919,7 @@ const manualInputFillResult =
 
 
 console.log(
-  "오전회의 직접 입력 셀 표시 완료:",
+  "오전회의 기존 수기 입력 배경 제거 완료:",
   manualInputFillResult
 );
 

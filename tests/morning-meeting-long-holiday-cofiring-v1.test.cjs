@@ -13,7 +13,7 @@ assert.ok(count(script,'MORNING MEETING LONG HOLIDAY COFIRING V1')>=3,'long-holi
 assert.equal(count(finalExcel,'MORNING MEETING LONG HOLIDAY COFIRING V1'),1,'final Excel marker count');
 assert.ok(script.includes('holidayCount >=\n      4'),'4-day threshold missing');
 assert.ok(script.includes('일반 주말/공휴일 보조표는 1~3일 범위'),'short weekend contract missing');
-assert.ok(script.includes('weekendSupplement.longHoliday !==\n        true'),'long holiday must not receive manual-yellow fill');
+assert.ok(!script.includes('manualInputRanges.push('),'automatically filled holiday tables must not receive manual-yellow fill');
 assert.ok(script.includes('weekdayLayoutResult\n          ?.templateRowDelta'),'collapsed long-holiday print-area delta missing');
 assert.ok(script.includes('applyMorningMeetingLongHolidayCofiringExcelValues'),'long-holiday Excel hook missing');
 assert.ok(finalExcel.includes('await provider.load('),'closed-history date loader missing');
