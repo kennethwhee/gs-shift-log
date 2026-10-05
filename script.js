@@ -154569,7 +154569,7 @@ function normalizeMorningMeetingRequiredNumber(
   - 전일 칸(AJ/AM) = 업무내용 기준일
 
   주말:
-  - 전전일 칸(AH) = 주말 시작일
+  - 전전일 칸(AH) = 주말 종료일 하루 전
   - 전일 칸(AJ/AM) = 주말 종료일
 
   중요:
@@ -154949,7 +154949,7 @@ function applyMorningMeetingWaterTreatmentValues(
       currentDate  = workDate
 
     주말:
-      previousDate = 시작일
+      previousDate = 종료일 - 1일
       currentDate  = 종료일
   ====================================================== */
 
@@ -154959,13 +154959,7 @@ function applyMorningMeetingWaterTreatmentValues(
       : workDate;
 
 
-  const previousDate =
-    weekendEnabled
-      ? weekendStartDate
-      : addDateDays(
-          currentDate,
-          -1
-        );
+  const previousDate = addDateDays(currentDate, -1);
 
 
   /* =====================================================
@@ -188480,19 +188474,8 @@ async function loadWaterTreatment(
     최종 두 날짜 계산
   ====================================================== */
 
-  const previousDate =
-    weekendEnabled
-      ? weekendStartDate
-      : addDateDays(
-          workDate,
-          -1
-        );
-
-
-  const currentDate =
-    weekendEnabled
-      ? weekendEndDate
-      : workDate;
+  const currentDate = weekendEnabled ? weekendEndDate : workDate;
+  const previousDate = addDateDays(currentDate, -1);
 
 
   /* =====================================================
@@ -188514,10 +188497,7 @@ async function loadWaterTreatment(
   }
 
 
-  if (
-    previousDate >
-      currentDate
-  ) {
+  if ((weekendEnabled && weekendStartDate > weekendEndDate) || previousDate > currentDate) {
     showError(
       "수처리 조회 날짜 범위를 확인해 주세요."
     );

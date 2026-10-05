@@ -286,13 +286,7 @@
         ? weekendEndDate
         : workDate;
 
-    const previousDate =
-      weekendEnabled
-        ? weekendStartDate
-        : addDateDays(
-            currentDate,
-            -1
-          );
+    const previousDate = addDateDays(currentDate, -1);
 
     return {
       weekendEnabled,
