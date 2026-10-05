@@ -2,7 +2,7 @@
   'use strict';
   const NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
   const escapeText = value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  function patchWorksheet(xml, rows) {
+  function patchWorksheet(xml, rows, clearSurplusDates = false) {
     if (!/<worksheet\b[^>]*\bxmlns=["']http:\/\/schemas\.openxmlformats\.org\/spreadsheetml\/2006\/main["']/.test(xml)) {
       throw Error('부재료 원본 시트의 XML 형식이 예상과 다릅니다.');
     }
@@ -24,7 +24,7 @@
       const tag = /^<c\b([^>]*?)(?:\/>|>)/.exec(cell);
       const reference = /(?:^|\s)r=(["'])([^"']+)\1/.exec(tag[1])?.[2];
       if (!reference) throw Error('부재료 원본 셀 주소를 읽지 못했습니다.');
-      if (!values.has(reference) && reference[0] === 'A') return cell;
+      if (!values.has(reference) && reference[0] === 'A' && !clearSurplusDates) return cell;
       if (seen.has(reference)) throw Error('부재료 원본 셀 주소가 중복되었습니다: ' + reference);
       seen.add(reference);
       const attrs = tag[1].replace(/\s+t=(["'])[^"']*\1/g, '');
@@ -52,18 +52,22 @@
     const timings = {}, start = clock();
     progress('양식 열기');
     const zip = await Zip.loadAsync(payload.templateBuffer);
-    const file = zip.file(payload.worksheetPath);
+    for (const [name, value] of Object.entries(payload.xmlFiles || {})) {
+      if (!['xl/workbook.xml', 'xl/_rels/workbook.xml.rels', '[Content_Types].xml'].includes(name)) throw Error('허용되지 않은 엑셀 수정 경로입니다.');
+      zip.file(name, value);
+    }
+    progress('월별 양식 확인');
+    const monthSheet = payload.sheetName
+      ? await scope.AuxiliaryExcelMonthSheetV2.ensure(zip, payload.sheetName, payload.rows.length)
+      : {worksheetPath:payload.worksheetPath, created:false};
+    const file = zip.file(monthSheet.worksheetPath);
     if (!file) throw Error('선택한 월의 부재료 시트를 찾지 못했습니다.');
     const xml = await file.async('string');
     timings.openMs = clock() - start;
     progress('월간 자료 반영');
     await new Promise(resolve => scope.setTimeout(resolve, 0));
     const patchStart = clock();
-    zip.file(payload.worksheetPath, patchWorksheet(xml, payload.rows));
-    for (const [name, value] of Object.entries(payload.xmlFiles || {})) {
-      if (!['xl/workbook.xml', 'xl/_rels/workbook.xml.rels', '[Content_Types].xml'].includes(name)) throw Error('허용되지 않은 엑셀 수정 경로입니다.');
-      zip.file(name, value);
-    }
+    zip.file(monthSheet.worksheetPath, patchWorksheet(xml, payload.rows, monthSheet.created));
     zip.remove('xl/calcChain.xml');
     timings.patchMs = clock() - patchStart;
     progress('엑셀 압축');
@@ -71,7 +75,7 @@
     const buffer = await zip.generateAsync({type:'arraybuffer', compression:'DEFLATE', compressionOptions:{level:1}}, meta => progress('엑셀 압축', meta.percent));
     timings.zipMs = clock() - zipStart;
     timings.workerMs = clock() - start;
-    return {buffer, timings};
+    return {buffer, timings, monthSheet};
   }
   scope.AuxiliaryExcelProcessorV1 = Object.freeze({patchWorksheet, build, NS});
 })(typeof self !== 'undefined' ? self : globalThis);

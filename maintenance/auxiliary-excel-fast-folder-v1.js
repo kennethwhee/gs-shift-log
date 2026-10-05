@@ -3,14 +3,26 @@
   'use strict';
   if (window.auxiliaryMaterialExcelExportV1) return;
   const MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-  const VERSION = '20261005-v1';
+  const VERSION = '20261005-v2-r1';
   const TEMPLATE = '/assets/templates/auxiliary-material-archive-template.xlsx?v=aux-export-' + VERSION;
   const byId = id => document.getElementById(id);
   const now = () => performance.now();
   const pause = () => new Promise(resolve => setTimeout(resolve, 0));
   let templatePromise = null, zipPromise = null, directory = null, folderReady = false;
   let permissionNeeded = false, remembered = true, running = false, choosing = false, started = 0, lastProgress = 0;
-  const notify = message => typeof showToast === 'function' ? showToast(message) : window.alert(message);
+  const notify = (message, failed = false) => {
+    if (typeof showToast !== 'function') { window.alert(message); return; }
+    showToast(message, failed ? 4500 : 1600);
+    if (failed) {
+      const toast = document.querySelector?.('.center-toast');
+      if (toast) {
+        toast.classList.add('auxiliary-excel-error');
+        toast.setAttribute('role', 'alert');
+        const icon = toast.querySelector('.center-toast__icon');
+        if (icon) icon.textContent = '!';
+      }
+    }
+  };
   const mobile = () => typeof isAuxiliaryMaterialMobileMonitorMode === 'function' && isAuxiliaryMaterialMobileMonitorMode();
   const supported = () => window.isSecureContext && typeof window.showDirectoryPicker === 'function';
 
@@ -160,7 +172,6 @@
     timings.prepareMs = now() - began;
     const archiveRows = createAuxiliaryMaterialArchiveRows(archiveData);
     const zip = await Zip.loadAsync(templateBuffer);
-    const worksheetPath = await findAuxiliaryMaterialArchiveWorksheetPath(zip, archiveData.sheetName);
     // Reuse existing calculation-chain/recalculation rules on the small XML parts.
     await removeAuxiliaryMaterialArchiveCalcChain(zip);
     await prepareAuxiliaryMaterialArchiveRecalculation(zip);
@@ -168,7 +179,7 @@
     for (const name of ['xl/workbook.xml','xl/_rels/workbook.xml.rels','[Content_Types].xml']) {
       if (zip.file(name)) xmlFiles[name] = await zip.file(name).async('string');
     }
-    const processed = await processWorkbook({templateBuffer, worksheetPath, rows:archiveRows.map(row => ({excelRowNumber:row.excelRowNumber, values:row.values})), xmlFiles}, Zip);
+    const processed = await processWorkbook({templateBuffer, sheetName:archiveData.sheetName, rows:archiveRows.map(row => ({excelRowNumber:row.excelRowNumber, values:row.values})), xmlFiles}, Zip);
     const fileName = '#1, 2 BLR 부재료 사용량 변화 비교_' + archiveData.year + '_' + archiveData.monthText + '월_보관본.xlsx';
     Object.assign(timings, processed.timings, {mode:processed.mode, buildMs:now() - began});
     window.__auxiliaryMaterialExcelLastTiming = timings;
@@ -222,7 +233,7 @@
         (destination ? '저장 완료 · ' + destination.name + ' / ' + savedName : '다운로드 시작') +
         ' · ' + seconds + '초 · D1 저장 ' + result.savedDateCount + '/' + result.calendarDayCount + '일');
     } catch (error) {
-      progress('저장 실패'); notify(error?.message || '부재료 엑셀을 저장하지 못했습니다.');
+      progress('저장 실패'); notify(error?.message || '부재료 엑셀을 저장하지 못했습니다.', true);
       console.error('[AUXILIARY EXCEL EXPORT]', error);
     } finally {
       running = false; started = 0; setAuxiliaryMaterialArchiveDownloadButtonState(false); renderControls();

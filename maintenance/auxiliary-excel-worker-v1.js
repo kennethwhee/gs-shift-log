@@ -1,5 +1,5 @@
 'use strict';
-importScripts('vendor/auxiliary-jszip-3.10.1.min.js', 'auxiliary-excel-processor-v1.js');
+importScripts('vendor/auxiliary-jszip-3.10.1.min.js', 'auxiliary-excel-month-sheet-v2.js?v=20261005-v2-r1', 'auxiliary-excel-processor-v1.js?v=20261005-v2-r1');
 self.onmessage = async event => {
   try {
     let last = 0;

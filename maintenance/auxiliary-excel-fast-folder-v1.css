@@ -10,3 +10,6 @@
 #auxiliaryExcelFolderReset[hidden], #auxiliaryExcelFolderName:empty { display:none; }
 #auxiliaryExcelProgress { max-width:210px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; line-height:14px; color:#60738b; }
 #auxiliaryExcelProgress:empty { display:none; }
+
+.center-toast.auxiliary-excel-error .center-toast__content { background:#fff3f3; border-color:#dc7373; color:#a32929; }
+.center-toast.auxiliary-excel-error .center-toast__icon { background:#b93838; color:#fff; }
