@@ -96,15 +96,17 @@
     if (!grid || grid.parentElement !== results) return;
     const freshTotal = grid.querySelector('.cfv52-card-total');
     const previousTotal = [...results.children].find(node => node.classList.contains('cfv52-card-total'));
-    if (grid.nextElementSibling !== panel) grid.after(panel);
     if (freshTotal) {
       if (previousTotal) previousTotal.replaceWith(freshTotal);
-      else panel.after(freshTotal);
+      else grid.after(freshTotal);
     } else if (!grid.children.length && previousTotal) {
       previousTotal.remove();
     }
     const total = freshTotal || previousTotal;
-    if (total && total.parentElement === results && panel.nextElementSibling !== total) panel.after(total);
+    // Reading order: unit cards, combined total, then the existing usage controls.
+    const anchor = total && total.parentElement === results ? total : grid;
+    if (anchor !== grid && grid.nextElementSibling !== anchor) grid.after(anchor);
+    if (anchor.nextElementSibling !== panel) anchor.after(panel);
     results.classList.add('cfv-compact-order-v11');
   }
 

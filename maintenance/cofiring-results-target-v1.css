@@ -334,7 +334,10 @@
   #efficiencyCofiringDraftView .cofiring-period-v5 :is(.cfv5-version,.cfv12-close-save,.cfv-usage-v1 button,.cfv-usage-v1 input,.cfv8-query-mode select) { min-height: 44px; }
 }
 
-/* COFIRING_COMPACT_ORDER_V11: unit results, existing usage controls, combined result. */
+/* COFIRING_TOTAL_ABOVE_USAGE_V1: unit results, combined result, existing usage controls. */
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-compact-order-v11 > .cfv52-card-total {
+  margin-top: 10px;
+}
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-compact-order-v11 > .cfv52-manual-panel.cfv-usage-v1 {
   margin: 10px 0;
   font-size: 13px;
