@@ -22766,6 +22766,48 @@ async function completeAgentBlowerRuntimeProbeBatch(
 }
 
 
+// SILO_RESULT_DELIVERY_V1: replay only the same result from the owning Agent.
+function stableSiloResultV1(value) {
+  if (Array.isArray(value)) return '[' + value.map(stableSiloResultV1).join(',') + ']';
+  if (value && typeof value === 'object') return '{' + Object.keys(value).sort()
+    .map(key => JSON.stringify(key) + ':' + stableSiloResultV1(value[key])).join(',') + '}';
+  return JSON.stringify(value);
+}
+
+async function completeSiloResultV1(context, body, authentication, existingRequest) {
+  const reject = (message, status = 409) => jsonResponse({ ok: false, message }, status);
+  const result = body.result;
+  if (!result || Array.isArray(result) || typeof result !== 'object' ||
+      result.targetDate !== existingRequest.targetDate ||
+      result.sourceDate != null && result.sourceDate !== existingRequest.targetDate ||
+      !Number.isFinite(result.flyAshSiloLevel) || !Number.isFinite(result.bioStorageSiloLevel)) {
+    return reject('SILO 결과의 기준일과 두 Level 값을 확인해 주세요.', 400);
+  }
+  const same = row => row?.requestType === 'silo_level' && row.status === 'complete' &&
+    row.agentId === authentication.agentId && row.targetDate === existingRequest.targetDate &&
+    stableSiloResultV1(row.result) === stableSiloResultV1(result);
+  const success = (row, replayed) => jsonResponse({ ok: true, replayed, item: row,
+    message: 'SILO 조회 결과 저장을 확인했습니다.' });
+  if (existingRequest.agentId !== authentication.agentId) return reject('이 요청을 가져간 Agent만 완료할 수 있습니다.');
+  if (existingRequest.status === 'complete') {
+    return same(existingRequest) ? success(existingRequest, true) : reject('이미 저장된 SILO 결과와 다릅니다.');
+  }
+  const now = new Date().toISOString();
+  if (existingRequest.status !== 'processing' || !(Date.parse(existingRequest.expiresAt) > Date.parse(now))) {
+    return reject('SILO 요청의 소유권 또는 처리 시간이 유효하지 않습니다.');
+  }
+  const update = await context.env.DB.prepare(`UPDATE ois_data_requests
+    SET status='complete', completed_at=?, result_json=?, error_message='', updated_at=?
+    WHERE id=? AND request_type='silo_level' AND status='processing' AND agent_id=? AND expires_at>?`)
+    .bind(now, JSON.stringify(result), now, existingRequest.id, authentication.agentId, now).run();
+  const stored = await findRequestById(context.env.DB, existingRequest.id);
+  // Also covers two identical in-flight uploads, or an ACK lost after the write.
+  if (same(stored)) return success(stored, Number(update?.meta?.changes) !== 1);
+  return reject('SILO 요청 상태가 바뀌어 이번 결과를 저장하지 않았습니다.');
+}
+// END SILO_RESULT_DELIVERY_V1
+
+
 async function completeAgentRequest(
   context,
   body
@@ -22829,6 +22871,7 @@ async function completeAgentRequest(
   }
 
 
+  if (existingRequest.requestType === "silo_level") return await completeSiloResultV1(context, body, authentication, existingRequest);
   if (existingRequest.requestType === "cofiring_daily") return await completeCofiringLiveRequest(context, body, authentication, existingRequest);
   if (existingRequest.requestType === "cofiring_period") return await completeCofiringPeriodRequest(context, body, authentication, existingRequest);
 
@@ -24428,7 +24471,7 @@ async function handleCofiringAgentIdle(context) {
   const auth=await authenticateOisAgent(context);if(auth.error)return auth.error;
   const rows=await context.env.DB.prepare("SELECT id,request_type,target_date FROM ois_data_requests WHERE status='processing' AND agent_id=?").bind(auth.agentId).all();
   const guard=await context.env.DB.prepare("SELECT id,requested_by_id,expires_at FROM ois_data_requests WHERE request_type='cofiring_restart_guard' AND status='guard' AND agent_id=? AND expires_at>? LIMIT 1").bind(auth.agentId,new Date().toISOString()).first();
-  return cofiringJson({ok:true,bridgeVersion:1,periodBridgeVersion:1,agentId:auth.agentId,busy:(rows.results||[]).length>0,items:rows.results||[],guard:guard?{token:guard.requested_by_id,expiresAt:guard.expires_at}:null});
+  return cofiringJson({ok:true,bridgeVersion:1,periodBridgeVersion:1,siloDeliveryVersion:1,agentId:auth.agentId,busy:(rows.results||[]).length>0,items:rows.results||[],guard:guard?{token:guard.requested_by_id,expiresAt:guard.expires_at}:null});
 }
 
 // A short-lived control row only; never a plant value, pending request or new data table.

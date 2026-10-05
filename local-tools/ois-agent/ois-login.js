@@ -21051,8 +21051,18 @@ if (
 async function completeOisAgentRequest(
   config,
   requestId,
-  result
+  result,
+  requestType = ""
 ) {
+  // SILO_RESULT_DELIVERY_V1
+  if (requestType === "silo_level") {
+    return await require("./silo-result-delivery-v1.cjs").deliverSiloResultV1({
+      requestId, result, agentId: config.agentId,
+      directory: path.join(process.env.LOCALAPPDATA || require("node:os").tmpdir(), "GSShiftLog", "silo-delivery-pending"),
+      request: options => requestOisAgentApi(config, getOisAgentApiUrl(config), options)
+    });
+  }
+
   // COFIRING_PHASE1_DELIVERY_TIMING: keep result bytes stable after publication.
   // Upload ACK timing belongs in the log, not in a second mutation of saved data.
   if (result?.kind === "cofiring_period_live_result") {
@@ -26494,7 +26504,8 @@ async function loginOis() {
           await completeOisAgentRequest(
             config,
             requestId,
-            result
+            result,
+            requestType
           );
         } finally {
           if (completeStartedAt) {
@@ -26535,6 +26546,15 @@ async function loginOis() {
       } catch (
         error
       ) {
+        if (requestType === "silo_level" && error?.code === "SILO_RESULT_DELIVERY_FAILED") {
+          console.error("SILO 수집 완료 · 서버 저장 확인 실패:", error.message);
+          if (error.backupPath) console.error("보관된 SILO 결과:", error.backupPath);
+          await failOisAgentRequest(config, requestId, error).catch(failError => {
+            console.error("SILO 저장 실패 상태 전송도 확인하지 못했습니다:", failError.message);
+          });
+          return;
+        }
+
         console.error(
           `${requestSourceLabel} ${requestLabel} 요청 처리 실패:`,
           error
