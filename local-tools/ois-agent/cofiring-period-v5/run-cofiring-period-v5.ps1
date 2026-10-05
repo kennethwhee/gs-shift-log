@@ -59,7 +59,7 @@ $cleanupErrors=New-Object 'System.Collections.Generic.List[string]'
 $cleanupActions=New-Object 'System.Collections.Generic.List[string]'
 $logOffsets=@{}
 $utf8=New-Object Text.UTF8Encoding($false)
-$expectedWorkerSha256='a84b83ea1f024e779414ac647d3ad3dda7b0bc19888e91a6b18f90b53d1413aa'
+$expectedWorkerSha256='7b02eaa5c8289bad2c1fd06c9acc82336cfae5dd3f572f99a97115194fe73f25'
 $resultZipPath=$null
 $controllerTimingMarks=[ordered]@{controller_entered=0.0}
 $controllerTimingDurations=[ordered]@{}

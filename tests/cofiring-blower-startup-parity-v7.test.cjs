@@ -24,7 +24,9 @@ test('compiler TEMP/TMP is scoped to Add-Type and restored before Excel startup'
   assert.match(worker,/SetEnvironmentVariable\("TMP", \$runtimeTmp, "Process"\)/);
 });
 
-test('co-firing Excel startup now matches the proven Blower plain /x path',()=>{
+test('reviewed pre-V3 startup retains historical Blower parity through the exact inverse',()=>{
+  const {restoreStartupV3}=require('./helpers/cofiring-startup-v3-preservation.cjs');
+  const worker=restoreStartupV3(fs.readFileSync(workerPath,'utf8'));
   assert.match(worker,/COFIRING_BLOWER_STARTUP_PARITY_V7/);
   assert.match(worker,/Start-Process -FilePath \$ownedExcelPath -ArgumentList @\("\/x"\) -WindowStyle Hidden -PassThru/);
   assert.doesNotMatch(worker,/nativeOmBootstrap(?:Path|Argument)|COFIRING_NATIVEOM_BOOTSTRAP_WORKBOOK_V6/);

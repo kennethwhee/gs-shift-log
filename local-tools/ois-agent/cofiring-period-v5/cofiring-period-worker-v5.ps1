@@ -1498,6 +1498,201 @@ function Hide-OwnedExcelWindowNow {
   catch {
   }
 }
+# COFIRING_XLSX_ADDIN_STARTUP_V3: explicit document startup, validated on the company PC.
+function New-CofiringDocumentSeed([string]$Directory, [string]$RunId) {
+  if ($RunId -notmatch '^[a-f0-9]{32}$' -or [string]::IsNullOrWhiteSpace($Directory) -or
+      -not [IO.Directory]::Exists($Directory)) { throw 'Invalid private document seed directory/run ID.' }
+  $seedPath = Join-Path ([IO.Path]::GetFullPath($Directory)) ('cofiring-document-' + $RunId + '.xlsx')
+  # Fixed empty OOXML: one worksheet, no macros, formulas, connections or external links.
+  $seedBytes = [Convert]::FromBase64String('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')
+  $seedStream = [IO.File]::Open($seedPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+  try { $seedStream.Write($seedBytes, 0, $seedBytes.Length) } finally { $seedStream.Dispose() }
+  if ((Get-FileHash -LiteralPath $seedPath -Algorithm SHA256).Hash.ToLowerInvariant() -cne '5856dcf30b6c64f81e77a0065c847296be3cf05e62310bb778a3bd5d2ce19f43') {
+    throw 'Document seed byte verification failed.'
+  }
+  return $seedPath
+}
+
+# Diagnostic reads only; never install or invoke an add-in, or change its security settings.
+function Write-CofiringAddinRuntimeSnapshot {
+  param($Application, [int]$ExpectedPid, [ValidateSet('before-host','host-ready','host-not-ready')][string]$Stage)
+  $snapshot = [ordered]@{
+    kind='cofiring_addin_runtime_v2';runId=[string]$env:GS_COFIRING_RUN_ID
+    capturedAtUtc=[datetime]::UtcNow.ToString('o');stage=$Stage;ownedExcelPid=$ExpectedPid
+    enableEvents=$null;automationSecurity=$null;workbookCount=$null;addinCount=$null
+    inspectedAddins=0;dataPARC=@();errors=@();truncated=$false
+    note='Installed is registration state. IsOpen reports whether the add-in is open. Neither alone proves Host readiness.'
+  }
+  $diagnosticClock = [Diagnostics.Stopwatch]::StartNew()
+  $addins = $null; $books = $null
+  try {
+    if (-not (Test-OwnedProbeExcelIdentity $ExpectedPid $ownedExcelStartTicks $ownedExcelPath $ownedExcelSessionId) -or
+        (Get-ProbeExcelProcessId $Application) -ne $ExpectedPid) { throw 'Diagnostic Excel identity mismatch; no add-in properties read.' }
+    foreach ($member in @('EnableEvents','AutomationSecurity')) {
+      try {
+        $value = (Get-CofiringExcelProperty -Target $Application -Member $member -Operation ('Trial.'+$Stage+'.'+$member) -TimeoutMilliseconds 500 -MaxAttempts 2).Value
+        if ($member -eq 'EnableEvents') { $snapshot.enableEvents=[bool]$value } else { $snapshot.automationSecurity=[int]$value }
+      } catch { $snapshot.errors += ($member+': '+$_.Exception.Message) }
+    }
+    try {
+      $books = (Get-CofiringExcelProperty -Target $Application -Member 'Workbooks' -Operation ('Trial.'+$Stage+'.Workbooks') -TimeoutMilliseconds 500 -MaxAttempts 2).Value
+      $snapshot.workbookCount = [int](Get-CofiringExcelProperty -Target $books -Member 'Count' -Operation ('Trial.'+$Stage+'.Workbooks.Count') -TimeoutMilliseconds 500 -MaxAttempts 2).Value
+    } catch { $snapshot.errors += ('Workbooks: '+$_.Exception.Message) }
+    finally { Release-ProbeCom $books; $books=$null }
+    $addins = (Get-CofiringExcelProperty -Target $Application -Member 'AddIns' -Operation ('Trial.'+$Stage+'.AddIns') -TimeoutMilliseconds 500 -MaxAttempts 2).Value
+    $count = [int](Get-CofiringExcelProperty -Target $addins -Member 'Count' -Operation ('Trial.'+$Stage+'.AddIns.Count') -TimeoutMilliseconds 500 -MaxAttempts 2).Value
+    $snapshot.addinCount = $count
+    for ($index=1; $index -le $count; $index++) {
+      # Retry/iteration budget, not a hard timeout for a synchronous COM call.
+      if ($index -gt 100 -or $diagnosticClock.Elapsed.TotalSeconds -ge 4) { $snapshot.truncated=$true; break }
+      $addin = $null
+      try {
+        $addin = (Get-CofiringExcelProperty -Target $addins -Member 'Item' -Indices @($index) -Operation ('Trial.'+$Stage+'.AddIns.Item') -TimeoutMilliseconds 500 -MaxAttempts 2).Value
+        $name = [string](Get-CofiringExcelProperty -Target $addin -Member 'Name' -Operation ('Trial.'+$Stage+'.AddIn.Name') -TimeoutMilliseconds 500 -MaxAttempts 2).Value
+        $snapshot.inspectedAddins++
+        if ($name -match '(?i)dataparc|parcview|parcxla') {
+          $item = [ordered]@{name=$name;fullName=$null;installed=$null;isOpen=$null;errors=@()}
+          foreach ($member in @('FullName','Installed','IsOpen')) {
+            try {
+              $value = (Get-CofiringExcelProperty -Target $addin -Member $member -Operation ('Trial.'+$Stage+'.AddIn.'+$member) -TimeoutMilliseconds 500 -MaxAttempts 2).Value
+              if ($member -eq 'Installed') { $item.installed=[bool]$value }
+              elseif ($member -eq 'IsOpen') { $item.isOpen=[bool]$value }
+              else { $item.fullName=[string]$value }
+            } catch { $item.errors += ($member+': '+$_.Exception.Message) }
+          }
+          $snapshot.dataPARC += [pscustomobject]$item
+        }
+      } catch { $snapshot.errors += ('AddIn index '+$index+': '+$_.Exception.Message) }
+      finally { Release-ProbeCom $addin }
+    }
+  } catch { $snapshot.errors += $_.Exception.Message }
+  finally { Release-ProbeCom $books; Release-ProbeCom $addins; $diagnosticClock.Stop() }
+  $snapshot.elapsedSeconds=[Math]::Round($diagnosticClock.Elapsed.TotalSeconds,3)
+  try {
+    $tracePath = [string]$env:GS_COFIRING_COM_TRACE_PATH
+    if ([string]::IsNullOrWhiteSpace($tracePath)) { throw 'Missing controller diagnostic path.' }
+    $snapshotPath = Join-Path ([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($tracePath))) ('addin-runtime-'+$Stage+'.json')
+    [IO.File]::WriteAllText($snapshotPath,($snapshot | ConvertTo-Json -Depth 8),(New-Object Text.UTF8Encoding($false)))
+    Write-ProbeStage ('추가기능 상태 기록 · '+$Stage+' · DataPARC '+$snapshot.dataPARC.Count+'개 · 읽기 오류 '+$snapshot.errors.Count+'개')
+  } catch { Write-ProbeStage ('추가기능 진단 기록 실패: '+$_.Exception.Message) }
+}
+
+function Test-CofiringDocumentSeedWorkbook([string]$FullName,[string]$SeedPath) {
+  if ([string]::IsNullOrWhiteSpace($FullName) -or [string]::IsNullOrWhiteSpace($SeedPath)) { return $false }
+  try { return [string]::Equals([IO.Path]::GetFullPath($FullName),[IO.Path]::GetFullPath($SeedPath),[StringComparison]::OrdinalIgnoreCase) }
+  catch { return $false }
+}
+
+
+# Production V3: load only the existing registered vendor add-in in our owned Excel.
+# No registry writes, Installed toggle, AutomationSecurity change, or VBProject access.
+function Assert-CofiringLoadExcelIdentity($Application,[int]$ExpectedPid) {
+  if (-not (Test-OwnedProbeExcelIdentity $ExpectedPid $ownedExcelStartTicks $ownedExcelPath $ownedExcelSessionId) -or
+      (Get-ProbeExcelProcessId $Application) -ne $ExpectedPid) {
+    throw 'DataPARC 로드 중 Excel 소유관계 확인 실패. 추가 호출을 중단합니다.'
+  }
+}
+
+function Get-CofiringRegisteredDataParcState($Application,[int]$ExpectedPid) {
+  Assert-CofiringLoadExcelIdentity $Application $ExpectedPid
+  $addins=$null; $item=$null; $matches=@()
+  try {
+    $addins=(Get-CofiringExcelProperty -Target $Application -Member 'AddIns' -Operation 'Load.AddIns').Value
+    $count=[int](Get-CofiringExcelProperty -Target $addins -Member 'Count' -Operation 'Load.AddIns.Count').Value
+    if ($count -lt 1 -or $count -gt 100) { throw 'DataPARC 등록 목록을 완전히 확인할 수 없습니다.' }
+    for ($i=1; $i -le $count; $i++) {
+      try {
+        $item=(Get-CofiringExcelProperty -Target $addins -Member 'Item' -Indices @($i) -Operation 'Load.AddIns.Item').Value
+        $name=[string](Get-CofiringExcelProperty -Target $item -Member 'Name' -Operation 'Load.AddIn.Name').Value
+        if ($name -ieq 'DataPARC_AddIn.xla') {
+          $full=[string](Get-CofiringExcelProperty -Target $item -Member 'FullName' -Operation 'Load.AddIn.FullName').Value
+          $installed=(Get-CofiringExcelProperty -Target $item -Member 'Installed' -Operation 'Load.AddIn.Installed').Value
+          $opened=(Get-CofiringExcelProperty -Target $item -Member 'IsOpen' -Operation 'Load.AddIn.IsOpen').Value
+          if ($installed -isnot [bool] -or $opened -isnot [bool]) { throw 'DataPARC Installed/IsOpen 상태가 불명확합니다.' }
+          $matches += [pscustomobject]@{name=$name;fullName=$full;installed=$installed;isOpen=$opened}
+        }
+      } finally { Release-ProbeCom $item; $item=$null }
+    }
+    if ($matches.Count -ne 1 -or -not $matches[0].installed) { throw '설치된 DataPARC 추가기능 하나를 확인할 수 없습니다.' }
+    return $matches[0]
+  } finally { Release-ProbeCom $item; Release-ProbeCom $addins }
+}
+
+function Get-CofiringDataParcFileEvidence([string]$FullName) {
+  if ([string]::IsNullOrWhiteSpace($FullName) -or -not [IO.Path]::IsPathRooted($FullName) -or $FullName.StartsWith('\\')) {
+    throw 'DataPARC 파일은 로컬 설치 경로여야 합니다.'
+  }
+  $path=[IO.Path]::GetFullPath($FullName)
+  $allowed=$false
+  foreach ($root in @([string]$env:ProgramFiles,[string]([Environment]::GetEnvironmentVariable('ProgramFiles(x86)')))) {
+    if ([string]::IsNullOrWhiteSpace($root)) { continue }
+    $expected=[IO.Path]::GetFullPath((Join-Path $root 'Capstone\PARCView\DataPARC_AddIn.xla'))
+    if ([string]::Equals($path,$expected,[StringComparison]::OrdinalIgnoreCase)) { $allowed=$true }
+  }
+  if (-not $allowed -or -not [IO.File]::Exists($path)) { throw '등록된 DataPARC 파일이 확인된 Capstone 설치 경로와 다르거나 없습니다.' }
+  $drive=New-Object IO.DriveInfo([IO.Path]::GetPathRoot($path))
+  if ($drive.DriveType -ne [IO.DriveType]::Fixed) { throw 'DataPARC 파일이 고정 로컬 드라이브에 있지 않습니다.' }
+  $node=Get-Item -LiteralPath $path -Force -ErrorAction Stop
+  while ($null -ne $node) {
+    if (($node.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'DataPARC 경로에 링크/재분석 지점이 있어 중단합니다.' }
+    if ($node -is [IO.FileInfo]) { $node=$node.Directory } else { $node=$node.Parent }
+  }
+  return [pscustomobject]@{path=$path;sha256=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant();bytes=(Get-Item -LiteralPath $path).Length}
+}
+
+function Invoke-CofiringDataParcLoad($Application,[int]$ExpectedPid) {
+  $result=[ordered]@{kind='cofiring_dataparc_load_v3';runId=[string]$env:GS_COFIRING_RUN_ID;ownedExcelPid=$ExpectedPid
+    status='FAILED';before=$null;after=$null;file=$null;openAttempted=$false;autoOpenAttempted=$false
+    automationSecurity=$null;enableEvents=$null;elapsedSeconds=$null;error=$null}
+  $timer=[Diagnostics.Stopwatch]::StartNew(); $books=$null; $addinBook=$null
+  try {
+    Assert-CofiringLoadExcelIdentity $Application $ExpectedPid
+    $security=[int](Get-CofiringExcelProperty -Target $Application -Member 'AutomationSecurity' -Operation 'Load.AutomationSecurity').Value
+    $events=(Get-CofiringExcelProperty -Target $Application -Member 'EnableEvents' -Operation 'Load.EnableEvents').Value
+    $result.automationSecurity=$security; $result.enableEvents=$events
+    if ($security -notin @(1,2) -or $events -isnot [bool] -or -not $events) { throw '현재 Excel 보안/이벤트 상태에서 DataPARC를 초기화할 수 없습니다. 설정은 변경하지 않습니다.' }
+    $state=Get-CofiringRegisteredDataParcState $Application $ExpectedPid
+    $result.before=$state
+    $file=Get-CofiringDataParcFileEvidence $state.fullName
+    $result.file=$file
+    if (-not $state.isOpen) {
+      $books=(Get-CofiringExcelProperty -Target $Application -Member 'Workbooks' -Operation 'Load.Workbooks').Value
+      # Re-read before the one non-idempotent Open, in case Excel completed startup.
+      $state=Get-CofiringRegisteredDataParcState $Application $ExpectedPid
+      if (-not [string]::Equals($state.fullName,$file.path,[StringComparison]::OrdinalIgnoreCase)) { throw 'DataPARC 등록 경로가 로드 직전에 바뀌었습니다.' }
+      if (-not $state.isOpen) {
+        Assert-CofiringLoadExcelIdentity $Application $ExpectedPid
+        Write-ProbeStage '등록된 DataPARC XLA 열기 · 1회 · 읽기 전용'
+        $result.openAttempted=$true
+        $addinBook=(Invoke-CofiringExcelCall -Operation 'Load.DataPARC.Workbooks.Open' -NoRetry -Action {
+          param($box)
+          $box.Value=$books.Open($file.path,0,$true)
+        }).Value
+        Assert-CofiringLoadExcelIdentity $Application $ExpectedPid
+        $openedPath=[string](Get-CofiringExcelProperty -Target $addinBook -Member 'FullName' -Operation 'Load.Workbook.FullName').Value
+        $isAddin=(Get-CofiringExcelProperty -Target $addinBook -Member 'IsAddin' -Operation 'Load.Workbook.IsAddin').Value
+        if (-not [string]::Equals($openedPath,$file.path,[StringComparison]::OrdinalIgnoreCase) -or $isAddin -isnot [bool] -or -not $isAddin) { throw '열린 통합문서가 등록된 DataPARC 추가기능과 다릅니다.' }
+        $state=Get-CofiringRegisteredDataParcState $Application $ExpectedPid
+        if (-not $state.isOpen) { throw 'DataPARC 파일 열기 후에도 IsOpen=False입니다.' }
+        # The successful company-PC trial needed only Open. Wait for its Host below.
+      }
+    }
+    Assert-CofiringLoadExcelIdentity $Application $ExpectedPid
+    $result.after=Get-CofiringRegisteredDataParcState $Application $ExpectedPid
+    if (-not $result.after.isOpen -or -not [string]::Equals($result.after.fullName,$file.path,[StringComparison]::OrdinalIgnoreCase)) { throw 'DataPARC 로드 완료 상태를 확인하지 못했습니다.' }
+    $result.status='LOADED'
+    Write-ProbeStage 'DataPARC 파일 로드 확인 · IsOpen=True'
+  } catch { $result.error=$_.Exception.Message; throw }
+  finally {
+    Release-ProbeCom $addinBook; Release-ProbeCom $books
+    $timer.Stop(); $result.elapsedSeconds=[Math]::Round($timer.Elapsed.TotalSeconds,3)
+    try {
+      $output=Join-Path ([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath([string]$env:GS_COFIRING_COM_TRACE_PATH))) 'addin-load.json'
+      [IO.File]::WriteAllText($output,($result|ConvertTo-Json -Depth 8),(New-Object Text.UTF8Encoding($false)))
+    } catch { Write-ProbeStage ('DataPARC 로드 기록 저장 실패: '+$_.Exception.Message) }
+  }
+}
+
 function Wait-OwnedProbeExcelNativeObject {
   param(
     [int]$ExcelProcessId,
@@ -1566,8 +1761,9 @@ function Wait-OwnedProbeExcelNativeObject {
       $candidateApplication = $null
       $keep = $false
       $nativeWindowClass=''
-      # This non-COM label is diagnostic only. Failure cannot reject a candidate.
+      # NativeOM is documented for EXCEL7. Do not make blocking COM calls on XLMAIN.
       try { $nativeWindowClass=[GsBlowerRuntimeNativeOmV1]::WindowClass([IntPtr]$nativeWindow) } catch { }
+      if ($nativeWindowClass -ne 'EXCEL7') { continue }
       try {
         $nativeSpan=Start-CofiringNativeOmSpan 'nativeObject' $excelAttachAttempt $nativeOmScan (([IntPtr]$nativeWindow).ToInt64()) $nativeWindowClass
         $nativeOutcome='failed'
@@ -2048,13 +2244,19 @@ try {
 
   # NativeOM exposure can intermittently lag a freshly started /x instance.
   # Retry only with the exact Excel process started by this worker, once.
-  # COFIRING_BLOWER_STARTUP_PARITY_V7
-  # Match the currently successful Blower path: a plain /x launch after compiler
-  # TEMP/TMP have been restored. This preserves Excel's normal DataPARC OPEN startup.
+  # COFIRING_XLSX_ADDIN_STARTUP_V3. Keep normal TEMP/TMP and add-in startup.
+  # The controller copies this worker into its private per-run directory.
+  $documentDirectory = [IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($ownershipCheckPath))
+  if (-not [string]::Equals($documentDirectory, [IO.Path]::GetFullPath($PSScriptRoot), [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Document seed directory must equal the controller-owned worker directory.'
+  }
+  $documentSeedPath = New-CofiringDocumentSeed $documentDirectory ([string]$env:GS_COFIRING_RUN_ID)
+  $documentSeedArgument = '"' + $documentSeedPath + '"'
+  Write-ProbeStage '빈 XLSX 문서와 함께 별도 Excel 시작 · EXCEL7만 연결'
   for ($excelAttachAttempt = 1; $excelAttachAttempt -le 2 -and $null -eq $excel; $excelAttachAttempt += 1) {
     Assert-CofiringNotCancelled
     Write-ProbeStage $(if ($excelAttachAttempt -eq 1) { "별도 숨김 Excel 시작" } else { "별도 숨김 Excel 재시작 · 2/2" })
-    $launchedExcelProcess = Start-Process -FilePath $ownedExcelPath -ArgumentList @("/x") -WindowStyle Hidden -PassThru
+    $launchedExcelProcess = Start-Process -FilePath $ownedExcelPath -ArgumentList @("/x", $documentSeedArgument) -WindowStyle Hidden -PassThru
     [void]$launchedExcelProcess.Handle
     $ownedExcelPid = [int]$launchedExcelProcess.Id
     $ownedExcelStartTicks = [long]$launchedExcelProcess.StartTime.ToUniversalTime().Ticks
@@ -2107,10 +2309,28 @@ try {
   [void](Invoke-CofiringExcelCall -Operation 'Application.DisplayAlerts=False' -Action { $excel.DisplayAlerts=$false })
   [void](Invoke-CofiringExcelCall -Operation 'Application.AskToUpdateLinks=False' -Action { $excel.AskToUpdateLinks=$false })
   [void](Invoke-CofiringExcelCall -Operation 'Application.ScreenUpdating=False' -Action { $excel.ScreenUpdating=$false })
-  [void](Invoke-CofiringExcelCall -Operation 'Application.EnableEvents=False' -Action { $excel.EnableEvents=$false })
   Write-ProbeStage "Excel 옵션 설정 완료"
   Complete-CofiringWorkerPhase 'setupExcelOptions'
 
+  # Validated startup: retain the seed and default event state until the owned Host is ready.
+  Write-CofiringAddinRuntimeSnapshot $excel $ownedExcelPid 'before-host'
+  Start-CofiringWorkerPhase 'setupDataParcLoad'
+  Invoke-CofiringDataParcLoad $excel $ownedExcelPid
+  Complete-CofiringWorkerPhase 'setupDataParcLoad'
+  Write-ProbeStage "DataPARC Host 준비 확인 · 최대 15초 · 초기 문서 유지"
+  Start-CofiringWorkerPhase 'setupHostWait'
+  $ownedHostCim = Wait-OwnedProbeDataParcHost $ownedExcelPid $baselineExcelPids ([datetime]::UtcNow.AddSeconds(15))
+  Complete-CofiringWorkerPhase 'setupHostWait' $(if ($null -ne $ownedHostCim) { 'complete' } else { 'not_ready' })
+  if ($null -eq $ownedHostCim) {
+    Write-CofiringAddinRuntimeSnapshot $excel $ownedExcelPid 'host-not-ready'
+    throw "DataPARC 파일 로드는 확인했지만 소유 Host가 15초 안에 준비되지 않았습니다. 혼소율 계산은 시작하지 않았습니다."
+  }
+  $ownedHostSnapshot = New-ProbeHostSignature $ownedHostCim $ownedExcelPid $ownedExcelStartTicks $ownedExcelSessionId
+  Write-ProbeOwnership
+  Write-CofiringAddinRuntimeSnapshot $excel $ownedExcelPid 'host-ready'
+  $loadedDataParc = Get-CofiringRegisteredDataParcState $excel $ownedExcelPid
+  if (-not $loadedDataParc.isOpen) { throw 'Host 확인 후 DataPARC IsOpen=False로 바뀌어 계산을 중단합니다.' }
+  [void](Invoke-CofiringExcelCall -Operation 'Application.EnableEvents=False' -Action { $excel.EnableEvents=$false })
   Start-CofiringWorkerPhase 'setupStartupWorkbookClose'
   $startupWorkbooks = $null
   try {
@@ -2120,6 +2340,8 @@ try {
       try {
         $startupWorkbook = (Invoke-CofiringExcelCall -Operation 'Startup.Workbooks.Item' -Action { param($box) $box.Value=$startupWorkbooks.Item($startupIndex) }).Value
         if (-not [bool](Get-CofiringExcelProperty -Target $startupWorkbook -Member 'IsAddin' -Operation 'Startup.Workbook.IsAddin').Value) {
+          $startupFullName = [string](Get-CofiringExcelProperty -Target $startupWorkbook -Member 'FullName' -Operation 'Startup.Workbook.FullName').Value
+          if (Test-CofiringDocumentSeedWorkbook $startupFullName $documentSeedPath) { continue }
           [void](Invoke-CofiringExcelCall -Operation 'Startup.Workbook.Close' -NoRetry -Action { $startupWorkbook.Close($false) })
         }
       } finally {
@@ -2129,18 +2351,9 @@ try {
   } finally {
     Release-ProbeCom $startupWorkbooks
   }
-  Write-ProbeStage "초기 통합문서 정리 완료"
+  Write-ProbeStage "초기 통합문서 정리 완료 · 빈 XLSX 유지"
   Complete-CofiringWorkerPhase 'setupStartupWorkbookClose'
 
-  Write-ProbeStage "DataPARC Add-In 자동 시작 확인"
-  Start-CofiringWorkerPhase 'setupHostWait'
-  $ownedHostCim = Wait-OwnedProbeDataParcHost $ownedExcelPid $baselineExcelPids ([datetime]::UtcNow.AddSeconds(60))
-  Complete-CofiringWorkerPhase 'setupHostWait' $(if ($null -ne $ownedHostCim) { 'complete' } else { 'not_ready' })
-  if ($null -eq $ownedHostCim) {
-    throw "자동조회용 숨김 Excel에서 DataPARC Add-In Host가 시작되지 않았습니다."
-  }
-  $ownedHostSnapshot = New-ProbeHostSignature $ownedHostCim $ownedExcelPid $ownedExcelStartTicks $ownedExcelSessionId
-  Write-ProbeOwnership
   [void](Invoke-CofiringExcelCall -Operation 'Application.Visible=False.AfterDataParcHost' -Action { $excel.Visible=$false })
   Hide-OwnedExcelWindowNow
 
