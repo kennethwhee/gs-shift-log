@@ -1,12 +1,12 @@
-/* COFIRING_SUMMARY_INLINE_V1 / 20261006
- * Compact the three ratios in the main result cards only.
+/* COFIRING_SUMMARY_INLINE_V1_R2 / 20261006
+ * Keep the inline ratios readable with comfortable vertical spacing.
  * Existing elements, values, event handlers and calculation logic stay in place.
  */
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv52-metrics {
-  grid-template-columns: minmax(0, .95fr) minmax(0, 1fr) minmax(0, 1.25fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.25fr);
   grid-template-rows: auto;
-  gap: 6px;
-  margin-bottom: 8px;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv52-metrics > .cfv52-metric {
   display: flex;
@@ -17,8 +17,9 @@
   grid-column: auto;
   grid-row: 1;
   min-width: 0;
-  min-height: 42px;
-  padding: 7px 9px;
+  min-height: 64px;
+  box-sizing: border-box;
+  padding: 12px 10px;
   margin: 0;
   text-align: left;
 }
@@ -37,7 +38,7 @@
   flex: 0 0 auto;
   min-height: 0;
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.35;
   white-space: nowrap;
 }
@@ -46,7 +47,7 @@
   flex: 0 0 auto;
   align-items: baseline;
   margin: 0;
-  font-size: 20px;
+  font-size: 22px;
   line-height: 1.25;
   font-weight: 650;
   letter-spacing: -.6px;
@@ -56,16 +57,16 @@
   font-variant-numeric: tabular-nums;
 }
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv52-metrics > .cfv52-metric-emphasis > strong {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 700;
 }
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv52-metrics > .cfv52-metric > strong > small {
   margin-left: 2px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   letter-spacing: 0;
 }
-@container cf-target-unit (max-width: 520px) {
+@container cf-target-unit (max-width: 560px) {
   #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv52-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: auto auto;
@@ -75,7 +76,7 @@
     grid-row: 2;
   }
 }
-@container cf-target-unit (max-width: 340px) {
+@container cf-target-unit (max-width: 380px) {
   #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv52-metrics {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto;
@@ -83,8 +84,8 @@
   #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv52-metrics > .cfv52-metric:nth-child(n) {
     grid-column: 1;
     grid-row: auto;
-    min-height: 36px;
-    padding-block: 5px;
+    min-height: 56px;
+    padding-block: 10px;
   }
   #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv52-metrics > .cfv52-metric-emphasis {
     order: -1;
