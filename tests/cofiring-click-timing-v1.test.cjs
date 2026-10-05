@@ -83,3 +83,35 @@ test('phase1 missing timing is omitted and saved recalculation cannot show histo
   const f=fixture(),t=f.timing.start({mode:'saved_recalculate'});f.timing.finish(t,{requestId:'old',source:'saved_recalculate',querySeconds:99,reportTiming:{agent:{workerStages:{preparationSeconds:20}}}});f.frame();f.frame();assert.deepEqual(f.timing.state().details,[]);
   const n=f.timing.start({mode:'new_query'});f.timing.acceptRequest(n,'new');f.timing.finish(n,{requestId:'new',source:'new_query',querySeconds:NaN,controllerSeconds:Infinity,saved:{requestedAt:'2026-10-05',startedAt:'2026-10-01'},reportTiming:{agent:{workerStages:{preparationSeconds:-1}}}});f.frame();f.frame();assert.deepEqual(f.timing.state().details,[]);
 });
+
+test('full Agent time includes packaging and leaves only outside-PC time in the residual',()=>{
+  const f=fixture(),t=f.timing.start({mode:'forced_requery',previousRequestId:'old'});
+  f.timing.acceptRequest(t,'new');f.advance(101208);
+  f.timing.finish(t,{requestId:'new',source:'new_query',controllerSeconds:77.288,reportTiming:{agent:{schemaVersion:1,collectorFinishedSeconds:99.4318097}}});
+  f.frame();f.frame();const s=f.timing.state(),row=label=>s.details.find(x=>x.label===label)?.seconds;
+  assert.equal(s.agentSeconds,99.4318097);
+  assert.ok(Math.abs(row('  PC 시작·후처리 (PC 전체에 포함)')-22.1438097)<1e-8);
+  assert.ok(Math.abs(row('요청·전송·화면 처리 (잔여)')-1.7761903)<1e-8);
+  assert.equal(row('PC 실행 전후·통신·화면 처리 (잔여)'),undefined);
+});
+
+test('incomplete, malformed or shorter-than-controller Agent timings retain the legacy measurement',()=>{
+  for(const agent of [null,{schemaVersion:1,validatedSeconds:90},{schemaVersion:2,collectorFinishedSeconds:90},
+    {schemaVersion:1,collectorFinishedSeconds:NaN},{schemaVersion:1,collectorFinishedSeconds:'90'},
+    {schemaVersion:1,collectorFinishedSeconds:-1},{schemaVersion:1,collectorFinishedSeconds:86401},
+    {schemaVersion:1,collectorFinishedSeconds:70}]){
+    const f=fixture(),t=f.timing.start({mode:'new_query'});f.timing.acceptRequest(t,'new');f.advance(100000);
+    f.timing.finish(t,{requestId:'new',source:'new_query',controllerSeconds:77,reportTiming:{agent}});f.frame();f.frame();
+    assert.equal(f.timing.state().agentSeconds,null);
+    assert.equal(f.timing.state().details.find(x=>x.label==='PC 실행 전후·통신·화면 처리 (잔여)').seconds,23);
+  }
+});
+
+test('saved results and resumed requests do not subtract historical PC duration from the new click',()=>{
+  for(const source of ['saved_recalculate','resume_existing']){
+    const f=fixture(),t=f.timing.start({mode:source,activeRequestId:source==='resume_existing'?'saved':null});
+    f.advance(100);f.timing.finish(t,{requestId:'saved',source,controllerSeconds:77,reportTiming:{agent:{schemaVersion:1,collectorFinishedSeconds:99}}});f.frame();f.frame();
+    assert.equal(f.timing.state().details.some(x=>x.label.includes('잔여')),false);
+    if(source==='saved_recalculate')assert.deepEqual(f.timing.state().details,[]);
+  }
+});

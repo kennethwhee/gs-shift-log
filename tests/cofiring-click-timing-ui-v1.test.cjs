@@ -16,7 +16,7 @@ function fixtureReference(spec){
   const p=core.periodRange(spec.startLocal,spec.endLocal,spec.stepUnit,spec.stepValue);
   return {kind:'cofiring_period_summary_v1',schemaVersion:1,...spec,summaries:core.requiredSeries.map(d=>({key:d.id,unit:d.unit,fuel:d.fuel,tag:d.queryTag,startValue:100,endValue:112,min:100,max:112,delta:12,usageTon:12,startQuality:'Good',endQuality:'Good',startTime:p.start,endTime:p.end,durationGoodSeconds:p.durationMinutes*60,durationBadSeconds:0,boundaryValid:true,durationCoverageValid:true}))};
 }
-function mounted({savedId=null}={}){
+function mounted({savedId=null,agentTiming=null}={}){
   const h={auth:'Bearer test-user-a',settingsGate:null,manualGate:null,loadGate:null,queryGate:null,savedId,loads:[],posts:[],events:[],clock:100,timers:new Map(),frames:new Map(),timing:null};
   let serial=0,liveOptions,liveState={authenticated:true,canQuery:true,period:null,item:{saved:null,result:null,active:null,lastAttempt:null,loading:false,submitting:false,error:''}};
   const container=new Element();
@@ -27,7 +27,7 @@ function mounted({savedId=null}={}){
     return {state:()=>state,defaults:()=>settings,select(...values){const next=JSON.stringify(values);if(next!==selected){selected=next;state.loaded=false;}},async load(){h.events.push(kind+'.load');state.loading=true;const gate=h[kind+'Gate'];if(gate)await gate.promise;state.loaded=true;state.loading=false;options.onChange();return true;},dispose(){},save:async()=>true};
   }
   function emit(){liveOptions.onChange(liveState);}
-  function result(id){return {requestId:id,report:{...inventoryReport(fixtureReference(liveState.period)),queryElapsedSeconds:6.374,workerElapsedSeconds:26.499,timing:{controllerElapsedSeconds:28.155}}};}
+  function result(id){return {requestId:id,report:{...inventoryReport(fixtureReference(liveState.period)),queryElapsedSeconds:6.374,workerElapsedSeconds:26.499,timing:{controllerElapsedSeconds:28.155,...(agentTiming?{agent:agentTiming}:{})}}};}
   function save(id){liveState.item.saved={id,status:'complete'};liveState.item.result=result(id);}
   const live={
     state:()=>liveState,
@@ -110,6 +110,17 @@ test('double click during asynchronous work preserves original measurement and m
   await h.find('cfv5-query').fire('click');assert.equal(h.loads.length,1);assert.equal(h.posts.length,0);
   h.loadGate.resolve();await first;assert.equal(h.posts.length,1);h.complete('request-1');h.frame();h.frame();
   assert.equal(h.timing.state().status,'complete');assert.equal(h.timing.state().elapsedMs,782);h.controller.dispose();
+});
+
+test('UI displays completed Agent duration and labels legacy reports as partial query-cleanup time',async()=>{
+  for(const [agentTiming,label]of [[{schemaVersion:1,collectorFinishedSeconds:99.4318097},/회사 PC 99\.4초/],[null,/조회·정리 28\.2초/]]){
+    const h=mounted({agentTiming});await h.ready();await h.find('cfv5-query').fire('click');h.clock+=101000;
+    h.complete('request-1');h.frame();h.frame();
+    assert.match(h.find('cfv7-click-timing').textContent,label);
+    if(agentTiming)assert.match(h.find('cfv7-stage-timing').textContent,/회사 PC 전체 \(시작·후처리 포함\): 99\.43초/);
+    else assert.doesNotMatch(h.find('cfv7-click-timing').textContent,/회사 PC/);
+    h.controller.dispose();
+  }
 });
 test('an immediately failed request is terminal even before its ID is accepted by the click timer',async()=>{
   const h=mounted();await h.ready();h.queryImmediateFailed=true;

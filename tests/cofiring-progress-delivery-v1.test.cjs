@@ -24,6 +24,7 @@ function harness(t,{postProgress,spawnError,pid=777,collectorOptions={}}={}){
   t.after(()=>{for(const c of children)if(!c.closed){c.stdout.end();c.stderr.end();c.emit('close',1,null);}fs.rmSync(root,{recursive:true,force:true});});
   const collect=agent.createCofiringPeriodCollector({platform:'win32',runsDirectory:root,log:line=>logs.push(line),...collectorOptions,spawnProcess:(executable,args,options)=>{
     launches++;assert.match(executable,/WindowsPowerShell/);assert.equal(options.shell,false);assert.equal(options.windowsHide,true);
+    assert.ok(args.includes('-SkipDiagnosticArchive'),'live collection retains diagnostics without blocking on ZIP packaging');
     if(spawnError)throw spawnError;
     const child=new EventEmitter();child.pid=pid;child.stdout=new PassThrough();child.stderr=new PassThrough();child.dir=args[args.indexOf('-OutputDirectory')+1];
     child.once('close',()=>{child.closed=true;});children.push(child);return child;

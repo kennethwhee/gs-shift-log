@@ -83,7 +83,7 @@ function createCofiringCollector(options={}) {
 const collectCofiringDailyValues=createCofiringCollector();
 
 const COFIRING_PERIOD_REQUEST_TYPE=contract.PERIOD_TYPE;
-const PERIOD_CONTROLLER_SHA256='5ca73f45c7a8ed957797eb44ad3169afec85724f8debf3bea3c87bd7352ab20c';
+const PERIOD_CONTROLLER_SHA256='e8309a9ee01f11908f02390f5e4cf39ab932a2b546f162092dc2ea53e05807e7';
 const PERIOD_WORKER_SHA256='a84b83ea1f024e779414ac647d3ad3dda7b0bc19888e91a6b18f90b53d1413aa';
 // Leave room for the bounded startup/query watchdog, owned-process cleanup,
 // controller/report overhead and server delivery within the existing request lease.
@@ -185,7 +185,7 @@ function createCofiringPeriodCollector(options={}) {
     let launched=false;
     try{
       await new Promise((resolve,reject)=>{
-        const args=['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',controller,'-Start',spec.startLocal,'-End',spec.endLocal,'-StepUnit',spec.stepUnit,'-StepValue',String(spec.stepValue),'-OutputDirectory',dir];
+        const args=['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',controller,'-Start',spec.startLocal,'-End',spec.endLocal,'-StepUnit',spec.stepUnit,'-StepValue',String(spec.stepValue),'-OutputDirectory',dir,'-SkipDiagnosticArchive'];
         markAgent('beforeSpawnSeconds');
         const child=spawnProcess(executable,args,{windowsHide:true,shell:false,stdio:['ignore','pipe','pipe'],cwd:path.dirname(controller)});
         markAgent('spawnReturnedSeconds');

@@ -14,6 +14,7 @@ param(
   [ValidateSet('minute','hour','day')][string]$StepUnit = 'hour',
   [ValidateRange(1,1440)][int]$StepValue = 1,
   [string]$OutputDirectory = '',
+  [switch]$SkipDiagnosticArchive,
   [switch]$ValidateOnly
 )
 $controllerClock=[Diagnostics.Stopwatch]::StartNew()
@@ -199,6 +200,7 @@ function Get-ControllerTimingSnapshot {
     elapsedBasis='monotonic_since_first_controller_statement'
     marksSeconds=$marks;durationsSeconds=$durations;processLookup=$lookups
     workerExitUtc=$script:workerExitUtc;archiveSucceeded=$script:archiveSucceeded
+    archivePolicy=$(if($SkipDiagnosticArchive){'on_demand'}else{'automatic'})
   }
   } catch { return $null }
 }
@@ -666,6 +668,27 @@ function Save-FastControllerReport {
   }
 }
 
+# COFIRING_PHASE2_ON_DEMAND_ARCHIVE: diagnostic files remain available in the run directory.
+# Agent callers opt out of packaging; standalone diagnostic runs retain automatic ZIP creation.
+function Complete-CofiringDiagnosticArchive {
+  if (-not $outputReady -or -not [IO.Directory]::Exists($OutputDirectory)) { return }
+  if ($SkipDiagnosticArchive) {
+    Set-ControllerTimingMark 'archive_skipped'
+    [Console]::WriteLine('진단 원본 폴더: '+$OutputDirectory+' / ZIP은 필요할 때 수집합니다.')
+    return
+  }
+  try {
+    Set-ControllerTimingMark 'archive_begin'
+    $script:archiveSucceeded=$false
+    $resultZipPath=$OutputDirectory+'.zip'
+    if (Test-Path -LiteralPath $resultZipPath) { Remove-Item -LiteralPath $resultZipPath -Force }
+    Compress-Archive -Path (Join-Path $OutputDirectory '*') -DestinationPath $resultZipPath -CompressionLevel Optimal
+    $script:archiveSucceeded=$true
+    [Console]::WriteLine('결과 ZIP: '+$resultZipPath)
+  } catch { [Console]::WriteLine('[경고] 결과 ZIP 생성 실패: '+$_.Exception.Message) }
+  finally { Set-ControllerTimingMark 'archive_end' }
+}
+
 try {
   $period=Resolve-CofiringPeriod $Start $End $StepUnit $StepValue
   $parsedStart=$period.Start;$parsedEnd=$period.End
@@ -842,18 +865,7 @@ try {
     Set-ControllerTimingMark 'report_build_begin'
     Save-FastControllerReport
     Set-ControllerTimingMark 'report_write_end'
-    if ($outputReady -and [IO.Directory]::Exists($OutputDirectory)) {
-      try {
-        Set-ControllerTimingMark 'archive_begin'
-        $archiveSucceeded=$false
-        $resultZipPath=$OutputDirectory+'.zip'
-        if (Test-Path -LiteralPath $resultZipPath) { Remove-Item -LiteralPath $resultZipPath -Force }
-        Compress-Archive -Path (Join-Path $OutputDirectory '*') -DestinationPath $resultZipPath -CompressionLevel Optimal
-        $archiveSucceeded=$true
-        [Console]::WriteLine('결과 ZIP: '+$resultZipPath)
-      } catch { [Console]::WriteLine('[경고] 결과 ZIP 생성 실패: '+$_.Exception.Message) }
-      finally { Set-ControllerTimingMark 'archive_end' }
-    }
+    Complete-CofiringDiagnosticArchive
     Write-ControllerTimingDiagnostic
   }
 }

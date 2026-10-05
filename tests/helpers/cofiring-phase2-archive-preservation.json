@@ -1,0 +1,25 @@
+{
+  "marker": "COFIRING_PHASE2_ON_DEMAND_ARCHIVE",
+  "rules": [
+    {
+      "from": "  [string]$OutputDirectory = '',\n  [switch]$ValidateOnly",
+      "to": "  [string]$OutputDirectory = '',\n  [switch]$SkipDiagnosticArchive,\n  [switch]$ValidateOnly",
+      "count": 1
+    },
+    {
+      "from": "    workerExitUtc=$script:workerExitUtc;archiveSucceeded=$script:archiveSucceeded\n",
+      "to": "    workerExitUtc=$script:workerExitUtc;archiveSucceeded=$script:archiveSucceeded\n    archivePolicy=$(if($SkipDiagnosticArchive){'on_demand'}else{'automatic'})\n",
+      "count": 1
+    },
+    {
+      "from": "try {\n  $period=Resolve-CofiringPeriod $Start $End $StepUnit $StepValue",
+      "to": "# COFIRING_PHASE2_ON_DEMAND_ARCHIVE: diagnostic files remain available in the run directory.\n# Agent callers opt out of packaging; standalone diagnostic runs retain automatic ZIP creation.\nfunction Complete-CofiringDiagnosticArchive {\n  if (-not $outputReady -or -not [IO.Directory]::Exists($OutputDirectory)) { return }\n  if ($SkipDiagnosticArchive) {\n    Set-ControllerTimingMark 'archive_skipped'\n    [Console]::WriteLine('진단 원본 폴더: '+$OutputDirectory+' / ZIP은 필요할 때 수집합니다.')\n    return\n  }\n  try {\n    Set-ControllerTimingMark 'archive_begin'\n    $script:archiveSucceeded=$false\n    $resultZipPath=$OutputDirectory+'.zip'\n    if (Test-Path -LiteralPath $resultZipPath) { Remove-Item -LiteralPath $resultZipPath -Force }\n    Compress-Archive -Path (Join-Path $OutputDirectory '*') -DestinationPath $resultZipPath -CompressionLevel Optimal\n    $script:archiveSucceeded=$true\n    [Console]::WriteLine('결과 ZIP: '+$resultZipPath)\n  } catch { [Console]::WriteLine('[경고] 결과 ZIP 생성 실패: '+$_.Exception.Message) }\n  finally { Set-ControllerTimingMark 'archive_end' }\n}\n\ntry {\n  $period=Resolve-CofiringPeriod $Start $End $StepUnit $StepValue",
+      "count": 1
+    },
+    {
+      "from": "    if ($outputReady -and [IO.Directory]::Exists($OutputDirectory)) {\n      try {\n        Set-ControllerTimingMark 'archive_begin'\n        $archiveSucceeded=$false\n        $resultZipPath=$OutputDirectory+'.zip'\n        if (Test-Path -LiteralPath $resultZipPath) { Remove-Item -LiteralPath $resultZipPath -Force }\n        Compress-Archive -Path (Join-Path $OutputDirectory '*') -DestinationPath $resultZipPath -CompressionLevel Optimal\n        $archiveSucceeded=$true\n        [Console]::WriteLine('결과 ZIP: '+$resultZipPath)\n      } catch { [Console]::WriteLine('[경고] 결과 ZIP 생성 실패: '+$_.Exception.Message) }\n      finally { Set-ControllerTimingMark 'archive_end' }\n    }\n",
+      "to": "    Complete-CofiringDiagnosticArchive\n",
+      "count": 1
+    }
+  ]
+}

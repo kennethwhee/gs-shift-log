@@ -9,7 +9,7 @@
     const cancelFrame=options.cancelAnimationFrame||root.cancelAnimationFrame?.bind(root);
     let sequence=0,token=null,disposed=false,startedMono=0,tick=null,frames=[],finishGuard=null;
     let value=empty();
-    function empty(){return {status:'idle',mode:'',period:null,startedAt:null,finishedAt:null,elapsedMs:0,phase:'',pendingRequest:false,expectedRequestId:null,previousRequestId:null,requestId:null,source:null,querySeconds:null,workerSeconds:null,controllerSeconds:null,reason:null,marks:{},details:[]};}
+    function empty(){return {status:'idle',mode:'',period:null,startedAt:null,finishedAt:null,elapsedMs:0,phase:'',pendingRequest:false,expectedRequestId:null,previousRequestId:null,requestId:null,source:null,querySeconds:null,workerSeconds:null,controllerSeconds:null,agentSeconds:null,reason:null,marks:{},details:[]};}
     function state(){return {...value,period:value.period?{...value.period}:null,marks:{...value.marks},details:value.details.map(row=>({...row}))};}
     function emit(){if(!disposed){try{options.onChange?.(state());}catch(_){}}}
     function stamp(){try{const t=utcNow();return t instanceof Date?t.toISOString():String(t);}catch(_){return null;}}
@@ -18,6 +18,12 @@
     function id(v){return typeof v==='string'&&v.length>0&&v.length<=128?v:null;}
     function spec(p){if(!p||typeof p!=='object')return null;const out={};for(const k of ['startLocal','endLocal','stepUnit'])if(typeof p[k]==='string')out[k]=p[k];if(Number.isFinite(p.stepValue))out.stepValue=p.stepValue;return out;}
     function seconds(v){return typeof v==='number'&&Number.isFinite(v)&&v>=0?v:null;}
+    // The controller's clock excludes process startup and post-report packaging.
+    // Only a completed Agent measurement can represent the full PC collection.
+    function agentSeconds(data){
+      const agent=data.reportTiming?.agent,n=seconds(agent?.collectorFinishedSeconds),controller=seconds(data.controllerSeconds);
+      return agent?.schemaVersion===1&&n!==null&&n<=86400&&(controller===null||n>=controller)?n:null;
+    }
     function active(){return value.status==='running'||value.status==='finishing';}
     function matches(t){return !disposed&&t!==null&&t===token&&active();}
     function clearWork(){if(tick!==null){clearTimer?.(tick);tick=null;}for(const f of frames){if(f.kind==='frame')cancelFrame?.(f.handle);else clearTimer?.(f.handle);}frames=[];finishGuard=null;}
@@ -55,6 +61,12 @@
       const saved=data.saved||{},requested=Date.parse(saved.requestedAt),started=Date.parse(saved.startedAt);
       if(Number.isFinite(requested)&&Number.isFinite(started)&&started>=requested&&started-requested<=3600000)add('서버 접수 → Agent 배정', (started-requested)/1000);
       const timing=data.reportTiming||{},stage=timing.agent?.workerStages||{};
+      const wholePc=agentSeconds(data);
+      add('회사 PC 전체 (시작·후처리 포함)',wholePc);
+      if(wholePc!==null){
+        add('  조회·정리 (PC 전체에 포함)',data.controllerSeconds);
+        if(seconds(data.controllerSeconds)!==null)add('  PC 시작·후처리 (PC 전체에 포함)',wholePc-data.controllerSeconds);
+      }
       const phases=Array.isArray(timing.worker?.workerPhases)?timing.worker.workerPhases:[];
       const sums=name=>{const matches=phases.filter(p=>p?.name===name&&p.outcome==='complete'&&seconds(p.elapsedSeconds)!==null);return matches.length?matches.reduce((n,p)=>n+p.elapsedSeconds,0):null;};
       add('Excel 준비',seconds(stage.preparationSeconds));
@@ -66,7 +78,8 @@
       add('진행상태 전송 마무리 (PC 처리에 포함)',seconds(timing.agent?.progressDrainSeconds));
       add('완료 관측 → 결과 수신',delta(m.complete_seen,m.result_received));
       add('결과 수신 → 화면 반영',delta(m.result_received,value.elapsedMs));
-      if(data.source==='new_query'&&seconds(data.controllerSeconds)!==null&&value.elapsedMs/1000>=data.controllerSeconds)add('PC 실행 전후·통신·화면 처리 (잔여)',value.elapsedMs/1000-data.controllerSeconds);
+      const pcBasis=wholePc??seconds(data.controllerSeconds);
+      if(data.source==='new_query'&&pcBasis!==null&&value.elapsedMs/1000>=pcBasis)add(wholePc!==null?'요청·전송·화면 처리 (잔여)':'PC 실행 전후·통신·화면 처리 (잔여)',value.elapsedMs/1000-pcBasis);
       return rows;
     }
     function resultMatches(data){const actual=id(data?.requestId);if(value.pendingRequest)return false;if(value.expectedRequestId&&actual!==value.expectedRequestId)return false;if(value.mode==='forced_requery'&&value.previousRequestId&&actual===value.previousRequestId)return false;return true;}
@@ -80,7 +93,7 @@
     }
     function finish(t,data={},guardFn){
       if(!current(t)||value.status!=='running'||!resultMatches(data)||!guardPasses(guardFn))return false;
-      const result={requestId:id(data.requestId),source:typeof data.source==='string'?data.source:null,querySeconds:seconds(data.querySeconds),workerSeconds:seconds(data.workerSeconds),controllerSeconds:seconds(data.controllerSeconds)};
+      const result={requestId:id(data.requestId),source:typeof data.source==='string'?data.source:null,querySeconds:seconds(data.querySeconds),workerSeconds:seconds(data.workerSeconds),controllerSeconds:seconds(data.controllerSeconds),agentSeconds:agentSeconds(data)};
       value.status='finishing';finishGuard=guardFn;elapsed();emit();
       // Two foreground animation opportunities approximate screen update. This
       // is not a measurement of the display's physical paint completion.
