@@ -1,0 +1,188 @@
+/* COFIRING_LAYOUT_FINAL_V1
+   Desktop presentation only.
+   No calculation, query, source, close-data, adjustment or storage changes. */
+
+@media screen and (min-width: 1100px) {
+  /* =========================================================
+     QUERY BOX
+
+     Keep the range block in its existing grid slot so sibling controls do
+     not move, but collapse its layout height to zero and lift the visible
+     two-line text into the unused upper-right space.
+     ========================================================= */
+  #efficiencyCofiringDraftView
+  .cofiring-period-v5.cfv7-daily-date
+  .cfv7-daily-range {
+    position: relative !important;
+    top: -31px !important;
+    z-index: 2 !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    gap: 1px !important;
+    overflow: visible !important;
+    align-self: start !important;
+    align-items: flex-end !important;
+    text-align: right !important;
+    pointer-events: none !important;
+  }
+
+  #efficiencyCofiringDraftView
+  .cofiring-period-v5.cfv7-daily-date
+  .cfv7-daily-range > span {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 10px !important;
+    line-height: 1.05 !important;
+    text-align: right !important;
+    white-space: nowrap !important;
+  }
+
+  #efficiencyCofiringDraftView
+  .cofiring-period-v5.cfv7-daily-date
+  .cfv7-daily-range > output {
+    width: 100% !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 1px 0 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    justify-content: flex-end !important;
+    color: #18364d !important;
+    font-size: 11px !important;
+    line-height: 1.1 !important;
+    text-align: right !important;
+    white-space: nowrap !important;
+  }
+
+  /* Once the range row is collapsed, reduce the remaining lower whitespace. */
+  #efficiencyCofiringDraftView
+  .cofiring-period-v5.cfv11-status-ui
+  .cfv11-status-row {
+    margin-top: 4px !important;
+    padding-top: 6px !important;
+  }
+
+  /* =========================================================
+     UNIT TARGET FOOTER
+
+     LEFT:
+       Bio 목표 | required t/h | 마감까지 필요 투입량
+
+     RIGHT:
+       10-07 00:01 마감 기준 | 계산 근거
+     ========================================================= */
+  #efficiencyCofiringDraftView
+  .cofiring-period-v5
+  .cfv10-target {
+    display: grid !important;
+    grid-template-columns:
+      auto
+      auto
+      auto
+      minmax(16px, 1fr)
+      auto
+      auto !important;
+    align-items: center !important;
+    column-gap: 7px !important;
+    row-gap: 3px !important;
+  }
+
+  #efficiencyCofiringDraftView
+  .cofiring-period-v5
+  .cfv10-target > .cfv10-target-head {
+    display: contents !important;
+  }
+
+  #efficiencyCofiringDraftView
+  .cofiring-period-v5
+  .cfv10-target .cfv-target-inline {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    min-width: 0 !important;
+  }
+
+  #efficiencyCofiringDraftView
+  .cofiring-period-v5
+  .cfv10-target > .cfv10-target-main {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    justify-self: start !important;
+    margin: 0 !important;
+    min-width: 0 !important;
+  }
+
+  #efficiencyCofiringDraftView
+  .cofiring-period-v5
+  .cfv10-target .cfv10-target-deadline {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+    justify-self: start !important;
+    margin: 0 !important;
+    text-align: left !important;
+    white-space: nowrap !important;
+  }
+
+  #efficiencyCofiringDraftView
+  .cofiring-period-v5
+  .cfv10-target > .cfv10-target-warning {
+    grid-column: 5 !important;
+    grid-row: 1 !important;
+    justify-self: end !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    min-width: 0 !important;
+    text-align: right !important;
+    white-space: nowrap !important;
+  }
+
+  #efficiencyCofiringDraftView
+  .cofiring-period-v5
+  .cfv10-target > .cfv10-target-details:not([open]) {
+    grid-column: 6 !important;
+    grid-row: 1 !important;
+    justify-self: end !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    white-space: nowrap !important;
+  }
+
+  #efficiencyCofiringDraftView
+  .cofiring-period-v5
+  .cfv10-target > .cfv10-target-details:not([open]) > summary {
+    margin: 0 !important;
+    padding: 0 !important;
+    white-space: nowrap !important;
+  }
+
+  #efficiencyCofiringDraftView
+  .cofiring-period-v5
+  .cfv10-target > .cfv10-target-details[open] {
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+    margin-top: 4px !important;
+  }
+}
+
+/* At narrower desktop widths, keep existing flow to avoid control overlap. */
+@media screen and (min-width: 901px) and (max-width: 1099px) {
+  #efficiencyCofiringDraftView
+  .cofiring-period-v5.cfv7-daily-date
+  .cfv7-daily-range {
+    gap: 2px !important;
+    text-align: right !important;
+    align-items: flex-end !important;
+  }
+
+  #efficiencyCofiringDraftView
+  .cofiring-period-v5.cfv7-daily-date
+  .cfv7-daily-range > output {
+    min-height: 24px !important;
+    padding-block: 2px !important;
+    justify-content: flex-end !important;
+    text-align: right !important;
+  }
+}

@@ -63,18 +63,3 @@
   .cfv7-daily-date .cfv8-period-fields { grid-template-columns: minmax(0,1fr); }
   .cfv7-daily-date .cfv8-period-fields:not([hidden]) ~ .cfv7-daily-range { grid-column: 1 / -1; }
 }
-
-/* COFIRING_TARGET_DEADLINE_RIGHT_ALIGN_V1
-   Keep "마감까지 필요 투입량" at the far right of the target header row. */
-.cofiring-period-v5 .cfv10-target-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.cofiring-period-v5 .cfv10-target-head .cfv10-target-deadline {
-  margin-left: auto;
-  text-align: right;
-  white-space: nowrap;
-}
