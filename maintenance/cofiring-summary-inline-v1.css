@@ -1,12 +1,12 @@
-/* COFIRING_SUMMARY_INLINE_V1_R5 / 20261006
- * Approved preview: 64px colored ratios, 46px fuels and inline target metadata.
+/* COFIRING_SUMMARY_INLINE_V1_R6_COMPACT / 20261006
+ * Compact outlined results: 56px ratios, 40px fuels and neutral Bio target strip.
  * Existing elements, values, event handlers and calculation logic stay in place.
  */
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv52-metrics {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.25fr);
   grid-template-rows: auto;
   gap: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv52-metrics > .cfv52-metric {
   display: flex;
@@ -17,9 +17,9 @@
   grid-column: auto;
   grid-row: 1;
   min-width: 0;
-  min-height: 64px;
+  min-height: 56px;
   box-sizing: border-box;
-  padding: 10px;
+  padding: 8px;
   margin: 0;
   text-align: left;
   background: var(--cf-summary-bg);
@@ -90,8 +90,8 @@
   #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv52-metrics > .cfv52-metric:nth-child(n) {
     grid-column: 1;
     grid-row: auto;
-    min-height: 64px;
-    padding-block: 10px;
+    min-height: 56px;
+    padding-block: 8px;
   }
   #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv52-metrics > .cfv52-metric-emphasis {
     order: -1;
@@ -115,7 +115,7 @@
 /* Fuel amounts: preserve the two-column ordering and keep names beside values. */
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv10-fuels > .cfv10-fuel-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv10-fuels > .cfv10-fuel-grid > .cfv10-fuel {
   display: flex;
@@ -123,9 +123,9 @@
   justify-content: space-between;
   gap: 8px;
   min-width: 0;
-  min-height: 46px;
+  min-height: 40px;
   box-sizing: border-box;
-  padding: 5px 10px;
+  padding: 4px 8px;
 }
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv10-fuels > .cfv10-fuel-grid > .cfv10-fuel > .cfv10-fuel-label {
   display: inline;
@@ -140,7 +140,7 @@
   flex: 0 0 auto;
   align-items: baseline;
   margin: 0;
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 650;
   line-height: 1.25;
   white-space: nowrap;
@@ -161,14 +161,19 @@
 
 /* Existing goal, value, deadline, warning and disclosure boxes share a wrapping row. */
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target {
+  --cf-ui-target: #f5f7fa;
+  --cf-ui-target-line: #c5cfdb;
+  --cf-ui-mint: #334155;
+  background: var(--cf-ui-target);
+  border-color: var(--cf-ui-target-line);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   column-gap: 8px;
-  row-gap: 6px;
-  min-height: 46px;
+  row-gap: 4px;
+  min-height: 38px;
   box-sizing: border-box;
-  padding: 5px 10px;
+  padding: 4px 8px;
 }
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target > .cfv10-target-head {
   display: contents;
@@ -193,17 +198,17 @@
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target > .cfv10-target-main > .cfv10-target-value {
   display: inline-flex;
   align-items: baseline;
-  font-size: 22px;
+  font-size: 20px;
   line-height: 1.25;
   white-space: nowrap;
 }
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target > .cfv10-target-head > .cfv10-target-deadline {
   order: 3;
   flex: 0 0 auto;
-  margin-left: auto;
+  margin-left: 0;
   align-self: center;
   white-space: nowrap;
-  text-align: right;
+  text-align: left;
 }
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target > p.cfv10-target-warning {
   order: 4;
@@ -212,7 +217,7 @@
   max-width: 100%;
   margin: 0;
   align-self: center;
-  text-align: right;
+  text-align: left;
 }
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target > .cfv10-target-details {
   order: 5;
@@ -241,6 +246,22 @@
   #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target > p.cfv10-target-warning {
     text-align: left;
   }
+}
+
+/* Neutral editor accents stay inside the Bio target strip. */
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target .cfv-target-entry {
+  border-color: #c5cfdb;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target :is([data-cfv-target-apply], [data-cfv-target-cancel]) {
+  border-left-color: #c5cfdb;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target [data-cfv-target-apply] {
+  background: #e7edf3;
+  color: #334155;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target :is([data-cfv-target-apply], [data-cfv-target-cancel]):hover {
+  background: #dce4ec;
+  color: #18324b;
 }
 
 /* COFIRING_COMBINED_SUMMARY_CALM_V1 / 20261006
