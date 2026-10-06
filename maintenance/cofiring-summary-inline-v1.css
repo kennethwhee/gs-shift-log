@@ -1,5 +1,5 @@
-/* COFIRING_SUMMARY_INLINE_V1_R6_COMPACT / 20261006
- * Compact outlined results: 56px ratios, 40px fuels and neutral Bio target strip.
+/* COFIRING_SUMMARY_INLINE_V1_R7_HEIGHTS / 20261006
+ * Requested heights: 64px ratios, 50px fuels; neutral Bio target strip unchanged.
  * Existing elements, values, event handlers and calculation logic stay in place.
  */
 #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv52-metrics {
@@ -17,7 +17,7 @@
   grid-column: auto;
   grid-row: 1;
   min-width: 0;
-  min-height: 56px;
+  min-height: 64px;
   box-sizing: border-box;
   padding: 8px;
   margin: 0;
@@ -90,7 +90,7 @@
   #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv52-metrics > .cfv52-metric:nth-child(n) {
     grid-column: 1;
     grid-row: auto;
-    min-height: 56px;
+    min-height: 64px;
     padding-block: 8px;
   }
   #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv52-metrics > .cfv52-metric-emphasis {
@@ -123,7 +123,7 @@
   justify-content: space-between;
   gap: 8px;
   min-width: 0;
-  min-height: 40px;
+  min-height: 50px;
   box-sizing: border-box;
   padding: 4px 8px;
 }
