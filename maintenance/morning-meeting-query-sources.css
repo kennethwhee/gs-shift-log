@@ -150,3 +150,10 @@
   color: #a04426; background: #fff5ed; border-color: #f3d5c6;
 }
 #efficiencyMorningMeetingAutoPreview #morningMeetingElapsedTime[hidden] { display: none; }
+
+/* MORNING_QUERY_ELAPSED_RIGHT_ALIGN_V1
+   Keep the elapsed/status item on the same action row and push it to the far right. */
+#efficiencyMorningMeetingAutoPreview #morningMeetingElapsedTime {
+  order: 999;
+  margin-left: auto;
+}
