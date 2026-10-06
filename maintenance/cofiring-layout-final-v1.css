@@ -186,3 +186,12 @@
     text-align: right !important;
   }
 }
+
+/* COFIRING_TARGET_UNIT_SPACING_V1
+   Keep the numeric target prominent, but separate the unit visually. */
+#efficiencyCofiringDraftView
+.cofiring-period-v5
+.cfv10-target-value > small {
+  display: inline-block !important;
+  margin-left: 4px !important;
+}
