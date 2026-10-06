@@ -16,3 +16,75 @@
     visibility: hidden !important;
   }
 }
+
+/* COFIRING_CENTERED_LOADING_V1: the status is outside the renderer-owned grid. */
+#efficiencyCofiringDraftView .cofiring-period-v5 [data-cfv-summary-loading] {
+  display: none !important;
+}
+@media screen and (min-width: 901px) {
+  #efficiencyCofiringDraftView .cofiring-period-v5.cfv-summary-final-layout-pending .cfv-results-dark {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  #efficiencyCofiringDraftView .cofiring-period-v5.cfv-summary-final-layout-pending .cfv-results-dark > * {
+    grid-column: 1;
+    min-width: 0;
+  }
+  #efficiencyCofiringDraftView .cofiring-period-v5.cfv-summary-final-layout-pending .cfv-results-dark > .cfv52-summary-head {
+    grid-row: 1;
+  }
+  #efficiencyCofiringDraftView .cofiring-period-v5.cfv-summary-final-layout-pending .cfv-results-dark > [data-cfv-target-home] {
+    grid-row: 2;
+  }
+  #efficiencyCofiringDraftView .cofiring-period-v5.cfv-summary-final-layout-pending .cfv-results-dark > [data-cfv52-summary-grid],
+  #efficiencyCofiringDraftView .cofiring-period-v5.cfv-summary-final-layout-pending .cfv-results-dark > [data-cfv-summary-loading] {
+    grid-row: 3;
+  }
+  #efficiencyCofiringDraftView .cofiring-period-v5.cfv-summary-final-layout-pending .cfv-results-dark > [data-cfv-summary-loading]:not([hidden]) {
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+    justify-self: center;
+    gap: 10px;
+    z-index: 1;
+    box-sizing: border-box;
+    width: min(100%, 560px);
+    padding: 24px 16px;
+    text-align: center;
+    color: #526174;
+  }
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 [data-cfv-summary-loading-title] {
+  color: #18324b;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 [data-cfv-summary-loading-message] {
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-summary-loading-spinner {
+  width: 24px;
+  height: 24px;
+  box-sizing: border-box;
+  border: 2px solid #d0dce5;
+  border-top-color: #087d69;
+  border-radius: 50%;
+  animation: cfv-summary-loading-spin 1s linear infinite;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 [data-cfv-summary-loading][data-tone="error"] .cfv-summary-loading-spinner {
+  display: none;
+}
+@keyframes cfv-summary-loading-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-summary-loading-spinner {
+    animation: none;
+  }
+}

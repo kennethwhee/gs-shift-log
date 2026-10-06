@@ -10,6 +10,9 @@ test('R6 final-ready guard replaces premature renderDisplay reveal',()=>{assert.
 test('final-ready requires adjusted output or both units complete',()=>{assert.match(ui,/function cfvSummaryLayoutFinalReady\(result,adjusted\)/);assert.match(ui,/if\(adjusted\)return true/);assert.match(ui,/coalBioRatio\(u\)!==null/);assert.match(ui,/ratios\.organicGroup/);
   assert.match(ui,/ratios\.total/);assert.match(ui,/u\?\.organic\?\.quantity/);
   assert.match(ui,/u\?\.manure\?\.quantity/);});
-test('prepLabel no longer releases on every generic ready state',()=>{const p=slice('prepLabel','renderDisplay');assert.doesNotMatch(p,/tone==='ready'\|\|tone==='error'/);assert.doesNotMatch(p,/조회 준비 완료/);assert.doesNotMatch(p,/tone==='error'/);
-  assert.doesNotMatch(p,/입력 기준 확인 필요/);});
+test('prepLabel no longer releases on every generic ready or error state',()=>{const p=slice('prepLabel','renderDisplay');
+  const releases=[];
+  const prep=new Function('mobile','container','cfvSummaryLayoutPending','updateSummaryLoading',p+';return prepLabel;')(false,{querySelector:()=>null},active=>releases.push(active),()=>{});
+  prep('조회 준비 완료','ready');prep('계산 완료','ready');prep('입력 기준 확인 필요','error');
+  assert.deepEqual(releases,[],'presentation status must not reveal an unfinished result');});
 test('UI script cache key advances for R6',()=>{assert.match(index,/cofiring-period-ui-v5\.js[^"']*restoreAtomic=20260928-cofiring-restore-final-ready-v6-r3-r6/);});

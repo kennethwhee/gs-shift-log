@@ -145,6 +145,11 @@
         </div>
       </div>
       </div>
+      <div class="cfv-summary-loading" data-cfv-summary-loading role="status" aria-live="polite" aria-atomic="true" hidden>
+        <span class="cfv-summary-loading-spinner" aria-hidden="true"></span>
+        <strong data-cfv-summary-loading-title>결과를 준비하고 있습니다</strong>
+        <span data-cfv-summary-loading-message>잠시만 기다려 주세요. 준비가 끝나면 결과가 자동으로 표시됩니다.</span>
+      </div>
       <div class="cfv52-summary-grid" data-cfv52-summary-grid>${summaryPlaceholder()}</div>
       <p class="cfv-target-feedback" id="cfv-bio-target-feedback" data-cfv-target-feedback role="status" aria-live="polite"></p>
 
@@ -421,7 +426,21 @@
   }
   function safeHours(container){try{return periodSpec(container).durationHours;}catch(_){return 0;}}
   function settingFactor(container,unit,fuel){const n=Number(container.querySelector(`[data-cfv5-coefficient="unit1:${fuel}"]`)?.value);return Number.isFinite(n)?n:null;}
-  function setStatus(container,text,tone=''){const el=container.querySelector('[data-cfv5-status]');if(el){el.textContent=text;el.dataset.tone=tone;}statusRefreshers.get(container)?.();}
+  // COFIRING_CENTERED_LOADING_V1: mirror presentation only; keep the final-ready guard intact.
+  function updateSummaryLoading(container,text,tone=''){
+    const panel=container.querySelector('[data-cfv-summary-loading]');if(!panel)return;
+    panel.hidden=!container.classList.contains('cfv-summary-final-layout-pending');
+    if(typeof text!=='string')return;
+    const error=tone==='error',working=tone==='working';
+    panel.dataset.tone=error?'error':working?'working':'preparing';
+    const title=container.querySelector('[data-cfv-summary-loading-title]');
+    const message=container.querySelector('[data-cfv-summary-loading-message]');
+    const titleText=error?'자료를 확인해 주세요':working?'계산 중입니다':'결과를 준비하고 있습니다';
+    const messageText=error?(text||'상단의 상태와 상세 안내를 확인해 주세요.'):'잠시만 기다려 주세요. 준비가 끝나면 결과가 자동으로 표시됩니다.';
+    if(title&&title.textContent!==titleText)title.textContent=titleText;
+    if(message&&message.textContent!==messageText)message.textContent=messageText;
+  }
+  function setStatus(container,text,tone=''){const el=container.querySelector('[data-cfv5-status]');if(el){el.textContent=text;el.dataset.tone=tone;}updateSummaryLoading(container,text,tone);statusRefreshers.get(container)?.();}
   function updateRange(container){updateModeControls(container);try{const p=periodSpec(container);container.querySelector('[data-cfv5-range]').textContent=queryMode(container)==='daily'?(p.durationHours<24?`${p.targetDate} 현재까지 누적 · 자료 기준 ${p.endLocal.slice(11)} · 계산하기로 현재까지 갱신`:`${p.targetDate} 하루 혼소율 · 24시간 기준`):`선택 기간 ${num(p.durationHours,2)}시간 · 1분 기준 · 종료 누적값 확인을 위해 다음 1분까지 조회`;const out=container.querySelector('[data-cfv7-daily-window]');if(out)out.textContent=`${p.startLocal.replace('T',' ')} ~ ${p.queryEnd.slice(0,16).replace('T',' ')}`;return p;}catch(e){container.querySelector('[data-cfv5-range]').textContent=e.message;const out=container.querySelector('[data-cfv7-daily-window]');if(out)out.textContent=queryMode(container)==='daily'?'계산일을 선택해 주세요.':'시작·종료 날짜와 시간을 확인해 주세요.';return null;}}
   function renderWarnings(container,result){const box=container.querySelector('[data-cfv5-warning-box]'),list=container.querySelector('[data-cfv5-warnings]'),warnings=result?.warnings||[];box.hidden=!warnings.length;list.innerHTML=warnings.map(w=>`<li>${escapeHtml(w)}</li>`).join('');}
   // COFIRING_ACTIVE_ADJUSTMENT_REVERT_WHITE_BOLD_RUNTIME_V3
@@ -880,7 +899,7 @@
       if(feedback){feedback.dataset.tone='';feedback.textContent='적용 전 · 현재 목표 '+targetPercentFor(container)+'%';}
     });
     function prepLabel(text,tone=''){// COFIRING_ADJUSTED_COMPARISON_RESTORE_ATOMIC_RELEASE_V6_R3_R9
-      const cfvPrepText=String(text||'');if(!mobile&&/조회 준비 불가|로그인 필요|저장값 확인 실패/.test(cfvPrepText))cfvSummaryLayoutPending(false);const el=container.querySelector('[data-cfv56-prep]');if(el){el.textContent=text;el.dataset.tone=tone;}}
+      const cfvPrepText=String(text||'');if(!mobile&&/조회 준비 불가|로그인 필요|저장값 확인 실패/.test(cfvPrepText))cfvSummaryLayoutPending(false);const el=container.querySelector('[data-cfv56-prep]');if(el){el.textContent=text;el.dataset.tone=tone;}if(tone==='error')updateSummaryLoading(container,cfvPrepText,tone);}
     function renderDisplay(result,{adjusted=false}={}){
       // COFIRING_ADJUSTED_COMPARISON_STATE_V4
       container.__cfvAdjustedComparisonState = adjusted
@@ -890,6 +909,7 @@
     function cfvSummaryLayoutPending(active){
       if(mobile)return;
       container.classList.toggle('cfv-summary-final-layout-pending',!!active);
+      updateSummaryLoading(container,active?'':undefined);
     }
     // COFIRING_ADJUSTED_COMPARISON_RESTORE_FINAL_READY_V6_R3_R6
     function cfvSummaryLayoutFinalReady(result,adjusted){

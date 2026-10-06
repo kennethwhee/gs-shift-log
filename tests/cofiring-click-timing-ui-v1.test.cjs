@@ -17,9 +17,17 @@ function fixtureReference(spec){
   return {kind:'cofiring_period_summary_v1',schemaVersion:1,...spec,summaries:core.requiredSeries.map(d=>({key:d.id,unit:d.unit,fuel:d.fuel,tag:d.queryTag,startValue:100,endValue:112,min:100,max:112,delta:12,usageTon:12,startQuality:'Good',endQuality:'Good',startTime:p.start,endTime:p.end,durationGoodSeconds:p.durationMinutes*60,durationBadSeconds:0,boundaryValid:true,durationCoverageValid:true}))};
 }
 function mounted({savedId=null,agentTiming=null}={}){
-  const h={auth:'Bearer test-user-a',settingsGate:null,manualGate:null,loadGate:null,queryGate:null,savedId,loads:[],posts:[],events:[],clock:100,timers:new Map(),frames:new Map(),timing:null};
+  const h={auth:'Bearer test-user-a',settingsGate:null,manualGate:null,loadGate:null,queryGate:null,savedId,loads:[],posts:[],events:[],clock:100,wallTime:Date.parse('2026-09-15T04:02:00Z'),timers:new Map(),frames:new Map(),timing:null};
   let serial=0,liveOptions,liveState={authenticated:true,canQuery:true,period:null,item:{saved:null,result:null,active:null,lastAttempt:null,loading:false,submitting:false,error:''}};
   const container=new Element();
+  const classes=new Set();
+  container.classList={
+    add(...names){for(const name of names)classes.add(name);},
+    remove(...names){for(const name of names)classes.delete(name);},
+    contains:name=>classes.has(name),
+    toggle(name,force){const active=force===undefined?!classes.has(name):!!force;if(active)classes.add(name);else classes.delete(name);return active;}
+  };
+  h.container=container;
   const settings={};for(const unit of ['unit1','unit2']){settings[unit]={};for(const fuel of ['coal','bio','organic','manure'])settings[unit][fuel]={calorific:fuel==='coal'?5800:fuel==='bio'?3200:3400,coefficient:1};}
   function store(kind,options){
     let selected=null;
@@ -40,8 +48,10 @@ function mounted({savedId=null,agentTiming=null}={}){
   h.complete=id=>{liveState.item.active=null;liveState.item.lastAttempt={id,status:'complete'};save(id);liveOptions.onResult(liveState.item.result);emit();};
   h.seed=id=>{h.savedId=id;save(id);liveOptions.onResult(liveState.item.result);emit();};
   h.emitOld=()=>{if(liveState.item.result)liveOptions.onResult(liveState.item.result);emit();};
+  h.processing=()=>{assert.ok(liveState.item.active,'request exists');liveState.item.active.status='processing';liveState.item.active.progress={phase:'reading'};emit();};
+  h.fail=message=>{assert.ok(liveState.item.active,'request exists');liveState.item.lastAttempt={...liveState.item.active,status:'failed',errorMessage:message};liveState.item.active=null;emit();};
   const setTimer=(f,ms)=>{const id=++serial;h.timers.set(id,{f,ms});return id;},clearTimer=id=>h.timers.delete(id);
-  class FixedDate extends Date{constructor(...args){super(...(args.length?args:['2026-09-15T04:02:00Z']));}static now(){return Date.parse('2026-09-15T04:02:00Z');}}
+  class FixedDate extends Date{constructor(...args){super(...(args.length?args:[h.wallTime]));}static now(){return h.wallTime;}}
   const context=vm.createContext({Date:FixedDate,URLSearchParams,fetch:receiptFetch,console,performance:{now:()=>h.clock},CofiringCore:core,CofiringLive:{createPeriod:options=>{liveOptions=options;return live;}},CofiringCalculationSettingsStorage:{create:options=>store('settings',options)},CofiringPeriodManualStorage:{blank,parseValue:v=>v===''?null:Number(v),create:options=>store('manual',options)},CofiringPeriodAdjustmentV56:{create:()=>null},CofiringTargetReferenceV6:{forUnit:()=>null},getShiftLogAuthHeaders:()=>({Authorization:h.auth}),document:{readyState:'loading',addEventListener(){},getElementById:()=>null,createElement:()=>new Element(),head:{appendChild(){}}},navigator:{userAgent:'desktop'},location:{pathname:'/maintenance/'},setTimeout:setTimer,clearTimeout:clearTimer,requestAnimationFrame:f=>{const id=++serial;h.frames.set(id,f);return id;},cancelAnimationFrame:id=>h.frames.delete(id),confirm:()=>true});
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-click-timing-v1.js'),'utf8'),context);
   const createTiming=context.CofiringClickTimingV1.create;
@@ -139,4 +149,76 @@ test('requery before cached calculation paints starts a fresh measurement and ig
   h.queryGate.resolve();await refresh;assert.equal(h.timing.state().expectedRequestId,'request-1');
   h.clock+=50;h.complete('request-1');h.frame();h.frame();
   assert.equal(h.timing.state().status,'complete');assert.equal(h.timing.state().source,'new_query');assert.equal(h.timing.state().requestId,'request-1');assert.equal(h.timing.state().elapsedMs,82);h.controller.dispose();
+});
+
+test('summary preparation status has live semantics and disappears when saved lookup finds no result',async t=>{
+  const h=mounted();t.after(()=>h.controller.dispose());
+  const loading=h.find('cfv-summary-loading');
+  assert.ok(loading,'permanent loading status exists');
+  assert.equal(loading.getAttribute('role'),'status');
+  assert.equal(loading.getAttribute('aria-live'),'polite');
+  assert.equal(loading.hidden,false);
+  assert.equal(h.container.classList.contains('cfv-summary-final-layout-pending'),true);
+  assert.equal(h.find('cfv-summary-loading-title').textContent,'결과를 준비하고 있습니다');
+  await h.ready();
+  assert.equal(loading.hidden,true);
+  assert.equal(h.container.classList.contains('cfv-summary-final-layout-pending'),false);
+  assert.equal(h.posts.length,0,'preparing the display does not issue a calculation request');
+});
+
+test('Calculate shows one central status through preflight, submitting and processing, then hides it on the final result',async t=>{
+  const h=mounted();t.after(()=>h.controller.dispose());await h.ready();
+  h.wallTime+=60000;h.loadGate=deferred();h.queryGate=deferred();
+  const click=h.find('cfv5-query').fire('click');await flush();
+  const loading=h.find('cfv-summary-loading');
+  assert.equal(loading.hidden,false);
+  assert.equal(h.container.classList.contains('cfv-summary-final-layout-pending'),true);
+  assert.match(h.find('cfv-summary-loading-title').textContent,/^(결과를 준비하고 있습니다|계산 중입니다)$/);
+  assert.equal(h.posts.length,0);
+  h.loadGate.resolve();await flush();
+  assert.equal(h.live.state().item.submitting,true);
+  assert.equal(loading.hidden,false);
+  assert.equal(h.find('cfv-summary-loading-title').textContent,'계산 중입니다');
+  h.queryGate.resolve();await click;
+  assert.equal(h.live.state().item.active.status,'pending');
+  h.processing();
+  assert.equal(loading.hidden,false);
+  assert.equal(h.find('cfv-summary-loading-title').textContent,'계산 중입니다');
+  assert.equal(h.container.querySelectorAll('[data-cfv-summary-loading]').length,1);
+  h.complete('request-1');
+  assert.equal(loading.hidden,true);
+  assert.equal(h.container.classList.contains('cfv-summary-final-layout-pending'),false);
+  assert.ok(h.controller.getResult().units.unit1.coal.quantity>0);
+  assert.equal(h.posts.length,1,'status updates do not create more requests');
+});
+
+test('terminal request failure replaces the central calculating message and changing dates resets that error',async t=>{
+  const h=mounted();t.after(()=>h.controller.dispose());await h.ready();h.wallTime+=60000;
+  await h.find('cfv5-query').fire('click');h.processing();h.fail('Synthetic DataPARC failure');
+  const loading=h.find('cfv-summary-loading');
+  assert.equal(loading.hidden,false);
+  assert.equal(loading.dataset.tone,'error');
+  assert.equal(h.find('cfv-summary-loading-title').textContent,'자료를 확인해 주세요');
+  assert.match(h.find('cfv-summary-loading-message').textContent,/Synthetic DataPARC failure/);
+  assert.equal(h.find('cfv-summary-loading-message').textContent,h.find('cfv5-status').textContent);
+  assert.equal(h.posts.length,1);
+  h.find('cfv7-date').value='2026-09-14';await h.find('cfv7-date').fire('change');
+  assert.equal(loading.hidden,false);
+  assert.notEqual(loading.dataset.tone,'error');
+  assert.equal(h.find('cfv-summary-loading-title').textContent,'결과를 준비하고 있습니다');
+  assert.doesNotMatch(h.find('cfv-summary-loading-message').textContent,/Synthetic DataPARC failure/);
+  h.tick(0);await flush();
+  assert.equal(loading.hidden,true);
+  assert.equal(h.posts.length,1,'date selection only restores saved data');
+});
+
+test('a prerequisite storage failure shows its error centrally without submitting a calculation',async t=>{
+  const h=mounted();t.after(()=>h.controller.dispose());await h.ready();h.wallTime+=60000;
+  h.controller.settings.state().error='Synthetic settings failure';
+  await h.find('cfv5-query').fire('click');
+  assert.equal(h.find('cfv-summary-loading').hidden,false);
+  assert.equal(h.find('cfv-summary-loading').dataset.tone,'error');
+  assert.equal(h.find('cfv-summary-loading-title').textContent,'자료를 확인해 주세요');
+  assert.match(h.find('cfv-summary-loading-message').textContent,/Synthetic settings failure/);
+  assert.equal(h.posts.length,0);
 });

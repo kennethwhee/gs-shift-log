@@ -47,7 +47,9 @@ test('desktop CSS suppresses temporary summary children and preserves footprint'
   assert.match(css,/@media screen and \(min-width: 901px\)/);
   assert.match(css,/cfv-summary-final-layout-pending \[data-cfv52-summary-grid\][\s\S]*?min-height:\s*250px/s);
   assert.match(css,/cfv-summary-final-layout-pending \[data-cfv52-summary-grid\] > \*[\s\S]*?visibility:\s*hidden\s*!important/s);
-  assert.doesNotMatch(css,/display:\s*none\s*!important/);
+  const gridRules=[...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([,selector])=>selector.includes('[data-cfv52-summary-grid]'));
+  assert.ok(gridRules.length>=2,'pending grid and child rules exist');
+  for(const [,selector,declarations]of gridRules)assert.doesNotMatch(declarations,/display:\s*none\s*!important/,selector);
 });
 
 test('R3 R3 stylesheet loads after R2',()=>{
