@@ -197,6 +197,7 @@
   if (!root?.document || root.toNightPower) return;
   const doc = root.document, cache = new Map(), pending = new Map();
   let session = '', generation = 0, selectionStamp = '', uiQueued = false, meetingQueued = false;
+  let meetingSelectionStamp = '';
   let dialog = null, form = null, message = null, modalState = null, busy = false;
   const byId = id => doc.getElementById(id);
   const setText = (element, value) => { if (element && element.textContent !== value) element.textContent = value; };
@@ -215,7 +216,7 @@
     const current = authHeaders().get('Authorization') || '';
     if (current !== session) {
       for (const request of pending.values()) request.controller.abort();
-      cache.clear(); pending.clear(); generation++; session = current; selectionStamp = '';
+      cache.clear(); pending.clear(); generation++; session = current; selectionStamp = ''; meetingSelectionStamp = '';
       if (dialog?.open) { dialog.close(); form.reset(); modalState = null; }
       for (const button of doc.querySelectorAll('[data-to-night-power-button]')) setHidden(button, true);
     }
@@ -233,10 +234,11 @@
     } catch { return {date: '', shift: ''}; }
   }
   function targetDate() {
+    const panelDate = byId('efficiencyMorningMeetingWaterPanel')?.dataset.morningMeetingAutoBaseDate;
+    if (dateValid(panelDate)) return panelDate;
     const selected = root.morningMeetingClosedCofiring?.targetDate?.();
     if (dateValid(selected)) return selected;
-    const panelDate = byId('efficiencyMorningMeetingWaterPanel')?.dataset.morningMeetingAutoBaseDate;
-    return dateValid(panelDate) ? panelDate : '';
+    return '';
   }
   function blocked(date) {
     return root.isMorningMeetingSelectedDateResetActive?.(date) === true ||
@@ -511,13 +513,10 @@
   }
   function renderSolarCumulative(payload) {
     const cumulative = payload?.solarCumulative;
-    if (validCumulative(cumulative?.monthly)) {
-      setText(byId('efficiencyMorningMeetingAutoSolarMonthlyCumulative'),
-        cumulative.monthly.toLocaleString('ko-KR', {maximumFractionDigits: 6}) + ' kWh');
-    }
-    if (validCumulative(cumulative?.yearly)) {
-      setText(byId('efficiencyMorningMeetingAutoSolarYearlyCumulative'),
-        cumulative.yearly.toLocaleString('ko-KR', {maximumFractionDigits: 6}) + ' kWh');
+    for (const [key, suffix] of [['monthly', 'Monthly'], ['yearly', 'Yearly']]) {
+      const value = cumulative?.[key];
+      setText(byId('efficiencyMorningMeetingAutoSolar' + suffix + 'Cumulative'),
+        validCumulative(value) ? value.toLocaleString('ko-KR', {maximumFractionDigits: 6}) + ' kWh' : '-');
     }
   }
   function renderMeeting() {
@@ -539,12 +538,27 @@
       });
 
     const clearVisiblePowerValues = () => {
-      for (const [, , suffix] of FIELDS) setText(byId(PREFIX + suffix), '-');
-      setText(byId('efficiencyMorningMeetingAutoSolarMonthlyCumulative'), '-');
-      setText(byId('efficiencyMorningMeetingAutoSolarYearlyCumulative'), '-');
+      for (const id of [...FIELDS.map(([, , suffix]) => PREFIX + suffix),
+        'efficiencyMorningMeetingAutoSolarMonthlyCumulative', 'efficiencyMorningMeetingAutoSolarYearlyCumulative']) {
+        const element = byId(id);
+        setText(element, '-');
+        if (element?.dataset) {
+          delete element.dataset.rawValue;
+          delete element.dataset.morningCardOverride;
+        }
+      }
     };
 
+    // MORNING_POWER_DATE_SYNC_V1: the header is relabelled by the common date
+    // renderer, so retain the date that actually owns the six displayed values.
+    // Strict same-date D1 fallback renders also stamp this card.
+    const displayedDate = card.dataset.toPowerDate ||
+      String(byId(PREFIX + 'PowerDate')?.textContent || '').match(/20\d{2}-\d{2}-\d{2}/)?.[0];
+    if (displayedDate !== date) clearVisiblePowerValues();
+    card.dataset.toPowerDate = date;
+
     if (blocked(date)) {
+      meetingSelectionStamp = '';
       clearVisiblePowerValues();
       setText(byId(PREFIX + 'PowerDate'), date);
       badge('조회 대기', 'idle');
@@ -552,17 +566,16 @@
       return;
     }
 
-    // MORNING_MEETING_DATE_NAV_SNAPSHOT_ONLY_V1
-    // MORNING_TO_D1_DISPLAY_PRESERVE_V1_R2
-    //
-    // Date movement itself must never erase a D1 snapshot merely because
-    // the TO provider cache is empty. Source loading is explicit only.
-    //
-    // Flow:
-    //  - no cache on date navigation -> keep restored D1/display values
-    //  - explicit load in progress/error -> keep current D1/display values
-    //  - ready + TO row -> render confirmed TO source values
-    //  - ready + no TO row -> preserve independent same-date saved values
+    // Reading a saved TO row is independent of OIS/Excel collection. Fetch once
+    // per visible meeting selection, sharing pending work with the TO input UI.
+    // Same-date confirmed/D1 values stay visible while that read is in flight.
+    const view = byId('efficiencyMorningMeetingView');
+    const visible = !view || (!view.hidden && view.getClientRects().length > 0);
+    const stamp = [session, date].join('||');
+    if (session && visible && stamp !== meetingSelectionStamp) {
+      meetingSelectionStamp = stamp;
+      void load(date, true).catch(() => {});
+    }
     let entry = cache.get(date);
 
     if (session && entry?.payload?.item && entry.status !== 'ready') {
@@ -590,8 +603,8 @@
       if (!entry) {
         badge(hasExisting ? '저장값' : '조회 대기', hasExisting ? 'complete' : 'idle');
         card.title = hasExisting
-          ? `${date} 오전회의 D1 저장값 · 날짜 이동 시 TO 원본 자동조회 안 함`
-          : `${date} 오전회의 저장값 없음 · [전체조회] 또는 명시적 조회 시 TO 원본 확인`;
+          ? `${date} 오전회의 D1 저장값 · 전력 카드 진입 시 TO 원본 확인`
+          : `${date} 오전회의 저장값 없음 · 전력 카드 진입 시 TO 원본 확인`;
         return;
       }
 
@@ -634,6 +647,8 @@
     const date = targetDate(); if (!dateValid(date)) return null;
     const allowBlockedRebuild = options.allowBlockedRebuild === true;
     if (blocked(date) && !allowBlockedRebuild) { redrawMeeting(); return null; }
+    checkSession();
+    meetingSelectionStamp = [session, date].join('||');
     try {
       const payload = await load(date, true);
       return payload;
@@ -654,7 +669,7 @@
     if (entry?.status !== 'ready') throw new Error('TO 전력 저장자료를 확인하지 못했습니다. 전력 카드에서 재조회 후 다시 생성해 주세요.');
     return mergeValues(dailyData, entry.payload, date);
   }
-  root.toNightPower = {version: '20261002-v1-r9-readonly-neutral', targetDate, renderMeeting, refreshMeeting, ensureForWorkbook, valuesForWorkbook,
+  root.toNightPower = {version: '20261009-power-date-sync-v1', targetDate, renderMeeting, refreshMeeting, ensureForWorkbook, valuesForWorkbook,
     refreshDuty: () => { selectionStamp = ''; queueUI(); }};
   function init() {
     // GS_SELECTED_DATE_DELETE_V8_TO_RESET_REPAINT
@@ -675,7 +690,7 @@
     root.addEventListener('storage', event => {
       if (event.key === 'gsShiftLog.currentUser') { checkSession(); queueUI(); redrawMeeting(); }
     });
-    root.addEventListener('focus', () => { selectionStamp = ''; queueUI(); redrawMeeting(); });
+    root.addEventListener('focus', () => { selectionStamp = ''; meetingSelectionStamp = ''; queueUI(); redrawMeeting(); });
     // The existing app dispatches this non-bubbling event on document.
     doc.addEventListener('efficiencyMorningMeetingSteamStatusLoaded', () => { redrawMeeting(); });
     const meetingView = byId('efficiencyMorningMeetingView');
@@ -683,7 +698,8 @@
       let wasVisible = !meetingView.hidden && meetingView.getClientRects().length > 0;
       new MutationObserver(() => {
         const visible = !meetingView.hidden && meetingView.getClientRects().length > 0;
-        if (visible && !wasVisible) redrawMeeting();
+        if (!visible) meetingSelectionStamp = '';
+        if (visible && !wasVisible) { meetingSelectionStamp = ''; redrawMeeting(); }
         wasVisible = visible;
       }).observe(meetingView, {attributes: true, attributeFilter: ['hidden', 'class', 'style', 'aria-hidden']});
     }

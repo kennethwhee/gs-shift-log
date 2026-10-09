@@ -321,7 +321,8 @@
       // A pending current-source read is handled by the DOM status below.
     }
     const badge = text(byId(POWER_PREFIX + "PowerStatus")?.textContent);
-    return /TO 입력 완료|마지막 저장값 유지/.test(badge) &&
+    return byId(POWER_PREFIX + "PowerCard")?.dataset.toPowerDate === date &&
+      /TO 입력 완료|마지막 저장값 유지/.test(badge) &&
       ["GeneratorEcmsGen1", "IsmartReception", "EpowerTransmission", "SolarGeneration"]
         .some(suffix => hasDigits(byId(POWER_PREFIX + suffix)));
   }
@@ -340,6 +341,7 @@
     for (const [key, id] of Object.entries(POWER_IDS)) {
       setText(byId(id), format(values[key], "kWh", 0, 6));
     }
+    setDataset(card, "toPowerDate", date);
     setText(byId(POWER_PREFIX + "PowerDate"), date + " · 기존 저장값");
     setFallbackBadge(byId(POWER_PREFIX + "PowerStatus"), "기존 저장값");
     markFallback(card, true, date + " 기존 자동수치 저장값 · Excel 재조회 없음");

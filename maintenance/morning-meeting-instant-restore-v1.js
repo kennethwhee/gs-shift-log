@@ -17,7 +17,7 @@
 (function installMorningMeetingInstantRestore(root) {
   "use strict";
 
-  const VERSION = "20261003-v1";
+  const VERSION = "20261009-power-date-sync-v1";
   const STORAGE_KEY = "gsShiftLog.morningMeetingDisplaySnapshot.v1";
   const PREVIEW_ID = "efficiencyMorningMeetingAutoPreview";
   const PANEL_ID = "efficiencyMorningMeetingWaterPanel";
@@ -28,6 +28,18 @@
   const MAX_DATES = 45;
   const MIN_COLD_READY_VALUES = 18;
   const MIN_NEW_SNAPSHOT_VALUES = 18;
+  // TO provider and strict D1 fallback own power by source date. Do not replay
+  // old generic display copies that may have been captured after relabelling.
+  const POWER_IDS = new Set([
+    "efficiencyMorningMeetingAutoDailyPowerDate",
+    "efficiencyMorningMeetingAutoDailyPowerStatus",
+    "efficiencyMorningMeetingAutoDailyGeneratorEcmsGen1",
+    "efficiencyMorningMeetingAutoDailyIsmartReception",
+    "efficiencyMorningMeetingAutoDailyEpowerTransmission",
+    "efficiencyMorningMeetingAutoDailySolarGeneration",
+    "efficiencyMorningMeetingAutoSolarMonthlyCumulative",
+    "efficiencyMorningMeetingAutoSolarYearlyCumulative"
+  ]);
   const STATE_CLASSES = Object.freeze([
     "is-loading",
     "is-complete",
@@ -146,6 +158,7 @@
 
   function isEligibleElement(element) {
     if (!(element instanceof root.HTMLElement)) return false;
+    if (POWER_IDS.has(element.id)) return false;
     if (!element.id || !preview?.contains(element)) return false;
     if (["BUTTON", "INPUT", "SELECT", "TEXTAREA", "A", "SCRIPT", "STYLE", "SVG", "PATH"].includes(element.tagName)) {
       return false;
@@ -197,8 +210,8 @@
     const previous = store.entries[date] && typeof store.entries[date] === "object"
       ? store.entries[date]
       : {date, savedAt: 0, elements: {}};
-    const elements = {...(previous.elements || {})};
-    let changed = false;
+    const elements = Object.fromEntries(Object.entries(previous.elements || {}).filter(([id]) => !POWER_IDS.has(id)));
+    let changed = Object.keys(elements).length !== Object.keys(previous.elements || {}).length;
 
     for (const element of preview.querySelectorAll("[id]")) {
       const item = captureElement(element);

@@ -21,10 +21,10 @@ assert.doesNotMatch(source, /\/api\//);
 assert.doesNotMatch(source, /\bfetch\s*\(/);
 assert.doesNotMatch(source, /XMLHttpRequest/);
 
-const loader = /<script\s+src="\/maintenance\/morning-meeting-instant-restore-v1\.js\?v=20261003-v1"\s+defer\s*><\/script>/;
+const loader = /<script\s+src="\/maintenance\/morning-meeting-instant-restore-v1\.js\?v=20261009-power-date-sync-v1"\s+defer\s*><\/script>/;
 assert.match(index, loader);
 
-const instantIndex = index.lastIndexOf("morning-meeting-instant-restore-v1.js?v=20261003-v1");
+const instantIndex = index.lastIndexOf("morning-meeting-instant-restore-v1.js?v=20261009-power-date-sync-v1");
 const legacyIndex = index.lastIndexOf("morning-meeting-legacy-saved-fallback-v1.js");
 const powerIndex = index.lastIndexOf("maintenance/to-night-power.js");
 assert.ok(instantIndex > legacyIndex, "instant restore loader must run after legacy saved fallback");
