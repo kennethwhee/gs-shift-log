@@ -539,7 +539,7 @@ emptyGuide.innerHTML = `
     </div>
 
     <p class="inspection-schedule-table-footnote">
-      * 월간 점검기준 첫주는 1일이 금요일 포함 시 첫주 적용
+      * 월간 점검기준: 월~일 기준, 1일이 월~금이면 해당 주를 첫째 주로 적용 (토·일이면 다음 월요일부터)
     </p>
   `;
 
@@ -2845,7 +2845,7 @@ function buildInspectionScheduleExcelPrintDocument(
 
 
           <p class="excel-footnote">
-            * 월간 점검기준 첫주는 1일이 금요일 포함시 첫주 적용
+            * 월간 점검기준: 월~일 기준, 1일이 월~금이면 해당 주를 첫째 주로 적용 (토·일이면 다음 월요일부터)
           </p>
 
         </main>

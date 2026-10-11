@@ -2433,101 +2433,23 @@ function createInspectionScheduleDate(
 
 
 /* =========================================================
-  월의 주차 계산
-
-  PDF 하단 기준:
-  첫 주는 해당 월의 1일이
-  금요일까지 포함된 주이면 첫째 주로 적용한다.
-
-  따라서:
-  - 1일이 일~금이면 해당 주 = 첫째 주
-  - 1일이 토요일이면 다음 일요일부터 첫째 주
+  월간 점검 주차: 월요일~일요일.
+  1일이 월~금이면 해당 주가 첫째 주,
+  1일이 토~일이면 다음 월요일부터 첫째 주 (앞선 날짜는 0주).
 ========================================================= */
+function getInspectionWeekOfMonth(dateValue) {
+  const date = createInspectionScheduleDate(dateValue);
+  if (!date) return 0;
 
-function getInspectionWeekOfMonth(
-  dateValue
-) {
-  const date =
-    createInspectionScheduleDate(
-      dateValue
-    );
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const firstOffset = (firstDay.getDay() + 6) % 7;
+  const firstMonday = 1 - firstOffset + (firstOffset >= 5 ? 7 : 0);
+  const currentMonday = date.getDate() - (date.getDay() + 6) % 7;
 
-
-  if (
-    !date
-  ) {
-    return 0;
-  }
-
-
-  const year =
-    date.getFullYear();
-
-
-  const monthIndex =
-    date.getMonth();
-
-
-  const firstDay =
-    new Date(
-      year,
-      monthIndex,
-      1
-    );
-
-
-  let firstWeekStart;
-
-
-  /*
-    1일이 토요일이면
-    다음 날인 일요일부터 첫째 주
-  */
-  if (
-    firstDay.getDay() ===
-      6
-  ) {
-    firstWeekStart =
-      new Date(
-        year,
-        monthIndex,
-        2
-      );
-
-  } else {
-    /*
-      1일이 일~금이면
-      1일이 포함된 일요일부터 첫째 주
-    */
-    firstWeekStart =
-      new Date(
-        year,
-        monthIndex,
-        1 -
-        firstDay.getDay()
-      );
-  }
-
-
-  const currentWeekStart =
-    new Date(
-      year,
-      monthIndex,
-      date.getDate() -
-      date.getDay()
-    );
-
-
-  return (
-    Math.floor(
-      (
-        currentWeekStart.getTime() -
-        firstWeekStart.getTime()
-      ) /
-      604800000
-    ) +
-    1
-  );
+  // Calendar-day arithmetic avoids daylight-saving time affecting week counts.
+  return Math.max(0, Math.floor((currentMonday - firstMonday) / 7) + 1);
 }
 
 
