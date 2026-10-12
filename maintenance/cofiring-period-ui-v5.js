@@ -297,8 +297,8 @@
     if(!result){host.innerHTML=summaryPlaceholder(targetPercent);restoreEditor();if(note)note.textContent='DataPARC 조회 전';return;}
     const cards=[];
     for(const [i,unit] of UNITS.entries()){
-      const u=result?.units?.[unit],manualComplete=!!(u?.organic?.complete&&u?.manure?.complete),bioReady=coalBioRatio(u)!==null;
-      cards.push(`<article class="cfv52-card" data-cfv52-unit="${unit}"><header><div class="cfv52-unit-title"><span class="cfv52-unit-number" aria-hidden="true">0${i+1}</span><div><strong>${i+1}호기</strong></div></div><span class="cfv52-card-status${manualComplete&&bioReady?'':' is-waiting'}">${manualComplete&&bioReady?'계산 완료':bioReady?'종합 계산 대기':'조회값 확인'}</span></header><div class="cfv52-metrics">
+      const u=result?.units?.[unit],manualComplete=!!(u?.organic?.complete&&u?.manure?.complete),bioReady=coalBioRatio(u)!==null,provisional=result.organicUsage?.provisionalZero===true;
+      cards.push(`<article class="cfv52-card" data-cfv52-unit="${unit}"><header><div class="cfv52-unit-title"><span class="cfv52-unit-number" aria-hidden="true">0${i+1}</span><div><strong>${i+1}호기</strong></div></div><span class="cfv52-card-status${manualComplete&&bioReady&&!provisional?'':' is-waiting'}">${provisional?'유기성 0t 임시 표시':manualComplete&&bioReady?'계산 완료':bioReady?'종합 계산 대기':'조회값 확인'}</span></header><div class="cfv52-metrics">
         ${summaryMetric('바이오 혼소율',coalBioRatio(u),{ratio:true})}
         ${summaryMetric('유기성 · 축분 혼소율',u?.fuelRatios?.organicGroup,{ratio:true})}
         ${summaryMetric('종합 혼소율',u?.fuelRatios?.total,{ratio:true,emphasis:true})}
@@ -509,7 +509,8 @@
       endTotal,
       unit1,
       unit2,
-      allocationOk
+      allocationOk,
+      {rawUsage=usage,provisionalZero=false,message=''}={}
     ){
       const el=container.querySelector(
         '[data-cfv15-organic-usage]'
@@ -592,20 +593,20 @@
       };
 
       el.dataset.tone=
-        allocationOk
+        allocationOk&&!provisionalZero
           ?'ready'
           :'working';
 
       el.innerHTML=
         '<div class="cfv16-organic-main">'+
           '<strong>유기성 총 '+
-            num(usage,3)+'t'+
+            num(usage,provisionalZero?2:3)+'t'+(provisionalZero?' · 임시 표시':'')+
           '</strong>'+
           ' · 1호기 <b>'+
-            num(unit1,4)+'t'+
+            num(unit1,provisionalZero?2:4)+'t'+
           '</b>'+
           ' / 2호기 <b>'+
-            num(unit2,4)+'t'+
+            num(unit2,provisionalZero?2:4)+'t'+
           '</b>'+
           ' · 50:50 자동배분'+
         '</div>'+
@@ -618,9 +619,10 @@
           ' - 종료재고 '+
           '<b>'+num(endTotal,3)+'t</b>'+
           ' = <strong>'+
-            num(usage,3)+'t'+
+            num(rawUsage,3)+'t'+
           '</strong>'+
         '</div>'+
+        (provisionalZero?'<p class="cfv16-organic-warning" role="status">'+escapeHtml(message)+'</p>':'')+
 
         '<details class="cfv16-organic-detail">'+
           '<summary>A/B/Day 상세</summary>'+
@@ -666,7 +668,7 @@
               ' - '+
               num(endTotal,3)+
               ' = <strong>'+
-                num(usage,3)+'t'+
+                num(rawUsage,3)+'t'+
               '</strong>'+
             '</div>'+
           '</div>'+
@@ -701,7 +703,10 @@
       const daily=queryMode(container)==='daily';
       const receipt=daily?(receiptSyncState.status==='ready'&&receiptSyncState.signature===signature?receiptSyncState.value:null):
         rawReceipt===''?null:Number(rawReceipt);
-      const total=core.organicInventoryUsage(reference,receipt,spec);
+      // COFIRING_ORGANIC_PROVISIONAL_CURRENT_DAY_V1: only today's incomplete daily balance may display a provisional zero.
+      const today=defaultCalculationDate();
+      const allowProvisionalZero=daily&&spec?.startLocal===today+'T00:00'&&spec?.endLocal?.slice(0,10)===today;
+      const total=core.organicInventoryUsage(reference,receipt,spec,{allowProvisionalZero});
       organicUsageState=total;
       let autoChanged=false;
       for(const unit of UNITS){
@@ -721,15 +726,29 @@
         const save=container.querySelector('[data-cfv5-manual-save]');if(save)save.disabled=true;
         return total;
       }
-      if(autoChanged){manualDirty=true;const label=container.querySelector('[data-cfv5-manual-state]');
-        if(label&&!manual?.state()?.saving)label.textContent='유기성 50:50 자동배분 · 미저장';}
+      if(autoChanged)manualDirty=true;
+      const label=container.querySelector('[data-cfv5-manual-state]');
+      if((autoChanged||total.provisionalZero)&&label&&!manual?.state()?.saving)label.textContent=total.provisionalZero?'유기성 0t 임시 표시 · 저장 불가':'유기성 50:50 자동배분 · 미저장';
       const save=container.querySelector('[data-cfv5-manual-save]');
-      if(save)save.disabled=blocked;
+      if(save)save.disabled=blocked||total.provisionalZero===true;
       const {startTotal,endTotal,usage}=total;
       const {unit1,unit2,ok:allocationOk}=total.allocation;
       organicUsageSource('유기성 총 '+num(usage,3)+'t · 1호기 '+num(unit1,4)+'t / 2호기 '+num(unit2,4)+'t · 50:50 자동배분','ready');
-      renderOrganicBoundaryDetail(reference.organicInventory,usage,startTotal,receipt,endTotal,unit1,unit2,allocationOk);
+      renderOrganicBoundaryDetail(reference.organicInventory,usage,startTotal,receipt,endTotal,unit1,unit2,allocationOk,total);
       return total;
+    }
+    function paintOrganicCalculationState(){
+      if(organicUsageState?.provisionalZero){
+        prepLabel('계산 완료 · 유기성 0t 임시 표시','working');
+        setStatus(container,organicUsageState.message,'working');
+        return true;
+      }
+      if(organicUsageState?.ok!==true){
+        prepLabel('유기성 자료 확인 필요','error');
+        setStatus(container,organicUsageState?.message||'유기성 원본 재고 확인이 필요합니다.','error');
+        return true;
+      }
+      return false;
     }
     function validateOrganicAllocationBeforeSave(values){
         if(values?.inputMode==='manual'){
@@ -739,6 +758,7 @@
         }
         const total=updateOrganicInventoryUsage();
         if(!total?.ok)throw new Error(total?.message||'유기성 자동사용량을 확인한 뒤 저장해 주세요.');
+        if(total.provisionalZero)throw new Error(total.message+' 임시 표시값은 저장·마감할 수 없습니다. 입고량과 재고수지를 확인한 뒤 다시 계산해 주세요.');
 
         values.unit1.organic=total.allocation.unit1;
         values.unit2.organic=total.allocation.unit2;
@@ -813,6 +833,7 @@
       else if(item?.submitting||active){parts.push(item?.submitting?'조회 요청 중':active.status==='pending'?'회사 PC 대기 중':liveRequestPresentation(state).progressLabel||'조회 중');tone='working';}
       else if(item?.error||failure){parts.push(hasResult?'조회 실패 · 이전 결과 표시':'조회 실패 · 상세 확인');tone='error';}
       else if(hasResult&&organicUsageState?.ok!==true){parts.push('유기성 자료 확인 필요');tone='error';}
+      else if(hasResult&&organicUsageState?.provisionalZero){parts.push('계산 완료 · 유기성 0t 임시 표시');tone='working';}
       else if(container.querySelector('[data-cfv5-status]')?.dataset.tone==='error'){parts.push('확인 필요 · 상세 확인');tone='error';}
       else if(hasResult){parts.push(displayResult.warnings?.length?'계산 완료 · 자료 확인 필요':'계산 완료');tone='success';}
       else if(item?.loading)parts.push('저장 결과 확인 중');
@@ -1350,7 +1371,7 @@
       queryButton.textContent=presentation.buttonText;
       if(requery)requery.disabled=mobile||!s?.canQuery||!item?.saved||hardBusy||!!active;
       const qualityGapSaved=!!(item?.saved&&reference?.summaries?.some?.(x=>x?.dataComplete===false));
-      const stateText=!s?.authenticated?'로그인 필요':item?.error?item.error:item?.submitting?'요청 등록 중':active?.status==='pending'?'Agent 대기':active?.status==='processing'?presentation.progressLabel:failureMessage?(item?.saved&&reference?'재조회 실패 · 저장값 유지':'조회 실패'):item?.saved&&reference?(!organicUsageState?.ok?'유기성 자료 확인 필요':qualityGapSaved?'경계값 계산 · 품질 공백':'계산 완료'):item?.saved?'결과 확인 중':'저장결과 없음';
+      const stateText=!s?.authenticated?'로그인 필요':item?.error?item.error:item?.submitting?'요청 등록 중':active?.status==='pending'?'Agent 대기':active?.status==='processing'?presentation.progressLabel:failureMessage?(item?.saved&&reference?'재조회 실패 · 저장값 유지':'조회 실패'):item?.saved&&reference?(!organicUsageState?.ok?'유기성 자료 확인 필요':organicUsageState.provisionalZero?'유기성 0t 임시 표시':qualityGapSaved?'경계값 계산 · 품질 공백':'계산 완료'):item?.saved?'결과 확인 중':'저장결과 없음';
       if(state)state.textContent=stateText;
       if(clickTiming&&clickToken&&clickIsCurrent()){
         clickTiming.phase(clickToken,item?.submitting?'요청 등록 중':active?.status==='pending'?'회사 PC 대기':active?.status==='processing'?(presentation.progressLabel||'조회 중'):item?.loading?'결과 확인 중':'화면 반영 중');
@@ -1361,7 +1382,7 @@
       }
       const source=container.querySelector('[data-cfv6-data-source]');
       if(source){const completed=s?.item?.result?.report?.completedAtUtc,date=completed?new Date(completed):null;
-        const basis=(()=>{try{const p=currentSpec(),start=String(p?.startLocal||''),end=String(p?.endLocal||''),m=end.match(/^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2})$/);if(!m)return '자료 기준 확인 필요';const d=new Date(Date.UTC(Number(m[1]),Number(m[2])-1,Number(m[3]),Number(m[4]),Number(m[5]))-60000),pad=n=>String(n).padStart(2,'0'),dateText=`${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}`,timeText=`${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;return dateText!==start.slice(0,10)&&timeText==='00:00'?'자료 기준 하루 전체':`자료 기준 ${timeText}`;}catch(_){return '자료 기준 확인 필요';}})();
+        const basis=(()=>{try{const p=currentSpec(),start=String(p?.startLocal||''),end=String(p?.endLocal||''),m=end.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);if(!m)return '자료 기준 확인 필요';const d=new Date(Date.UTC(Number(m[1]),Number(m[2])-1,Number(m[3]),Number(m[4]),Number(m[5]))),pad=n=>String(n).padStart(2,'0'),dateText=`${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}`,timeText=`${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;return dateText!==start.slice(0,10)&&timeText==='00:00'?'자료 기준 하루 전체':`자료 기준 ${timeText}`;}catch(_){return '자료 기준 확인 필요';}})();
         source.textContent=date&&Number.isFinite(date.getTime())?`저장된 DataPARC 결과 사용 · ${basis} · 조회 완료 ${date.toLocaleString('ko-KR',{timeZone:'Asia/Seoul',hour12:false})} KST${active?' · 최신조회 진행 중':failureMessage?' · 최근 조회 실패':''}`:active?'새 DataPARC 결과를 기다리고 있습니다.':failureMessage?'DataPARC 조회에 실패했습니다. 저장된 결과가 아직 없습니다.':'저장된 DataPARC 결과가 아직 없습니다.';
       }
 
@@ -1371,11 +1392,11 @@
       else if(active?.status==='pending')setStatus(container,'회사 PC Agent 대기 중입니다. 아직 계산 전입니다.','working');
       else if(active?.status==='processing')setStatus(container,presentation.progressMessage,'working');
       else if(failureMessage){prepLabel(item?.saved&&reference?'재조회 실패 · 저장값 유지':'조회 실패','error');setStatus(container,`${failureMessage} ${item?.saved&&reference?'이전 저장 결과를 표시합니다. 새 조회는 [재조회]를 눌러주세요.':'[계산하기]를 누르면 새 조회를 요청합니다.'}`,'error');}
-      else if(item?.saved&&reference&&!organicUsageState?.ok)setStatus(container,organicUsageState?.message||'유기성 재고 자료를 확인해 주세요.','error');
+      else if(item?.saved&&reference&&(!organicUsageState?.ok||organicUsageState.provisionalZero))paintOrganicCalculationState();
       else if(item?.saved&&reference)setStatus(container,qualityGapSaved?'DataPARC 중간 품질 공백이 있어도 시작·종료 누적 경계가 정상인 사용량은 표시합니다. [자료 확인 내용]에서 품질 공백 시간을 확인해 주세요.':lastResult?.warnings?.length?'저장값으로 혼소율을 계산했습니다. 빈칸 축분은 0t로 계산하며 자료 품질 경고는 [자료 확인 내용]에서 확인해 주세요.':'저장된 DataPARC 결과를 불러와 혼소율 계산까지 완료했습니다. 빈칸 축분은 0t로 계산됩니다.','success');
       else if(!item?.saved)setStatus(container,'저장된 결과가 없습니다. [계산하기]를 누르면 현재 표시 기간으로 조회합니다.','');
     }
-    function analyze(){if(!reference)return null;const p=periodSpec(container),setting=readSettings(container),mv=manualForCalculation(readManual(container)),calorifics={unit1:{},unit2:{}},coefficients={unit1:{},unit2:{}};for(const u of UNITS){mv[u].organic=organicUsageState?.ok?organicUsageState.allocation[u]:null;for(const fuel of FUEL_KEYS){calorifics[u][fuel]=setting[u][fuel].calorific;coefficients[u][fuel]=setting[u][fuel].coefficient;}}const result=core.analyzePeriodSummary(reference,{startLocal:p.startLocal,endLocal:p.endLocal,calorifics,coefficients,organic:{start:p.start,end:p.end,unit1:mv.unit1.organic,unit2:mv.unit2.organic},manure:{start:p.start,end:p.end,unit1:mv.unit1.manure,unit2:mv.unit2.manure}});result.organicUsage=organicUsageState;if(!organicUsageState?.ok)result.warnings.push(organicUsageState?.message||'유기성 재고 확인 필요');return result;}
+    function analyze(){if(!reference)return null;const p=periodSpec(container),setting=readSettings(container),mv=manualForCalculation(readManual(container)),calorifics={unit1:{},unit2:{}},coefficients={unit1:{},unit2:{}};for(const u of UNITS){mv[u].organic=organicUsageState?.ok?organicUsageState.allocation[u]:null;for(const fuel of FUEL_KEYS){calorifics[u][fuel]=setting[u][fuel].calorific;coefficients[u][fuel]=setting[u][fuel].coefficient;}}const result=core.analyzePeriodSummary(reference,{startLocal:p.startLocal,endLocal:p.endLocal,calorifics,coefficients,organic:{start:p.start,end:p.end,unit1:mv.unit1.organic,unit2:mv.unit2.organic},manure:{start:p.start,end:p.end,unit1:mv.unit1.manure,unit2:mv.unit2.manure}});result.organicUsage=organicUsageState;if(!organicUsageState?.ok||organicUsageState.provisionalZero)result.warnings.push(organicUsageState?.message||'유기성 재고 확인 필요');return result;}
     function calculate(){
       try{
         updateOrganicInventoryUsage();lastResult=analyze();if(!lastResult)return null;deadlineInputError='';
@@ -1385,7 +1406,7 @@
         renderedRequestId=live?.state()?.item?.saved?.id||null;
         const refreshing=!!live?.state()?.item?.active;prepLabel(refreshing?'저장값 재계산':'계산 완료',refreshing?'working':'ready');
         setStatus(container,refreshing?'저장된 결과와 현재 입력값으로 재계산했습니다. 최신 DataPARC 조회는 진행 중입니다.':adjusted?'선택 기간 혼소율 계산과 저장된 혼소 조정을 적용했습니다.':lastResult.warnings?.length?'혼소율을 계산했습니다. 자료 품질 경고는 [자료 확인 내용]에서 확인해 주세요. 빈칸 축분은 0t로 계산됩니다.':'선택 기간 혼소율 계산이 완료되었습니다. 빈칸 축분은 0t로 계산됩니다.','success');
-        if(!organicUsageState?.ok){prepLabel('유기성 자료 확인 필요','error');setStatus(container,organicUsageState?.message||'유기성 원본 재고 확인이 필요합니다.','error');}
+        paintOrganicCalculationState();
         // Refresh only the persisted adjustment; never issue another DataPARC query.
         void adjustmentSync?.refresh();
         finishClickTiming();return shown;
@@ -1472,8 +1493,13 @@
       const epoch=selectionEpoch,spec=currentSpec(),authKey=String(authHeaders().Authorization||authHeaders().authorization||''),signature=JSON.stringify(spec),stillSelected=()=>!disposed&&epoch===selectionEpoch&&visible()&&JSON.stringify(currentSpec())===signature&&String(authHeaders().Authorization||authHeaders().authorization||'')===authKey;
       token=startClickTiming(live.state().item?.active?'resume_existing':'calculate');live.select(spec);const cached=cachedReference(live.state(),spec);
       if(cached?.organicInventory&&!live.state().item?.active&&selectedStoreKey===storeKey()&&storesReady()){
-        reference=cached;updateOrganicInventoryUsage();const result=calculate();
-        if(result&&organicUsageState?.ok)setStatus(container,'저장된 DataPARC 결과와 현재 입력값으로 즉시 재계산했습니다. 최신 데이터 조회는 [재조회]를 사용하세요.','success');
+        reference=cached;
+        const receiptSignature=JSON.stringify({startLocal:spec.startLocal,endLocal:spec.endLocal});
+        if(queryMode(container)==='daily'&&container.dataset.cfvUsageInputMode!=='manual'&&receiptSyncState.status!=='loading'&&(receiptSyncState.status!=='ready'||receiptSyncState.signature!==receiptSignature)){
+          await syncReceiptTotals();if(!stillSelected())return;
+        }
+        updateOrganicInventoryUsage();const result=calculate();
+        if(result&&organicUsageState?.ok&&!organicUsageState.provisionalZero)setStatus(container,'저장된 DataPARC 결과와 현재 입력값으로 즉시 재계산했습니다. 최신 데이터 조회는 [재조회]를 사용하세요.','success');
         return;
       }
       setStatus(container,'저장된 기간 결과를 먼저 확인하고 있습니다.','working');
@@ -1499,7 +1525,7 @@
       if(!await selectStores()){clickTiming?.fail(token,'계산 기준 확인 실패');return;}if(!stillSelected())return;live.select(spec);const ok=await queryWithBusyRetry({force:true});if(!stillSelected())return;const liveState=live.state();
       if(ok||liveState.item?.active)acceptClickRequest(token);else{clickTiming?.fail(token,'재조회 요청 확인 실패');setStatus(container,liveState.item?.error||'재조회 요청을 시작하지 못했습니다.','error');}
     }}catch(e){clickTiming?.fail(token,'재조회 오류');setStatus(container,e.message,'error');}finally{clickBusy=false;}});
-    adjuster=adjustmentApi?.create({container,getHeaders:authHeaders,getContext:adjustmentContext,onMessage:m=>setStatus(container,m,'error'),onApply:(result)=>{renderDisplay(result,{adjusted:true});notifyPeriodAdjustmentChanged();setStatus(container,'혼소 조정값을 선택기간 계산 화면에 적용했습니다. 원본 DataPARC 저장값은 변경하지 않습니다.','success');},onReset:()=>{if(lastResult){renderDisplay(lastResult,{adjusted:false});notifyPeriodAdjustmentChanged();setStatus(container,'혼소 조정을 원복했습니다. DataPARC 원본 계산값을 표시합니다.','success');}}})||null;
+    adjuster=adjustmentApi?.create({container,getHeaders:authHeaders,getContext:adjustmentContext,onMessage:m=>setStatus(container,m,'error'),onApply:(result)=>{renderDisplay(result,{adjusted:true});notifyPeriodAdjustmentChanged();if(paintOrganicCalculationState())return;setStatus(container,'혼소 조정값을 선택기간 계산 화면에 적용했습니다. 원본 DataPARC 저장값은 변경하지 않습니다.','success');},onReset:()=>{if(lastResult){renderDisplay(lastResult,{adjusted:false});notifyPeriodAdjustmentChanged();if(paintOrganicCalculationState())return;setStatus(container,'혼소 조정을 원복했습니다. DataPARC 원본 계산값을 표시합니다.','success');}}})||null;
     // COFIRING_BIDIRECTIONAL_ADJUSTMENT_CONSUMER_V2
     adjustmentSync=root.CofiringSharedAdjustmentSyncV2?.createCalculatorSync({
       getHeaders:authHeaders,isVisible:visible,
@@ -1508,6 +1534,7 @@
         suspended:disposed||settingsDirty||manualTouched||!!usageEditSnapshot}),
       onResult:(result,state)=>{
         renderDisplay(result,state);
+        if(paintOrganicCalculationState())return;
         setStatus(container,state.adjusted?'공용 혼소조정값을 반영했습니다. 오전회의와 같은 기간의 저장값을 사용합니다.':'공용 혼소조정 원복 상태를 반영했습니다. 원본 계산값을 표시합니다.','success');
       },
       onDeferred:()=>setStatus(container,'편집 중인 입력값을 보호하기 위해 혼소조정 동기화를 보류했습니다. 입력값 저장·원복 후 다시 확인합니다.',''),

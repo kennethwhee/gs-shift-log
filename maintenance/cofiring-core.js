@@ -183,7 +183,7 @@
 
   // Canonical DataPARC inventory only. Missing source data never authorizes reuse
   // of saved manual quantities, and a confirmed zero remains a real zero.
-  function organicInventoryUsage(reference, receipt, selected) {
+  function organicInventoryUsage(reference, receipt, selected, options={}) {
     const fail=(code,message)=>({ok:false,code,message,usage:null,allocation:null});
     const inventory=reference && reference.organicInventory;
     if(!inventory || reference.organicInventoryReady===false) return fail('ORGANIC_INVENTORY_MISSING','유기성 재고 자료 미수신 · 재조회가 필요합니다.');
@@ -203,10 +203,16 @@
     }
     if(!numeric(receipt)) return fail('ORGANIC_RECEIPT_MISSING','선택 기간의 유기성 입고량 확인이 필요합니다.');
     const startTotal=inventory.start.total,endTotal=inventory.end.total,raw=startTotal+receipt-endTotal;
-    if(raw < -0.05) return {...fail('ORGANIC_BALANCE_NEGATIVE','시작재고 + 입고량보다 종료재고가 큽니다. 원본 값을 확인해 주세요.'),startTotal,endTotal,receipt};
+    // Live partial-day display may show a provisional zero while unloading and
+    // inventory timestamps differ. The original balance remains available and
+    // closed-day callers retain the strict default until their data is resolved.
+    const provisionalZero=options?.allowProvisionalZero===true && raw<0;
+    if(raw < -0.05 && !provisionalZero) return {...fail('ORGANIC_BALANCE_NEGATIVE','시작재고 + 입고량보다 종료재고가 큽니다. 원본 값을 확인해 주세요.'),startTotal,endTotal,receipt,rawUsage:raw};
     const usage=Math.max(0,raw),half=Math.round(usage/2*10000)/10000;
     return {ok:true,basis:'dataparc-inventory-balance-v1',startLocal:spec.startLocal,endLocal:spec.endLocal,
-      startTotal,endTotal,receipt,usage,allocation:{unit1:half,unit2:half,total:half*2,diff:usage-half*2,ok:true,mode:'equal-50-50'}};
+      startTotal,endTotal,receipt,rawUsage:raw,provisionalZero,usage,
+      ...(provisionalZero?{code:'ORGANIC_BALANCE_NEGATIVE',message:'원본 사용량 '+raw.toFixed(2)+' t · 0.00 t 임시 표시 · 입고량·재고수지 확인 필요.'}:{}),
+      allocation:{unit1:half,unit2:half,total:half*2,diff:usage-half*2,ok:true,mode:'equal-50-50'}};
   }
 
   // Explicit operator input is separate from the verified automatic balance.
