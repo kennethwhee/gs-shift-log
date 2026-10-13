@@ -2110,7 +2110,8 @@
     const requestedDates = enumerateDates(range.queryStartDate, range.queryEndDate);
     const token = getSessionToken();
     if (state.activeRangeLoad?.sequence === state.loadSequence &&
-        state.activeRangeLoad.key === selectedRangeKey && state.activeRangeLoad.token === token) {
+        state.activeRangeLoad.key === selectedRangeKey && state.activeRangeLoad.token === token &&
+        (!forceRefresh || state.activeRangeLoad.forceRefresh === true)) {
       return;
     }
     const sequence = ++state.loadSequence;
@@ -2127,7 +2128,12 @@
       return;
     }
 
-    state.activeRangeLoad = { key: selectedRangeKey, token, sequence };
+    // A saved-data load may only be waiting for an adjacent day's hourly
+    // support. Promote it when the user explicitly requests minute data for
+    // the selected range; the new sequence discards old browser callbacks.
+    // Existing company jobs are adopted below, and repeated forced clicks
+    // keep this same load instead of creating another request.
+    state.activeRangeLoad = { key: selectedRangeKey, token, sequence, forceRefresh };
     let detailLoaded = false;
     setLoading(true);
     renderEvents();
