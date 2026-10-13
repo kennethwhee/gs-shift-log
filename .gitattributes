@@ -2,3 +2,5 @@
 # Keep their reviewed CRLF bytes on every checkout, independently of core.autocrlf.
 local-tools/ois-agent/cofiring-period-v5/cofiring-period-worker-v5.ps1 text eol=crlf
 local-tools/ois-agent/cofiring-period-v5/run-cofiring-period-v5.ps1 text eol=crlf
+# Preserve the Bed Ash reader's reviewed raw bytes for its pinned SHA-256.
+local-tools/ois-agent/bed-ash-minute-dataparc.ps1 -text

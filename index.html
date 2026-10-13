@@ -196,7 +196,7 @@
   >
   <link
     rel="stylesheet"
-    href="/efficiency/bed-ash-discharge.css?v=20260901-bed-ash-no-period-nav-v6-1"
+    href="/efficiency/bed-ash-discharge.css?v=20260901-bed-ash-no-period-nav-v6-1&amp;minuteDetection=20261013-v1"
   >
   <link
     rel="stylesheet"
@@ -324,7 +324,7 @@
 ></script>
 
 <script
-  src="/efficiency/bed-ash-discharge.js?v=20260912-bed-ash-fast-query-v1"
+  src="/efficiency/bed-ash-discharge.js?v=20260912-bed-ash-fast-query-v1&amp;minuteDetection=20261013-v1"
   defer
 ></script>
 
@@ -10699,8 +10699,8 @@
       <span>BED ASH DISCHARGE</span>
       <h3>Bed Ash 반출</h3>
       <p>
-        1·2호기 Silo 중량이 5.0t 이상 하락하면 반출량으로 기록하고,
-        연속 하락은 실제 시간별 OIS 경계에서 차량 단위로 분리합니다.
+        정밀 조회는 1분 간격 Silo 중량에서 5.0t 이상 하락한 감지 구간을 호기별로 구분합니다.
+        1·2호기 구간이 겹치면 별도 표시하며, 차량별 실제 반출량은 계근 기록과 확인합니다.
       </p>
     </div>
 
@@ -10709,7 +10709,7 @@
       class="secondary-button bed-ash-discharge-refresh-button"
       id="refreshBedAshDischargeButton"
     >
-      누락 OIS 조회
+      정밀 조회
     </button>
   </header>
 

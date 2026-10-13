@@ -12,6 +12,9 @@ const {
 // [ORGANIC-SILO-DATAPARC-V1] Query-only hidden Excel collector.
 const { ORGANIC_SILO_REQUEST_TYPE, collectOrganicSiloDataParcValues } =
   require("./organic-silo-dataparc-agent");
+// [BED-ASH-MINUTE-DATAPARC-V1] Precision first; hourly fallback requires verified cleanup.
+const { collectBedAshWithHourlyFallback, isBedAshExcelBlocked } =
+  require("./bed-ash-minute-dataparc-agent");
 
 const {
   processLogSheetPdfRequest
@@ -11086,6 +11089,7 @@ async function getNextOisAgentLaneRequests(
   config
 ) {
   if (isCofiringExcelBlocked()) throw new Error("혼소율 조회용 Excel 종료 확인이 필요합니다. 추가 Agent 요청을 보류합니다.");
+  if (isBedAshExcelBlocked()) throw new Error("Bed Ash 조회용 Excel 종료 확인이 필요합니다. 추가 Agent 요청을 보류합니다.");
   if (
     config.agentMode ===
       "excel"
@@ -20478,11 +20482,9 @@ if (
     requestType ===
       "bed_ash_level"
   ) {
-    return await collectOisBedAshLevelValues(
-      page,
-      config,
-      targetDate
-    );
+    return await collectBedAshWithHourlyFallback(config, requestItem, {
+      hourly: () => collectOisBedAshLevelValues(page, config, targetDate)
+    });
   }
 
 

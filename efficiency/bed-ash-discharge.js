@@ -21,6 +21,10 @@
   const AUTH_STORAGE_KEY = "gsShiftLog.currentUser";
   const ROUTE_KEY = "bed-ash-discharge";
   const DETECTOR_ALGORITHM_VERSION = "bed-ash-drop-v2";
+  const MINUTE_DETECTOR_ALGORITHM_VERSION = "bed-ash-drop-minute-v1";
+  const CURRENT_DETECTOR_VERSIONS = new Set([
+    DETECTOR_ALGORITHM_VERSION, MINUTE_DETECTOR_ALGORITHM_VERSION
+  ]);
   const PERIODS = new Set(["daily", "weekly", "monthly"]);
   const FILTERS = new Set(["all", "pending", "confirmed", "excluded"]);
   const RANGE_STALE_MS = 5 * 60 * 1000;
@@ -555,7 +559,7 @@
     return parts ? `${parts.year}-${parts.month}-${parts.day}` : "";
   }
 
-  function formatHourlyRange(startAt, endAt) {
+  function formatHourlyRange(startAt, endAt, includeSeconds = false) {
     const start = getTimestampParts(startAt);
     const end = getTimestampParts(endAt);
     if (!start || !end) {
@@ -564,11 +568,22 @@
 
     const startDate = `${start.year}.${start.month}.${start.day}`;
     const endDate = `${end.year}.${end.month}.${end.day}`;
+    const startTime = `${start.hour}:${start.minute}${includeSeconds ? `:${start.second}` : ""}`;
+    const endTime = `${end.hour}:${end.minute}${includeSeconds ? `:${end.second}` : ""}`;
     if (startDate === endDate) {
-      return `${startDate} ${start.hour}:${start.minute} ~ ${end.hour}:${end.minute}`;
+      return `${startDate} ${startTime} ~ ${endTime}`;
     }
 
-    return `${startDate} ${start.hour}:${start.minute} ~ ${endDate} ${end.hour}:${end.minute}`;
+    return `${startDate} ${startTime} ~ ${endDate} ${endTime}`;
+  }
+
+  function isMinuteEvent(event) {
+    return event.algorithmVersion === MINUTE_DETECTOR_ALGORITHM_VERSION ||
+      (event.sourceKind === "dataparc_bed_ash_minute" && event.sampleIntervalSeconds === 60);
+  }
+
+  function eventSourceLabel(event) {
+    return isMinuteEvent(event) ? "1분 간격 중량 감지 구간" : "시간별 OIS 자동 감지 구간";
   }
 
   function formatTon(value) {
@@ -598,6 +613,12 @@
       estimatedTon: number(event.estimatedTon),
       confidence: text(event.confidence) || "medium",
       algorithmVersion: text(event.algorithmVersion),
+      sourceKind: text(event.sourceKind),
+      sampleIntervalSeconds: Math.max(0, number(event.sampleIntervalSeconds)),
+      overlapOtherUnit: event.overlapOtherUnit === true,
+      overlapStartAt: text(event.overlapStartAt),
+      overlapEndAt: text(event.overlapEndAt),
+      overlapEventKeys: Array.isArray(event.overlapEventKeys) ? event.overlapEventKeys.map(text) : [],
       closeReason: text(event.closeReason),
       status: normalizedStatus,
       confirmedAt: text(event.confirmedAt),
@@ -747,6 +768,9 @@
     return {
       dates: allDates,
       completeDates,
+      minuteDates: uniqueDateList(coverage.minuteDates),
+      hourlyDates: uniqueDateList(coverage.hourlyDates),
+      precisionFailures: Array.isArray(coverage.precisionFailures) ? coverage.precisionFailures : [],
       missingDates,
       pendingDates,
       failedDates,
@@ -1095,7 +1119,7 @@
     row.dataset.eventKey = event.eventKey;
 
     const timeCell = createElement("td", "bed-ash-discharge-time-cell");
-    const detectionRange = formatHourlyRange(event.startAt, event.endAt);
+    const detectionRange = formatHourlyRange(event.startAt, event.endAt, isMinuteEvent(event));
     const confirmedTime = event.status === "confirmed" && event.confirmedAt
       ? formatTimestamp(event.confirmedAt)
       : "";
@@ -1109,10 +1133,26 @@
         "small",
         "",
         confirmedTime
-          ? `자동 감지 구간 ${detectionRange}`
-          : "시간별 OIS 자동 감지 구간"
+          ? `${eventSourceLabel(event)} ${detectionRange}`
+          : eventSourceLabel(event)
       )
     );
+    if (event.overlapOtherUnit && event.status !== "excluded") {
+      row.classList.add("is-unit-overlap");
+      const overlapRange = event.overlapStartAt && event.overlapEndAt
+        ? ` · ${formatHourlyRange(event.overlapStartAt, event.overlapEndAt, isMinuteEvent(event))}`
+        : "";
+      timeCell.appendChild(createElement(
+        "small", "bed-ash-discharge-overlap-note",
+        `1·2호기 감지 구간 겹침 · 차량 확인 필요${overlapRange}`
+      ));
+    }
+    if (isMinuteEvent(event) && event.status === "pending" && !event.reviewReady) {
+      timeCell.appendChild(createElement(
+        "small", "bed-ash-discharge-minute-pending-note",
+        "감지 구간 확인 중 · 종료 자료 확인 필요"
+      ));
+    }
     row.appendChild(timeCell);
 
     const unitCell = createElement("td", "bed-ash-discharge-unit-cell");
@@ -1142,13 +1182,13 @@
     const isTruckBoundaryUnresolved =
       event.closeReason === "truck_boundary_unresolved";
     const isLegacyReviewedEvent =
-      event.algorithmVersion !== DETECTOR_ALGORITHM_VERSION &&
+      !CURRENT_DETECTOR_VERSIONS.has(event.algorithmVersion) &&
       ["confirmed", "excluded"].includes(event.status);
     if (isTruckBoundaryUnresolved) {
       estimatedCell.classList.add("is-truck-boundary-unresolved");
       estimatedCell.append(
         createElement("strong", "", formatTon(visibleAmountTon)),
-        createElement("small", "", "반출량")
+        createElement("small", "", isMinuteEvent(event) ? "감지 감소량 · 계근 확인" : "반출량")
       );
     } else if (isLegacyReviewedEvent) {
       estimatedCell.classList.add("is-legacy-reviewed-event");
@@ -1169,7 +1209,8 @@
     } else {
       estimatedCell.append(
         createElement("strong", "", formatTon(visibleAmountTon)),
-        createElement("small", "", "반출량")
+        createElement("small", "", isMinuteEvent(event) && event.status !== "confirmed"
+          ? "감지 감소량 · 계근 확인" : "반출량")
       );
     }
     row.appendChild(estimatedCell);
@@ -1717,7 +1758,15 @@
         : "";
       return `조회 완료 · ${eventCount}건 감지 · 자료 없음 ${missing}일 · 수집 실패 ${failed}일${baselineMessage}${lookaheadMessage}`;
     }
-    return `조회 완료 · ${complete}/${total}일 자료 · 반출 내역 ${eventCount}건`;
+    const minuteCount = coverage.minuteDates?.length || 0;
+    const hourlyCount = coverage.hourlyDates?.length || 0;
+    const precision = minuteCount || hourlyCount
+      ? ` · 1분 자료 ${minuteCount}일${hourlyCount ? ` / 시간 자료 ${hourlyCount}일` : ""}`
+      : "";
+    const fallback = coverage.precisionFailures?.length
+      ? " · 정밀 조회 미수신 날짜는 시간별 기록 표시"
+      : "";
+    return `조회 완료 · ${complete}/${total}일 자료 · 반출 내역 ${eventCount}건${precision}${fallback}`;
   }
 
   function delay(milliseconds) {

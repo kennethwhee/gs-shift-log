@@ -1,3 +1,4 @@
+import minuteContract from '../../efficiency/bed-ash-minute-contract.js';
 "use strict";
 
 
@@ -28,6 +29,11 @@ const REQUEST_TYPE =
 const ALGORITHM_VERSION =
   "bed-ash-drop-v2";
 
+
+const MINUTE_ALGORITHM_VERSION = 'bed-ash-drop-minute-v1';
+const MINUTE_SOURCE_KIND = 'dataparc_bed_ash_minute';
+const SUPPORTED_ALGORITHM_VERSIONS = new Set([ALGORITHM_VERSION, MINUTE_ALGORITHM_VERSION]);
+const MINUTE_MILLISECONDS = 60000;
 
 const DISCHARGE_THRESHOLD_TON =
   5;
@@ -979,6 +985,10 @@ async function ensureSchema(
       : [];
 
 
+  for(const [name,definition] of [['source_kind',"TEXT NOT NULL DEFAULT ''"],['sample_interval_seconds','INTEGER NOT NULL DEFAULT 0'],['detection_closed_at',"TEXT NOT NULL DEFAULT ''"]]){
+    if(!eventColumns.some(column=>column.name===name))await database.prepare(`ALTER TABLE bed_ash_discharge_events ADD COLUMN ${name} ${definition}`).run();
+  }
+
   if (
     !eventColumns.some(
       column => {
@@ -1150,10 +1160,7 @@ function getRequestImmutableCutoffMilliseconds(
   }
 
 
-  return Math.min(
-    ...immutableCutoffCandidates
-  ) -
-  SAMPLE_SETTLING_GRACE_MILLISECONDS;
+  return Math.min(...immutableCutoffCandidates) - (isMinuteResult(result)?0:SAMPLE_SETTLING_GRACE_MILLISECONDS);
 }
 
 
@@ -1212,8 +1219,8 @@ function hasRequestCoverageThrough(
               Number(
                 unitNo
               ) &&
-            sample.sampledAt ===
-              requiredTimestamp
+            (sample.bucketAt||sample.sampledAt) ===
+              requiredTimestamp && sample.levelTon!==null
           );
         }
       );
@@ -1221,6 +1228,30 @@ function hasRequestCoverageThrough(
   );
 }
 
+
+
+const minuteSampleCache=new WeakMap(),requestResultCache=new WeakMap();
+function requestResult(row){if(!row||typeof row!=='object')return {};const cached=requestResultCache.get(row);if(cached?.json===row.result_json)return cached.result;const result=parseJsonObject(row.result_json);requestResultCache.set(row,{json:row.result_json,result});return result;}
+function isMinuteResult(result){return result?.sourceKind===MINUTE_SOURCE_KIND||result?.schemaVersion===2;}
+function isMinuteRequest(row){return isMinuteResult(requestResult(row));}
+function minuteRequestSamples(requestRow,nowMilliseconds){
+  try{
+    const cached=minuteSampleCache.get(requestRow);
+    if(cached&&cached.requestId===requestRow.id&&cached.targetDate===requestRow.target_date&&cached.json===requestRow.result_json&&cached.completedAt===requestRow.completed_at&&nowMilliseconds>=cached.readyAt)return cached.samples;
+    const result=minuteContract.normalizeMinuteBedAshResult(requestResult(requestRow),normalizeText(requestRow?.target_date),nowMilliseconds);
+    const completed=Date.parse(requestRow?.completed_at||'');
+    const cutoff=Math.min(Number(nowMilliseconds),Date.parse(result.collectedAt),Number.isFinite(completed)?completed:Infinity);
+    const samples=result.units.flatMap(unit=>unit.samples.filter(sample=>Date.parse(sample.sampledAt)+MINUTE_MILLISECONDS<=cutoff).map(sample=>({
+      unitNo:Number(unit.unitNo),tagNumber:unit.tagNumber,bucketAt:sample.sampledAt,
+      sampledAt:formatKstIsoFromEpoch(Date.parse(sample.returnedAt||sample.sampledAt)),returnedAt:sample.returnedAt,quality:sample.quality,
+      epochMilliseconds:Date.parse(sample.returnedAt||sample.sampledAt),levelTon:sample.levelTon,
+      sampleDate:getKstDateFromTimestamp(sample.sampledAt),sourceDate:result.targetDate,
+      sourceRequestId:normalizeText(requestRow.id),sourceCompletedAt:normalizeText(requestRow.completed_at),
+      sourceKind:MINUTE_SOURCE_KIND,sampleIntervalSeconds:60,sourceResolutionSeconds:60
+    })));
+    minuteSampleCache.set(requestRow,{requestId:requestRow.id,targetDate:requestRow.target_date,json:requestRow.result_json,completedAt:requestRow.completed_at,readyAt:Date.parse(result.collectedAt),samples});return samples;
+  }catch(_){return [];}
+}
 
 function normalizeCompletedRequestSamples(
   requestRow,
@@ -1243,10 +1274,10 @@ function normalizeCompletedRequestSamples(
 
 
   const result =
-    parseJsonObject(
-      requestRow?.result_json
-    );
+    requestResult(requestRow);
 
+
+  if(isMinuteResult(result))return minuteRequestSamples(requestRow,nowMilliseconds);
 
   const maximumSampleTime =
     getRequestImmutableCutoffMilliseconds(
@@ -1423,6 +1454,7 @@ function normalizeCompletedRequestSamples(
 
 
           const normalizedSample = {
+            sourceKind:normalizeText(result.sourceKind)||'ois_bed_ash_hourly',sampleIntervalSeconds:3600,sourceResolutionSeconds:3600,
             unitNo:
               definition.unitNo,
 
@@ -1520,9 +1552,9 @@ function hasRequestHourRangeCoverage(
 
   const sampleKeys =
     new Set(
-      samples.map(
+      samples.filter(sample=>sample.levelTon!==null).map(
         sample => {
-          return `${sample.unitNo}:${sample.sampledAt}`;
+          return `${sample.unitNo}:${sample.bucketAt||sample.sampledAt}`;
         }
       )
     );
@@ -1534,15 +1566,12 @@ function hasRequestHourRangeCoverage(
         let hour =
           startHour;
         hour <=
-          endHour;
+          endHour+0.0000001;
         hour +=
-          1
+          (isMinuteRequest(requestRow)?1/60:1)
       ) {
         const expectedSample =
-          getExpectedSample(
-            targetDate,
-            hour
-          );
+          isMinuteRequest(requestRow)?{sampledAt:formatKstIsoFromEpoch(Date.parse(targetDate+'T00:00:00+09:00')+Math.round(hour*HOUR_MILLISECONDS))}:getExpectedSample(targetDate,hour);
 
 
         if (
@@ -1674,6 +1703,7 @@ function buildEventCandidate(
 
 
   return {
+    sourceKind:candidate.start.sourceKind||'ois_bed_ash_hourly',sampleIntervalSeconds:3600,sourceResolutionSeconds:3600,
     algorithmVersion:
       ALGORITHM_VERSION,
 
@@ -2701,6 +2731,71 @@ function detectBedAshEventsForUnit(
 }
 
 
+
+function detectMinuteBedAshEventsForUnit(unitNo,rawSamples){
+  const definition=UNIT_DEFINITIONS[unitNo];if(!definition)return [];
+  const byBucket=new Map();
+  for(const raw of rawSamples||[]){
+    const bucket=Date.parse(raw.bucketAt||raw.sampledAt),actual=Date.parse(raw.sampledAt);
+    if(!Number.isFinite(bucket)||!Number.isFinite(actual))continue;
+    byBucket.set(bucket,{...raw,bucketMilliseconds:bucket,epochMilliseconds:actual,
+      levelTon:raw.levelTon===null?null:roundToStoredPrecision(raw.levelTon)});
+  }
+  const points=[...byBucket.values()].sort((a,b)=>a.bucketMilliseconds-b.bucketMilliseconds),events=[];
+  let peak=null,candidate=null,previous=null,quiet=[];
+  const close=reason=>{
+    if(candidate?.thresholdCrossedAt){
+      const amount=getLevelDifferenceTon(candidate.start.levelTon,candidate.trough.levelTon);
+      if(amount>=DISCHARGE_THRESHOLD_TON)events.push({algorithmVersion:MINUTE_ALGORITHM_VERSION,unitNo:Number(unitNo),tagNumber:definition.tagNumber,
+        startAt:candidate.start.sampledAt,endAt:candidate.trough.sampledAt,thresholdCrossedAt:candidate.thresholdCrossedAt,
+        startLevelTon:candidate.start.levelTon,endLevelTon:candidate.trough.levelTon,estimatedTon:amount,
+        closeReason:reason,confidence:['stable','refill'].includes(reason)?'high':'low',
+        sourceKind:MINUTE_SOURCE_KIND,sampleIntervalSeconds:60,sourceResolutionSeconds:60,
+        detectionClosedAt:candidate.last.sampledAt,evidencePoints:candidate.points.map(p=>({sampledAt:p.sampledAt,bucketAt:p.bucketAt,returnedAt:p.returnedAt,quality:p.quality,levelTon:p.levelTon}))});
+    }
+    candidate=null;
+  };
+  for(const point of points){
+    const valid=point.levelTon!==null&&point.levelTon>=0;
+    if(!valid||previous&&point.bucketMilliseconds-previous.bucketMilliseconds!==MINUTE_MILLISECONDS){close('data_gap');peak=null;previous=null;quiet=[];}
+    if(!valid)continue;
+    if(!peak){peak=point;previous=point;quiet=[point];continue;}
+    if(candidate){
+      candidate.last=point;candidate.points.push(point);
+      if(point.levelTon<candidate.trough.levelTon)candidate.trough=point;
+      if(candidate.plateauAnchor-point.levelTon>LEVEL_NOISE_TOLERANCE_TON){candidate.plateauAnchor=point.levelTon;candidate.stableFrom=point.epochMilliseconds;}
+      else if(point.levelTon-candidate.trough.levelTon>LEVEL_NOISE_TOLERANCE_TON){close('refill');peak=point;previous=point;quiet=[point];continue;}
+      if(!candidate.thresholdCrossedAt&&getLevelDifferenceTon(candidate.start.levelTon,candidate.trough.levelTon)>=DISCHARGE_THRESHOLD_TON)candidate.thresholdCrossedAt=point.sampledAt;
+      if(candidate.thresholdCrossedAt&&candidate.stableFrom!==null&&point.epochMilliseconds-candidate.stableFrom>=2*MINUTE_MILLISECONDS){close('stable');peak=point;quiet=[point];}
+      else if(point.bucketMilliseconds-candidate.start.bucketMilliseconds>=MAXIMUM_EVENT_WINDOW_HOURS*HOUR_MILLISECONDS){close('max_window');peak=point;quiet=[point];}
+    }else if(peak.levelTon-point.levelTon>LEVEL_NOISE_TOLERANCE_TON){
+      candidate={start:peak,trough:point,last:point,thresholdCrossedAt:peak.levelTon-point.levelTon>=DISCHARGE_THRESHOLD_TON?point.sampledAt:'',stableFrom:point.epochMilliseconds,plateauAnchor:point.levelTon,points:[peak,point]};
+    }else{
+      quiet.push(point);quiet=quiet.filter(p=>point.bucketMilliseconds-p.bucketMilliseconds<=2*MINUTE_MILLISECONDS);
+      const spread=Math.max(...quiet.map(p=>p.levelTon))-Math.min(...quiet.map(p=>p.levelTon));
+      if(point.levelTon>=peak.levelTon||quiet.length>=3&&spread<=LEVEL_NOISE_TOLERANCE_TON||point.bucketMilliseconds-peak.bucketMilliseconds>=MAXIMUM_EVENT_WINDOW_HOURS*HOUR_MILLISECONDS)peak=point;
+    }
+    previous=point;
+  }
+  close('data_end');return events;
+}
+
+function annotateCrossUnitOverlaps(events){
+  const entries=events.map((event,index)=>({event,index,start:Date.parse(event.startAt),end:Date.parse(event.endAt)}));
+  const unit=number=>entries.filter(entry=>Number(entry.event.unitNo)===number).sort((a,b)=>a.start-b.start);
+  const one=unit(1),two=unit(2),matches=new Map();let offset=0;
+  const add=(entry,other,start,end)=>{const value=matches.get(entry.index)||{keys:[],start:Infinity,end:-Infinity};value.keys.push(other.event.eventKey);value.start=Math.min(value.start,start);value.end=Math.max(value.end,end);matches.set(entry.index,value);};
+  for(const left of one){
+    while(offset<two.length&&two[offset].end<=left.start)offset++;
+    for(let i=offset;i<two.length&&two[i].start<left.end;i++){
+      const right=two[i],start=Math.max(left.start,right.start),end=Math.min(left.end,right.end);
+      if(start<end){add(left,right,start,end);add(right,left,start,end);}
+    }
+  }
+  return entries.map(entry=>{const value=matches.get(entry.index);return {...entry.event,overlapOtherUnit:!!value,overlapEventKeys:value?.keys||[],overlapStartAt:value?formatKstIsoFromEpoch(value.start):null,overlapEndAt:value?formatKstIsoFromEpoch(value.end):null};});
+}
+
+
 async function attachEventIdentity(
   rawEvent
 ) {
@@ -2758,84 +2853,45 @@ async function attachEventIdentity(
 }
 
 
-async function detectBedAshEvents(
-  samples
-) {
-  const rawEvents =
-    [
-      1,
-      2
-    ].flatMap(
-      unitNo => {
-        return detectBedAshEventsForUnit(
-          unitNo,
-          samples.filter(
-            sample => {
-              return sample.unitNo ===
-                unitNo;
-            }
-          )
-        );
-      }
-    );
-
-
-  return await Promise.all(
-    rawEvents.map(
-      attachEventIdentity
-    )
-  );
+async function detectBedAshEvents(samples){
+  const rawEvents=[1,2].flatMap(unitNo=>{
+    const own=samples.filter(sample=>Number(sample.unitNo)===unitNo);
+    const minuteDates=new Set(own.filter(sample=>sample.sampleIntervalSeconds===60).map(sample=>sample.sourceDate||getKstDateFromTimestamp(sample.bucketAt||sample.sampledAt)));
+    return [...detectMinuteBedAshEventsForUnit(unitNo,own.filter(sample=>sample.sampleIntervalSeconds===60)),
+      ...detectBedAshEventsForUnit(unitNo,own.filter(sample=>sample.sampleIntervalSeconds!==60&&!minuteDates.has(sample.sourceDate||getKstDateFromTimestamp(sample.sampledAt))))];
+  });
+  return annotateCrossUnitOverlaps(await Promise.all(rawEvents.map(attachEventIdentity)));
 }
 
 
-async function findOisRequestRows(
-  database,
-  startDate,
-  endDate
-) {
-  const queryResult =
-    await database
-      .prepare(`
-        SELECT
-          id,
-          target_date,
-          status,
-          result_json,
-          error_message,
-          requested_at,
-          completed_at,
-          updated_at
-
-        FROM ois_data_requests
-
-        WHERE request_type = ?
-          AND target_date >= ?
-          AND target_date <= ?
-
-        ORDER BY
-          target_date ASC,
-          COALESCE(
-            completed_at,
-            updated_at,
-            requested_at,
-            ''
-          ) DESC,
-          requested_at DESC,
-          id DESC
-      `)
-      .bind(
-        REQUEST_TYPE,
-        startDate,
-        endDate
+async function findOisRequestRows(database,startDate,endDate){
+  // Retain every request's immutable metadata for the snapshot fence, while
+  // transferring at most the raw latest, latest complete and latest minute
+  // payload per date. Older full-day minute arrays are not hydrated in JS.
+  const result=await database.prepare(`
+    WITH classified AS (
+      SELECT id,target_date,status,error_message,requested_at,completed_at,updated_at,
+        CASE WHEN status='complete' AND result_json IS NOT NULL AND trim(result_json)<>'' THEN 1 ELSE 0 END AS has_complete_payload,
+        CASE WHEN status='complete' THEN CASE WHEN json_valid(result_json) THEN
+          CASE WHEN json_extract(result_json,'$.sourceKind')='dataparc_bed_ash_minute' OR json_extract(result_json,'$.schemaVersion')=2 THEN 1 ELSE 0 END
+          ELSE 0 END ELSE 0 END AS is_minute_complete
+      FROM ois_data_requests WHERE request_type=? AND target_date>=? AND target_date<=?
+    ), ranked AS (
+      SELECT *,
+        row_number() OVER(PARTITION BY target_date ORDER BY COALESCE(completed_at,updated_at,requested_at,'') DESC,requested_at DESC,id DESC) AS raw_rank,
+        row_number() OVER(PARTITION BY target_date,has_complete_payload ORDER BY COALESCE(completed_at,updated_at,requested_at,'') DESC,requested_at DESC,id DESC) AS complete_rank,
+        row_number() OVER(PARTITION BY target_date,is_minute_complete ORDER BY COALESCE(completed_at,updated_at,requested_at,'') DESC,requested_at DESC,id DESC) AS minute_rank
+      FROM classified
+    )
+    SELECT ranked.id,ranked.target_date,ranked.status,payload.result_json,
+      ranked.error_message,ranked.requested_at,ranked.completed_at,ranked.updated_at
+    FROM ranked LEFT JOIN ois_data_requests AS payload
+      ON payload.id=ranked.id AND (
+        ranked.raw_rank=1 OR(ranked.has_complete_payload=1 AND ranked.complete_rank=1) OR(ranked.is_minute_complete=1 AND ranked.minute_rank=1)
       )
-      .all();
-
-
-  return Array.isArray(
-    queryResult.results
-  )
-    ? queryResult.results
-    : [];
+    ORDER BY ranked.target_date ASC,COALESCE(ranked.completed_at,ranked.updated_at,ranked.requested_at,'') DESC,ranked.requested_at DESC,ranked.id DESC
+  `).bind(REQUEST_TYPE,startDate,endDate).all();
+  return Array.isArray(result.results)?result.results:[];
 }
 
 
@@ -2900,9 +2956,19 @@ function selectRequestRowsByDate(
   );
 
 
+  const latestRawByDate=new Map(latestByDate);
+  for(const row of rows){
+    const date=normalizeText(row.target_date);
+    if(row.status==='complete'&&isMinuteRequest(row)&&!isMinuteRequest(completedByDate.get(date))){
+      completedByDate.set(date,row);
+      if(latestByDate.get(date)?.status==='complete')latestByDate.set(date,row);
+    }
+  }
+
   return {
     latestByDate,
-    completedByDate
+    completedByDate,
+    latestRawByDate
   };
 }
 
@@ -3646,7 +3712,7 @@ function hasContinuousEventDateSupport(
         }
       ).map(
         sample => {
-          return `${sample.unitNo}:${sample.sampledAt}`;
+          return `${sample.unitNo}:${sample.bucketAt||sample.sampledAt}`;
         }
       )
     );
@@ -3687,6 +3753,17 @@ function isDetectedEventReviewReady(
   nowMilliseconds =
     Date.now()
 ) {
+  if(event?.algorithmVersion===MINUTE_ALGORITHM_VERSION){
+    if(!['stable','refill'].includes(event.closeReason)||!event.startAt||!event.detectionClosedAt)return false;
+    const start=Date.parse(event.startAt),end=Date.parse(event.detectionClosedAt);
+    if(!Number.isFinite(start)||!Number.isFinite(end)||end>nowMilliseconds)return false;
+    const support=[];
+    completedByDate.forEach((row,date)=>{if(date>=getKstDateFromTimestamp(event.startAt)&&date<=getKstDateFromTimestamp(event.detectionClosedAt)&&isMinuteRequest(row)&&getSettledCompletedRequest(date,latestByDate,completedByDate))support.push(...normalizeCompletedRequestSamples(row,nowMilliseconds).filter(p=>p.unitNo===Number(event.unitNo)));});
+    const byBucket=new Map();for(const point of support)byBucket.set(point.bucketAt,point);
+    const points=[...byBucket.values()].filter(p=>p.epochMilliseconds>=start&&p.epochMilliseconds<=end).sort((a,b)=>Date.parse(a.bucketAt)-Date.parse(b.bucketAt));
+    return points.length>=3&&points[0].sampledAt===event.startAt&&points.at(-1).sampledAt===event.detectionClosedAt&&points.every((p,i)=>p.levelTon!==null&&(!i||Date.parse(p.bucketAt)-Date.parse(points[i-1].bucketAt)===MINUTE_MILLISECONDS));
+  }
+
   return isEventDateReviewReady(
     getKstDateFromTimestamp(
       event?.thresholdCrossedAt
@@ -3731,10 +3808,7 @@ async function synchronizeDetectedEvents(
     )
       ? detectedEvents.filter(
           event => {
-            return normalizeText(
-              event?.algorithmVersion
-            ) ===
-              ALGORITHM_VERSION;
+            return SUPPORTED_ALGORITHM_VERSIONS.has(normalizeText(event?.algorithmVersion));
           }
         )
       : [];
@@ -3892,7 +3966,7 @@ async function synchronizeDetectedEvents(
         AND threshold_crossed_at < ?
         AND status = 'pending'
         AND (
-          algorithm_version <> ?
+          algorithm_version NOT IN (?, ?)
           OR review_ready = 0
           OR EXISTS (
             SELECT 1
@@ -3926,6 +4000,7 @@ async function synchronizeDetectedEvents(
         startTimestamp,
         endTimestampExclusive,
         ALGORITHM_VERSION,
+        MINUTE_ALGORITHM_VERSION,
         ...normalizedAuthoritativeDates
       )
   );
@@ -3966,6 +4041,9 @@ async function synchronizeDetectedEvents(
                 event.evidenceFingerprint,
               closeReason:
                 event.closeReason,
+              sourceKind:event.sourceKind||(event.algorithmVersion===MINUTE_ALGORITHM_VERSION?MINUTE_SOURCE_KIND:'ois_bed_ash_hourly'),
+              sampleIntervalSeconds:event.sampleIntervalSeconds||3600,
+              detectionClosedAt:event.detectionClosedAt||'',
               reviewReady:
                 event.reviewReady ===
                   true
@@ -4000,6 +4078,9 @@ async function synchronizeDetectedEvents(
                 json_extract(value, '$.confidence') AS confidence,
                 json_extract(value, '$.evidenceFingerprint') AS evidence_fingerprint,
                 json_extract(value, '$.closeReason') AS close_reason,
+                json_extract(value, '$.sourceKind') AS source_kind,
+                json_extract(value, '$.sampleIntervalSeconds') AS sample_interval_seconds,
+                json_extract(value, '$.detectionClosedAt') AS detection_closed_at,
                 CASE
                   WHEN json_extract(value, '$.reviewReady') = 1
                     THEN 1
@@ -4022,6 +4103,9 @@ async function synchronizeDetectedEvents(
               confidence,
               evidence_fingerprint,
               close_reason,
+              source_kind,
+              sample_interval_seconds,
+              detection_closed_at,
               status,
               confirmed_at,
               confirmed_ton,
@@ -4051,6 +4135,9 @@ async function synchronizeDetectedEvents(
               confidence,
               evidence_fingerprint,
               close_reason,
+              source_kind,
+              sample_interval_seconds,
+              detection_closed_at,
               'pending',
               NULL,
               NULL,
@@ -4104,6 +4191,9 @@ async function synchronizeDetectedEvents(
               estimated_ton = excluded.estimated_ton,
               confidence = excluded.confidence,
               close_reason = excluded.close_reason,
+              source_kind = excluded.source_kind,
+              sample_interval_seconds = excluded.sample_interval_seconds,
+              detection_closed_at = excluded.detection_closed_at,
               evidence_fingerprint = excluded.evidence_fingerprint,
               revision = CASE
                 WHEN bed_ash_discharge_events.evidence_fingerprint <>
@@ -4132,6 +4222,13 @@ async function synchronizeDetectedEvents(
     );
   }
 
+
+  const minuteEvents=currentDetectedEvents.filter(event=>event.algorithmVersion===MINUTE_ALGORITHM_VERSION);
+  if(minuteEvents.length)statements.push(database.prepare(`${requestSnapshotCtePrefix}
+    UPDATE bed_ash_discharge_events SET candidate_active=0, review_ready=0, updated_at=?
+    WHERE status='pending' AND algorithm_version=? AND EXISTS(SELECT 1 FROM json_each(?) AS fine
+      WHERE CAST(json_extract(fine.value,'$.unitNo') AS INTEGER)=unit_no AND datetime(event_start_at)<datetime(json_extract(fine.value,'$.endAt')) AND datetime(event_end_at)>datetime(json_extract(fine.value,'$.startAt')))
+      ${requestSnapshotWhereClause}`).bind(...requestSnapshotBindings,now,ALGORITHM_VERSION,JSON.stringify(minuteEvents)));
 
   await database.batch(
     statements
@@ -4188,6 +4285,10 @@ function convertEventRow(
         row.algorithm_version
       ),
 
+    sourceKind:row.source_kind||(row.algorithm_version===MINUTE_ALGORITHM_VERSION?MINUTE_SOURCE_KIND:'ois_bed_ash_hourly'),
+    sampleIntervalSeconds:Number(row.sample_interval_seconds)||(row.algorithm_version===MINUTE_ALGORITHM_VERSION?60:3600),
+    sourceResolutionSeconds:Number(row.sample_interval_seconds)||(row.algorithm_version===MINUTE_ALGORITHM_VERSION?60:3600),
+    detectionClosedAt:normalizeText(row.detection_closed_at)||null,
     revision:
       Math.max(
         1,
@@ -4329,7 +4430,7 @@ async function findActiveEventRows(
         WHERE (
           status = 'pending'
           AND candidate_active = 1
-          AND algorithm_version = ?
+          AND algorithm_version IN (?, ?)
           AND datetime(
             threshold_crossed_at
           ) >= datetime(?)
@@ -4375,6 +4476,7 @@ async function findActiveEventRows(
       `)
       .bind(
         ALGORITHM_VERSION,
+        MINUTE_ALGORITHM_VERSION,
         startTimestamp,
         endTimestampExclusive,
         startTimestamp,
@@ -4385,7 +4487,7 @@ async function findActiveEventRows(
       .all();
 
 
-  return (
+  return annotateCrossUnitOverlaps((
     Array.isArray(
       queryResult.results
     )
@@ -4393,7 +4495,7 @@ async function findActiveEventRows(
       : []
   ).map(
     convertEventRow
-  );
+  ));
 }
 
 
@@ -4578,14 +4680,14 @@ async function handleSummaryGet(
           AND legacy_or_current.status = 'pending'
           AND legacy_or_current.review_ready = 1
           AND (
-            legacy_or_current.algorithm_version = ?
+            legacy_or_current.algorithm_version IN (?, ?)
 
             OR NOT EXISTS (
               SELECT 1
 
               FROM bed_ash_discharge_events AS current_event
 
-              WHERE current_event.algorithm_version = ?
+              WHERE current_event.algorithm_version IN (?, ?)
                 AND current_event.unit_no =
                   legacy_or_current.unit_no
                 AND (
@@ -4614,16 +4716,16 @@ async function handleSummaryGet(
         ORDER BY
           legacy_or_current.threshold_crossed_at DESC,
           CASE
-            WHEN legacy_or_current.algorithm_version = ?
+            WHEN legacy_or_current.algorithm_version IN (?, ?)
               THEN 0
             ELSE 1
           END ASC,
           legacy_or_current.unit_no ASC
       `)
       .bind(
-        ALGORITHM_VERSION,
-        ALGORITHM_VERSION,
-        ALGORITHM_VERSION
+        ALGORITHM_VERSION,MINUTE_ALGORITHM_VERSION,
+        ALGORITHM_VERSION,MINUTE_ALGORITHM_VERSION,
+        ALGORITHM_VERSION,MINUTE_ALGORITHM_VERSION
       )
       .all();
 
@@ -4762,7 +4864,7 @@ async function handleRangeGet(
 
   const {
     latestByDate,
-    completedByDate
+    completedByDate,latestRawByDate
   } =
     selectRequestRowsByDate(
       requestRows
@@ -4791,6 +4893,10 @@ async function handleRangeGet(
       evaluationTime
     );
 
+
+  coverage.minuteDates=dates.filter(date=>isMinuteRequest(completedByDate.get(date)));
+  coverage.hourlyDates=dates.filter(date=>completedByDate.has(date)&&!isMinuteRequest(completedByDate.get(date)));
+  coverage.precisionFailures=dates.flatMap(date=>{const result=parseJsonObject(latestRawByDate.get(date)?.result_json);return result?.precisionFailure?[{date,message:String(result.precisionFailure.message||result.precisionFailure)}]:[];});
 
   const authoritativeDates =
     dates.filter(
@@ -5219,7 +5325,7 @@ async function recomputeEventByKey(
 
   return events.find(
     event => {
-      return event.eventKey ===
+      return event.algorithmVersion===eventRow.algorithm_version&&event.eventKey ===
         normalizeText(
           eventRow.event_key
         );
@@ -5269,7 +5375,7 @@ async function isStoredEventReviewReady(
 
   const {
     latestByDate,
-    completedByDate
+    completedByDate,latestRawByDate
   } =
     selectRequestRowsByDate(
       requestRows
@@ -5299,6 +5405,7 @@ async function isStoredEventReviewReady(
             Number(
               eventRow.unit_no
             ),
+          algorithmVersion:eventRow.algorithm_version,startAt:eventRow.event_start_at,endAt:eventRow.event_end_at,detectionClosedAt:eventRow.detection_closed_at,
           closeReason:
             normalizeText(
               eventRow.close_reason
@@ -5315,7 +5422,7 @@ async function isStoredEventReviewReady(
             date,
             requestId:
               normalizeText(
-                latestByDate.get(
+                latestRawByDate.get(
                   date
                 )?.id
               )
@@ -5423,10 +5530,7 @@ async function handleReviewPost(
 
 
   if (
-    normalizeText(
-      existingRow.algorithm_version
-    ) !==
-      ALGORITHM_VERSION &&
+     !SUPPORTED_ALGORITHM_VERSIONS.has(normalizeText(existingRow.algorithm_version)) &&
     normalizeText(
       existingRow.status
     ) ===
@@ -5638,6 +5742,7 @@ async function handleReviewPost(
           confidence = ?,
           close_reason = ?,
           evidence_fingerprint = ?,
+          detection_closed_at = ?,
           revision = revision + 1,
           candidate_active = 1,
           last_detected_at = ?,
@@ -5694,6 +5799,7 @@ async function handleReviewPost(
         recomputedEvent.confidence,
         recomputedEvent.closeReason,
         recomputedEvent.evidenceFingerprint,
+        recomputedEvent.detectionClosedAt||'',
         refreshedAt,
         refreshedAt,
         eventKey,
@@ -6293,8 +6399,12 @@ export const __bedAshTest = {
   buildSummary,
   detectBedAshEvents,
   detectBedAshEventsForUnit,
+  detectMinuteBedAshEventsForUnit,
+  annotateCrossUnitOverlaps,
+  selectRequestRowsByDate,
   ensureSchema,
   findActiveEventRows,
+  findOisRequestRows,
   getExpectedSample,
   handleReviewPost,
   handleSummaryGet,

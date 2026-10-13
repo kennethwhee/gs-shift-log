@@ -1,5 +1,6 @@
 ﻿import { prepareScheduledBatch, scheduledBatchStatements, isScheduledBatchConflict } from "../_shared/blower-schedule-v1.js";
 import { loadAppendBase, verifiedAppendBase, ensureAppendSchema, appendIntentStatement } from "../_shared/blower-incremental.js";
+import bedAshMinuteContract from "../../efficiency/bed-ash-minute-contract.js";
 
 "use strict";
 /* COFIRING_API_BUILD_FINGERPRINT_V1 */
@@ -1601,6 +1602,16 @@ function normalizeBedAshLevelResult(
   rawResult,
   targetDate
 ) {
+  // A malformed minute payload must not fall through to the hourly legacy path.
+  if (rawResult && (rawResult.schemaVersion === 2 || rawResult.schemaVersion === "2" ||
+      rawResult.sourceKind === "dataparc_bed_ash_minute" || rawResult.sampleIntervalSeconds === 60)) {
+    try {
+      return { result: bedAshMinuteContract.normalizeMinuteBedAshResult(rawResult, targetDate) };
+    } catch (error) {
+      return { error: error?.message || "Bed Ash 1분 자료의 원본 계약을 확인해 주세요." };
+    }
+  }
+
   if (
     !rawResult ||
     typeof rawResult !==
@@ -1613,6 +1624,11 @@ function normalizeBedAshLevelResult(
       error:
         "Bed Ash Level 결과가 올바른 객체 형식이 아닙니다."
     };
+  }
+
+  if (rawResult.sourceKind === "ois_hourly_fallback" &&
+      (rawResult.precisionFailure === "BED_ASH_MINUTE_CLEANUP_UNVERIFIED" || rawResult.cleanupVerified === false)) {
+    return { error: "Bed Ash 1분 조회 프로세스 정리가 확인되지 않아 시간별 대체 자료를 등록할 수 없습니다." };
   }
 
 
@@ -1888,6 +1904,12 @@ function normalizeBedAshLevelResult(
   }
 
 
+  const fallbackMetadata = rawResult.sourceKind === "ois_hourly_fallback" &&
+    rawResult.sampleIntervalSeconds === 3600 &&
+    ["BED_ASH_MINUTE_DATE_INVALID", "BED_ASH_MINUTE_READER_UNAVAILABLE", "BED_ASH_MINUTE_QUERY_FAILED"].includes(rawResult.precisionFailure)
+      ? { sourceKind: "ois_hourly_fallback", sampleIntervalSeconds: 3600, precisionFailure: rawResult.precisionFailure }
+      : {};
+
   return {
     result: {
       source:
@@ -1897,6 +1919,8 @@ function normalizeBedAshLevelResult(
           0,
           200
         ),
+
+      ...fallbackMetadata,
 
       targetDate,
 

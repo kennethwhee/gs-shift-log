@@ -1846,3 +1846,20 @@
     white-space: nowrap;
   }
 }
+
+/* BED_ASH_MINUTE_DETECTION_V1: keep unit evidence separate when intervals overlap. */
+#efficiencyTeamModal .bed-ash-discharge-time-cell > .bed-ash-discharge-overlap-note {
+  color: #986113;
+  font-weight: 700;
+  white-space: normal;
+  line-height: 1.5;
+}
+#efficiencyTeamModal .bed-ash-discharge-event-row.is-unit-overlap > td:first-child {
+  border-left: 3px solid #d69c39;
+  background: #fffaf0;
+}
+#efficiencyTeamModal .bed-ash-discharge-time-cell > .bed-ash-discharge-minute-pending-note {
+  color: #47749b;
+  font-weight: 700;
+  white-space: normal;
+}
