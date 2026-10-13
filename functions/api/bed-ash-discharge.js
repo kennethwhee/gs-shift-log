@@ -30,10 +30,12 @@ const ALGORITHM_VERSION =
   "bed-ash-drop-v2";
 
 
-const MINUTE_ALGORITHM_VERSION = 'bed-ash-drop-minute-v1';
+const LEGACY_MINUTE_ALGORITHM_VERSION = 'bed-ash-drop-minute-v1';
+const MINUTE_ALGORITHM_VERSION = 'bed-ash-drop-minute-v2';
 const MINUTE_SOURCE_KIND = 'dataparc_bed_ash_minute';
-const SUPPORTED_ALGORITHM_VERSIONS = new Set([ALGORITHM_VERSION, MINUTE_ALGORITHM_VERSION]);
+const CURRENT_ALGORITHM_VERSIONS = new Set([ALGORITHM_VERSION, MINUTE_ALGORITHM_VERSION]);
 const MINUTE_MILLISECONDS = 60000;
+const MAXIMUM_MINOR_OBSERVATIONS = 128;
 
 const DISCHARGE_THRESHOLD_TON =
   5;
@@ -2732,52 +2734,119 @@ function detectBedAshEventsForUnit(
 
 
 
-function detectMinuteBedAshEventsForUnit(unitNo,rawSamples){
-  const definition=UNIT_DEFINITIONS[unitNo];if(!definition)return [];
+function isGoodMinuteQuality(quality){return /^(?:Good|Raw\s*,\s*Good|Good\s*,\s*Raw)$/i.test(quality||'');}
+function isNoDataMinutePoint(point){return point.explicitNull===true&&point.levelTon===null&&/^No Data\s*,\s*Bad$/i.test(point.quality||'');}
+function isMinuteAlgorithm(version){return [MINUTE_ALGORITHM_VERSION,LEGACY_MINUTE_ALGORITHM_VERSION].includes(version);}
+
+// Explicit archive gaps may connect observations, but never supply invented
+// levels or stable-time evidence. Missing/invalid rows and long gaps remain barriers.
+function detectMinuteBedAshObservationsForUnit(unitNo,rawSamples,nowMilliseconds=Date.now()){
+  const definition=UNIT_DEFINITIONS[unitNo];if(!definition)return {events:[],minorObservations:[]};
+  const maximumEmptyBuckets=3,maximumBridgeMilliseconds=5*MINUTE_MILLISECONDS;
+  const requiredQuietMilliseconds=5*MINUTE_MILLISECONDS,minimumQuietGoodPoints=3;
   const byBucket=new Map();
   for(const raw of rawSamples||[]){
     const bucket=Date.parse(raw.bucketAt||raw.sampledAt),actual=Date.parse(raw.sampledAt);
-    if(!Number.isFinite(bucket)||!Number.isFinite(actual))continue;
-    byBucket.set(bucket,{...raw,bucketMilliseconds:bucket,epochMilliseconds:actual,
-      levelTon:raw.levelTon===null?null:roundToStoredPrecision(raw.levelTon)});
+    if(!Number.isFinite(bucket)||bucket%MINUTE_MILLISECONDS!==0)continue;
+    const point={...raw,bucketMilliseconds:bucket,epochMilliseconds:actual,explicitNull:raw.levelTon===null,
+      levelTon:typeof raw.levelTon==='number'&&Number.isFinite(raw.levelTon)&&raw.levelTon>=0?roundToStoredPrecision(raw.levelTon):null};
+    const prior=byBucket.get(bucket);
+    if(prior){
+      // Adjacent day packets share their boundary; its owning packet is canonical.
+      const owner=getKstDateFromTimestamp(raw.bucketAt||raw.sampledAt);
+      if(prior.sourceDate!==point.sourceDate&&isValidIsoDate(prior.sourceDate)&&isValidIsoDate(point.sourceDate)&&
+          (prior.sourceDate===owner||point.sourceDate===owner)){
+        if(point.sourceDate===owner)byBucket.set(bucket,point);
+      }else byBucket.set(bucket,{...point,levelTon:null,quality:'Duplicate, Unknown',duplicate:true});
+    }else byBucket.set(bucket,point);
   }
-  const points=[...byBucket.values()].sort((a,b)=>a.bucketMilliseconds-b.bucketMilliseconds),events=[];
-  let peak=null,candidate=null,previous=null,quiet=[];
+  const points=[...byBucket.values()].sort((a,b)=>a.bucketMilliseconds-b.bucketMilliseconds),events=[],minorObservations=[];
+  let peak=null,candidate=null,previous=null,quiet=[],pendingEmpty=[],peakSpan=[];
+  const reset=()=>{peak=null;candidate=null;previous=null;quiet=[];pendingEmpty=[];peakSpan=[];};
   const close=reason=>{
-    if(candidate?.thresholdCrossedAt){
+    if(candidate){
       const amount=getLevelDifferenceTon(candidate.start.levelTon,candidate.trough.levelTon);
-      if(amount>=DISCHARGE_THRESHOLD_TON)events.push({algorithmVersion:MINUTE_ALGORITHM_VERSION,unitNo:Number(unitNo),tagNumber:definition.tagNumber,
-        startAt:candidate.start.sampledAt,endAt:candidate.trough.sampledAt,thresholdCrossedAt:candidate.thresholdCrossedAt,
-        startLevelTon:candidate.start.levelTon,endLevelTon:candidate.trough.levelTon,estimatedTon:amount,
-        closeReason:reason,confidence:['stable','refill'].includes(reason)?'high':'low',
-        sourceKind:MINUTE_SOURCE_KIND,sampleIntervalSeconds:60,sourceResolutionSeconds:60,
-        detectionClosedAt:candidate.last.sampledAt,evidencePoints:candidate.points.map(p=>({sampledAt:p.sampledAt,bucketAt:p.bucketAt,returnedAt:p.returnedAt,quality:p.quality,levelTon:p.levelTon}))});
+      if(amount>=LEVEL_NOISE_TOLERANCE_TON){
+        const observation={algorithmVersion:MINUTE_ALGORITHM_VERSION,unitNo:Number(unitNo),tagNumber:definition.tagNumber,
+          startAt:candidate.start.sampledAt,endAt:candidate.trough.sampledAt,thresholdCrossedAt:candidate.thresholdCrossedAt,
+          startLevelTon:candidate.start.levelTon,endLevelTon:candidate.trough.levelTon,estimatedTon:amount,
+          closeReason:reason,confidence:candidate.sourceGapCount?'low':(['stable','refill'].includes(reason)?'high':'low'),
+          sourceKind:MINUTE_SOURCE_KIND,sampleIntervalSeconds:60,sourceResolutionSeconds:60,
+          sourceGapCount:candidate.sourceGapCount,hasSourceGaps:candidate.sourceGapCount>0,
+          detectionClosedAt:candidate.last.sampledAt,evidencePoints:candidate.points.map(p=>({sampledAt:p.sampledAt,bucketAt:p.bucketAt,returnedAt:p.returnedAt,quality:p.quality,levelTon:p.levelTon}))};
+        if(candidate.sourceGapCount||!['stable','refill'].includes(reason))observation.reviewReady=false;
+        if(amount>=DISCHARGE_THRESHOLD_TON)events.push(observation);
+        else minorObservations.push({...observation,confidence:'low',reviewReady:false});
+      }
     }
     candidate=null;
   };
   for(const point of points){
-    const valid=point.levelTon!==null&&point.levelTon>=0;
-    if(!valid||previous&&point.bucketMilliseconds-previous.bucketMilliseconds!==MINUTE_MILLISECONDS){close('data_gap');peak=null;previous=null;quiet=[];}
-    if(!valid)continue;
-    if(!peak){peak=point;previous=point;quiet=[point];continue;}
+    const valid=point.levelTon!==null&&isGoodMinuteQuality(point.quality)&&typeof point.returnedAt==='string'&&Date.parse(point.returnedAt)===point.epochMilliseconds&&Number.isFinite(point.epochMilliseconds)&&
+      point.epochMilliseconds>=point.bucketMilliseconds&&point.epochMilliseconds<point.bucketMilliseconds+MINUTE_MILLISECONDS&&point.epochMilliseconds<=nowMilliseconds;
+    if(!valid){
+      const expectedBucket=previous?.bucketMilliseconds+(pendingEmpty.length+1)*MINUTE_MILLISECONDS;
+      if(isNoDataMinutePoint(point)&&previous&&pendingEmpty.length<maximumEmptyBuckets&&point.bucketMilliseconds===expectedBucket){
+        pendingEmpty.push(point);if(candidate)candidate.decliningStreak=0;continue;
+      }
+      close('data_gap');reset();continue;
+    }
+    let bridgedCount=0;
+    if(previous){
+      const bucketDelta=point.bucketMilliseconds-previous.bucketMilliseconds,actualDelta=point.epochMilliseconds-previous.epochMilliseconds;
+      const bridge=pendingEmpty.length>0&&bucketDelta===(pendingEmpty.length+1)*MINUTE_MILLISECONDS&&actualDelta>0&&actualDelta<maximumBridgeMilliseconds;
+      if(actualDelta<=0||(bucketDelta!==MINUTE_MILLISECONDS&&!bridge)||pendingEmpty.length&&!bridge){close('data_gap');reset();}
+      else if(bridge){
+        bridgedCount=pendingEmpty.length;peakSpan.push(...pendingEmpty);
+        if(candidate){candidate.points.push(...pendingEmpty);candidate.sourceGapCount+=bridgedCount;candidate.decliningStreak=0;}
+      }
+    }
+    pendingEmpty=[];
+    if(!peak){peak=point;previous=point;quiet=[point];peakSpan=[point];continue;}
     if(candidate){
       candidate.last=point;candidate.points.push(point);
-      if(point.levelTon<candidate.trough.levelTon)candidate.trough=point;
-      if(candidate.plateauAnchor-point.levelTon>LEVEL_NOISE_TOLERANCE_TON){candidate.plateauAnchor=point.levelTon;candidate.stableFrom=point.epochMilliseconds;}
-      else if(point.levelTon-candidate.trough.levelTon>LEVEL_NOISE_TOLERANCE_TON){close('refill');peak=point;previous=point;quiet=[point];continue;}
+      candidate.decliningStreak=point.levelTon<previous.levelTon?candidate.decliningStreak+1:0;
+      const newTrough=point.levelTon<candidate.trough.levelTon;
+      if(newTrough)candidate.trough=point;
+      const meaningfulDecline=candidate.plateauAnchor-point.levelTon>LEVEL_NOISE_TOLERANCE_TON;
+      if(meaningfulDecline||(newTrough&&candidate.decliningStreak>=2)){
+        candidate.plateauAnchor=point.levelTon;candidate.quietMilliseconds=0;candidate.quietGoodCount=1;
+      }else if(point.levelTon-candidate.trough.levelTon>LEVEL_NOISE_TOLERANCE_TON){
+        close('refill');peak=point;previous=point;quiet=[point];peakSpan=[point];continue;
+      }else{
+        // The elapsed interval across a missing bucket supplies no quiet evidence.
+        if(!bridgedCount)candidate.quietMilliseconds+=point.epochMilliseconds-previous.epochMilliseconds;
+        candidate.quietGoodCount+=1;
+      }
       if(!candidate.thresholdCrossedAt&&getLevelDifferenceTon(candidate.start.levelTon,candidate.trough.levelTon)>=DISCHARGE_THRESHOLD_TON)candidate.thresholdCrossedAt=point.sampledAt;
-      if(candidate.thresholdCrossedAt&&candidate.stableFrom!==null&&point.epochMilliseconds-candidate.stableFrom>=2*MINUTE_MILLISECONDS){close('stable');peak=point;quiet=[point];}
-      else if(point.bucketMilliseconds-candidate.start.bucketMilliseconds>=MAXIMUM_EVENT_WINDOW_HOURS*HOUR_MILLISECONDS){close('max_window');peak=point;quiet=[point];}
-    }else if(peak.levelTon-point.levelTon>LEVEL_NOISE_TOLERANCE_TON){
-      candidate={start:peak,trough:point,last:point,thresholdCrossedAt:peak.levelTon-point.levelTon>=DISCHARGE_THRESHOLD_TON?point.sampledAt:'',stableFrom:point.epochMilliseconds,plateauAnchor:point.levelTon,points:[peak,point]};
+      // Minor declines also settle; they must not absorb a later unrelated event.
+      if(candidate.quietMilliseconds>=requiredQuietMilliseconds&&candidate.quietGoodCount>=minimumQuietGoodPoints){
+        close('stable');peak=point;quiet=[point];peakSpan=[point];
+      }else if(point.bucketMilliseconds-candidate.start.bucketMilliseconds>=MAXIMUM_EVENT_WINDOW_HOURS*HOUR_MILLISECONDS){
+        close('max_window');peak=point;quiet=[point];peakSpan=[point];
+      }
+    }else if(getLevelDifferenceTon(peak.levelTon,point.levelTon)>=LEVEL_NOISE_TOLERANCE_TON){
+      candidate={start:peak,trough:point,last:point,thresholdCrossedAt:getLevelDifferenceTon(peak.levelTon,point.levelTon)>=DISCHARGE_THRESHOLD_TON?point.sampledAt:'',
+        plateauAnchor:point.levelTon,decliningStreak:1,quietMilliseconds:0,quietGoodCount:1,
+        sourceGapCount:peakSpan.filter(isNoDataMinutePoint).length,points:[...peakSpan,point]};
     }else{
       quiet.push(point);quiet=quiet.filter(p=>point.bucketMilliseconds-p.bucketMilliseconds<=2*MINUTE_MILLISECONDS);
       const spread=Math.max(...quiet.map(p=>p.levelTon))-Math.min(...quiet.map(p=>p.levelTon));
-      if(point.levelTon>=peak.levelTon||quiet.length>=3&&spread<=LEVEL_NOISE_TOLERANCE_TON||point.bucketMilliseconds-peak.bucketMilliseconds>=MAXIMUM_EVENT_WINDOW_HOURS*HOUR_MILLISECONDS)peak=point;
+      if(point.levelTon>=peak.levelTon){peak=point;peakSpan=[point];}
+      else if(quiet.length>=3&&spread<=LEVEL_NOISE_TOLERANCE_TON){
+        // Preserve the observed local maximum within the quiet window; choosing
+        // its final jittered value can move a genuine decline below the threshold.
+        const nextPeak=quiet.reduce((best,row)=>row.levelTon>=best.levelTon?row:best);
+        peak=nextPeak;peakSpan=[...peakSpan,point].filter(row=>row.bucketMilliseconds>=peak.bucketMilliseconds);
+      }else if(point.bucketMilliseconds-peak.bucketMilliseconds>=MAXIMUM_EVENT_WINDOW_HOURS*HOUR_MILLISECONDS){peak=point;peakSpan=[point];}
+      else peakSpan.push(point);
     }
     previous=point;
   }
-  close('data_end');return events;
+  close(pendingEmpty.length?'data_gap':'data_end');return {events,minorObservations};
+}
+function detectMinuteBedAshEventsForUnit(unitNo,rawSamples,nowMilliseconds=Date.now()){
+  return detectMinuteBedAshObservationsForUnit(unitNo,rawSamples,nowMilliseconds).events;
 }
 
 function annotateCrossUnitOverlaps(events){
@@ -2853,15 +2922,19 @@ async function attachEventIdentity(
 }
 
 
-async function detectBedAshEvents(samples){
+async function detectBedAshObservations(samples){
+  const minorObservations=[];
   const rawEvents=[1,2].flatMap(unitNo=>{
     const own=samples.filter(sample=>Number(sample.unitNo)===unitNo);
     const minuteDates=new Set(own.filter(sample=>sample.sampleIntervalSeconds===60).map(sample=>sample.sourceDate||getKstDateFromTimestamp(sample.bucketAt||sample.sampledAt)));
-    return [...detectMinuteBedAshEventsForUnit(unitNo,own.filter(sample=>sample.sampleIntervalSeconds===60)),
+    const minute=detectMinuteBedAshObservationsForUnit(unitNo,own.filter(sample=>sample.sampleIntervalSeconds===60));
+    minorObservations.push(...minute.minorObservations);
+    return [...minute.events,
       ...detectBedAshEventsForUnit(unitNo,own.filter(sample=>sample.sampleIntervalSeconds!==60&&!minuteDates.has(sample.sourceDate||getKstDateFromTimestamp(sample.sampledAt))))];
   });
-  return annotateCrossUnitOverlaps(await Promise.all(rawEvents.map(attachEventIdentity)));
+  return {events:annotateCrossUnitOverlaps(await Promise.all(rawEvents.map(attachEventIdentity))),minorObservations};
 }
+async function detectBedAshEvents(samples){return (await detectBedAshObservations(samples)).events;}
 
 
 async function findOisRequestRows(database,startDate,endDate){
@@ -3753,7 +3826,8 @@ function isDetectedEventReviewReady(
   nowMilliseconds =
     Date.now()
 ) {
-  if(event?.algorithmVersion===MINUTE_ALGORITHM_VERSION){
+  if(isMinuteAlgorithm(event?.algorithmVersion)){
+    if(event.hasSourceGaps===true||Number(event.sourceGapCount)>0)return false;
     if(!['stable','refill'].includes(event.closeReason)||!event.startAt||!event.detectionClosedAt)return false;
     const start=Date.parse(event.startAt),end=Date.parse(event.detectionClosedAt);
     if(!Number.isFinite(start)||!Number.isFinite(end)||end>nowMilliseconds)return false;
@@ -3808,7 +3882,7 @@ async function synchronizeDetectedEvents(
     )
       ? detectedEvents.filter(
           event => {
-            return SUPPORTED_ALGORITHM_VERSIONS.has(normalizeText(event?.algorithmVersion));
+            return CURRENT_ALGORITHM_VERSIONS.has(normalizeText(event?.algorithmVersion));
           }
         )
       : [];
@@ -4285,9 +4359,9 @@ function convertEventRow(
         row.algorithm_version
       ),
 
-    sourceKind:row.source_kind||(row.algorithm_version===MINUTE_ALGORITHM_VERSION?MINUTE_SOURCE_KIND:'ois_bed_ash_hourly'),
-    sampleIntervalSeconds:Number(row.sample_interval_seconds)||(row.algorithm_version===MINUTE_ALGORITHM_VERSION?60:3600),
-    sourceResolutionSeconds:Number(row.sample_interval_seconds)||(row.algorithm_version===MINUTE_ALGORITHM_VERSION?60:3600),
+    sourceKind:row.source_kind||(isMinuteAlgorithm(row.algorithm_version)?MINUTE_SOURCE_KIND:'ois_bed_ash_hourly'),
+    sampleIntervalSeconds:Number(row.sample_interval_seconds)||(isMinuteAlgorithm(row.algorithm_version)?60:3600),
+    sourceResolutionSeconds:Number(row.sample_interval_seconds)||(isMinuteAlgorithm(row.algorithm_version)?60:3600),
     detectionClosedAt:normalizeText(row.detection_closed_at)||null,
     revision:
       Math.max(
@@ -4737,6 +4811,7 @@ async function handleSummaryGet(
         WHERE legacy_or_current.candidate_active = 1
           AND legacy_or_current.status = 'pending'
           AND legacy_or_current.review_ready = 1
+          AND legacy_or_current.algorithm_version <> ?
           AND (
             legacy_or_current.algorithm_version IN (?, ?)
 
@@ -4781,6 +4856,7 @@ async function handleSummaryGet(
           legacy_or_current.unit_no ASC
       `)
       .bind(
+        LEGACY_MINUTE_ALGORITHM_VERSION,
         ALGORITHM_VERSION,MINUTE_ALGORITHM_VERSION,
         ALGORITHM_VERSION,MINUTE_ALGORITHM_VERSION,
         ALGORITHM_VERSION,MINUTE_ALGORITHM_VERSION
@@ -4816,21 +4892,25 @@ async function handleSummaryGet(
 }
 
 
-// R1: newer minute evidence is presentation-only for an existing reviewed
-// hourly record. Its saved decision, amount and identity remain authoritative;
+// Newer minute evidence is presentation-only for an existing reviewed hourly
+// or legacy-minute record. Its saved decision, amount and identity remain authoritative;
 // several observations never authorize allocating that amount to vehicles.
 function attachReviewedMinuteObservations(events,observations){
-  const isReviewedHourly=event=>['confirmed','excluded'].includes(event.status)&&event.sampleIntervalSeconds!==60&&event.sourceKind!==MINUTE_SOURCE_KIND&&event.algorithmVersion!==MINUTE_ALGORITHM_VERSION;
+  const isReviewedPriorEvidence=event=>['confirmed','excluded'].includes(event.status)&&(
+    event.algorithmVersion===LEGACY_MINUTE_ALGORITHM_VERSION||
+    event.sampleIntervalSeconds!==60&&event.sourceKind!==MINUTE_SOURCE_KIND&&!isMinuteAlgorithm(event.algorithmVersion)
+  );
   const parentsByUnit=new Map(),observationsByUnit=new Map(),byParent=new Map(),reviewedIndices=new Set();
   events.forEach((event,index)=>{
-    if(!isReviewedHourly(event))return;
+    if(!isReviewedPriorEvidence(event))return;
     reviewedIndices.add(index);
     const parent={event,index,unitNo:Number(event.unitNo),start:Date.parse(event.startAt),end:Date.parse(event.endAt)};
     if(!Number.isFinite(parent.start)||!Number.isFinite(parent.end))return;
     const group=parentsByUnit.get(parent.unitNo)||[];group.push(parent);parentsByUnit.set(parent.unitNo,group);
   });
   for(const observation of Array.isArray(observations)?observations:[]){
-    if(observation?.sourceKind!==MINUTE_SOURCE_KIND||observation.sampleIntervalSeconds!==60||observation.reviewReady!==true)continue;
+    const settledGap=observation?.hasSourceGaps===true&&observation.sourceSettled===true;
+    if(observation?.sourceKind!==MINUTE_SOURCE_KIND||observation.sampleIntervalSeconds!==60||!(observation.reviewReady===true||settledGap))continue;
     const entry={observation,unitNo:Number(observation.unitNo),start:Date.parse(observation.startAt),end:Date.parse(observation.endAt)};
     if(!Number.isFinite(entry.start)||!Number.isFinite(entry.end))continue;
     const group=observationsByUnit.get(entry.unitNo)||[];group.push(entry);observationsByUnit.set(entry.unitNo,group);
@@ -4849,12 +4929,40 @@ function attachReviewedMinuteObservations(events,observations){
       const observation=entry.observation,relatedReviewedEventKeys=matches.map(parent=>parent.event.eventKey).sort();
       const readonly={eventKey:observation.eventKey,unitNo,startAt:observation.startAt,endAt:observation.endAt,
         startLevelTon:observation.startLevelTon,endLevelTon:observation.endLevelTon,estimatedTon:observation.estimatedTon,
-        sourceKind:MINUTE_SOURCE_KIND,sampleIntervalSeconds:60,overlapOtherUnit:observation.overlapOtherUnit===true,reviewReady:true,
+        sourceKind:MINUTE_SOURCE_KIND,sampleIntervalSeconds:60,overlapOtherUnit:observation.overlapOtherUnit===true,
+        sourceGapCount:Number.isInteger(observation.sourceGapCount)&&observation.sourceGapCount>0?observation.sourceGapCount:0,
+        hasSourceGaps:observation.hasSourceGaps===true,confidence:observation.hasSourceGaps===true?'low':observation.confidence,
+        reviewReady:observation.hasSourceGaps!==true&&observation.reviewReady===true,
         relatedReviewedEventKeys,sharedReviewedEvidence:relatedReviewedEventKeys.length>1};
       for(const parent of matches){const linked=byParent.get(parent.index)||[];linked.push(readonly);byParent.set(parent.index,linked);}
     }
   }
   return events.map((event,index)=>reviewedIndices.has(index)?{...event,minuteObservations:byParent.get(index)||[]}:event);
+}
+
+function minuteObservationSourceSettled(observation,latestByDate,completedByDate){
+  if(!isMinuteAlgorithm(observation.algorithmVersion))return false;
+  const start=getKstDateFromTimestamp(observation.startAt),end=getKstDateFromTimestamp(observation.detectionClosedAt);
+  if(!isValidIsoDate(start)||!isValidIsoDate(end))return false;
+  return createDateRange(start,end).every(date=>isMinuteRequest(getSettledCompletedRequest(date,latestByDate,completedByDate)));
+}
+
+function attachCurrentSourceGapMetadata(events,observations){
+  const byKey=new Map(observations.map(observation=>[observation.eventKey,observation]));
+  return events.map(event=>{
+    const current=event.status==='pending'?byKey.get(event.eventKey):null;
+    if(!current||current.evidenceFingerprint!==event.evidenceFingerprint)return event;
+    return {...event,sourceGapCount:current.sourceGapCount||0,hasSourceGaps:current.hasSourceGaps===true,
+      ...(current.hasSourceGaps?{confidence:'low',reviewReady:false}:{})};
+  });
+}
+
+function publicMinorObservation(observation){
+  return {algorithmVersion:observation.algorithmVersion,unitNo:observation.unitNo,startAt:observation.startAt,endAt:observation.endAt,
+    startLevelTon:observation.startLevelTon,endLevelTon:observation.endLevelTon,estimatedTon:observation.estimatedTon,
+    closeReason:observation.closeReason,detectionClosedAt:observation.detectionClosedAt,sourceKind:MINUTE_SOURCE_KIND,
+    sampleIntervalSeconds:60,sourceGapCount:observation.sourceGapCount||0,hasSourceGaps:observation.hasSourceGaps===true,
+    confidence:'low',reviewReady:false};
 }
 
 
@@ -5064,10 +5172,13 @@ async function handleRangeGet(
     );
 
 
-  const allDetectedEvents =
-    await detectBedAshEvents(
+  const detection =
+    await detectBedAshObservations(
       detectionSamples
     );
+  const allDetectedEvents=detection.events;
+  const selectedMinorObservations=detection.minorObservations.filter(observation=>observation.endAt>=startTimestamp&&observation.endAt<endTimestampExclusive)
+    .sort((left,right)=>right.endAt.localeCompare(left.endAt)||left.unitNo-right.unitNo);
 
 
   const rangeDetectedEvents =
@@ -5084,6 +5195,8 @@ async function handleRangeGet(
       event => {
         return {
           ...event,
+
+          sourceSettled:minuteObservationSourceSettled(event,latestByDate,completedByDate),
 
           reviewReady:
             isDetectedEventReviewReady(
@@ -5179,7 +5292,7 @@ async function handleRangeGet(
       startTimestamp,
       endTimestampExclusive
     );
-  const events=attachReviewedMinuteObservations(storedEvents,rangeDetectedEvents);
+  const events=attachReviewedMinuteObservations(attachCurrentSourceGapMetadata(storedEvents,rangeDetectedEvents),rangeDetectedEvents);
 
 
   return jsonResponse({
@@ -5193,6 +5306,8 @@ async function handleRangeGet(
       },
 
       events,
+      minorObservations:selectedMinorObservations.slice(0,MAXIMUM_MINOR_OBSERVATIONS).map(publicMinorObservation),
+      minorObservationsOmitted:Math.max(0,selectedMinorObservations.length-MAXIMUM_MINOR_OBSERVATIONS),
 
       summary:
         buildSummary(
@@ -5478,7 +5593,7 @@ async function isStoredEventReviewReady(
 
   const {
     latestByDate,
-    completedByDate,latestRawByDate
+    completedByDate
   } =
     selectRequestRowsByDate(
       requestRows
@@ -5518,20 +5633,30 @@ async function isStoredEventReviewReady(
         completedByDate
       ),
 
-    requests:
-      supportDates.map(
-        date => {
-          return {
-            date,
-            requestId:
-              normalizeText(
-                latestRawByDate.get(
-                  date
-                )?.id
-              )
-          };
-        }
-      )
+    requestSnapshot:createRequestSnapshot(supportDates[0],supportDates[2],requestRows),
+    sourceResults:[...completedByDate.values()].map(row=>({
+      id:normalizeText(row.id),resultJson:typeof row.result_json==='string'?row.result_json:''
+    }))
+  };
+}
+
+
+function createReviewRequestGuard(validation){
+  const snapshot=normalizeRequestSnapshot(validation.requestSnapshot);
+  const sources=Array.isArray(validation.sourceResults)?validation.sourceResults:[];
+  const valid=Boolean(snapshot.startDate&&snapshot.endDate&&sources.length);
+  return {
+    cteSql:`WITH ${REQUEST_SNAPSHOT_CTES_SQL}`,
+    snapshotBindings:[JSON.stringify(snapshot.requests),snapshot.startDate,snapshot.endDate],
+    // Bind each source packet separately rather than JSON-escaping up to three
+    // large daily packets into one value. SQLite/D1 evaluates this atomically
+    // with the review mutation; request IDs alone cannot detect in-place edits.
+    whereSql:valid?`AND (SELECT ok FROM snapshot_guard) = 1 ${sources.map(()=>`
+      AND EXISTS (SELECT 1 FROM ois_data_requests AS review_source
+        WHERE review_source.id = ? AND review_source.request_type = 'bed_ash_level'
+          AND COALESCE(review_source.result_json, '') = ?)
+    `).join('')}`:'AND 0 = 1',
+    sourceBindings:sources.flatMap(source=>[source.id,source.resultJson])
   };
 }
 
@@ -5633,7 +5758,7 @@ async function handleReviewPost(
 
 
   if (
-     !SUPPORTED_ALGORITHM_VERSIONS.has(normalizeText(existingRow.algorithm_version)) &&
+     !CURRENT_ALGORITHM_VERSIONS.has(normalizeText(existingRow.algorithm_version)) &&
     normalizeText(
       existingRow.status
     ) ===
@@ -5762,10 +5887,7 @@ async function handleReviewPost(
   }
 
 
-  const supportRequestSnapshot =
-    JSON.stringify(
-      supportValidation.requests
-    );
+  const reviewRequestGuard=createReviewRequestGuard(supportValidation);
 
 
   const recomputedEvent =
@@ -5833,6 +5955,7 @@ async function handleReviewPost(
     const refreshResult =
       await context.env.DB
       .prepare(`
+        ${reviewRequestGuard.cteSql}
         UPDATE bed_ash_discharge_events
 
         SET
@@ -5855,44 +5978,11 @@ async function handleReviewPost(
           AND revision = ?
           AND candidate_active = 1
           AND review_ready = 1
-          AND NOT EXISTS (
-            SELECT 1
-
-            FROM json_each(?) AS expected
-
-            WHERE COALESCE(
-              (
-                SELECT request.id
-
-                FROM ois_data_requests AS request
-
-                WHERE request.request_type = 'bed_ash_level'
-                  AND request.target_date = json_extract(
-                    expected.value,
-                    '$.date'
-                  )
-
-                ORDER BY
-                  COALESCE(
-                    request.completed_at,
-                    request.updated_at,
-                    request.requested_at,
-                    ''
-                  ) DESC,
-                  request.requested_at DESC,
-                  request.id DESC
-
-                LIMIT 1
-              ),
-              ''
-            ) <> json_extract(
-              expected.value,
-              '$.requestId'
-            )
-          )
+          ${reviewRequestGuard.whereSql}
           AND status = 'pending'
       `)
       .bind(
+        ...reviewRequestGuard.snapshotBindings,
         recomputedEvent.startAt,
         recomputedEvent.endAt,
         recomputedEvent.thresholdCrossedAt,
@@ -5909,7 +5999,7 @@ async function handleReviewPost(
         Number(
           existingRow.revision
         ),
-        supportRequestSnapshot
+        ...reviewRequestGuard.sourceBindings
       )
       .run();
 
@@ -6135,6 +6225,7 @@ async function handleReviewPost(
     await context.env.DB.batch([
       context.env.DB
         .prepare(`
+        ${reviewRequestGuard.cteSql}
         UPDATE bed_ash_discharge_events
 
         SET
@@ -6152,44 +6243,11 @@ async function handleReviewPost(
           AND revision = ?
           AND candidate_active = 1
           AND review_ready = 1
-          AND NOT EXISTS (
-            SELECT 1
-
-            FROM json_each(?) AS expected
-
-            WHERE COALESCE(
-              (
-                SELECT request.id
-
-                FROM ois_data_requests AS request
-
-                WHERE request.request_type = 'bed_ash_level'
-                  AND request.target_date = json_extract(
-                    expected.value,
-                    '$.date'
-                  )
-
-                ORDER BY
-                  COALESCE(
-                    request.completed_at,
-                    request.updated_at,
-                    request.requested_at,
-                    ''
-                  ) DESC,
-                  request.requested_at DESC,
-                  request.id DESC
-
-                LIMIT 1
-              ),
-              ''
-            ) <> json_extract(
-              expected.value,
-              '$.requestId'
-            )
-          )
+          ${reviewRequestGuard.whereSql}
           AND status = 'pending'
         `)
         .bind(
+          ...reviewRequestGuard.snapshotBindings,
           status,
           confirmedAt,
           confirmedTon,
@@ -6200,7 +6258,7 @@ async function handleReviewPost(
           reviewedAt,
           eventKey,
           expectedRevision,
-          supportRequestSnapshot
+          ...reviewRequestGuard.sourceBindings
         ),
 
       context.env.DB
@@ -6507,6 +6565,7 @@ export const __bedAshTest = {
   detectBedAshEvents,
   detectBedAshEventsForUnit,
   detectMinuteBedAshEventsForUnit,
+  detectMinuteBedAshObservationsForUnit,
   annotateCrossUnitOverlaps,
   selectRequestRowsByDate,
   ensureSchema,

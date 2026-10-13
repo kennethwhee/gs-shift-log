@@ -42,9 +42,9 @@ const sample={eventKey:'minute-1',algorithmVersion:'bed-ash-drop-minute-v1',sour
 
 test('daily minute interval displays concise minutes while retaining actual source seconds',()=>{
   const api=client(),event=api.normalizeEvent(sample),row=api.createEventRow(event),text=textTree(row);
-  assert.equal(row.children[0].children[0].textContent,'07:03 ~ 07:08');
+  assert.equal(row.children[0].children[0].textContent,'관측 구간 07:03 ~ 07:08');
   assert.match(text,/DataPARC · 1분 자료/);
-  assert.match(text,/감지 감소량 · 계근 확인/);
+  assert.match(text,/관측 감소량 · 계근 확인/);
   assert.doesNotMatch(text,/시간별 OIS|기존 방식/);
   assert.equal(event.estimatedTon,10.3);
   assert.equal(event.startAt,sample.startAt);assert.equal(event.endAt,sample.endAt);
@@ -86,19 +86,19 @@ test('coverage states distinguish minute data and an honest hourly fallback',()=
 
 test('existing Bed Ash CSS and JS loaders each request the minute revision exactly once',()=>{
   const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
-  assert.match(html,/DataPARC 1분 조회로 호기별 5\.0t 이상 감소를 감지/);
-  assert.match(html,/종료 확인과 차량별 계근 후 반출량을 확정/);
+  assert.ok(/DataPARC 자료에서 호기별 5\.0t 이상 중량 감소를 관측/.test(html));
+  assert.ok(/관측 구간을 차량별 계근 기록과 대조해 반출량을 확정/.test(html));
   assert.match(html,/DataPARC 새로 조회/);
   for(const asset of ['bed-ash-discharge.js','bed-ash-discharge.css']){
     const hits=[...html.matchAll(/(?:src|href)="([^"]+)"/g)].filter(m=>m[1].startsWith('/efficiency/'+asset+'?'));
     assert.equal(hits.length,1);const url=new URL(hits[0][1].replaceAll('&amp;','&'),'https://review.invalid');
-    assert.equal(url.searchParams.get('minuteDetection'),'20261013-v1-r4');
+    assert.equal(url.searchParams.get('minuteDetection'),'20261013-v1-r5');
   }
 });
 
 test('an incomplete minute run is visibly distinguished even when review columns are hidden',()=>{
   const api=client(),text=textTree(api.createEventRow(api.normalizeEvent({...sample,reviewReady:false,closeReason:'data_gap'})));
-  assert.match(text,/감지 구간 확인 중 · 종료 자료 확인 필요/);
+  assert.match(text,/관측 구간 확인 중 · 종료 자료 확인 필요/);
   assert.match(text,/DataPARC · 1분 자료/);
 });
 

@@ -412,6 +412,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
   padding: 9px 12px;
   border-bottom: 1px solid #e0e6ed;
   background: #fbfcfd;
@@ -480,6 +481,59 @@
   flex: 1 1 auto;
   overflow-x: auto;
   overflow-y: auto;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-minor-observations {
+  flex: 0 0 auto;
+  min-width: 0;
+  border-top: 1px solid #e0e6ed;
+  background: #fbfcfd;
+  color: #405268;
+  font-size: 12px;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-minor-observations[hidden] {
+  display: none;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-minor-observations > summary {
+  padding: 9px 12px;
+  font-weight: 800;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-minor-observations > p {
+  margin: 0;
+  padding: 0 12px 8px;
+  color: #68778b;
+  line-height: 1.5;
+}
+
+#efficiencyTeamModal #bedAshDischargeMinorObservationList {
+  max-height: 132px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-minor-row {
+  padding: 8px 12px;
+  border-top: 1px solid #e5ebf1;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-minor-row strong,
+#efficiencyTeamModal .bed-ash-discharge-minor-row small {
+  display: block;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-minor-row small {
+  color: #68778b;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-table-wrap tr.has-source-gaps {
+  background: #fffaf1;
 }
 
 #efficiencyTeamModal .bed-ash-discharge-table-wrap table {

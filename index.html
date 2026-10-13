@@ -196,7 +196,7 @@
   >
   <link
     rel="stylesheet"
-    href="/efficiency/bed-ash-discharge.css?v=20260901-bed-ash-no-period-nav-v6-1&amp;minuteDetection=20261013-v1-r4"
+    href="/efficiency/bed-ash-discharge.css?v=20260901-bed-ash-no-period-nav-v6-1&amp;minuteDetection=20261013-v1-r5"
   >
   <link
     rel="stylesheet"
@@ -324,7 +324,7 @@
 ></script>
 
 <script
-  src="/efficiency/bed-ash-discharge.js?v=20260912-bed-ash-fast-query-v1&amp;minuteDetection=20261013-v1-r4"
+  src="/efficiency/bed-ash-discharge.js?v=20260912-bed-ash-fast-query-v1&amp;minuteDetection=20261013-v1-r5"
   defer
 ></script>
 
@@ -10699,8 +10699,8 @@
       <span>BED ASH DISCHARGE</span>
       <h3>Bed Ash 반출</h3>
       <p>
-        DataPARC 1분 조회로 호기별 5.0t 이상 감소를 감지합니다.
-        종료 확인과 차량별 계근 후 반출량을 확정합니다.
+        DataPARC 자료에서 호기별 5.0t 이상 중량 감소를 관측합니다.
+        관측 구간을 차량별 계근 기록과 대조해 반출량을 확정합니다.
       </p>
     </div>
 
@@ -10997,7 +10997,7 @@
       <header class="bed-ash-discharge-events-heading">
         <div>
           <span>DISCHARGE HISTORY</span>
-          <h4>반출 내역</h4>
+          <h4>중량 감소 관측 · 반출 확인</h4>
         </div>
 
         <div class="bed-ash-discharge-events-toolbar">
@@ -11011,7 +11011,7 @@
             </select>
           </label>
 
-          <strong id="bedAshDischargeEventCount">0건</strong>
+          <strong id="bedAshDischargeEventCount">관측 0구간 · 확정 0건</strong>
         </div>
       </header>
 
@@ -11019,10 +11019,10 @@
         <table aria-label="Bed Ash 반출량 내역">
           <thead>
             <tr>
-              <th>감지 시간</th>
+              <th>관측·확정 시간</th>
               <th>호기</th>
               <th>중량 변화</th>
-              <th>반출량</th>
+              <th>관측·확정 중량</th>
               <th>확인 상태</th>
               <th>처리</th>
             </tr>
@@ -11046,9 +11046,18 @@
           class="bed-ash-discharge-table-state is-empty"
           id="bedAshDischargeEmptyState"
         >
-          선택한 기간에 5.0t 이상 하락한 반출 내역이 없습니다.
+          선택한 기간에 5.0t 이상 감소 관측 또는 확정 기록이 없습니다.
         </div>
       </div>
+      <details
+        class="bed-ash-discharge-minor-observations"
+        id="bedAshDischargeMinorObservations"
+        hidden
+      >
+        <summary id="bedAshDischargeMinorObservationSummary">추가 중량 감소 관측 · 5t 미만</summary>
+        <p>5t 미만으로 나뉜 하락입니다. 차량 반출 건수·확정량에 포함하지 않으며, 앞뒤 관측 및 계근 기록과 대조해주세요.</p>
+        <div id="bedAshDischargeMinorObservationList"></div>
+      </details>
     </section>
   </div>
 </article>

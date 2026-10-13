@@ -21,9 +21,10 @@
   const AUTH_STORAGE_KEY = "gsShiftLog.currentUser";
   const ROUTE_KEY = "bed-ash-discharge";
   const DETECTOR_ALGORITHM_VERSION = "bed-ash-drop-v2";
-  const MINUTE_DETECTOR_ALGORITHM_VERSION = "bed-ash-drop-minute-v1";
+  const MINUTE_DETECTOR_ALGORITHM_VERSION = "bed-ash-drop-minute-v2";
+  const MINUTE_DETECTOR_VERSIONS = new Set(["bed-ash-drop-minute-v1", MINUTE_DETECTOR_ALGORITHM_VERSION]);
   const CURRENT_DETECTOR_VERSIONS = new Set([
-    DETECTOR_ALGORITHM_VERSION, MINUTE_DETECTOR_ALGORITHM_VERSION
+    DETECTOR_ALGORITHM_VERSION, ...MINUTE_DETECTOR_VERSIONS
   ]);
   const PERIODS = new Set(["daily", "weekly", "monthly"]);
   const FILTERS = new Set(["all", "pending", "confirmed", "excluded"]);
@@ -38,7 +39,7 @@
 
   const emptyUnitSummary = () => ({
     confirmedCount: 0, confirmedTon: 0, pendingCount: 0,
-    pendingEstimatedTon: 0, incompleteCount: 0
+    pendingEstimatedTon: 0, incompleteCount: 0, observationCount: 0
   });
   const emptySummary = () => ({
     confirmedCount: 0,
@@ -46,6 +47,7 @@
     pendingCount: 0,
     pendingEstimatedTon: 0,
     incompleteCount: 0,
+    observationCount: 0,
     unit1Ton: 0,
     unit2Ton: 0,
     units: { 1: emptyUnitSummary(), 2: emptyUnitSummary() }
@@ -56,6 +58,8 @@
     anchorDate: "",
     filter: "all",
     events: [],
+    minorObservations: [],
+    minorObservationsOmitted: 0,
     summary: emptySummary(),
     latestLevels: {
       1: null,
@@ -145,6 +149,9 @@
       unitTwoLatestAt: document.getElementById("bedAshDischargeUnitTwoLatestAt"),
       statusFilter: document.getElementById("bedAshDischargeStatusFilter"),
       eventCount: document.getElementById("bedAshDischargeEventCount"),
+      minorObservations: document.getElementById("bedAshDischargeMinorObservations"),
+      minorObservationSummary: document.getElementById("bedAshDischargeMinorObservationSummary"),
+      minorObservationList: document.getElementById("bedAshDischargeMinorObservationList"),
       tableBody: document.getElementById("bedAshDischargeEventTableBody"),
       loadingState: document.getElementById("bedAshDischargeLoadingState"),
       emptyState: document.getElementById("bedAshDischargeEmptyState"),
@@ -588,7 +595,7 @@
   }
 
   function isMinuteEvent(event) {
-    return event.algorithmVersion === MINUTE_DETECTOR_ALGORITHM_VERSION ||
+    return MINUTE_DETECTOR_VERSIONS.has(event.algorithmVersion) ||
       (event.sourceKind === "dataparc_bed_ash_minute" && event.sampleIntervalSeconds === 60);
   }
 
@@ -605,12 +612,18 @@
     return isMinuteEvent(event) ? "DataPARC · 1분 자료" : "운영정보 · 시간자료";
   }
 
+  function sourceGapMetadata(value) {
+    const count = typeof value?.sourceGapCount === "number" && Number.isFinite(value.sourceGapCount)
+      ? Math.max(0, Math.trunc(value.sourceGapCount)) : 0;
+    return { sourceGapCount: count, hasSourceGaps: value?.hasSourceGaps === true || count > 0 };
+  }
+
   function normalizeMinuteObservations(value, unitNo) {
     if (!Array.isArray(value)) return [];
     const seen = new Set();
     return value.filter(item => {
       const valid = item && item.sourceKind === "dataparc_bed_ash_minute" &&
-        item.sampleIntervalSeconds === 60 && item.reviewReady === true &&
+        item.sampleIntervalSeconds === 60 && (item.reviewReady === true || sourceGapMetadata(item).hasSourceGaps) &&
         text(item.unitNo) === unitNo && text(item.eventKey) && !seen.has(text(item.eventKey)) &&
         getTimestampParts(item.startAt) && getTimestampParts(item.endAt) &&
         Date.parse(item.startAt) < Date.parse(item.endAt) &&
@@ -619,15 +632,33 @@
       seen.add(text(item.eventKey));
       return true;
     }).map(item => {
+      const gaps = sourceGapMetadata(item);
       return {
         eventKey: text(item.eventKey), unitNo, startAt: text(item.startAt), endAt: text(item.endAt),
         startLevelTon: item.startLevelTon, endLevelTon: item.endLevelTon, estimatedTon: item.estimatedTon,
-        sourceKind: "dataparc_bed_ash_minute", sampleIntervalSeconds: 60, reviewReady: true,
+        sourceKind: "dataparc_bed_ash_minute", sampleIntervalSeconds: 60,
+        ...gaps, reviewReady: item.reviewReady === true && !gaps.hasSourceGaps,
         overlapOtherUnit: item.overlapOtherUnit === true,
         sharedReviewedEvidence: item.sharedReviewedEvidence === true,
         relatedReviewedEventKeys: Array.isArray(item.relatedReviewedEventKeys) ? item.relatedReviewedEventKeys.map(text) : []
       };
     }).sort((first, second) => first.startAt.localeCompare(second.startAt));
+  }
+
+  function normalizeMinorObservations(value) {
+    if (!Array.isArray(value)) return [];
+    return value.filter(item => item && item.sourceKind === "dataparc_bed_ash_minute" &&
+      item.sampleIntervalSeconds === 60 && ["1", "2"].includes(text(item.unitNo)) &&
+      getTimestampParts(item.startAt) && getTimestampParts(item.endAt) && Date.parse(item.startAt) < Date.parse(item.endAt) &&
+      [item.startLevelTon, item.endLevelTon, item.estimatedTon].every(n => typeof n === "number" && Number.isFinite(n) && n >= 0) &&
+      item.estimatedTon >= 0.5 && item.estimatedTon < 5
+    ).slice(0, 128).map(item => ({
+      unitNo: text(item.unitNo), startAt: text(item.startAt), endAt: text(item.endAt),
+      startLevelTon: item.startLevelTon, endLevelTon: item.endLevelTon, estimatedTon: item.estimatedTon,
+      closeReason: text(item.closeReason), detectionClosedAt: text(item.detectionClosedAt),
+      algorithmVersion: text(item.algorithmVersion), sourceKind: "dataparc_bed_ash_minute", sampleIntervalSeconds: 60,
+      ...sourceGapMetadata(item), reviewReady: false
+    })).sort((a, b) => Date.parse(a.startAt) - Date.parse(b.startAt));
   }
 
   function formatTon(value) {
@@ -643,6 +674,7 @@
     const normalizedStatus = FILTERS.has(text(event.status)) && text(event.status) !== "all"
       ? text(event.status)
       : "pending";
+    const gaps = sourceGapMetadata(event);
 
     return {
       eventKey: text(event.eventKey),
@@ -655,7 +687,8 @@
       startLevelTon: number(event.startLevelTon),
       endLevelTon: number(event.endLevelTon),
       estimatedTon: number(event.estimatedTon),
-      confidence: text(event.confidence) || "medium",
+      confidence: gaps.hasSourceGaps ? "low" : text(event.confidence) || "medium",
+      ...gaps,
       algorithmVersion: text(event.algorithmVersion),
       sourceKind: text(event.sourceKind),
       sampleIntervalSeconds: Math.max(0, number(event.sampleIntervalSeconds)),
@@ -679,7 +712,7 @@
           }
         : null,
       evidenceFingerprint: text(event.evidenceFingerprint),
-      reviewReady: event.reviewReady === true
+      reviewReady: event.reviewReady === true && !gaps.hasSourceGaps
     };
   }
 
@@ -710,13 +743,17 @@
         summary.confirmedTon += eventTon;
         unit.confirmedCount += 1;
         unit.confirmedTon += eventTon;
-      } else if (event.reviewReady === true) {
+      } else if (event.reviewReady === true && !sourceGapMetadata(event).hasSourceGaps) {
+        summary.observationCount += 1;
+        unit.observationCount += 1;
         const eventTon = Math.max(0, number(event.estimatedTon));
         summary.pendingCount += 1;
         summary.pendingEstimatedTon += eventTon;
         unit.pendingCount += 1;
         unit.pendingEstimatedTon += eventTon;
       } else {
+        summary.observationCount += 1;
+        unit.observationCount += 1;
         summary.incompleteCount += 1;
         unit.incompleteCount += 1;
       }
@@ -993,7 +1030,7 @@
       elements.totalAmount.textContent = formatTon(summary.confirmedTon);
       setCardSupportingText(
         elements.totalAmount,
-        `확정 ${summary.confirmedCount}건 · 감지 추정 ${formatTon(summary.pendingEstimatedTon)}(${summary.pendingCount}건) · 종료 확인 ${summary.incompleteCount}건`
+        `확정 ${summary.confirmedCount}건 · 관측 ${summary.observationCount}구간 · 연속 감소 ${formatTon(summary.pendingEstimatedTon)} · 자료 확인 ${summary.incompleteCount}구간`
       );
     }
     if (elements.unitOneAmount) {
@@ -1006,7 +1043,7 @@
       elements.pendingCount.textContent = `${summary.pendingCount}건`;
       setCardSupportingText(
         elements.pendingCount,
-        `추정 반출량 ${formatTon(summary.pendingEstimatedTon)}`
+        `연속 관측 감소 ${formatTon(summary.pendingEstimatedTon)}`
       );
     }
   }
@@ -1018,7 +1055,7 @@
     element.dataset.state = unit.confirmedCount ? "confirmed" : hasCandidates ? "pending"
       : coverage?.hasMinuteSource && coverage.validMinuteSampleCount ? "none" : "unknown";
     const detail = unit.confirmedCount || hasCandidates
-      ? `확정 ${formatTon(unit.confirmedTon)} · 감지 추정 ${formatTon(unit.pendingEstimatedTon)}(${unit.pendingCount}건) · 종료 확인 ${unit.incompleteCount}건`
+      ? `확정 ${formatTon(unit.confirmedTon)} · 관측 ${unit.observationCount}구간 · 연속 감소 ${formatTon(unit.pendingEstimatedTon)} · 자료 확인 ${unit.incompleteCount}구간`
       : `확정 ${formatTon(unit.confirmedTon)} · 실제 반출 여부는 계근 확인`;
     setCardSupportingText(element, `${detail} · ${unitCoverageMessage(coverage)}`);
   }
@@ -1299,6 +1336,15 @@
     return `bedAshDischargeReviewPanel-${(hash >>> 0).toString(36)}`;
   }
 
+  function appendSourceGapNotice(container, observation) {
+    if (!observation.hasSourceGaps) return;
+    const notice = createElement("small", "bed-ash-discharge-minute-pending-note", "자료 공백 포함 · 계근 확인");
+    notice.title = observation.sourceGapCount
+      ? `NoData 분 자료 ${observation.sourceGapCount}개가 포함된 전후 관측입니다. 차량별 반출시각·반출량은 계근 기록을 확인하세요.`
+      : "자료 공백이 포함된 전후 관측입니다. 차량별 반출시각·반출량은 계근 기록을 확인하세요.";
+    container.appendChild(notice);
+  }
+
   function createEventRow(event) {
     const row = createElement(
       "tr",
@@ -1309,28 +1355,36 @@
     const timeCell = createElement("td", "bed-ash-discharge-time-cell");
     const detectionRange = formatDetectionRange(event.startAt, event.endAt);
     const observations = event.minuteObservations || [];
+    if (event.hasSourceGaps || observations.some(item => item.hasSourceGaps)) row.classList.add("has-source-gaps");
     const confirmedTime = event.status === "confirmed" && event.confirmedAt
       ? formatTimestamp(event.confirmedAt)
       : "";
     if (observations.length) {
       for (const observation of observations) {
-        timeCell.appendChild(createElement("strong", "bed-ash-discharge-minute-range",
-          formatDetectionRange(observation.startAt, observation.endAt)));
+        const observedRange = createElement("strong", "bed-ash-discharge-minute-range",
+          formatDetectionRange(observation.startAt, observation.endAt));
+        observedRange.title = `전후 관측 시각 ${formatHourlyRange(observation.startAt, observation.endAt, true)}`;
+        timeCell.appendChild(observedRange);
+        appendSourceGapNotice(timeCell, observation);
       }
       timeCell.appendChild(createElement("small", "", "DataPARC · 1분 감지 근거"));
+      timeCell.appendChild(createElement("small", "", "새 관측 근거 · 읽기 전용"));
       const original = createElement("details", "bed-ash-discharge-original-evidence");
-      original.append(createElement("summary", "", "기존 시간기록"),
-        createElement("small", "", `${formatHourlyRange(event.startAt, event.endAt)}${confirmedTime ? ` · 확정 시각 ${confirmedTime}` : ""}`));
+      original.append(createElement("summary", "", isMinuteEvent(event) ? "기존 분 감지 기록" : "기존 시간기록"),
+        createElement("small", "", `${eventSourceLabel(event)} · ${formatHourlyRange(event.startAt, event.endAt)}${confirmedTime ? ` · 확정 시각 ${confirmedTime}` : ""}`));
       timeCell.appendChild(original);
       if (observations.some(item => item.sharedReviewedEvidence)) {
         timeCell.appendChild(createElement("small", "bed-ash-discharge-minute-pending-note",
           "공유 감지 근거 · 개별 반출 연결 미확정"));
       }
-    } else timeCell.append(
+    } else {
+      timeCell.title = `전후 관측 시각 ${formatHourlyRange(event.startAt, event.endAt, true)}`;
+      timeCell.append(
       createElement(
         "strong",
         "",
-        confirmedTime && !isMinuteEvent(event) ? `실제 ${confirmedTime}` : detectionRange
+        confirmedTime && !isMinuteEvent(event) ? `실제 ${confirmedTime}`
+          : event.status === "pending" && isMinuteEvent(event) ? `관측 구간 ${detectionRange}` : detectionRange
       ),
       createElement(
         "small",
@@ -1339,7 +1393,8 @@
           ? `${eventSourceLabel(event)} ${detectionRange}`
           : eventSourceLabel(event)
       )
-    );
+      );
+    }
     if (!observations.length && isMinuteEvent(event) && confirmedTime) {
       timeCell.appendChild(createElement("small", "", `확정 시각 ${confirmedTime}`));
     }
@@ -1353,9 +1408,10 @@
       timeCell.appendChild(overlapNote);
     }
     if (isMinuteEvent(event) && event.status === "pending" && !event.reviewReady) {
-      timeCell.appendChild(createElement(
+      if (event.hasSourceGaps) appendSourceGapNotice(timeCell, event);
+      else timeCell.appendChild(createElement(
         "small", "bed-ash-discharge-minute-pending-note",
-        "감지 구간 확인 중 · 종료 자료 확인 필요"
+        "관측 구간 확인 중 · 종료 자료 확인 필요"
       ));
     }
     row.appendChild(timeCell);
@@ -1374,7 +1430,7 @@
       for (const observation of observations) {
         levelChangeCell.append(createElement("strong", "bed-ash-discharge-minute-range",
           `${formatTon(observation.startLevelTon)} → ${formatTon(observation.endLevelTon)}`),
-          createElement("small", "", `감지 감소량 ${formatTon(observation.estimatedTon)}`));
+          createElement("small", "", `관측 감소량 ${formatTon(observation.estimatedTon)}`));
       }
     } else levelChangeCell.appendChild(
       createElement(
@@ -1397,15 +1453,13 @@
       ["confirmed", "excluded"].includes(event.status);
     if (observations.length) {
       estimatedCell.append(createElement("strong", "", formatTon(visibleAmountTon)),
-        createElement("small", "", event.status === "confirmed" ? "기존 확정량" : "기존 제외 기록"));
-      if (observations.length > 1 || observations.some(item => item.sharedReviewedEvidence)) {
-        estimatedCell.appendChild(createElement("small", "", "구간별 배분 안 함"));
-      }
+        createElement("small", "", event.status === "confirmed" ? "기존 확정량" : "기존 제외 기록"),
+        createElement("small", "", "구간별 배분 안 함"));
     } else if (isTruckBoundaryUnresolved) {
       estimatedCell.classList.add("is-truck-boundary-unresolved");
       estimatedCell.append(
         createElement("strong", "", formatTon(visibleAmountTon)),
-        createElement("small", "", isMinuteEvent(event) ? "감지 감소량 · 계근 확인" : "반출량")
+        createElement("small", "", isMinuteEvent(event) ? "관측 감소량 · 계근 확인" : "반출량")
       );
     } else if (isLegacyReviewedEvent) {
       estimatedCell.classList.add("is-legacy-reviewed-event");
@@ -1427,7 +1481,7 @@
       estimatedCell.append(
         createElement("strong", "", formatTon(visibleAmountTon)),
         createElement("small", "", isMinuteEvent(event) && event.status !== "confirmed"
-          ? "감지 감소량 · 계근 확인" : "반출량")
+          ? "관측 감소량 · 계근 확인" : "반출량")
       );
     }
     row.appendChild(estimatedCell);
@@ -1447,7 +1501,7 @@
         isTruckBoundaryUnresolved
           ? "시간 경계 확인 필요"
           : isProvisional
-            ? "자료 확인 중"
+            ? event.hasSourceGaps ? "자료 공백 포함 · 계근 확인" : "자료 확인 중"
             : getStatusLabel(event.status)
       )
     );
@@ -1490,9 +1544,12 @@
       const provisionalNote = createElement(
         "span",
         "bed-ash-discharge-provisional-note",
-        "후속 자료 수집 후 확인"
+        event.hasSourceGaps ? "원자료·계근 확인 필요" : "종료 자료 확인 필요"
       );
-      provisionalNote.title = "첫날 기준·마지막 날 후속 자료 수집 후 확인 가능";
+      provisionalNote.title = event.hasSourceGaps
+        ? "자료 공백이 포함된 관측 구간은 자동 확정하지 않습니다. 원자료와 계근 기록을 확인하세요."
+        : isMinuteEvent(event) ? "연속된 관측 구간과 종료 자료를 확인한 후 계근 기록을 확인하세요."
+          : "첫날 기준·마지막 날 후속 자료 수집 후 확인 가능";
       actionCell.appendChild(provisionalNote);
     } else if (event.status === "pending" && !isMobileClient()) {
       const isSubmitting = state.submittingEventKeys.has(event.eventKey);
@@ -1589,7 +1646,9 @@
     restoreReviewEditorFocus(elements.tableBody, focusState);
 
     if (elements.eventCount) {
-      elements.eventCount.textContent = `${visibleEvents.length}건`;
+      const observed = visibleEvents.filter(event => event.status === "pending").length;
+      const confirmed = visibleEvents.filter(event => event.status === "confirmed").length;
+      elements.eventCount.textContent = `관측 ${observed}구간 · 확정 ${confirmed}건`;
     }
     if (elements.emptyState) {
       elements.emptyState.hidden = state.loading || visibleEvents.length > 0;
@@ -1597,9 +1656,30 @@
         elements.emptyState.textContent = "선택한 확인 상태에 해당하는 내역이 없습니다.";
       } else {
         elements.emptyState.textContent =
-          "선택한 기간에 5.0t 이상 하락한 반출 내역이 없습니다.";
+          "표시할 중량 감소 관측이 없습니다. 실제 반출 여부는 계근 기록을 확인하세요.";
       }
     }
+  }
+
+  function renderMinorObservations() {
+    const elements = getElements();
+    if (!elements.minorObservations || !elements.minorObservationList) return;
+    const observations = state.minorObservations;
+    elements.minorObservations.hidden = observations.length === 0 && state.minorObservationsOmitted === 0;
+    if (elements.minorObservationSummary) {
+      elements.minorObservationSummary.textContent = `5t 미만 중량 감소 관측 ${observations.length}구간` +
+        (state.minorObservationsOmitted ? ` · 추가 ${state.minorObservationsOmitted}구간 생략` : "");
+    }
+    const fragment = document.createDocumentFragment();
+    for (const observation of observations) {
+      const row = createElement("div", "bed-ash-discharge-minor-row");
+      const range = createElement("strong", "", `${observation.unitNo}호기 · 관측 구간 ${formatDetectionRange(observation.startAt, observation.endAt)}`);
+      range.title = `전후 관측 시각 ${formatHourlyRange(observation.startAt, observation.endAt, true)}`;
+      row.append(range, createElement("small", "", `${formatTon(observation.startLevelTon)} → ${formatTon(observation.endLevelTon)} · 관측 감소 ${formatTon(observation.estimatedTon)} · 5.0t 미만 · 읽기 전용`));
+      appendSourceGapNotice(row, observation);
+      fragment.appendChild(row);
+    }
+    elements.minorObservationList.replaceChildren(fragment);
   }
 
   function preserveReviewedEventInRangeData(data, savedEvent) {
@@ -1637,6 +1717,8 @@
       return text(second.endAt).localeCompare(text(first.endAt));
     });
     state.summary = summarizeVisibleEvents(state.events);
+    state.minorObservations = normalizeMinorObservations(data?.minorObservations);
+    state.minorObservationsOmitted = Math.max(0, Math.trunc(number(data?.minorObservationsOmitted)));
     state.latestLevels = {
       1: normalizeLatestLevel(data?.latestLevels?.["1"]),
       2: normalizeLatestLevel(data?.latestLevels?.["2"])
@@ -1650,10 +1732,13 @@
     renderSummaryCards();
     renderLatestLevels();
     renderEvents();
+    renderMinorObservations();
   }
 
   function clearDetailData(message = "저장된 Bed Ash Silo 자료를 불러옵니다.") {
     state.events = [];
+    state.minorObservations = [];
+    state.minorObservationsOmitted = 0;
     state.expandedReviewEventKey = "";
     state.reviewDrafts.clear();
     state.composingReviewEventKey = "";
@@ -1667,6 +1752,7 @@
     renderSummaryCards();
     renderLatestLevels();
     renderEvents();
+    renderMinorObservations();
     setStatus(message, "idle");
   }
 
@@ -1944,7 +2030,7 @@
         ? [`${unitNo}호기 ${unit.validMinuteSampleCount ? "자료 누락 있음" : "1분 자료 미수신"}`] : [];
     });
     const incomplete = state.summary.incompleteCount
-      ? [`종료 확인 ${state.summary.incompleteCount}건`] : [];
+      ? [`자료 확인 ${state.summary.incompleteCount}구간`] : [];
     const fallback = (coverage.precisionFailures?.length
       ? " · 정밀 조회 미수신 · 기존 자료 표시"
       : "") + (partialMinuteCount ? ` · 1분 자료 일부 미수신 ${partialMinuteCount}일` : "") +
@@ -2609,6 +2695,12 @@
 
   async function submitReview(event, actionCell, status) {
     if (isMobileClient() || !event || event.status !== "pending") {
+      return;
+    }
+    if (!event.reviewReady || sourceGapMetadata(event).hasSourceGaps) {
+      setStatus(sourceGapMetadata(event).hasSourceGaps
+        ? "자료 공백이 포함된 관측 구간입니다. 원자료와 계근 기록을 확인해 주세요."
+        : "관측 구간과 종료 자료를 확인한 후 계근 기록을 확인해 주세요.", "warning");
       return;
     }
     if (state.submittingEventKeys.size > 0) {

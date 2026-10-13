@@ -38,7 +38,7 @@ test('minute source retains actual seconds, detects independent intervals and an
   const one=events.find(e=>e.unitNo===1),two=events.find(e=>e.unitNo===2);
   assert.equal(one.startAt,'2026-08-01T07:03:05+09:00');assert.equal(one.endAt,'2026-08-01T07:05:05+09:00');assert.equal(one.estimatedTon,7);
   assert.equal(two.startAt,'2026-08-01T07:01:05+09:00');assert.equal(two.endAt,'2026-08-01T07:04:05+09:00');assert.equal(two.estimatedTon,7);
-  assert.equal(one.algorithmVersion,'bed-ash-drop-minute-v1');assert.equal(one.sampleIntervalSeconds,60);assert.equal(one.sourceKind,'dataparc_bed_ash_minute');
+  assert.equal(one.algorithmVersion,'bed-ash-drop-minute-v2');assert.equal(one.sampleIntervalSeconds,60);assert.equal(one.sourceKind,'dataparc_bed_ash_minute');
   assert.equal(one.overlapOtherUnit,true);assert.deepEqual(one.overlapEventKeys,[two.eventKey]);assert.equal(one.overlapStartAt,one.startAt);assert.equal(one.overlapEndAt,two.endAt);
   const touching=api.annotateCrossUnitOverlaps([{...one,startAt:two.endAt},{...two}]);assert.ok(touching.every(e=>e.overlapOtherUnit===false));
 });
@@ -76,7 +76,7 @@ test('minute data wins over hourly fallback without converting or mixing hourly 
   const fine=packet({level:runLevel}),hourly={targetDate:DAY,collectedAt:'2026-08-02T10:00:00Z',sourceKind:'ois_hourly_fallback',precisionFailure:'BED_ASH_MINUTE_QUERY_FAILED',units:contract.UNIT_DEFINITIONS.map(def=>({...def,samples:[{hour:7,levelTon:100},{hour:8,levelTon:20},{hour:9,levelTon:20}]}))};
   const maps=api.selectRequestRowsByDate([row(hourly,'newer-hourly'),row(fine,'fine')]);assert.equal(maps.completedByDate.get(DAY).id,'fine');
   const old=normalized(hourly);assert.ok(old.length>0);assert.ok(old.every(p=>p.sampleIntervalSeconds===3600&&p.sampledAt.endsWith(':00:00+09:00')));
-  const events=await api.detectBedAshEvents([...old,...normalized(fine)]);assert.equal(events.length,2);assert.ok(events.every(e=>e.algorithmVersion==='bed-ash-drop-minute-v1'));
+  const events=await api.detectBedAshEvents([...old,...normalized(fine)]);assert.equal(events.length,2);assert.ok(events.every(e=>e.algorithmVersion==='bed-ash-drop-minute-v2'));
   const hourlyOnly=await api.detectBedAshEvents(old);assert.ok(hourlyOnly.every(e=>e.algorithmVersion==='bed-ash-drop-v2'));
 });
 
@@ -95,7 +95,7 @@ test('minute events persist provenance and can be reviewed with append-only hist
 
 test('a month of minute runs executes with bounded event windows and no recursive truck splitting',()=>{
   const started=performance.now(),points=Array.from({length:31*1440},(_,i)=>point(1,i,[30,27,23,23,23,30,30][i%7]));
-  const events=api.detectMinuteBedAshEventsForUnit(1,points);assert.ok(events.length>6000);assert.ok(events.every(e=>e.evidencePoints.length<=5));assert.ok(performance.now()-started<3000);
+  const events=api.detectMinuteBedAshEventsForUnit(1,points);assert.ok(events.length>6000);assert.ok(events.every(e=>e.evidencePoints.length<=7));assert.ok(performance.now()-started<3000);
 });
 
 test('a long quiet plateau advances the start to the real pre-drop minute without losing a genuine gradual drop',()=>{
@@ -105,7 +105,7 @@ test('a long quiet plateau advances the start to the real pre-drop minute withou
 });
 
 test('sub-tolerance post-drop jitter settles and a later genuine drop remains a separate same-hour event',()=>{
-  const levels=[20,10,10.10,9.99,10.02,9.98,9.99,9.97,9.98,9.96,9.96,4,4.02,3.99,4.01];
+  const levels=[20,10,10.10,9.99,10.02,9.98,9.99,9.97,9.98,9.96,9.96,4,4.02,3.99,4.01,4.01,4.01,4.01,4.01,4.01];
   const events=api.detectMinuteBedAshEventsForUnit(1,levels.map((n,m)=>point(1,420+m,n)));
   assert.equal(events.length,2);assert.ok(events.every(e=>e.closeReason==='stable'));assert.ok(events[0].endAt<events[1].startAt);assert.ok(events[0].estimatedTon>=10);assert.ok(events[1].estimatedTon>=5);
 });
@@ -125,11 +125,11 @@ test('a newer in-flight request blocks minute review and cannot append a reviewe
   assert.equal(response.status,409);assert.equal(db.raw.prepare('SELECT COUNT(*) n FROM bed_ash_discharge_review_history').get().n,0);
 });
 
-test('stability waits for two actual elapsed minutes when source seconds vary inside adjacent buckets',()=>{
-  const levels=[20,10,10,10,10],points=levels.map((n,i)=>point(1,420+i,n));
+test('stability waits for five actual observed minutes when source seconds vary inside adjacent buckets',()=>{
+  const levels=[20,10,10,10,10,10,10,10],points=levels.map((n,i)=>point(1,420+i,n));
   points[1].sampledAt='2026-08-01T07:01:59+09:00';points[1].returnedAt=points[1].sampledAt;
-  const early=api.detectMinuteBedAshEventsForUnit(1,points.slice(0,4));assert.equal(early[0].closeReason,'data_end');
-  const settled=api.detectMinuteBedAshEventsForUnit(1,points);assert.equal(settled[0].closeReason,'stable');assert.equal(settled[0].detectionClosedAt,'2026-08-01T07:04:05+09:00');
+  const early=api.detectMinuteBedAshEventsForUnit(1,points.slice(0,7));assert.equal(early[0].closeReason,'data_end');
+  const settled=api.detectMinuteBedAshEventsForUnit(1,points);assert.equal(settled[0].closeReason,'stable');assert.equal(settled[0].detectionClosedAt,'2026-08-01T07:07:05+09:00');
 });
 
 test('request SQL retains all historical metadata but hydrates at most three selected payloads per date',async t=>{

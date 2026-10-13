@@ -48,7 +48,7 @@ async function getRange(db){
   const response=await api.handleRangeGet({env:{DB:db}},new URL('https://fixture.invalid/api/bed-ash-discharge?startDate='+DAY+'&endDate='+DAY));
   assert.equal(response.status,200,JSON.stringify(await response.clone().json()));return (await response.json()).data;
 }
-const allowed=['eventKey','unitNo','startAt','endAt','startLevelTon','endLevelTon','estimatedTon','sourceKind','sampleIntervalSeconds','overlapOtherUnit','reviewReady','relatedReviewedEventKeys','sharedReviewedEvidence'].sort();
+const allowed=['eventKey','unitNo','startAt','endAt','startLevelTon','endLevelTon','estimatedTon','sourceKind','sampleIntervalSeconds','overlapOtherUnit','reviewReady','relatedReviewedEventKeys','sharedReviewedEvidence','sourceGapCount','hasSourceGaps','confidence'].sort();
 
 test('GET adds separate read-only minute observations to a confirmed hourly aggregate without changing its amount, identity or history',async t=>{
   const fixture=await reviewedFixture();t.after(()=>fixture.db.close());saveSource(fixture.db,packet({level:runLevel}));

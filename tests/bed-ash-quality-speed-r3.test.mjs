@@ -226,7 +226,7 @@ test('three minute candidates with two incomplete endings do not become confirme
   assert.equal(h.api.state.summary.pendingCount, 1);
   assert.equal(h.api.state.summary.incompleteCount, 2);
   assert.equal(card(h, 'bedAshDischargeTotalAmount').textContent, '0.0t');
-  assert.match(detail(h, 'bedAshDischargeTotalAmount'), /확정 0건 · 감지 추정 7.0t\(1건\) · 종료 확인 2건/);
+  assert.match(detail(h, 'bedAshDischargeTotalAmount'), /확정 0건 · 관측 3구간 · 연속 감소 7.0t · 자료 확인 2구간/);
   assert.equal(card(h, 'bedAshDischargeUnitOneAmount').textContent, '미확정');
   assert.equal(card(h, 'bedAshDischargeUnitTwoAmount').textContent, '감지 내역 없음');
   assert.match(detail(h, 'bedAshDischargeUnitTwoAmount'), /1분 자료 미수신 · 반출 여부 확인 불가/);
@@ -237,7 +237,7 @@ test('three minute candidates with two incomplete endings do not become confirme
   assert.equal(h.status.dataset.state, 'warning');
   assert.match(h.status.textContent, /1호기 자료 누락 있음/);
   assert.match(h.status.textContent, /2호기 1분 자료 미수신/);
-  assert.match(h.status.textContent, /종료 확인 2건/);
+  assert.match(h.status.textContent, /자료 확인 2구간/);
   assert.doesNotMatch(h.status.textContent, /첫날 자정|후속 자료|조회 중/);
   assert.equal(h.calls.posts.length, 0); assert.equal(h.calls.statuses.length, 0);
   assert.equal(JSON.stringify(raw), before, 'readonly presentation must retain source records and quantities');
@@ -355,7 +355,7 @@ test('manual confirmed amounts stay separate from ready estimates, incomplete dr
   assert.equal(h.api.state.summary.pendingEstimatedTon, 7); assert.equal(h.api.state.summary.incompleteCount, 2);
   assert.equal(card(h, 'bedAshDischargeTotalAmount').textContent, '10.7t');
   assert.equal(card(h, 'bedAshDischargeUnitOneAmount').textContent, '10.7t');
-  assert.match(detail(h, 'bedAshDischargeUnitOneAmount'), /확정 10.7t · 감지 추정 7.0t\(1건\) · 종료 확인 2건/);
+  assert.match(detail(h, 'bedAshDischargeUnitOneAmount'), /확정 10.7t · 관측 3구간 · 연속 감소 7.0t · 자료 확인 2구간/);
   assert.equal(h.api.state.events.find(e => e.eventKey === 'confirmed-original').confirmedTon, 10.7);
   assert.equal(JSON.stringify(raw), before);
 });
