@@ -244,10 +244,10 @@ test('date reset clears observed totals and source-detail text so prior sparse r
   assert.equal(h.requests(), 0);
 });
 
-test('page titles identify observed amounts and each existing loader requests the R6 presentation once', () => {
+test('page titles identify observed amounts and each existing loader requests the current presentation once', () => {
   for (const label of ['관측 감소량 합계', '1호기 관측 감소량', '2호기 관측 감소량']) assert.ok(html.includes(label), label);
   for (const extension of ['js', 'css']) {
     const matches = [...html.matchAll(new RegExp(`/efficiency/bed-ash-discharge\\.${extension}\\?[^"\\s]+`, 'g'))];
-    assert.equal(matches.length, 1, extension); assert.match(matches[0][0], /minuteDetection=20261013-v1-r6/);
+    assert.equal(matches.length, 1, extension); assert.match(matches[0][0], /minuteDetection=20261013-v1-r7/);
   }
 });

@@ -233,11 +233,13 @@ test('three minute candidates with two incomplete endings do not become confirme
   assert.equal(card(h, 'bedAshDischargeUnitTwoLatestLevel').textContent, '--.-t');
   assert.match(card(h, 'bedAshDischargeUnitTwoLatestAt').textContent, /23:59 자료 미수신/);
   assert.equal(card(h, 'bedAshDischargeUnitOneLatestLevel').textContent, '17.5t');
-  assert.match(card(h, 'bedAshDischargeUnitOneLatestAt').textContent, /18:01 마지막 유효값 · .*23:59 자료 미수신/);
+  assert.equal(card(h, 'bedAshDischargeUnitOneLatestAt').textContent, '18:01 기준 · 이후 미수신');
+  assert.match(card(h, 'bedAshDischargeUnitOneLatestAt').title, /18:01 마지막 유효값 · .*23:59 자료 미수신/);
   assert.equal(h.status.dataset.state, 'warning');
-  assert.match(h.status.textContent, /1호기 자료 누락 있음/);
-  assert.match(h.status.textContent, /2호기 1분 자료 미수신/);
-  assert.match(h.status.textContent, /자료 확인 2구간/);
+  assert.match(h.status.title, /1호기 자료 누락 있음/);
+  assert.match(h.status.textContent, /2호기 미수신/);
+  assert.match(h.status.title, /2호기 1분 자료 미수신/);
+  assert.match(h.status.title, /자료 확인 2구간/);
   assert.doesNotMatch(h.status.textContent, /첫날 자정|후속 자료|조회 중/);
   assert.equal(h.calls.posts.length, 0); assert.equal(h.calls.statuses.length, 0);
   assert.equal(JSON.stringify(raw), before, 'readonly presentation must retain source records and quantities');
@@ -253,7 +255,8 @@ test('latest missing or blank values stay absent while an explicitly measured ze
     const h = client({ range: () => raw }); await h.choose(SELECTED);
     assert.equal(card(h, 'bedAshDischargeUnitOneLatestLevel').textContent, '--.-t');
     assert.equal(card(h, 'bedAshDischargeUnitTwoLatestLevel').textContent, '0.0t');
-    assert.match(card(h, 'bedAshDischargeUnitTwoLatestAt').textContent, /23:59 마지막 유효값/);
+    assert.match(card(h, 'bedAshDischargeUnitTwoLatestAt').textContent, /23:59 기준/);
+    assert.match(card(h, 'bedAshDischargeUnitTwoLatestAt').title, /23:59 마지막 유효값/);
   }
 });
 
@@ -301,8 +304,8 @@ test('received partial minute data is reused on navigation and retried only by a
   const h = client({ range: () => raw }); await h.choose(SELECTED);
   assert.equal(h.calls.posts.length, 0); assert.equal(h.calls.statuses.length, 0);
   assert.equal(h.api.state.activeRangeLoad, null); assert.equal(h.status.dataset.state, 'warning');
-  assert.match(h.status.textContent, /1\/1일 자료 수신/);
-  assert.match(h.status.textContent, /1분 자료 일부 미수신 1일/);
+  assert.match(h.status.title, /1\/1일 자료 수신/);
+  assert.match(h.status.title, /1분 자료 일부 미수신 1일/);
   assert.doesNotMatch(h.status.textContent, /자료 없음 1일/);
   await h.api.loadSelectedRange();
   assert.equal(h.calls.posts.length, 0, 'intrinsic NoData must not start collection every time the view opens');
@@ -331,7 +334,7 @@ test('ordinary partial-minute reuse still observes an already active selected-da
   complete = true; await h.poll();
   assert.equal(h.api.state.activeRangeLoad, null); assert.equal(h.calls.posts.length, 0);
   assert.deepEqual(h.calls.statuses, [[JOB(SELECTED)], [JOB(SELECTED)]]);
-  assert.equal(h.status.dataset.state, 'warning'); assert.match(h.status.textContent, /1분 자료 일부 미수신 1일/);
+  assert.equal(h.status.dataset.state, 'warning'); assert.match(h.status.title, /1분 자료 일부 미수신 1일/);
 });
 
 test('ordinary hourly navigation still collects missing midnight and next-day support', async () => {

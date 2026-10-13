@@ -1998,3 +1998,445 @@
   display: block;
   margin-top: 3px;
 }
+
+/* BED_ASH_COMPACT_HISTORY_R7
+   Keep the controls compact and give the remaining desktop height to history.
+   All overrides are scoped to this view; other efficiency menus keep their layout. */
+#efficiencyTeamModal #efficiencyBedAshDischargeView {
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-heading {
+  min-height: 48px;
+  box-sizing: border-box;
+  gap: 10px;
+  padding: 7px 12px;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-heading > div {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 3px 12px;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-heading h3 {
+  font-size: 18px;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-heading p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-refresh-button {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-dashboard {
+  flex: 1 1 0%;
+  gap: 6px;
+  padding: 8px;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-dashboard > :not(.bed-ash-discharge-events-card) {
+  flex: 0 0 auto;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-query-card {
+  gap: 6px 10px !important;
+  padding: 6px 9px;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-period-buttons {
+  grid-template-columns: repeat(3, minmax(43px, 1fr));
+  border-radius: 7px;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-period-buttons button {
+  min-height: 32px !important;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-date-navigation {
+  grid-template-columns: 32px minmax(143px, 1fr) 44px 32px !important;
+  gap: 5px !important;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-date-navigation > button,
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-date-navigation input {
+  height: 32px !important;
+  min-height: 32px !important;
+  border-radius: 6px;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-date-navigation label {
+  min-height: 32px !important;
+  gap: 0 !important;
+}
+
+/* Keep the date label available to assistive technology without taking a column. */
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-date-navigation label > span {
+  position: absolute;
+  display: block;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-query-state {
+  min-height: 0 !important;
+  gap: 2px;
+  padding-left: 10px !important;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-query-state strong {
+  font-size: 12px;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-query-state p {
+  margin: 0 !important;
+  font-size: 11px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView #bedAshDischargeElapsedTime {
+  align-self: flex-start;
+  padding: 1px 5px;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-period-option-strip button {
+  min-height: 28px;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-summary-grid {
+  gap: 6px;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-summary-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 2px 6px;
+  min-height: 0;
+  padding: 7px 10px;
+  border-radius: 8px;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-summary-card > strong {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.15;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-summary-card > strong:is([data-state="none"], [data-state="unknown"], [data-state="pending"]) {
+  font-size: 15px;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-summary-card > small {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-source-details {
+  box-sizing: border-box;
+  max-height: 104px;
+  overflow-y: auto;
+  padding: 4px 9px;
+  border-radius: 7px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-source-details[hidden] {
+  display: none;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-level-grid {
+  gap: 6px;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-level-card {
+  gap: 8px;
+  min-height: 0;
+  padding: 5px 10px;
+  border-radius: 8px;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-level-card > div:first-child strong {
+  margin: 0;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-level-card__value {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-level-card__value strong {
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-level-card__value small {
+  margin-top: 1px;
+  font-size: 10.5px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-events-heading {
+  flex: 0 0 auto;
+  min-height: 36px;
+  box-sizing: border-box;
+  gap: 5px 9px;
+  padding: 5px 10px;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-events-heading h4 {
+  margin: 0;
+  font-size: 14px;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-events-toolbar {
+  gap: 6px;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-events-toolbar > strong,
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-events-toolbar select {
+  height: 26px;
+  min-height: 26px;
+  font-size: 11px;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-table-wrap th,
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-table-wrap td {
+  padding: 6px 8px;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-table-wrap th {
+  padding-top: 5px;
+  padding-bottom: 5px;
+  font-size: 12px;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-time-cell > small,
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-estimated-cell > small {
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+/* Ordinary minute observations share one source; keep its full text in details/title. */
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-time-cell > .bed-ash-discharge-repeated-source {
+  display: none;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-minor-observations > summary {
+  padding: 5px 10px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+@media screen and (min-width: 769px) {
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-dashboard {
+    overflow: hidden;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-events-card {
+    flex: 1 1 0%;
+    min-height: 0;
+    border-radius: 8px;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-table-wrap {
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-query-card {
+    grid-template-columns: auto minmax(260px, 285px) minmax(0, 1fr) !important;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-period-buttons {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-date-navigation {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-query-state {
+    grid-column: 3;
+    grid-row: 1;
+    padding-top: 0;
+    border-top: 0;
+    border-left: 1px solid #e0e6ee;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-period-option-strip {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView:is([data-bed-ash-period="weekly"], [data-bed-ash-period="monthly"]) .bed-ash-discharge-query-card {
+    grid-template-columns: auto minmax(0, 1fr) !important;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView:is([data-bed-ash-period="weekly"], [data-bed-ash-period="monthly"]) .bed-ash-discharge-query-state {
+    grid-column: 2;
+  }
+}
+
+@media screen and (min-width: 769px) and (max-width: 1000px) {
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-query-card {
+    grid-template-columns: auto minmax(0, 1fr) !important;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-query-state {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    padding-left: 0 !important;
+    border-left: 0;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView:is([data-bed-ash-period="weekly"], [data-bed-ash-period="monthly"]) .bed-ash-discharge-query-state {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-summary-card {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Expanded evidence in short windows must not squeeze history below one row. */
+@media screen and (min-width: 769px) and (min-height: 651px) and (max-height: 800px) {
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-dashboard:has(#bedAshDischargeSourceDetails[open]):has(#bedAshDischargeMinorObservations[open]) {
+    overflow-y: auto;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-dashboard:has(#bedAshDischargeSourceDetails[open]):has(#bedAshDischargeMinorObservations[open]) .bed-ash-discharge-events-card {
+    flex: 0 0 auto;
+    min-height: 300px;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-dashboard:has(#bedAshDischargeSourceDetails[open]):has(#bedAshDischargeMinorObservations[open]) .bed-ash-discharge-table-wrap {
+    flex: 0 0 auto;
+    overflow-y: visible;
+  }
+}
+
+/* Short desktop windows use one page scrollbar instead of squeezing history away. */
+@media screen and (min-width: 769px) and (max-height: 650px) {
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-dashboard {
+    overflow-y: auto;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-events-card {
+    flex: 0 0 auto;
+    min-height: 300px;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-table-wrap {
+    flex: 0 0 auto;
+    overflow-y: visible;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-dashboard {
+    overflow-y: auto;
+    padding: 6px;
+    gap: 5px;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-heading {
+    min-height: 0;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-query-card {
+    grid-template-columns: minmax(0, 1fr) !important;
+    padding: 6px;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-date-navigation {
+    grid-template-columns: 32px minmax(0, 1fr) 44px 32px !important;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-query-state {
+    padding-left: 0 !important;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-summary-card {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3px;
+    padding: 6px 7px;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-summary-card > strong {
+    font-size: 18px;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-level-card {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3px;
+    padding: 6px 7px;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-level-card > div:first-child strong {
+    font-size: 11px;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-level-card__value {
+    text-align: left;
+  }
+
+  /* Latest-value age and gap notes remain readable on mobile as well. */
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-level-card__value small,
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-time-cell > .bed-ash-discharge-minute-pending-note,
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-time-cell > .bed-ash-discharge-overlap-note {
+    display: block;
+    font-size: 10px;
+    white-space: normal;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-source-details {
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-events-heading {
+    padding: 5px 7px;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-events-heading h4 {
+    font-size: 12px;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-table-wrap th,
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-table-wrap td {
+    padding: 5px 3px;
+  }
+
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-table-wrap th {
+    font-size: 9.5px;
+  }
+}

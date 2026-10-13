@@ -234,7 +234,8 @@ test('bound minute refresh promotes an hourly load, leaves its adjacent job inde
   assert.match(h.table.textContent, /07:03 ~ 07:08/);
   assert.match(h.table.textContent, /DataPARC · 1분 감지 근거/);
   assert.equal(h.status.dataset.state, 'success');
-  assert.match(h.status.textContent, /DataPARC 1분 자료 1일/);
+  assert.match(h.status.textContent, /조회 완료 · 관측/);
+  assert.match(h.status.title, /DataPARC 1분 자료 1일/);
 });
 
 test('a forced load remains deduplicated before its first saved-data response arrives', async () => {

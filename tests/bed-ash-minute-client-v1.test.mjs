@@ -44,6 +44,9 @@ test('daily minute interval displays concise minutes while retaining actual sour
   const api=client(),event=api.normalizeEvent(sample),row=api.createEventRow(event),text=textTree(row);
   assert.equal(row.children[0].children[0].textContent,'관측 구간 07:03 ~ 07:08');
   assert.match(text,/DataPARC · 1분 자료/);
+  assert.equal(row.children[0].children[1].className,'bed-ash-discharge-repeated-source');
+  assert.match(row.children[0].title,/DataPARC · 1분 자료 · 전후 관측 시각/);
+  assert.match(row.children[0].title,/07:03:21 ~ 07:08:42/);
   assert.match(text,/관측 감소량 · 계근 확인/);
   assert.doesNotMatch(text,/시간별 OIS|기존 방식/);
   assert.equal(event.estimatedTon,10.3);
@@ -66,12 +69,14 @@ test('hourly legacy evidence retains honest hourly label and excludes an overlap
   const api=client();
   const event=api.normalizeEvent({...sample,algorithmVersion:'bed-ash-drop-v2',sourceKind:'',sampleIntervalSeconds:3600,status:'excluded',overlapOtherUnit:true});
   const row=api.createEventRow(event),text=textTree(row);
+  assert.equal(row.children[0].children[1].className,'');
   assert.match(text,/운영정보 · 시간자료/);assert.doesNotMatch(text,/DataPARC|차량 확인/);
   assert.match(text,/07:03 ~ 07:08/);
 });
 
 test('minute confirmed events retain manual confirmed time without labeling them legacy records',()=>{
-  const api=client(),text=textTree(api.createEventRow(api.normalizeEvent({...sample,status:'confirmed',confirmedAt:'2026-10-13T07:12:00+09:00',confirmedTon:10.7})));
+  const api=client(),row=api.createEventRow(api.normalizeEvent({...sample,status:'confirmed',confirmedAt:'2026-10-13T07:12:00+09:00',confirmedTon:10.7})),text=textTree(row);
+  assert.equal(row.children[0].children[1].className,'');
   assert.match(text,/확정 시각 2026.10.13 07:12/);assert.match(text,/DataPARC · 1분 자료/);assert.match(text,/10.7t/);
   assert.doesNotMatch(text,/기존 방식 확정 합계/);
 });
@@ -86,13 +91,13 @@ test('coverage states distinguish minute data and an honest hourly fallback',()=
 
 test('existing Bed Ash CSS and JS loaders each request the minute revision exactly once',()=>{
   const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
-  assert.ok(/DataPARC 자료에서 호기별 5\.0t 이상 중량 감소를 관측/.test(html));
-  assert.ok(/관측 구간을 차량별 계근 기록과 대조해 반출량을 확정/.test(html));
+  assert.ok(/호기별 5t 이상 감소를 관측/.test(html));
+  assert.ok(/계근 기록과 대조한 확정량은 별도로 표시/.test(html));
   assert.match(html,/DataPARC 새로 조회/);
   for(const asset of ['bed-ash-discharge.js','bed-ash-discharge.css']){
     const hits=[...html.matchAll(/(?:src|href)="([^"]+)"/g)].filter(m=>m[1].startsWith('/efficiency/'+asset+'?'));
     assert.equal(hits.length,1);const url=new URL(hits[0][1].replaceAll('&amp;','&'),'https://review.invalid');
-    assert.equal(url.searchParams.get('minuteDetection'),'20261013-v1-r6');
+    assert.equal(url.searchParams.get('minuteDetection'),'20261013-v1-r7');
   }
 });
 

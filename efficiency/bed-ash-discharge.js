@@ -160,6 +160,7 @@
       tableBody: document.getElementById("bedAshDischargeEventTableBody"),
       sourceDetails: document.getElementById("bedAshDischargeSourceDetails"),
       sourceDetailText: document.getElementById("bedAshDischargeSourceDetailText"),
+      sourceStatusText: document.getElementById("bedAshDischargeSourceStatusText"),
       loadingState: document.getElementById("bedAshDischargeLoadingState"),
       emptyState: document.getElementById("bedAshDischargeEmptyState"),
       mainAlert: document.getElementById("bedAshDischargeMainAlert"),
@@ -958,14 +959,22 @@
       state.summary.incompleteCount || Object.values(state.unitCoverage).some(unit => unit?.hasGaps));
   }
 
-  function setStatus(message, tone = "idle") {
-    const { status } = getElements();
+  function setStatus(message, tone = "idle", compactMessage = "") {
+    const { status, sourceDetails, sourceDetailText, sourceStatusText } = getElements();
     if (!status) {
       return;
     }
 
-    status.textContent = text(message);
+    status.textContent = text(compactMessage || message);
+    status.title = compactMessage ? text(message) : "";
     status.dataset.state = tone;
+    if (sourceStatusText) {
+      sourceStatusText.textContent = compactMessage ? text(message) : "";
+      sourceStatusText.hidden = !compactMessage;
+    }
+    if (sourceDetails) {
+      sourceDetails.hidden = !text(sourceDetailText?.textContent) && !compactMessage;
+    }
   }
 
   function isQueryTimerVisible() {
@@ -1091,7 +1100,8 @@
       );
     }
     const coverageLines = [1, 2].map(unitNo => state.unitCoverage[unitNo]
-      ? `${unitNo}호기: ${unitCoverageMessage(state.unitCoverage[unitNo])}` : "").filter(Boolean);
+      ? `${unitNo}호기: ${unitCoverageMessage(state.unitCoverage[unitNo])} · ${latestLevelSourceMessage(state.latestLevels[unitNo], state.unitCoverage[unitNo])}`
+      : "").filter(Boolean);
     if (elements.sourceDetails) elements.sourceDetails.hidden = coverageLines.length === 0;
     if (elements.sourceDetailText) elements.sourceDetailText.textContent = coverageLines.join(" / ");
   }
@@ -1118,8 +1128,9 @@
       }
       if (timeElement) {
         timeElement.textContent = coverage?.latestMinuteMissing
-          ? `${formatTimestamp(coverage.latestMinuteBucketAt)} 자료 미수신`
+          ? `${formatLatestClock(coverage.latestMinuteBucketAt)} 자료 미수신`
           : "유효 중량 자료 없음";
+        timeElement.title = latestLevelSourceMessage(level, coverage);
       }
       return;
     }
@@ -1128,11 +1139,29 @@
       levelElement.textContent = formatTon(level.levelTon);
     }
     if (timeElement) {
-      timeElement.textContent = `${formatTimestamp(level.sampledAt)} 마지막 유효값` +
+      timeElement.textContent = `${formatLatestClock(level.sampledAt)} 기준` +
         (coverage?.latestMinuteMissing
-          ? ` · ${formatTimestamp(coverage.latestMinuteBucketAt)} 자료 미수신`
-          : coverage?.hasGaps ? " · 중간 자료 누락 있음" : "");
+          ? " · 이후 미수신"
+          : coverage?.hasGaps ? " · 중간 공백" : "");
+      timeElement.title = latestLevelSourceMessage(level, coverage);
     }
+  }
+
+  function latestLevelSourceMessage(level, coverage) {
+    const latest = level
+      ? `${formatTimestamp(level.sampledAt)} 마지막 유효값${level.sourceDate ? ` · 원자료 ${level.sourceDate}` : ""}`
+      : "유효 중량 자료 없음";
+    return latest + (coverage?.latestMinuteMissing
+      ? ` · ${formatTimestamp(coverage.latestMinuteBucketAt)} 자료 미수신`
+      : coverage?.hasGaps ? " · 중간 자료 누락 있음" : "");
+  }
+
+  function formatLatestClock(value) {
+    const parts = getTimestampParts(value);
+    if (!parts) return "-";
+    const date = `${parts.year}-${parts.month}-${parts.day}`;
+    const includeDate = state.period !== "daily" || (state.anchorDate && state.anchorDate !== date);
+    return `${includeDate ? `${parts.month}.${parts.day} ` : ""}${parts.hour}:${parts.minute}`;
   }
 
   function renderLatestLevels() {
@@ -1429,7 +1458,7 @@
           "공유 감지 근거 · 개별 반출 연결 미확정"));
       }
     } else {
-      timeCell.title = `전후 관측 시각 ${formatHourlyRange(event.startAt, event.endAt, true)}`;
+      timeCell.title = `${eventSourceLabel(event)} · 전후 관측 시각 ${formatHourlyRange(event.startAt, event.endAt, true)}`;
       timeCell.append(
       createElement(
         "strong",
@@ -1439,7 +1468,7 @@
       ),
       createElement(
         "small",
-        "",
+        event.status === "pending" && isMinuteEvent(event) ? "bed-ash-discharge-repeated-source" : "",
         confirmedTime && !isMinuteEvent(event)
           ? `${eventSourceLabel(event)} ${detectionRange}`
           : eventSourceLabel(event)
@@ -2127,6 +2156,25 @@
     return `조회 완료 · ${received}/${total}일 자료 수신 · 내역 ${eventCount}건${precision}${fallback}`;
   }
 
+  function compactCoverageStatusMessage(coverage) {
+    // Only collapse routine completion copy. Failures, active work, empty days
+    // and hourly boundary warnings must remain visible without opening details.
+    if (!coverage || coverage.pendingDates.length || coverage.failedDates.length ||
+        coverage.precisionFailures.length ||
+        coverage.missingDates.some(date => !coverage.minuteDates.includes(date)) ||
+        (!hasMinuteRange(coverage) && ((coverage.baseline && !coverage.baseline.complete) ||
+          (coverage.lookahead && !coverage.lookahead.complete)))) return "";
+    const missingUnits = [1, 2].filter(unitNo => {
+      const unit = state.unitCoverage[unitNo];
+      return unit?.hasMinuteSource && !unit.validMinuteSampleCount;
+    });
+    const gaps = Object.values(state.unitCoverage).some(unit => unit?.hasGaps) ||
+      state.summary.observedGapCount > 0;
+    return `조회 완료 · 관측 ${state.summary.observedCount}구간` +
+      (missingUnits.length ? ` · ${missingUnits.map(unitNo => `${unitNo}호기 미수신`).join(" · ")}` : gaps ? " · 자료 공백 있음" : "") +
+      (state.summary.incompleteCount && !gaps && !missingUnits.length ? " · 종료 자료 확인 필요" : "");
+  }
+
   function delay(milliseconds) {
     return new Promise(resolve => window.setTimeout(resolve, milliseconds));
   }
@@ -2514,7 +2562,8 @@
         const prefix = requestFailures.length
           ? `OIS 조회 요청 ${requestFailures.length}건 실패 · `
           : pollResult === "failed" ? "OIS 수집 일부 실패 · " : "";
-        setStatus(prefix + coverageStatusMessage(coverage, state.events.length), warning ? "warning" : "success");
+        setStatus(prefix + coverageStatusMessage(coverage, state.events.length), warning ? "warning" : "success",
+          prefix ? "" : compactCoverageStatusMessage(coverage));
       }
       // Summary has its own authenticated background refresh cycle. It must
       // not delay detail completion or add another expensive GET on each poll.
