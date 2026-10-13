@@ -182,7 +182,7 @@ function client(options = {}) {
   };
 }
 
-test('bound minute refresh promotes an hourly load waiting only for the next day, adopts its job and survives old callbacks', async () => {
+test('bound minute refresh promotes an hourly load, leaves its adjacent job independent and survives old callbacks', async () => {
   const oldStatus = deferred(), forcedRange = deferred();
   let selectedReads = 0, complete = false;
   const h = client({
@@ -192,7 +192,7 @@ test('bound minute refresh promotes an hourly load waiting only for the next day
       if (selectedReads === 2) await forcedRange.promise;
       return savedData(SELECTED, {
         minute: complete,
-        lookahead: { date: TODAY, available: true, complete, status: complete ? 'complete' : selectedReads === 1 ? 'complete' : 'pending',
+        lookahead: { date: TODAY, available: true, complete: false, status: selectedReads === 1 ? 'complete' : 'pending',
           requestId: selectedReads === 1 ? 'saved-lookahead' : JOB(TODAY) }
       });
     },
@@ -203,7 +203,7 @@ test('bound minute refresh promotes an hourly load waiting only for the next day
   await h.choose(SELECTED);
   assert.deepEqual(h.calls.posts, [{ requestType: 'bed_ash_level', targetDate: TODAY, forceRefresh: true }]);
   assert.equal(h.table.children.length, 5);
-  assert.equal(h.status.textContent, '저장된 자료 표시 중 · OIS 수집 0/1건 완료');
+  assert.equal(h.status.textContent, '저장된 자료 표시 중 · OIS 수집 0/1건 완료 · 시간자료 보완 0/1건');
   const ordinarySequence = h.api.state.loadSequence;
   await h.poll(); // Hold the old status request while the forced browser load starts.
   const forced = h.refresh.fire('click'); await h.flush();
@@ -218,8 +218,8 @@ test('bound minute refresh promotes an hourly load waiting only for the next day
   forcedRange.resolve(); await h.flush();
   assert.deepEqual(h.calls.posts.map(body => body.targetDate), [TODAY, SELECTED]);
   assert.equal(h.calls.posts[1].forceRefresh, true);
-  assert.deepEqual(h.calls.statuses.at(-1).sort(), [JOB(SELECTED), JOB(TODAY)].sort());
-  assert.equal(h.status.textContent, '저장된 자료 표시 중 · OIS 수집 0/2건 완료');
+  assert.deepEqual(h.calls.statuses.at(-1), [JOB(SELECTED)]);
+  assert.equal(h.status.textContent, '저장된 자료 표시 중 · OIS 수집 0/1건 완료 · 선택일 0/1건');
   const readsBeforeRepeat = h.calls.ranges.length;
   await h.refresh.fire('click'); await h.flush();
   assert.equal(h.calls.ranges.length, readsBeforeRepeat, 'a repeated forced click must reuse the forced browser load');
@@ -229,6 +229,7 @@ test('bound minute refresh promotes an hourly load waiting only for the next day
   assert.equal(h.api.state.anchorDate, SELECTED); assert.equal(h.date.value, SELECTED);
   assert.equal(h.api.state.loadedRangeKey, `daily:${SELECTED}:${SELECTED}`);
   assert.equal(h.api.state.coverage.minuteDates[0], SELECTED);
+  assert.equal(h.api.state.coverage.lookahead.pending, true);
   assert.equal(h.api.state.events[0].minuteObservations.length, 1);
   assert.match(h.table.textContent, /07:03 ~ 07:08/);
   assert.match(h.table.textContent, /DataPARC · 1분 감지 근거/);

@@ -4602,11 +4602,32 @@ function buildSummary(
 }
 
 
+// Prior-day next-midnight samples remain detector support. Display availability
+// comes from the owning day's packet; a missing owner row cannot reuse that
+// earlier packet's good value. Both display helpers share this selection.
+function selectDisplayLevelSamples(samples,startTimestamp,endTimestampExclusive){
+  const start=Date.parse(startTimestamp),end=Date.parse(endTimestampExclusive);
+  const minuteByBucket=new Map(),other=[];
+  for(const sample of samples){
+    const minute=sample.sourceKind===MINUTE_SOURCE_KIND&&sample.sampleIntervalSeconds===60;
+    const timestamp=minute?(sample.bucketAt||sample.sampledAt):sample.sampledAt,at=Date.parse(timestamp);
+    if(!Number.isFinite(at)||at<start||at>=end)continue;
+    if(minute){
+      const sourceDate=normalizeText(sample.sourceDate),ownerDate=getKstDateFromTimestamp(timestamp);
+      if(isValidIsoDate(sourceDate)&&sourceDate!==ownerDate)continue;
+      minuteByBucket.set(`${Number(sample.unitNo)}:${at}`,sample);
+    }else other.push(sample);
+  }
+  return [...other,...minuteByBucket.values()];
+}
+
+
 function buildLatestLevels(
   samples,
   startTimestamp,
   endTimestampExclusive
 ) {
+  const startMilliseconds=Date.parse(startTimestamp),endMilliseconds=Date.parse(endTimestampExclusive);
   const latestLevels = {
     1:
       null,
@@ -4616,13 +4637,16 @@ function buildLatestLevels(
   };
 
 
-  samples.forEach(
+  selectDisplayLevelSamples(samples,startTimestamp,endTimestampExclusive).forEach(
     sample => {
+      if (typeof sample.levelTon !== 'number' || !Number.isFinite(sample.levelTon) || sample.levelTon < 0) {
+        return;
+      }
+      const sampledMilliseconds=Date.parse(sample.sampledAt);
       if (
-        sample.sampledAt <
-          startTimestamp ||
-        sample.sampledAt >=
-          endTimestampExclusive
+        !Number.isFinite(sampledMilliseconds) ||
+        sampledMilliseconds < startMilliseconds ||
+        sampledMilliseconds >= endMilliseconds
       ) {
         return;
       }
@@ -4636,8 +4660,7 @@ function buildLatestLevels(
 
       if (
         !currentLatest ||
-        sample.sampledAt >
-          currentLatest.sampledAt
+        sampledMilliseconds > Date.parse(currentLatest.sampledAt)
       ) {
         latestLevels[
           sample.unitNo
@@ -4663,6 +4686,41 @@ function buildLatestLevels(
 
 
   return latestLevels;
+}
+
+
+function buildUnitCoverage(samples,startTimestamp,endTimestampExclusive){
+  const start=Date.parse(startTimestamp),end=Date.parse(endTimestampExclusive);
+  const displaySamples=selectDisplayLevelSamples(samples,startTimestamp,endTimestampExclusive);
+  const coverage={};
+  for(const unitNo of [1,2]){
+    const minuteByBucket=new Map(),hourlyTimes=new Set();let latestValid=null;
+    for(const sample of displaySamples){
+      if(Number(sample.unitNo)!==unitNo)continue;
+      const minute=sample.sourceKind===MINUTE_SOURCE_KIND&&sample.sampleIntervalSeconds===60;
+      const at=Date.parse(minute?(sample.bucketAt||sample.sampledAt):sample.sampledAt);
+      if(!Number.isFinite(at)||at<start||at>=end)continue;
+      if(minute)minuteByBucket.set(at,sample);
+      else if(sample.sampleIntervalSeconds===3600)hourlyTimes.add(at);
+      const actual=Date.parse(sample.sampledAt);
+      if(typeof sample.levelTon==='number'&&Number.isFinite(sample.levelTon)&&sample.levelTon>=0&&
+        Number.isFinite(actual)&&actual>=start&&actual<end&&(!latestValid||actual>latestValid.at)){
+        latestValid={at:actual,sampledAt:sample.sampledAt};
+      }
+    }
+    const points=[...minuteByBucket.entries()].sort((a,b)=>a[0]-b[0]);
+    const valid=sample=>typeof sample.levelTon==='number'&&Number.isFinite(sample.levelTon)&&sample.levelTon>=0;
+    const validCount=points.filter(([,sample])=>valid(sample)).length,last=points.at(-1);
+    coverage[unitNo]={
+      hasMinuteSource:points.length>0,minuteSampleCount:points.length,validMinuteSampleCount:validCount,
+      missingMinuteSampleCount:points.length-validCount,
+      hasGaps:validCount<points.length||points.some(([at],index)=>index>0&&at-points[index-1][0]!==MINUTE_MILLISECONDS),
+      latestMinuteBucketAt:last?(last[1].bucketAt||last[1].sampledAt):null,
+      latestMinuteMissing:last?!valid(last[1]):false,latestValidAt:latestValid?.sampledAt||null,
+      hourlySampleCount:hourlyTimes.size
+    };
+  }
+  return coverage;
 }
 
 
@@ -5147,6 +5205,8 @@ async function handleRangeGet(
           startTimestamp,
           endTimestampExclusive
         ),
+
+      unitCoverage:buildUnitCoverage(detectionSamples,startTimestamp,endTimestampExclusive),
 
       coverage:
         coverage
@@ -6440,6 +6500,8 @@ export async function onRequestPost(
 export const __bedAshTest = {
   buildCoverage,
   buildSummary,
+  buildLatestLevels,
+  buildUnitCoverage,
   attachReviewedMinuteObservations,
   handleRangeGet,
   detectBedAshEvents,

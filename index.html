@@ -196,7 +196,7 @@
   >
   <link
     rel="stylesheet"
-    href="/efficiency/bed-ash-discharge.css?v=20260901-bed-ash-no-period-nav-v6-1&amp;minuteDetection=20261013-v1-r2"
+    href="/efficiency/bed-ash-discharge.css?v=20260901-bed-ash-no-period-nav-v6-1&amp;minuteDetection=20261013-v1-r3"
   >
   <link
     rel="stylesheet"
@@ -324,7 +324,7 @@
 ></script>
 
 <script
-  src="/efficiency/bed-ash-discharge.js?v=20260912-bed-ash-fast-query-v1&amp;minuteDetection=20261013-v1-r2"
+  src="/efficiency/bed-ash-discharge.js?v=20260912-bed-ash-fast-query-v1&amp;minuteDetection=20261013-v1-r3"
   defer
 ></script>
 
@@ -10699,8 +10699,8 @@
       <span>BED ASH DISCHARGE</span>
       <h3>Bed Ash 반출</h3>
       <p>
-        DataPARC 1분 중량으로 호기별 감지 시작~종료 분을 표시합니다.
-        5.0t 이상 하락을 감지하며, 시간이 겹치면 차량별 계근 기록을 확인합니다.
+        DataPARC 1분 조회로 호기별 5.0t 이상 감소를 감지합니다.
+        종료 확인과 차량별 계근 후 반출량을 확정합니다.
       </p>
     </div>
 
@@ -10934,20 +10934,20 @@
       aria-label="Bed Ash 반출 요약"
     >
       <article class="bed-ash-discharge-summary-card is-total">
-        <span>반출량 합계</span>
-        <strong id="bedAshDischargeTotalAmount">0.0t</strong>
-        <small>선택 기간 · 반출 합계</small>
+        <span>확정 반출 합계</span>
+        <strong id="bedAshDischargeTotalAmount">--.-t</strong>
+        <small>선택 기간 · 계근 확인 후 확정</small>
       </article>
 
       <article class="bed-ash-discharge-summary-card is-unit-one">
-        <span>1호기 반출량</span>
-        <strong id="bedAshDischargeUnitOneAmount">0.0t</strong>
+        <span>1호기 반출 확인</span>
+        <strong id="bedAshDischargeUnitOneAmount">조회 전</strong>
         <small>선택 기간 합계</small>
       </article>
 
       <article class="bed-ash-discharge-summary-card is-unit-two">
-        <span>2호기 반출량</span>
-        <strong id="bedAshDischargeUnitTwoAmount">0.0t</strong>
+        <span>2호기 반출 확인</span>
+        <strong id="bedAshDischargeUnitTwoAmount">조회 전</strong>
         <small>선택 기간 합계</small>
       </article>
 

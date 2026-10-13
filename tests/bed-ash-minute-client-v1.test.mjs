@@ -86,13 +86,13 @@ test('coverage states distinguish minute data and an honest hourly fallback',()=
 
 test('existing Bed Ash CSS and JS loaders each request the minute revision exactly once',()=>{
   const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
-  assert.match(html,/DataPARC 1분 중량으로 호기별 감지 시작~종료 분/);
-  assert.match(html,/시간이 겹치면 차량별 계근 기록을 확인/);
+  assert.match(html,/DataPARC 1분 조회로 호기별 5\.0t 이상 감소를 감지/);
+  assert.match(html,/종료 확인과 차량별 계근 후 반출량을 확정/);
   assert.match(html,/DataPARC 새로 조회/);
   for(const asset of ['bed-ash-discharge.js','bed-ash-discharge.css']){
     const hits=[...html.matchAll(/(?:src|href)="([^"]+)"/g)].filter(m=>m[1].startsWith('/efficiency/'+asset+'?'));
     assert.equal(hits.length,1);const url=new URL(hits[0][1].replaceAll('&amp;','&'),'https://review.invalid');
-    assert.equal(url.searchParams.get('minuteDetection'),'20261013-v1-r2');
+    assert.equal(url.searchParams.get('minuteDetection'),'20261013-v1-r3');
   }
 });
 

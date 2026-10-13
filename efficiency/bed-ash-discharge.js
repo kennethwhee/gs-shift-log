@@ -36,13 +36,19 @@
   const SUMMARY_REQUEST_TIMEOUT_MS = 15 * 1000;
   const OIS_REQUEST_CONCURRENCY = 3;
 
+  const emptyUnitSummary = () => ({
+    confirmedCount: 0, confirmedTon: 0, pendingCount: 0,
+    pendingEstimatedTon: 0, incompleteCount: 0
+  });
   const emptySummary = () => ({
     confirmedCount: 0,
     confirmedTon: 0,
     pendingCount: 0,
     pendingEstimatedTon: 0,
+    incompleteCount: 0,
     unit1Ton: 0,
-    unit2Ton: 0
+    unit2Ton: 0,
+    units: { 1: emptyUnitSummary(), 2: emptyUnitSummary() }
   });
 
   const state = {
@@ -55,6 +61,7 @@
       1: null,
       2: null
     },
+    unitCoverage: { 1: null, 2: null },
     coverage: null,
     loadedRangeKey: "",
     loadedAt: 0,
@@ -692,24 +699,36 @@
       : [];
 
     visibleEvents.forEach(event => {
-      const selectedTon =
-        event.status === "confirmed" && event.confirmedTon !== null
-          ? event.confirmedTon
-          : event.estimatedTon;
-      const eventTon = Math.max(0, number(selectedTon));
-
-      summary.confirmedCount += 1;
-      summary.confirmedTon += eventTon;
-      if (event.unitNo === "2") {
-        summary.unit2Ton += eventTon;
+      const unit = summary.units[text(event.unitNo) === "2" ? 2 : 1];
+      if (event.status === "confirmed") {
+        const eventTon = typeof event.confirmedTon === "number" && Number.isFinite(event.confirmedTon)
+          ? Math.max(0, event.confirmedTon) : 0;
+        summary.confirmedCount += 1;
+        summary.confirmedTon += eventTon;
+        unit.confirmedCount += 1;
+        unit.confirmedTon += eventTon;
+      } else if (event.reviewReady === true) {
+        const eventTon = Math.max(0, number(event.estimatedTon));
+        summary.pendingCount += 1;
+        summary.pendingEstimatedTon += eventTon;
+        unit.pendingCount += 1;
+        unit.pendingEstimatedTon += eventTon;
       } else {
-        summary.unit1Ton += eventTon;
+        summary.incompleteCount += 1;
+        unit.incompleteCount += 1;
       }
     });
 
-    ["confirmedTon", "unit1Ton", "unit2Ton"].forEach(key => {
+    ["confirmedTon", "pendingEstimatedTon"].forEach(key => {
       summary[key] = Math.round(summary[key] * 1000) / 1000;
     });
+    for (const unit of Object.values(summary.units)) {
+      for (const key of ["confirmedTon", "pendingEstimatedTon"]) {
+        unit[key] = Math.round(unit[key] * 1000) / 1000;
+      }
+    }
+    summary.unit1Ton = summary.units[1].confirmedTon;
+    summary.unit2Ton = summary.units[2].confirmedTon;
 
     return summary;
   }
@@ -719,8 +738,8 @@
     }
 
     const sampledAt = text(rawLevel.sampledAt);
-    const levelTon = Number(rawLevel.levelTon);
-    if (!sampledAt || !Number.isFinite(levelTon)) {
+    const levelTon = rawLevel.levelTon;
+    if (!sampledAt || typeof levelTon !== "number" || !Number.isFinite(levelTon) || levelTon < 0) {
       return null;
     }
 
@@ -731,6 +750,32 @@
       levelTon,
       sourceDate: text(rawLevel.sourceDate)
     };
+  }
+
+  function normalizeUnitCoverage(raw) {
+    if (!raw || typeof raw !== "object") return null;
+    const count = value => Math.max(0, Math.trunc(number(value)));
+    return {
+      hasMinuteSource: raw.hasMinuteSource === true,
+      minuteSampleCount: count(raw.minuteSampleCount),
+      validMinuteSampleCount: count(raw.validMinuteSampleCount),
+      missingMinuteSampleCount: count(raw.missingMinuteSampleCount),
+      hasGaps: raw.hasGaps === true,
+      latestMinuteBucketAt: text(raw.latestMinuteBucketAt),
+      latestMinuteMissing: raw.latestMinuteMissing === true,
+      latestValidAt: text(raw.latestValidAt),
+      hourlySampleCount: count(raw.hourlySampleCount)
+    };
+  }
+
+  function unitCoverageMessage(coverage) {
+    if (!coverage) return "자료 수신 상태 확인 필요";
+    if (coverage.hasMinuteSource) {
+      if (!coverage.validMinuteSampleCount) return "1분 자료 미수신 · 반출 여부 확인 불가";
+      return `1분 자료 ${coverage.validMinuteSampleCount}/${coverage.minuteSampleCount}개` +
+        (coverage.hasGaps ? " · 누락 있음" : "");
+    }
+    return coverage.hourlySampleCount ? "시간 자료 기준" : "자료 미수신 · 반출 여부 확인 불가";
   }
 
   function normalizeCoverage(rawCoverage, requestedDates) {
@@ -816,6 +861,20 @@
     };
   }
 
+  function hasMinuteRange(coverage, requestedDates = coverage?.dates) {
+    const dates = uniqueDateList(requestedDates);
+    const minuteDates = new Set(coverage?.minuteDates || []);
+    return dates.length > 0 && dates.every(date => minuteDates.has(date));
+  }
+
+  function hasCoverageWarning(coverage) {
+    return Boolean(coverage?.precisionFailures?.length || coverage?.failedDates?.length ||
+      coverage?.missingDates?.length || coverage?.pendingDates?.length ||
+      (!hasMinuteRange(coverage) && ((coverage?.baseline && !coverage.baseline.complete) ||
+        (coverage?.lookahead?.available && !coverage.lookahead.complete))) ||
+      state.summary.incompleteCount || Object.values(state.unitCoverage).some(unit => unit?.hasGaps));
+  }
+
   function setStatus(message, tone = "idle") {
     const { status } = getElements();
     if (!status) {
@@ -857,16 +916,14 @@
       elements.totalAmount.textContent = formatTon(summary.confirmedTon);
       setCardSupportingText(
         elements.totalAmount,
-        `${summary.confirmedCount}건 기준`
+        `확정 ${summary.confirmedCount}건 · 감지 추정 ${formatTon(summary.pendingEstimatedTon)}(${summary.pendingCount}건) · 종료 확인 ${summary.incompleteCount}건`
       );
     }
     if (elements.unitOneAmount) {
-      elements.unitOneAmount.textContent = formatTon(summary.unit1Ton);
-      setCardSupportingText(elements.unitOneAmount, "선택 기간 기준");
+      renderUnitSummary(elements.unitOneAmount, summary.units[1], state.unitCoverage[1]);
     }
     if (elements.unitTwoAmount) {
-      elements.unitTwoAmount.textContent = formatTon(summary.unit2Ton);
-      setCardSupportingText(elements.unitTwoAmount, "선택 기간 기준");
+      renderUnitSummary(elements.unitTwoAmount, summary.units[2], state.unitCoverage[2]);
     }
     if (elements.pendingCount) {
       elements.pendingCount.textContent = `${summary.pendingCount}건`;
@@ -877,13 +934,27 @@
     }
   }
 
-  function renderLatestLevel(level, levelElement, timeElement) {
+  function renderUnitSummary(element, unit, coverage) {
+    const hasCandidates = unit.pendingCount + unit.incompleteCount > 0;
+    element.textContent = unit.confirmedCount ? formatTon(unit.confirmedTon)
+      : hasCandidates ? "미확정" : "감지 내역 없음";
+    element.dataset.state = unit.confirmedCount ? "confirmed" : hasCandidates ? "pending"
+      : coverage?.hasMinuteSource && coverage.validMinuteSampleCount ? "none" : "unknown";
+    const detail = unit.confirmedCount || hasCandidates
+      ? `확정 ${formatTon(unit.confirmedTon)} · 감지 추정 ${formatTon(unit.pendingEstimatedTon)}(${unit.pendingCount}건) · 종료 확인 ${unit.incompleteCount}건`
+      : `확정 ${formatTon(unit.confirmedTon)} · 실제 반출 여부는 계근 확인`;
+    setCardSupportingText(element, `${detail} · ${unitCoverageMessage(coverage)}`);
+  }
+
+  function renderLatestLevel(level, levelElement, timeElement, coverage) {
     if (!level) {
       if (levelElement) {
         levelElement.textContent = "--.-t";
       }
       if (timeElement) {
-        timeElement.textContent = "최신 자료 없음";
+        timeElement.textContent = coverage?.latestMinuteMissing
+          ? `${formatTimestamp(coverage.latestMinuteBucketAt)} 자료 미수신`
+          : "유효 중량 자료 없음";
       }
       return;
     }
@@ -892,7 +963,10 @@
       levelElement.textContent = formatTon(level.levelTon);
     }
     if (timeElement) {
-      timeElement.textContent = `${formatTimestamp(level.sampledAt)} 기준`;
+      timeElement.textContent = `${formatTimestamp(level.sampledAt)} 마지막 유효값` +
+        (coverage?.latestMinuteMissing
+          ? ` · ${formatTimestamp(coverage.latestMinuteBucketAt)} 자료 미수신`
+          : coverage?.hasGaps ? " · 중간 자료 누락 있음" : "");
     }
   }
 
@@ -901,12 +975,14 @@
     renderLatestLevel(
       state.latestLevels[1],
       elements.unitOneLatestLevel,
-      elements.unitOneLatestAt
+      elements.unitOneLatestAt,
+      state.unitCoverage[1]
     );
     renderLatestLevel(
       state.latestLevels[2],
       elements.unitTwoLatestLevel,
-      elements.unitTwoLatestAt
+      elements.unitTwoLatestAt,
+      state.unitCoverage[2]
     );
   }
 
@@ -1488,6 +1564,10 @@
       1: normalizeLatestLevel(data?.latestLevels?.["1"]),
       2: normalizeLatestLevel(data?.latestLevels?.["2"])
     };
+    state.unitCoverage = {
+      1: normalizeUnitCoverage(data?.unitCoverage?.["1"]),
+      2: normalizeUnitCoverage(data?.unitCoverage?.["2"])
+    };
     state.coverage = normalizeCoverage(data?.coverage, requestedDates);
 
     renderSummaryCards();
@@ -1503,6 +1583,7 @@
     state.renderEventsQueued = false;
     state.summary = emptySummary();
     state.latestLevels = { 1: null, 2: null };
+    state.unitCoverage = { 1: null, 2: null };
     state.coverage = null;
     state.loadedRangeKey = "";
     state.loadedAt = 0;
@@ -1691,35 +1772,21 @@
     let plans = [];
 
     if (forceRefresh) {
-      plans = requestedDates.map(date => ({
+      // The minute packet includes its own midnight boundaries. Prior/next
+      // hourly support jobs continue on the company computer independently.
+      return requestedDates.map(date => ({
         date,
         forceRefresh: true,
         baseline: false,
         lookahead: false
       }));
-      if (baseline?.date) {
-        plans.unshift({
-          date: baseline.date,
-          forceRefresh: true,
-          baseline: true,
-          lookahead: false
-        });
-      }
-      if (lookahead?.date && lookahead.available) {
-        plans.push({
-          date: lookahead.date,
-          forceRefresh: true,
-          baseline: false,
-          lookahead: true
-        });
-      }
-      return plans;
     }
 
     const missing = new Set(normalizedCoverage.missingDates || []);
     const failed = new Set(normalizedCoverage.failedDates || []);
+    const receivedMinuteDates = new Set(normalizedCoverage.minuteDates || []);
     plans = [...missing, ...failed]
-      .filter((date, index, values) => values.indexOf(date) === index)
+      .filter((date, index, values) => values.indexOf(date) === index && !receivedMinuteDates.has(date))
       .map(date => ({
         date,
         forceRefresh: missing.has(date) || failed.has(date),
@@ -1727,7 +1794,8 @@
         lookahead: false
       }));
 
-    if (baseline?.date && (baseline.missing || baseline.failed)) {
+    const needsSupport = !hasMinuteRange(normalizedCoverage, requestedDates);
+    if (needsSupport && baseline?.date && (baseline.missing || baseline.failed)) {
       plans.unshift({
         date: baseline.date,
         forceRefresh: baseline.failed || baseline.status === "complete",
@@ -1737,7 +1805,7 @@
     }
 
     if (
-      lookahead?.date &&
+      needsSupport && lookahead?.date &&
       lookahead.available &&
       (lookahead.missing || lookahead.failed)
     ) {
@@ -1782,17 +1850,28 @@
     const complete = coverage.completeDates.length;
     const pending = coverage.pendingDates.length;
     const failed = coverage.failedDates.length;
-    const missing = coverage.missingDates.length;
-    const baseline = coverage.baseline;
-    const lookahead = coverage.lookahead;
+    const minuteDates = new Set(coverage.minuteDates || []);
+    const partialMinuteCount = coverage.missingDates.filter(date => minuteDates.has(date)).length;
+    const missing = coverage.missingDates.filter(date => !minuteDates.has(date)).length;
+    const needsSupport = !hasMinuteRange(coverage);
+    const baseline = needsSupport ? coverage.baseline : null;
+    const lookahead = needsSupport ? coverage.lookahead : null;
     const minuteCount = coverage.minuteDates?.length || 0;
     const hourlyCount = coverage.hourlyDates?.length || 0;
     const precision = minuteCount || hourlyCount
       ? ` · DataPARC 1분 자료 ${minuteCount}일${hourlyCount ? ` / 시간 자료 ${hourlyCount}일` : ""}`
       : "";
-    const fallback = coverage.precisionFailures?.length
+    const quality = [1, 2].flatMap(unitNo => {
+      const unit = state.unitCoverage[unitNo];
+      return unit?.hasMinuteSource && unit.hasGaps
+        ? [`${unitNo}호기 ${unit.validMinuteSampleCount ? "자료 누락 있음" : "1분 자료 미수신"}`] : [];
+    });
+    const incomplete = state.summary.incompleteCount
+      ? [`종료 확인 ${state.summary.incompleteCount}건`] : [];
+    const fallback = (coverage.precisionFailures?.length
       ? " · 정밀 조회 미수신 · 기존 자료 표시"
-      : "";
+      : "") + (partialMinuteCount ? ` · 1분 자료 일부 미수신 ${partialMinuteCount}일` : "") +
+      [...quality, ...incomplete].map(message => ` · ${message}`).join("");
 
     if (pending > 0 || baseline?.pending || lookahead?.pending) {
       const baselineMessage = baseline?.pending ? " · 첫날 자정 기준 처리 중" : "";
@@ -1830,7 +1909,8 @@
         : "";
       return `조회 완료 · ${eventCount}건 감지 · 자료 없음 ${missing}일 · 수집 실패 ${failed}일${baselineMessage}${lookaheadMessage}${precision}${fallback}`;
     }
-    return `조회 완료 · ${complete}/${total}일 자료 · 반출 내역 ${eventCount}건${precision}${fallback}`;
+    const received = coverage.dates.filter(date => minuteDates.has(date) || coverage.completeDates.includes(date)).length;
+    return `조회 완료 · ${received}/${total}일 자료 수신 · 내역 ${eventCount}건${precision}${fallback}`;
   }
 
   function delay(milliseconds) {
@@ -1863,7 +1943,15 @@
     }
   }
 
-  function trackCoverageRequests(tracked, coverage) {
+  function trackCoverageRequests(tracked, coverage, options = {}) {
+    const requestedDates = options.requestedDates || coverage?.dates || [];
+    const selectedDates = new Set(requestedDates);
+    const selectedOnly = options.selectedOnly === true || hasMinuteRange(coverage, requestedDates);
+    if (selectedOnly && selectedDates.size) {
+      for (const [id, request] of tracked) {
+        if (!selectedDates.has(request.targetDate)) tracked.delete(id);
+      }
+    }
     const requests = Array.isArray(coverage?.requests) ? coverage.requests : [];
     const pendingDates = new Set(coverage?.pendingDates || []);
     for (const row of requests) {
@@ -1875,7 +1963,7 @@
     if (pendingDates.size) {
       throw new Error("처리 중인 OIS 요청번호가 누락되었습니다. 잠시 후 다시 조회해 주세요.");
     }
-    for (const support of [coverage?.baseline, coverage?.lookahead]) {
+    for (const support of selectedOnly ? [] : [coverage?.baseline, coverage?.lookahead]) {
       if (support?.available !== false && support?.pending) {
         addTrackedRequest(tracked, support.requestId, support.date);
       }
@@ -1887,12 +1975,18 @@
     return ["complete", "failed", "expired"].includes(request.status);
   }
 
-  function collectionStatusMessage(tracked) {
+  function collectionStatusMessage(tracked, requestedDates = []) {
     const requests = [...tracked.values()];
     const complete = requests.filter(row => row.status === "complete").length;
     const failed = requests.filter(row => ["failed", "expired"].includes(row.status)).length;
+    const selectedDates = new Set(requestedDates);
+    const selected = requests.filter(row => selectedDates.has(row.targetDate));
+    const support = requests.filter(row => !selectedDates.has(row.targetDate));
+    const progress = rows => `${rows.filter(row => row.status === "complete").length}/${rows.length}건`;
     return `저장된 자료 표시 중 · OIS 수집 ${complete}/${requests.length}건 완료` +
-      (failed ? ` · 실패 ${failed}건` : "");
+      (failed ? ` · 실패 ${failed}건` : "") +
+      (selected.length ? ` · 선택일 ${progress(selected)}` : "") +
+      (support.length ? ` · 시간자료 보완 ${progress(support)}` : "");
   }
 
   async function fetchCompactStatuses(requests, isCurrent, timeoutMs) {
@@ -1937,13 +2031,15 @@
     requestedDates,
     tracked = new Map(),
     preservedReviewedEvent = null,
-    token = getSessionToken()
+    token = getSessionToken(),
+    options = {}
   ) {
     const deadline = Date.now() + POLL_TIMEOUT_MS;
     const selectedRangeKey = rangeKey(range);
     const isCurrent = () => isCurrentRangeLoad(sequence, token, selectedRangeKey);
     let consecutiveFailures = 0;
-    trackCoverageRequests(tracked, state.coverage);
+    const trackingOptions = { ...options, requestedDates };
+    trackCoverageRequests(tracked, state.coverage, trackingOptions);
 
     while (isCurrent() && Date.now() < deadline) {
       const pending = [...tracked.values()].filter(row => !isTerminalRequest(row));
@@ -1979,7 +2075,7 @@
           if (!isCurrent()) return "cancelled";
           renderData(preserveReviewedEventInRangeData(data, preservedReviewedEvent), requestedDates);
           for (const row of newlyTerminal) row.refreshed = true;
-          trackCoverageRequests(tracked, state.coverage);
+          trackCoverageRequests(tracked, state.coverage, trackingOptions);
         } catch (error) {
           if (!isCurrent()) return "cancelled";
           if ([401, 403].includes(error.status)) throw error;
@@ -1999,11 +2095,13 @@
           if ([...tracked.values()].some(row => row.status !== "complete")) return "failed";
           // Status completion does not by itself establish range readiness.
           // A lagging/contradictory authoritative range must stay a warning.
-          if (state.coverage?.pendingDates?.length || state.coverage?.baseline?.pending ||
-              (state.coverage?.lookahead?.available && state.coverage.lookahead.pending)) return "unsettled";
+          const needsSupport = options.selectedOnly !== true && !hasMinuteRange(state.coverage, requestedDates);
+          if (state.coverage?.pendingDates?.length || (needsSupport &&
+              (state.coverage?.baseline?.pending ||
+                (state.coverage?.lookahead?.available && state.coverage.lookahead.pending)))) return "unsettled";
           return "complete";
         }
-        setStatus(collectionStatusMessage(tracked), "loading");
+        setStatus(collectionStatusMessage(tracked, requestedDates), "loading");
       }
       await delay(Math.min(POLL_INTERVAL_MS, Math.max(0, deadline - Date.now())));
     }
@@ -2057,11 +2155,7 @@
           return;
         }
         const coverage = state.coverage;
-        const warning = result === "failed" || coverage.failedDates.length ||
-          coverage.precisionFailures?.length ||
-          coverage.missingDates.length ||
-          (coverage.baseline && !coverage.baseline.complete) ||
-          (coverage.lookahead?.available && !coverage.lookahead.complete);
+        const warning = result === "failed" || hasCoverageWarning(coverage);
         setStatus(
           result === "failed"
             ? `OIS 수집 일부 실패 · ${coverageStatusMessage(coverage, state.events.length)}`
@@ -2149,7 +2243,7 @@
       // line while the displayed history and date controls remain usable.
       setLoading(false);
       renderEvents();
-      const tracked = trackCoverageRequests(new Map(), state.coverage);
+      const tracked = trackCoverageRequests(new Map(), state.coverage, { requestedDates, selectedOnly: forceRefresh });
       const activeDates = new Set([...tracked.values()].map(row => row.targetDate));
       const requestPlans = isMobileClient() ? [] : buildOisRequestPlans(
         state.coverage, requestedDates, forceRefresh
@@ -2181,7 +2275,7 @@
         requestFailures.push(...results.filter(result => result.error));
       }
       const pollResult = tracked.size ? await pollRange(
-        range, sequence, requestedDates, tracked, null, token
+        range, sequence, requestedDates, tracked, null, token, { selectedOnly: forceRefresh }
       ) : "complete";
       if (!isCurrent() || pollResult === "cancelled") return;
       state.loadedRangeKey = selectedRangeKey;
@@ -2194,11 +2288,7 @@
         setStatus("저장된 자료 표시 중 · OIS 수집 또는 상태 확인이 10분 이상 지연되고 있습니다. 잠시 후 다시 조회해 주세요.", "warning");
       } else {
         const coverage = state.coverage;
-        const warning = requestFailures.length || pollResult === "failed" ||
-          coverage.precisionFailures?.length ||
-          coverage.failedDates.length || coverage.missingDates.length ||
-          (coverage.baseline && !coverage.baseline.complete) ||
-          (coverage.lookahead?.available && !coverage.lookahead.complete);
+        const warning = requestFailures.length || pollResult === "failed" || hasCoverageWarning(coverage);
         const prefix = requestFailures.length
           ? `OIS 조회 요청 ${requestFailures.length}건 실패 · `
           : pollResult === "failed" ? "OIS 수집 일부 실패 · " : "";
