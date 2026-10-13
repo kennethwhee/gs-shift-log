@@ -113,7 +113,8 @@ test('reviewed v1 record shows corrected read-only sparse range while preserving
   assert.equal(event.revision, 3); assert.equal(event.confirmedTon, 10.7); assert.equal(event.evidenceFingerprint, legacy.evidenceFingerprint);
   assert.equal(event.minuteObservations[0].confirmedTon, undefined); assert.equal(event.minuteObservations[0].reviewReady, false);
   assert.equal(h.api.state.summary.confirmedTon, 10.7); assert.equal(h.api.state.summary.pendingEstimatedTon, 0);
-  assert.equal(h.elements.get('bedAshDischargeTotalAmount').textContent, '10.7t');
+  assert.equal(h.elements.get('bedAshDischargeTotalAmount').textContent, '15.0t');
+  assert.match(h.elements.get('bedAshDischargeTotalAmount').closest('article').querySelector('small').textContent, /계근 확정 1건 · 10.7t/);
   assert.equal(JSON.stringify(legacy), original); assert.equal(h.requests(), 0);
 });
 
@@ -188,7 +189,7 @@ test('new empty range and explicit detail reset both remove stale minor evidence
     clear();
     assert.equal(h.minorList.children.length, 0); assert.equal(h.minor.hidden, true);
     assert.equal(h.table.children.length, 0); assert.equal(h.api.state.minorObservationsOmitted, 0);
-    assert.equal(h.api.state.summary.confirmedTon, 0); assert.equal(h.elements.get('bedAshDischargeTotalAmount').textContent, '0.0t');
+    assert.equal(h.api.state.summary.confirmedTon, 0); assert.equal(h.elements.get('bedAshDischargeTotalAmount').textContent, '관측 없음');
   }
 });
 

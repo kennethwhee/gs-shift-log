@@ -196,7 +196,7 @@
   >
   <link
     rel="stylesheet"
-    href="/efficiency/bed-ash-discharge.css?v=20260901-bed-ash-no-period-nav-v6-1&amp;minuteDetection=20261013-v1-r5"
+    href="/efficiency/bed-ash-discharge.css?v=20260901-bed-ash-no-period-nav-v6-1&amp;minuteDetection=20261013-v1-r6"
   >
   <link
     rel="stylesheet"
@@ -324,7 +324,7 @@
 ></script>
 
 <script
-  src="/efficiency/bed-ash-discharge.js?v=20260912-bed-ash-fast-query-v1&amp;minuteDetection=20261013-v1-r5"
+  src="/efficiency/bed-ash-discharge.js?v=20260912-bed-ash-fast-query-v1&amp;minuteDetection=20261013-v1-r6"
   defer
 ></script>
 
@@ -10940,19 +10940,19 @@
       aria-label="Bed Ash 반출 요약"
     >
       <article class="bed-ash-discharge-summary-card is-total">
-        <span>확정 반출 합계</span>
+        <span>관측 감소량 합계</span>
         <strong id="bedAshDischargeTotalAmount">--.-t</strong>
-        <small>선택 기간 · 계근 확인 후 확정</small>
+        <small>관측 구간 합계 · 계근 확정량 별도 표시</small>
       </article>
 
       <article class="bed-ash-discharge-summary-card is-unit-one">
-        <span>1호기 반출 확인</span>
+        <span>1호기 관측 감소량</span>
         <strong id="bedAshDischargeUnitOneAmount">조회 전</strong>
         <small>선택 기간 합계</small>
       </article>
 
       <article class="bed-ash-discharge-summary-card is-unit-two">
-        <span>2호기 반출 확인</span>
+        <span>2호기 관측 감소량</span>
         <strong id="bedAshDischargeUnitTwoAmount">조회 전</strong>
         <small>선택 기간 합계</small>
       </article>
@@ -10963,6 +10963,16 @@
         <small>효율팀 확인 필요</small>
       </article>
     </section>
+
+    <details
+      id="bedAshDischargeSourceDetails"
+      class="bed-ash-discharge-source-details"
+      hidden
+    >
+      <summary>자료 수신 상세</summary>
+      <p id="bedAshDischargeSourceDetailText"></p>
+      <p>하루 전체 수신 개수는 자료 현황입니다. 관측 감소량은 각 구간에서 측정된 시작·종료 중량의 차이이며, 실제 반출량·차량 대수를 확정하지 않습니다. 계근 확정량은 별도로 표시합니다.</p>
+    </details>
 
     <section
       class="bed-ash-discharge-level-grid"

@@ -39,7 +39,8 @@
 
   const emptyUnitSummary = () => ({
     confirmedCount: 0, confirmedTon: 0, pendingCount: 0,
-    pendingEstimatedTon: 0, incompleteCount: 0, observationCount: 0
+    pendingEstimatedTon: 0, incompleteCount: 0, observationCount: 0,
+    observedCount: 0, observedTon: 0, observedGapCount: 0, sharedObservedCount: 0
   });
   const emptySummary = () => ({
     confirmedCount: 0,
@@ -48,6 +49,10 @@
     pendingEstimatedTon: 0,
     incompleteCount: 0,
     observationCount: 0,
+    observedCount: 0,
+    observedTon: 0,
+    observedGapCount: 0,
+    sharedObservedCount: 0,
     unit1Ton: 0,
     unit2Ton: 0,
     units: { 1: emptyUnitSummary(), 2: emptyUnitSummary() }
@@ -153,6 +158,8 @@
       minorObservationSummary: document.getElementById("bedAshDischargeMinorObservationSummary"),
       minorObservationList: document.getElementById("bedAshDischargeMinorObservationList"),
       tableBody: document.getElementById("bedAshDischargeEventTableBody"),
+      sourceDetails: document.getElementById("bedAshDischargeSourceDetails"),
+      sourceDetailText: document.getElementById("bedAshDischargeSourceDetailText"),
       loadingState: document.getElementById("bedAshDischargeLoadingState"),
       emptyState: document.getElementById("bedAshDischargeEmptyState"),
       mainAlert: document.getElementById("bedAshDischargeMainAlert"),
@@ -734,6 +741,42 @@
       ? events.filter(event => event.status !== "excluded")
       : [];
 
+    // Observed silo decreases and manually confirmed quantities are independent.
+    // A partial day still has usable observed endpoints. Shared corrected evidence
+    // attached to several reviewed records is counted once, never allocated.
+    const observed = new Map();
+    const addObservation = (observation, unitNo) => {
+      const amount = observation?.estimatedTon;
+      if (!["1", "2"].includes(text(unitNo)) || typeof amount !== "number" ||
+          !Number.isFinite(amount) || amount <= 0) return;
+      const key = `${unitNo}:${text(observation.eventKey) || `${text(observation.startAt)}:${text(observation.endAt)}`}`;
+      const hasSourceGaps = sourceGapMetadata(observation).hasSourceGaps;
+      const sharedReviewedEvidence = observation.sharedReviewedEvidence === true;
+      const previous = observed.get(key);
+      if (previous) {
+        previous.hasSourceGaps ||= hasSourceGaps;
+        previous.sharedReviewedEvidence ||= sharedReviewedEvidence;
+        return;
+      }
+      observed.set(key, { unitNo, amount, hasSourceGaps, sharedReviewedEvidence });
+    };
+    visibleEvents.forEach(event => {
+      const linked = Array.isArray(event.minuteObservations) ? event.minuteObservations : [];
+      if (linked.length) linked.forEach(item => addObservation(item, event.unitNo));
+      else addObservation(event, event.unitNo);
+    });
+    for (const { unitNo, amount, hasSourceGaps, sharedReviewedEvidence } of observed.values()) {
+      const unit = summary.units[unitNo];
+      summary.observedCount += 1; unit.observedCount += 1;
+      summary.observedTon += amount; unit.observedTon += amount;
+      if (hasSourceGaps) {
+        summary.observedGapCount += 1; unit.observedGapCount += 1;
+      }
+      if (sharedReviewedEvidence) {
+        summary.sharedObservedCount += 1; unit.sharedObservedCount += 1;
+      }
+    }
+
     visibleEvents.forEach(event => {
       const unit = summary.units[text(event.unitNo) === "2" ? 2 : 1];
       if (event.status === "confirmed") {
@@ -759,11 +802,11 @@
       }
     });
 
-    ["confirmedTon", "pendingEstimatedTon"].forEach(key => {
+    ["confirmedTon", "pendingEstimatedTon", "observedTon"].forEach(key => {
       summary[key] = Math.round(summary[key] * 1000) / 1000;
     });
     for (const unit of Object.values(summary.units)) {
-      for (const key of ["confirmedTon", "pendingEstimatedTon"]) {
+      for (const key of ["confirmedTon", "pendingEstimatedTon", "observedTon"]) {
         unit[key] = Math.round(unit[key] * 1000) / 1000;
       }
     }
@@ -1027,10 +1070,11 @@
     const summary = state.summary;
 
     if (elements.totalAmount) {
-      elements.totalAmount.textContent = formatTon(summary.confirmedTon);
+      elements.totalAmount.textContent = summary.observedCount ? formatTon(summary.observedTon) : "관측 없음";
+      elements.totalAmount.dataset.state = summary.observedCount ? "observed" : "none";
       setCardSupportingText(
         elements.totalAmount,
-        `확정 ${summary.confirmedCount}건 · 관측 ${summary.observationCount}구간 · 연속 감소 ${formatTon(summary.pendingEstimatedTon)} · 자료 확인 ${summary.incompleteCount}구간`
+        observedCardDetail(summary)
       );
     }
     if (elements.unitOneAmount) {
@@ -1046,18 +1090,25 @@
         `연속 관측 감소 ${formatTon(summary.pendingEstimatedTon)}`
       );
     }
+    const coverageLines = [1, 2].map(unitNo => state.unitCoverage[unitNo]
+      ? `${unitNo}호기: ${unitCoverageMessage(state.unitCoverage[unitNo])}` : "").filter(Boolean);
+    if (elements.sourceDetails) elements.sourceDetails.hidden = coverageLines.length === 0;
+    if (elements.sourceDetailText) elements.sourceDetailText.textContent = coverageLines.join(" / ");
+  }
+
+  function observedCardDetail(summary) {
+    return `관측 ${summary.observedCount}구간 · 계근 확정 ${summary.confirmedCount}건 · ${formatTon(summary.confirmedTon)}` +
+      (summary.observedGapCount ? ` · 공백 포함 ${summary.observedGapCount}구간` : "") +
+      (summary.sharedObservedCount ? ` · 공유 근거 ${summary.sharedObservedCount}구간` : "");
   }
 
   function renderUnitSummary(element, unit, coverage) {
-    const hasCandidates = unit.pendingCount + unit.incompleteCount > 0;
-    element.textContent = unit.confirmedCount ? formatTon(unit.confirmedTon)
-      : hasCandidates ? "미확정" : "감지 내역 없음";
-    element.dataset.state = unit.confirmedCount ? "confirmed" : hasCandidates ? "pending"
-      : coverage?.hasMinuteSource && coverage.validMinuteSampleCount ? "none" : "unknown";
-    const detail = unit.confirmedCount || hasCandidates
-      ? `확정 ${formatTon(unit.confirmedTon)} · 관측 ${unit.observationCount}구간 · 연속 감소 ${formatTon(unit.pendingEstimatedTon)} · 자료 확인 ${unit.incompleteCount}구간`
-      : `확정 ${formatTon(unit.confirmedTon)} · 실제 반출 여부는 계근 확인`;
-    setCardSupportingText(element, `${detail} · ${unitCoverageMessage(coverage)}`);
+    const hasSource = Boolean(coverage?.validMinuteSampleCount || coverage?.hourlySampleCount);
+    element.textContent = unit.observedCount ? formatTon(unit.observedTon)
+      : hasSource ? "감지 내역 없음" : "자료 없음";
+    element.dataset.state = unit.observedCount ? "observed" : hasSource ? "none" : "unknown";
+    setCardSupportingText(element, observedCardDetail(unit) +
+      (!unit.observedCount && !hasSource ? " · 반출 여부 확인 불가" : ""));
   }
 
   function renderLatestLevel(level, levelElement, timeElement, coverage) {
