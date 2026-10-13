@@ -211,6 +211,23 @@
   line-height: 1.4;
 }
 
+#efficiencyTeamModal #bedAshDischargeElapsedTime {
+  display: inline-flex;
+  max-width: 100%;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: #eef3f9;
+  color: #34465b;
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+#efficiencyTeamModal #bedAshDischargeElapsedTime[hidden] {
+  display: none;
+}
+
 #efficiencyTeamModal .bed-ash-discharge-read-only-notice {
   grid-column: 1 / -1;
   margin: 0;

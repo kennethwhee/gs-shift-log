@@ -68,6 +68,8 @@
     loadSequence: 0,
     loading: false,
     activeRangeLoad: null,
+    queryTiming: null,
+    queryTimerId: 0,
     summarySequence: 0,
     summaryLoading: false,
     summaryRefreshQueued: false,
@@ -131,6 +133,7 @@
       refreshButton: document.getElementById("refreshBedAshDischargeButton"),
       rangeLabel: document.getElementById("bedAshDischargeRangeLabel"),
       status: document.getElementById("bedAshDischargeStatus"),
+      elapsedTime: document.getElementById("bedAshDischargeElapsedTime"),
       readOnlyNotice: document.getElementById("bedAshDischargeReadOnlyNotice"),
       totalAmount: document.getElementById("bedAshDischargeTotalAmount"),
       unitOneAmount: document.getElementById("bedAshDischargeUnitOneAmount"),
@@ -883,6 +886,80 @@
 
     status.textContent = text(message);
     status.dataset.state = tone;
+  }
+
+  function isQueryTimerVisible() {
+    const view = document.getElementById?.("efficiencyBedAshDischargeView");
+    const modal = document.getElementById?.("efficiencyTeamModal");
+    return Boolean(view && !view.hidden && view.classList.contains("is-active") &&
+      document.visibilityState !== "hidden" &&
+      (!modal || (!modal.hidden && modal.getAttribute("aria-hidden") !== "true")));
+  }
+
+  function stopQueryTimerInterval() {
+    if (state.queryTimerId) window.clearInterval(state.queryTimerId);
+    state.queryTimerId = 0;
+  }
+
+  function renderQueryElapsedTime() {
+    const elapsedTime = document.getElementById?.("bedAshDischargeElapsedTime");
+    if (!elapsedTime) return;
+    const timing = state.queryTiming;
+    elapsedTime.hidden = !timing;
+    if (!timing) {
+      elapsedTime.textContent = "";
+      return;
+    }
+    const seconds = Math.max(0, Math.floor(((timing.endedAt ?? Date.now()) - timing.startedAt) / 1000));
+    const duration = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+    const outcome = { complete: "완료", failed: "실패", timeout: "시간 초과", unsettled: "자료 확인 필요" }[timing.outcome];
+    elapsedTime.textContent = `조회 경과 ${duration} · ${timing.phase}${outcome ? ` · ${outcome}` : ""}`;
+    elapsedTime.dataset.state = timing.outcome;
+  }
+
+  function synchronizeQueryTimerVisibility() {
+    const timing = state.queryTiming;
+    renderQueryElapsedTime();
+    if (!timing || timing.endedAt !== null || !isQueryTimerVisible()) {
+      stopQueryTimerInterval();
+      return;
+    }
+    if (state.queryTimerId) return;
+    const timerId = window.setInterval(() => {
+      if (state.queryTiming !== timing || state.queryTimerId !== timerId) return;
+      if (!isQueryTimerVisible()) {
+        stopQueryTimerInterval();
+        return;
+      }
+      renderQueryElapsedTime();
+    }, 1000);
+    state.queryTimerId = timerId;
+  }
+
+  function startQueryTiming(sequence) {
+    stopQueryTimerInterval();
+    state.queryTiming = { sequence, startedAt: Date.now(), endedAt: null, phase: "저장 자료", outcome: "running" };
+    synchronizeQueryTimerVisibility();
+  }
+
+  function setQueryPhase(sequence, phase) {
+    if (state.queryTiming?.sequence !== sequence) return;
+    state.queryTiming.phase = phase;
+    renderQueryElapsedTime();
+  }
+
+  function finishQueryTiming(sequence, outcome) {
+    if (state.queryTiming?.sequence !== sequence || state.queryTiming.endedAt !== null) return;
+    state.queryTiming.endedAt = Date.now();
+    state.queryTiming.outcome = outcome;
+    stopQueryTimerInterval();
+    renderQueryElapsedTime();
+  }
+
+  function clearQueryTiming() {
+    stopQueryTimerInterval();
+    state.queryTiming = null;
+    renderQueryElapsedTime();
   }
 
   function setLoading(isLoading) {
@@ -2211,12 +2288,14 @@
     const sequence = ++state.loadSequence;
     const isCurrent = () => isCurrentRangeLoad(sequence, token, selectedRangeKey);
     if (!token) {
+      clearQueryTiming();
       setLoading(false);
       clearDetailData("로그인 후 Bed Ash 반출 내역을 확인할 수 있습니다.");
       clearSummaryAlert();
       return;
     }
     if (requestedDates.length === 0) {
+      clearQueryTiming();
       setLoading(false);
       clearDetailData("미래 날짜는 OIS 자료를 조회하지 않습니다.");
       return;
@@ -2228,6 +2307,8 @@
     // Existing company jobs are adopted below, and repeated forced clicks
     // keep this same load instead of creating another request.
     state.activeRangeLoad = { key: selectedRangeKey, token, sequence, forceRefresh };
+    startQueryTiming(sequence);
+    let queryOutcome = "complete";
     let detailLoaded = false;
     setLoading(true);
     renderEvents();
@@ -2249,6 +2330,7 @@
         state.coverage, requestedDates, forceRefresh
       ).filter(plan => !activeDates.has(plan.date));
       const requestFailures = [];
+      if (tracked.size || requestPlans.length) setQueryPhase(sequence, "DataPARC 수집");
       if (requestPlans.length > 0) {
         setStatus(`저장된 자료 표시 중 · OIS 조회 ${requestPlans.length}건 요청 중`, "loading");
         let authenticationFailed = false;
@@ -2281,12 +2363,15 @@
       state.loadedRangeKey = selectedRangeKey;
       state.loadedAt = Date.now();
       if (pollResult === "unsettled") {
+        queryOutcome = "unsettled";
         state.loadedAt = 0;
         setStatus("OIS 처리는 끝났지만 기간 자료 반영을 확인하지 못했습니다. 잠시 후 다시 조회해 주세요.", "warning");
       } else if (pollResult === "timeout") {
+        queryOutcome = "timeout";
         state.loadedAt = 0;
         setStatus("저장된 자료 표시 중 · OIS 수집 또는 상태 확인이 10분 이상 지연되고 있습니다. 잠시 후 다시 조회해 주세요.", "warning");
       } else {
+        if (requestFailures.length || pollResult === "failed") queryOutcome = "failed";
         const coverage = state.coverage;
         const warning = requestFailures.length || pollResult === "failed" || hasCoverageWarning(coverage);
         const prefix = requestFailures.length
@@ -2298,6 +2383,7 @@
       // not delay detail completion or add another expensive GET on each poll.
     } catch (error) {
       if (!isCurrent()) return;
+      queryOutcome = error.name === "TimeoutError" ? "timeout" : "failed";
       const authFailure = [401, 403].includes(error.status);
       const message = authFailure
         ? "로그인 정보가 만료되었습니다. 다시 로그인해 주세요."
@@ -2308,6 +2394,7 @@
     } finally {
       if (state.activeRangeLoad?.sequence === sequence) state.activeRangeLoad = null;
       if (sequence === state.loadSequence) {
+        finishQueryTiming(sequence, queryOutcome);
         setLoading(false);
         renderPeriodControls();
         renderEvents();
@@ -2976,7 +3063,8 @@
     elements.mainAlert?.addEventListener("click", openFromMainAlert);
 
     const viewObserver = new MutationObserver(() => {
-      if (!elements.view.hidden && elements.view.classList.contains("is-active")) {
+      synchronizeQueryTimerVisibility();
+      if (isQueryTimerVisible()) {
         openBedAshDischargeView();
       }
     });
@@ -2984,8 +3072,13 @@
       attributes: true,
       attributeFilter: ["hidden", "class"]
     });
+    const modal = document.getElementById("efficiencyTeamModal");
+    if (modal) viewObserver.observe(modal, {
+      attributes: true, attributeFilter: ["hidden", "class", "aria-hidden"]
+    });
 
     document.addEventListener("visibilitychange", () => {
+      synchronizeQueryTimerVisibility();
       if (document.visibilityState === "visible") {
         refreshSummary({ silent: true, force: true });
         if (!elements.view.hidden && elements.view.classList.contains("is-active")) {
@@ -3000,6 +3093,8 @@
         watchAuthentication();
       }
     });
+    window.addEventListener("pagehide", stopQueryTimerInterval);
+    window.addEventListener("pageshow", synchronizeQueryTimerVisibility);
 
     state.bound = true;
   }
@@ -3007,6 +3102,7 @@
   function watchAuthentication() {
     const token = getSessionToken();
     if (token !== state.lastSessionToken) {
+      clearQueryTiming();
       state.lastSessionToken = token;
       state.loadSequence += 1;
       state.activeRangeLoad = null;
