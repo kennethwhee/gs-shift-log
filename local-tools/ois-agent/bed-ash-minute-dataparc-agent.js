@@ -7,7 +7,9 @@ const crypto=require('node:crypto');
 const {spawn}=require('node:child_process');
 const {normalizeMinuteBedAshResult}=require('../../efficiency/bed-ash-minute-contract.js');
 
-const BED_ASH_READER_SHA256='36d6676c88e49bae8549d92b52627882160fc5bcc96ff9de975ddc70761fe2a7';
+const BED_ASH_READER_SHA256='f7adc290d6c893ae742741584453312253acc370f4d54d7cfa6390837088aaae';
+const BED_ASH_RAW_PROFILE='bed_ash_minute_raw_r17';
+const BED_ASH_NATIVE_HELPER_SHA256='cced1022ae2134bf180695ca4ba62b5dd6df4b76a552d98d96c5da7c309be72a';
 const defaultRuns=path.join(process.env.LOCALAPPDATA||os.tmpdir(),'GSShiftLog','bed-ash-minute-dataparc','runs');
 const blockFile=path.join(defaultRuns,'cleanup-blocked.json');
 const isBedAshExcelBlocked=()=>fs.existsSync(blockFile);
@@ -20,8 +22,9 @@ function bedAshMinuteInterval(targetDate,now=Date.now()) {
   }
   const start=day-32400000,today=new Date(now+32400000).toISOString().slice(0,10);
   if(targetDate<'2021-01-01'||targetDate>today)throw new Error('Bed Ash는 오늘까지의 자료만 조회할 수 있습니다.');
-  const end=targetDate===today?Math.floor((now-300000)/60000)*60000:start+86400000;
-  if(end<start||end+60000>now)throw new Error('Bed Ash 조회에 사용할 완료된 분 경계가 없습니다.');
+  const cutoff=Math.floor((now-300000)/60000)*60000;
+  const end=targetDate===today?cutoff:start+86400000;
+  if(end<start||end>cutoff)throw new Error('Bed Ash 조회에 사용할 완료된 분 경계가 없습니다.');
   return {intervalStart:kst(start),intervalEnd:kst(end)};
 }
 
@@ -31,6 +34,44 @@ function matchesCleanupReport(report,runId,targetDate,intervalEnd) {
     report.cleanupVerified===true&&report.processCleanupVerified===true&&
     Array.isArray(report.cleanupErrors)&&report.cleanupErrors.length===0&&report.databaseWritten===false&&
     Number.isFinite(Date.parse(report.completedAtUtc));
+}
+
+function matchesRawExecution(raw,report,interval) {
+  if(!raw||raw.queryProfile!==BED_ASH_RAW_PROFILE||raw.formulaCount!==0||raw.rawQueryCount!==2||
+    raw.rawQueryMethod!=='fnTagRawArray'||raw.rawValueOnly!==false||raw.rawIncludeBounds!==true||
+    raw.sampleSelection!=='first_raw_in_half_open_minute'||raw.missingBucketRule!=='derived_NoData_Bad_at_bucket_start'||
+    raw.rawDataValidationPassed!==true||raw.allCellsReturned!==true||raw.databaseWritten!==false||
+    raw.nativeHelperMode!=='embedded_net40'||raw.nativeHelperSha256!==BED_ASH_NATIVE_HELPER_SHA256||raw.nativeHelperVerified!==true||
+    raw.intervalStart!==interval.intervalStart||raw.intervalEnd!==interval.intervalEnd||
+    raw.rawQueryEnd!==kst(Date.parse(interval.intervalEnd)+60000))return false;
+  const diagnostic=report?.arrayDiagnostics,queries=diagnostic?.rawDiagnostics;
+  if(!diagnostic||diagnostic.queryProfile!==BED_ASH_RAW_PROFILE||diagnostic.formulaCount!==0||
+    diagnostic.rawQueryCount!==2||diagnostic.arrayFormulaAssignedCount!==0||diagnostic.scalarControlFormulaCount!==0||
+    diagnostic.rawQueryMethod!=='fnTagRawArray'||diagnostic.rawValueOnly!==false||diagnostic.rawIncludeBounds!==true||
+    diagnostic.nativeHelperMode!=='embedded_net40'||diagnostic.nativeHelperSha256!==BED_ASH_NATIVE_HELPER_SHA256||
+    diagnostic.nativeHelperVerified!==true||diagnostic.failure!==null||
+    !queries||queries.queryMethod!=='fnTagRawArray'||queries.sampleSelection!==raw.sampleSelection||
+    queries.missingBucketRule!==raw.missingBucketRule||queries.startedQueryCount!==2||queries.returnedQueryCount!==2||
+    queries.rawDataValidationPassed!==true||!Array.isArray(queries.calls)||queries.calls.length!==2||
+    !Array.isArray(raw.units)||raw.units.length!==2)return false;
+  const count=(Date.parse(interval.intervalEnd)-Date.parse(interval.intervalStart))/60000+1;
+  if(!Number.isInteger(count)||count<1||count>1441)return false;
+  return [1,2].every(unitNo=>{
+    const calls=queries.calls.filter(call=>call?.unitNo===unitNo),units=raw.units.filter(unit=>unit?.unitNo===unitNo);
+    if(calls.length!==1||units.length!==1)return false;
+    const call=calls[0],unit=units[0],matrix=call.matrix,normalization=call.normalization;
+    if(call.tagNumber!==unitNo+'04HDC01CW101XQ01'||call.method!=='fnTagRawArray'||
+      call.valueOnly!==false||call.includeBounds!==true||call.status!=='normalized'||call.failure!==null||
+      !matrix||matrix.rank!==2||matrix.columns!==4||!Number.isInteger(matrix.rows)||matrix.rows<2||matrix.rows>1048576||
+      !normalization||normalization.matrixRows!==matrix.rows||normalization.matrixColumns!==4||
+      normalization.sourceRows!==matrix.rows-1||normalization.terminalBlankRows!==1||
+      !Number.isInteger(normalization.observedBucketCount)||normalization.observedBucketCount<1||
+      !Number.isInteger(normalization.derivedEmptyBucketCount)||normalization.derivedEmptyBucketCount<0||
+      normalization.observedBucketCount+normalization.derivedEmptyBucketCount!==count||
+      !Array.isArray(unit.samples)||unit.samples.length!==count)return false;
+    const validCount=unit.samples.filter(sample=>typeof sample?.levelTon==='number'&&Number.isFinite(sample.levelTon)).length;
+    return validCount>0&&normalization.validCount===validCount&&raw.validCounts?.['unit'+unitNo]===validCount;
+  });
 }
 
 function createBedAshMinuteCollector(options={}) {
@@ -87,7 +128,8 @@ function createBedAshMinuteCollector(options={}) {
         report.timedOut!==false||report.workerExitCode!==0||report.resultReceived!==true||report.resultOk!==true||
         raw.runId!==runId||raw.mode!=='bed_ash_minute_dataparc'||raw.cleanupVerified!==true||raw.ok!==true||
         !report.ownedExcel||!Number.isInteger(report.ownedExcel.ProcessId)||report.ownedExcel.ProcessId<=0||
-        path.win32.basename(String(report.ownedExcel.Path)).toLowerCase()!=='excel.exe') {
+        path.win32.basename(String(report.ownedExcel.Path)).toLowerCase()!=='excel.exe'||
+        !matchesRawExecution(raw,report,interval)) {
         throw new Error('Bed Ash 실행·종료 보고서 검증을 통과하지 못했습니다.');
       }
       const result=normalize(raw,targetDate,now());
@@ -121,5 +163,5 @@ async function collectBedAshWithHourlyFallback(config,request,{precise=collectBe
 }
 
 const collectBedAshMinuteDataParcValues=createBedAshMinuteCollector();
-module.exports={BED_ASH_READER_SHA256,bedAshMinuteInterval,matchesCleanupReport,createBedAshMinuteCollector,
+module.exports={BED_ASH_READER_SHA256,BED_ASH_RAW_PROFILE,BED_ASH_NATIVE_HELPER_SHA256,bedAshMinuteInterval,matchesCleanupReport,matchesRawExecution,createBedAshMinuteCollector,
   collectBedAshMinuteDataParcValues,collectBedAshWithHourlyFallback,isBedAshExcelBlocked};
