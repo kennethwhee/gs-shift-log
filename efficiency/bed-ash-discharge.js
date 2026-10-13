@@ -582,8 +582,42 @@
       (event.sourceKind === "dataparc_bed_ash_minute" && event.sampleIntervalSeconds === 60);
   }
 
+  function formatDetectionRange(startAt, endAt) {
+    const start = getTimestampParts(startAt), end = getTimestampParts(endAt);
+    if (state.period === "daily" && start && end &&
+      start.year === end.year && start.month === end.month && start.day === end.day) {
+      return `${start.hour}:${start.minute} ~ ${end.hour}:${end.minute}`;
+    }
+    return formatHourlyRange(startAt, endAt);
+  }
+
   function eventSourceLabel(event) {
-    return isMinuteEvent(event) ? "1분 간격 중량 감지 구간" : "시간별 OIS 자동 감지 구간";
+    return isMinuteEvent(event) ? "DataPARC · 1분 자료" : "운영정보 · 시간자료";
+  }
+
+  function normalizeMinuteObservations(value, unitNo) {
+    if (!Array.isArray(value)) return [];
+    const seen = new Set();
+    return value.filter(item => {
+      const valid = item && item.sourceKind === "dataparc_bed_ash_minute" &&
+        item.sampleIntervalSeconds === 60 && item.reviewReady === true &&
+        text(item.unitNo) === unitNo && text(item.eventKey) && !seen.has(text(item.eventKey)) &&
+        getTimestampParts(item.startAt) && getTimestampParts(item.endAt) &&
+        Date.parse(item.startAt) < Date.parse(item.endAt) &&
+        [item.startLevelTon, item.endLevelTon, item.estimatedTon].every(value => typeof value === "number" && Number.isFinite(value) && value >= 0);
+      if (!valid) return false;
+      seen.add(text(item.eventKey));
+      return true;
+    }).map(item => {
+      return {
+        eventKey: text(item.eventKey), unitNo, startAt: text(item.startAt), endAt: text(item.endAt),
+        startLevelTon: item.startLevelTon, endLevelTon: item.endLevelTon, estimatedTon: item.estimatedTon,
+        sourceKind: "dataparc_bed_ash_minute", sampleIntervalSeconds: 60, reviewReady: true,
+        overlapOtherUnit: item.overlapOtherUnit === true,
+        sharedReviewedEvidence: item.sharedReviewedEvidence === true,
+        relatedReviewedEventKeys: Array.isArray(item.relatedReviewedEventKeys) ? item.relatedReviewedEventKeys.map(text) : []
+      };
+    }).sort((first, second) => first.startAt.localeCompare(second.startAt));
   }
 
   function formatTon(value) {
@@ -619,6 +653,7 @@
       overlapStartAt: text(event.overlapStartAt),
       overlapEndAt: text(event.overlapEndAt),
       overlapEventKeys: Array.isArray(event.overlapEventKeys) ? event.overlapEventKeys.map(text) : [],
+      minuteObservations: normalizeMinuteObservations(event.minuteObservations, text(event.unitNo) === "2" ? "2" : "1"),
       closeReason: text(event.closeReason),
       status: normalizedStatus,
       confirmedAt: text(event.confirmedAt),
@@ -1119,33 +1154,50 @@
     row.dataset.eventKey = event.eventKey;
 
     const timeCell = createElement("td", "bed-ash-discharge-time-cell");
-    const detectionRange = formatHourlyRange(event.startAt, event.endAt, isMinuteEvent(event));
+    const detectionRange = formatDetectionRange(event.startAt, event.endAt);
+    const observations = event.minuteObservations || [];
     const confirmedTime = event.status === "confirmed" && event.confirmedAt
       ? formatTimestamp(event.confirmedAt)
       : "";
-    timeCell.append(
+    if (observations.length) {
+      for (const observation of observations) {
+        timeCell.appendChild(createElement("strong", "bed-ash-discharge-minute-range",
+          formatDetectionRange(observation.startAt, observation.endAt)));
+      }
+      timeCell.appendChild(createElement("small", "", "DataPARC · 1분 감지 근거"));
+      const original = createElement("details", "bed-ash-discharge-original-evidence");
+      original.append(createElement("summary", "", "기존 시간기록"),
+        createElement("small", "", `${formatHourlyRange(event.startAt, event.endAt)}${confirmedTime ? ` · 확정 시각 ${confirmedTime}` : ""}`));
+      timeCell.appendChild(original);
+      if (observations.some(item => item.sharedReviewedEvidence)) {
+        timeCell.appendChild(createElement("small", "bed-ash-discharge-minute-pending-note",
+          "공유 감지 근거 · 개별 반출 연결 미확정"));
+      }
+    } else timeCell.append(
       createElement(
         "strong",
         "",
-        confirmedTime ? `실제 ${confirmedTime}` : detectionRange
+        confirmedTime && !isMinuteEvent(event) ? `실제 ${confirmedTime}` : detectionRange
       ),
       createElement(
         "small",
         "",
-        confirmedTime
+        confirmedTime && !isMinuteEvent(event)
           ? `${eventSourceLabel(event)} ${detectionRange}`
           : eventSourceLabel(event)
       )
     );
-    if (event.overlapOtherUnit && event.status !== "excluded") {
+    if (!observations.length && isMinuteEvent(event) && confirmedTime) {
+      timeCell.appendChild(createElement("small", "", `확정 시각 ${confirmedTime}`));
+    }
+    if ((event.overlapOtherUnit || observations.some(item => item.overlapOtherUnit)) && event.status !== "excluded") {
       row.classList.add("is-unit-overlap");
-      const overlapRange = event.overlapStartAt && event.overlapEndAt
-        ? ` · ${formatHourlyRange(event.overlapStartAt, event.overlapEndAt, isMinuteEvent(event))}`
-        : "";
-      timeCell.appendChild(createElement(
+      const overlapNote = createElement(
         "small", "bed-ash-discharge-overlap-note",
-        `1·2호기 감지 구간 겹침 · 차량 확인 필요${overlapRange}`
-      ));
+        "시간 겹침 · 차량 확인"
+      );
+      overlapNote.setAttribute("title", "1·2호기 감지 구간이 겹칩니다. 차량별 계근 기록을 확인하세요.");
+      timeCell.appendChild(overlapNote);
     }
     if (isMinuteEvent(event) && event.status === "pending" && !event.reviewReady) {
       timeCell.appendChild(createElement(
@@ -1165,7 +1217,13 @@
       "td",
       "bed-ash-discharge-level-change-cell"
     );
-    levelChangeCell.appendChild(
+    if (observations.length) {
+      for (const observation of observations) {
+        levelChangeCell.append(createElement("strong", "bed-ash-discharge-minute-range",
+          `${formatTon(observation.startLevelTon)} → ${formatTon(observation.endLevelTon)}`),
+          createElement("small", "", `감지 감소량 ${formatTon(observation.estimatedTon)}`));
+      }
+    } else levelChangeCell.appendChild(
       createElement(
         "strong",
         "",
@@ -1184,7 +1242,13 @@
     const isLegacyReviewedEvent =
       !CURRENT_DETECTOR_VERSIONS.has(event.algorithmVersion) &&
       ["confirmed", "excluded"].includes(event.status);
-    if (isTruckBoundaryUnresolved) {
+    if (observations.length) {
+      estimatedCell.append(createElement("strong", "", formatTon(visibleAmountTon)),
+        createElement("small", "", event.status === "confirmed" ? "기존 확정량" : "기존 제외 기록"));
+      if (observations.length > 1 || observations.some(item => item.sharedReviewedEvidence)) {
+        estimatedCell.appendChild(createElement("small", "", "구간별 배분 안 함"));
+      }
+    } else if (isTruckBoundaryUnresolved) {
       estimatedCell.classList.add("is-truck-boundary-unresolved");
       estimatedCell.append(
         createElement("strong", "", formatTon(visibleAmountTon)),
@@ -1711,7 +1775,7 @@
 
   function coverageStatusMessage(coverage, eventCount) {
     if (!coverage) {
-      return "조회된 OIS 자료가 없습니다.";
+      return "조회된 Bed Ash 자료가 없습니다.";
     }
 
     const total = coverage.dates.length;
@@ -1721,15 +1785,23 @@
     const missing = coverage.missingDates.length;
     const baseline = coverage.baseline;
     const lookahead = coverage.lookahead;
+    const minuteCount = coverage.minuteDates?.length || 0;
+    const hourlyCount = coverage.hourlyDates?.length || 0;
+    const precision = minuteCount || hourlyCount
+      ? ` · DataPARC 1분 자료 ${minuteCount}일${hourlyCount ? ` / 시간 자료 ${hourlyCount}일` : ""}`
+      : "";
+    const fallback = coverage.precisionFailures?.length
+      ? " · 정밀 조회 미수신 · 기존 자료 표시"
+      : "";
 
     if (pending > 0 || baseline?.pending || lookahead?.pending) {
       const baselineMessage = baseline?.pending ? " · 첫날 자정 기준 처리 중" : "";
       const lookaheadMessage = lookahead?.pending
         ? " · 마지막 날 후속 자료 처리 중"
         : "";
-      return `OIS 자료 수집 중 · ${complete}/${total}일 완료 · ${pending}일 처리 중${baselineMessage}${lookaheadMessage}`;
+      return `DataPARC 조회 중 · ${complete}/${total}일 완료 · ${pending}일 처리 중${baselineMessage}${lookaheadMessage}${precision}${fallback}`;
     }
-    if (lookahead && !lookahead.available) {
+    if (lookahead && !lookahead.available && (hourlyCount > 0 || minuteCount === 0)) {
       const selectedDataMessage = missing > 0 || failed > 0
         ? ` · 자료 없음 ${missing}일 · 수집 실패 ${failed}일`
         : "";
@@ -1738,7 +1810,7 @@
           ? " · 첫날 자정 기준 수집 실패"
           : " · 첫날 자정 기준 자료 없음"
         : "";
-      return `조회 완료 · ${eventCount}건 감지 · 마지막 날 반출량은 다음 날 08시 자료 수집 후 확인 가능${selectedDataMessage}${baselineMessage}`;
+      return `조회 완료 · ${eventCount}건 감지 · 시간자료의 마지막 날 반출량은 다음 날 08시 자료 수집 후 확인 가능${selectedDataMessage}${baselineMessage}${precision}${fallback}`;
     }
     if (
       failed > 0 ||
@@ -1756,16 +1828,8 @@
           ? " · 마지막 날 후속 자료 수집 실패"
           : " · 마지막 날 후속 자료 보완 필요"
         : "";
-      return `조회 완료 · ${eventCount}건 감지 · 자료 없음 ${missing}일 · 수집 실패 ${failed}일${baselineMessage}${lookaheadMessage}`;
+      return `조회 완료 · ${eventCount}건 감지 · 자료 없음 ${missing}일 · 수집 실패 ${failed}일${baselineMessage}${lookaheadMessage}${precision}${fallback}`;
     }
-    const minuteCount = coverage.minuteDates?.length || 0;
-    const hourlyCount = coverage.hourlyDates?.length || 0;
-    const precision = minuteCount || hourlyCount
-      ? ` · 1분 자료 ${minuteCount}일${hourlyCount ? ` / 시간 자료 ${hourlyCount}일` : ""}`
-      : "";
-    const fallback = coverage.precisionFailures?.length
-      ? " · 정밀 조회 미수신 날짜는 시간별 기록 표시"
-      : "";
     return `조회 완료 · ${complete}/${total}일 자료 · 반출 내역 ${eventCount}건${precision}${fallback}`;
   }
 
@@ -1994,6 +2058,7 @@
         }
         const coverage = state.coverage;
         const warning = result === "failed" || coverage.failedDates.length ||
+          coverage.precisionFailures?.length ||
           coverage.missingDates.length ||
           (coverage.baseline && !coverage.baseline.complete) ||
           (coverage.lookahead?.available && !coverage.lookahead.complete);
@@ -2124,6 +2189,7 @@
       } else {
         const coverage = state.coverage;
         const warning = requestFailures.length || pollResult === "failed" ||
+          coverage.precisionFailures?.length ||
           coverage.failedDates.length || coverage.missingDates.length ||
           (coverage.baseline && !coverage.baseline.complete) ||
           (coverage.lookahead?.available && !coverage.lookahead.complete);
@@ -2707,7 +2773,7 @@
     elements.refreshButton?.addEventListener("click", () => {
       if (!isMobileClient()) {
         state.expandedReviewEventKey = "";
-        loadSelectedRange();
+        return loadSelectedRange({ forceRefresh: true });
       }
     });
 

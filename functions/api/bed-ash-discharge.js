@@ -4758,6 +4758,48 @@ async function handleSummaryGet(
 }
 
 
+// R1: newer minute evidence is presentation-only for an existing reviewed
+// hourly record. Its saved decision, amount and identity remain authoritative;
+// several observations never authorize allocating that amount to vehicles.
+function attachReviewedMinuteObservations(events,observations){
+  const isReviewedHourly=event=>['confirmed','excluded'].includes(event.status)&&event.sampleIntervalSeconds!==60&&event.sourceKind!==MINUTE_SOURCE_KIND&&event.algorithmVersion!==MINUTE_ALGORITHM_VERSION;
+  const parentsByUnit=new Map(),observationsByUnit=new Map(),byParent=new Map(),reviewedIndices=new Set();
+  events.forEach((event,index)=>{
+    if(!isReviewedHourly(event))return;
+    reviewedIndices.add(index);
+    const parent={event,index,unitNo:Number(event.unitNo),start:Date.parse(event.startAt),end:Date.parse(event.endAt)};
+    if(!Number.isFinite(parent.start)||!Number.isFinite(parent.end))return;
+    const group=parentsByUnit.get(parent.unitNo)||[];group.push(parent);parentsByUnit.set(parent.unitNo,group);
+  });
+  for(const observation of Array.isArray(observations)?observations:[]){
+    if(observation?.sourceKind!==MINUTE_SOURCE_KIND||observation.sampleIntervalSeconds!==60||observation.reviewReady!==true)continue;
+    const entry={observation,unitNo:Number(observation.unitNo),start:Date.parse(observation.startAt),end:Date.parse(observation.endAt)};
+    if(!Number.isFinite(entry.start)||!Number.isFinite(entry.end))continue;
+    const group=observationsByUnit.get(entry.unitNo)||[];group.push(entry);observationsByUnit.set(entry.unitNo,group);
+  }
+  for(const [unitNo,entries] of observationsByUnit){
+    const parents=(parentsByUnit.get(unitNo)||[]).sort((a,b)=>a.start-b.start);
+    entries.sort((a,b)=>a.start-b.start);let cursor=0;const active=new Set();
+    for(const entry of entries){
+      while(cursor<parents.length&&parents[cursor].start<entry.end)active.add(parents[cursor++]);
+      const matches=[];
+      for(const parent of active){
+        if(parent.end<=entry.start){active.delete(parent);continue;}
+        if(parent.start<entry.end)matches.push(parent);
+      }
+      if(!matches.length)continue;
+      const observation=entry.observation,relatedReviewedEventKeys=matches.map(parent=>parent.event.eventKey).sort();
+      const readonly={eventKey:observation.eventKey,unitNo,startAt:observation.startAt,endAt:observation.endAt,
+        startLevelTon:observation.startLevelTon,endLevelTon:observation.endLevelTon,estimatedTon:observation.estimatedTon,
+        sourceKind:MINUTE_SOURCE_KIND,sampleIntervalSeconds:60,overlapOtherUnit:observation.overlapOtherUnit===true,reviewReady:true,
+        relatedReviewedEventKeys,sharedReviewedEvidence:relatedReviewedEventKeys.length>1};
+      for(const parent of matches){const linked=byParent.get(parent.index)||[];linked.push(readonly);byParent.set(parent.index,linked);}
+    }
+  }
+  return events.map((event,index)=>reviewedIndices.has(index)?{...event,minuteObservations:byParent.get(index)||[]}:event);
+}
+
+
 async function handleRangeGet(
   context,
   requestUrl,
@@ -5073,12 +5115,13 @@ async function handleRangeGet(
   }
 
 
-  const events =
+  const storedEvents =
     await findActiveEventRows(
       context.env.DB,
       startTimestamp,
       endTimestampExclusive
     );
+  const events=attachReviewedMinuteObservations(storedEvents,rangeDetectedEvents);
 
 
   return jsonResponse({
@@ -6397,6 +6440,8 @@ export async function onRequestPost(
 export const __bedAshTest = {
   buildCoverage,
   buildSummary,
+  attachReviewedMinuteObservations,
+  handleRangeGet,
   detectBedAshEvents,
   detectBedAshEventsForUnit,
   detectMinuteBedAshEventsForUnit,

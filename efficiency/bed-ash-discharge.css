@@ -1863,3 +1863,29 @@
   font-weight: 700;
   white-space: normal;
 }
+
+/* BED_ASH_MINUTE_DETECTION_R1: short ranges and read-only original evidence. */
+#efficiencyTeamModal .bed-ash-discharge-time-cell > .bed-ash-discharge-overlap-note {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: #fff0d5;
+  line-height: 1.3;
+}
+#efficiencyTeamModal .bed-ash-discharge-minute-range {
+  display: block;
+  line-height: 1.5;
+}
+#efficiencyTeamModal .bed-ash-discharge-original-evidence {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.4;
+}
+#efficiencyTeamModal .bed-ash-discharge-original-evidence > summary {
+  cursor: pointer;
+}
+#efficiencyTeamModal .bed-ash-discharge-original-evidence > small {
+  display: block;
+  margin-top: 3px;
+}

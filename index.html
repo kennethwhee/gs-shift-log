@@ -196,7 +196,7 @@
   >
   <link
     rel="stylesheet"
-    href="/efficiency/bed-ash-discharge.css?v=20260901-bed-ash-no-period-nav-v6-1&amp;minuteDetection=20261013-v1"
+    href="/efficiency/bed-ash-discharge.css?v=20260901-bed-ash-no-period-nav-v6-1&amp;minuteDetection=20261013-v1-r1"
   >
   <link
     rel="stylesheet"
@@ -324,7 +324,7 @@
 ></script>
 
 <script
-  src="/efficiency/bed-ash-discharge.js?v=20260912-bed-ash-fast-query-v1&amp;minuteDetection=20261013-v1"
+  src="/efficiency/bed-ash-discharge.js?v=20260912-bed-ash-fast-query-v1&amp;minuteDetection=20261013-v1-r1"
   defer
 ></script>
 
@@ -10699,8 +10699,8 @@
       <span>BED ASH DISCHARGE</span>
       <h3>Bed Ash 반출</h3>
       <p>
-        정밀 조회는 1분 간격 Silo 중량에서 5.0t 이상 하락한 감지 구간을 호기별로 구분합니다.
-        1·2호기 구간이 겹치면 별도 표시하며, 차량별 실제 반출량은 계근 기록과 확인합니다.
+        DataPARC 1분 중량으로 호기별 감지 시작~종료 분을 표시합니다.
+        5.0t 이상 하락을 감지하며, 시간이 겹치면 차량별 계근 기록을 확인합니다.
       </p>
     </div>
 
@@ -10709,7 +10709,7 @@
       class="secondary-button bed-ash-discharge-refresh-button"
       id="refreshBedAshDischargeButton"
     >
-      정밀 조회
+      DataPARC 새로 조회
     </button>
   </header>
 
@@ -11013,7 +11013,7 @@
         <table aria-label="Bed Ash 반출량 내역">
           <thead>
             <tr>
-              <th>반출 시간</th>
+              <th>감지 시간</th>
               <th>호기</th>
               <th>중량 변화</th>
               <th>반출량</th>
