@@ -1804,10 +1804,22 @@
     return matched ? { ...data, events } : data;
   }
 
+  function eventTimeSortKey(event) {
+    // Follow the primary time shown in the row, including saved reviewed records.
+    const displayedAt = event.minuteObservations[0]?.startAt ||
+      (event.status === "confirmed" && !isMinuteEvent(event) ? event.confirmedAt : "") ||
+      event.startAt;
+    const parts = getTimestampParts(displayedAt) ||
+      getTimestampParts(event.startAt) || getTimestampParts(event.endAt);
+    return parts
+      ? `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}`
+      : "\uffff";
+  }
+
   function renderData(data, requestedDates) {
     const events = Array.isArray(data?.events) ? data.events.map(normalizeEvent) : [];
     state.events = events.sort((first, second) => {
-      return text(second.endAt).localeCompare(text(first.endAt));
+      return eventTimeSortKey(first).localeCompare(eventTimeSortKey(second));
     });
     state.summary = summarizeVisibleEvents(state.events);
     state.minorObservations = normalizeMinorObservations(data?.minorObservations);
