@@ -44,6 +44,7 @@
 }
 
 #efficiencyTeamModal #efficiencyBedAshDischargeView {
+  position: relative;
   min-width: 0;
   min-height: 0;
   background: #f5f7fa;
@@ -52,6 +53,88 @@
 #efficiencyTeamModal #efficiencyBedAshDischargeView.is-active {
   display: flex;
   flex-direction: column;
+}
+
+/* A non-blocking status layer stays centered while the dashboard scrolls. */
+#efficiencyTeamModal #efficiencyBedAshDischargeView > .bed-ash-discharge-query-progress {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  padding: 16px;
+  background: rgba(245, 248, 253, 0.78);
+  pointer-events: none;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView > .bed-ash-discharge-query-progress[hidden] {
+  display: none !important;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-query-progress__card {
+  display: grid;
+  width: 100%;
+  max-width: 320px;
+  box-sizing: border-box;
+  justify-items: center;
+  gap: 10px;
+  padding: 24px 20px;
+  border: 1px solid #cdddf7;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 12px 36px rgba(30, 64, 120, 0.16);
+  color: #203149;
+  text-align: center;
+  word-break: keep-all;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-query-progress__spinner {
+  display: block;
+  width: 38px;
+  height: 38px;
+  box-sizing: border-box;
+  margin: 0 0 4px;
+  border: 4px solid #dce8fc;
+  border-top-color: #1d4ed8;
+  border-radius: 50%;
+  animation: bed-ash-discharge-spin 0.9s linear infinite;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-query-progress__title {
+  display: block;
+  margin: 0;
+  color: #203149;
+  font-size: 16px;
+  font-weight: 850;
+  line-height: 1.45;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView #bedAshDischargeQueryProgressPhase {
+  margin: 0;
+  color: #586b85;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView #bedAshDischargeQueryProgressElapsed {
+  display: inline-flex;
+  margin: 2px 0 0;
+  padding: 5px 10px;
+  border-radius: 7px;
+  background: #eef4ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-query-progress__spinner {
+    animation: none;
+  }
 }
 
 #efficiencyTeamModal .bed-ash-discharge-heading {

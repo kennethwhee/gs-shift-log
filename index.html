@@ -196,7 +196,7 @@
   >
   <link
     rel="stylesheet"
-    href="/efficiency/bed-ash-discharge.css?v=20260901-bed-ash-no-period-nav-v6-1&amp;minuteDetection=20261014-v1-r20"
+    href="/efficiency/bed-ash-discharge.css?v=20260901-bed-ash-no-period-nav-v6-1&amp;minuteDetection=20261014-v1-r21"
   >
   <link
     rel="stylesheet"
@@ -324,7 +324,7 @@
 ></script>
 
 <script
-  src="/efficiency/bed-ash-discharge.js?v=20260912-bed-ash-fast-query-v1&amp;minuteDetection=20261014-v1-r20"
+  src="/efficiency/bed-ash-discharge.js?v=20260912-bed-ash-fast-query-v1&amp;minuteDetection=20261014-v1-r21"
   defer
 ></script>
 
@@ -10713,6 +10713,22 @@
       반출 내역 조회
     </button>
   </header>
+
+  <div
+    class="bed-ash-discharge-query-progress"
+    id="bedAshDischargeQueryProgress"
+    role="status"
+    aria-live="polite"
+    aria-atomic="true"
+    hidden
+  >
+    <div class="bed-ash-discharge-query-progress__card">
+      <span class="bed-ash-discharge-query-progress__spinner" aria-hidden="true"></span>
+      <strong class="bed-ash-discharge-query-progress__title">반출 내역을 조회하고 있어요</strong>
+      <p id="bedAshDischargeQueryProgressPhase">저장 자료를 확인하고 있어요</p>
+      <span id="bedAshDischargeQueryProgressElapsed" aria-hidden="true">경과 00:00</span>
+    </div>
+  </div>
 
   <div class="bed-ash-discharge-dashboard">
     <section

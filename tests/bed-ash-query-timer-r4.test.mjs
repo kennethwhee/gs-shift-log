@@ -99,12 +99,14 @@ function client(options = {}) {
     'efficiencyBedAshDischargeView', 'efficiencyBedAshDischargeTab',
     'bedAshDischargeAnchorDate', 'refreshBedAshDischargeButton', 'bedAshDischargeRangeLabel',
     'bedAshDischargeStatus', 'bedAshDischargeEventTableBody', 'bedAshDischargeEventCount',
-    'bedAshDischargeLoadingState', 'bedAshDischargeEmptyState', 'bedAshDischargeElapsedTime', 'efficiencyTeamModal'
+    'bedAshDischargeLoadingState', 'bedAshDischargeEmptyState', 'bedAshDischargeElapsedTime', 'efficiencyTeamModal',
+    'bedAshDischargeQueryProgress', 'bedAshDischargeQueryProgressPhase', 'bedAshDischargeQueryProgressElapsed'
   ];
   const elements = new Map(ids.map(id => [id, new Element(id.includes('Button') ? 'button' : 'div', id)]));
   elements.get('efficiencyBedAshDischargeView').classList.add('is-active');
   elements.get('efficiencyTeamModal').setAttribute('aria-hidden', 'false');
   elements.get('bedAshDischargeElapsedTime').hidden = true;
+  elements.get('bedAshDischargeQueryProgress').hidden = true;
   const calls = { ranges: [], posts: [], statuses: [] };
   const document = {
     readyState: 'loading', visibilityState: 'visible', activeElement: null,
@@ -182,6 +184,9 @@ function client(options = {}) {
   return {
     api, calls, date, refresh, status, table, flush, poll, intervals, timers,
     elapsed: elements.get('bedAshDischargeElapsedTime'),
+    progress: elements.get('bedAshDischargeQueryProgress'),
+    progressPhase: elements.get('bedAshDischargeQueryProgressPhase'),
+    progressElapsed: elements.get('bedAshDischargeQueryProgressElapsed'),
     view: elements.get('efficiencyBedAshDischargeView'), modal: elements.get('efficiencyTeamModal'), document,
     elapsedIntervals: () => [...intervals.values()].filter(timer => timer.ms === 1000),
     advance: async ms => { now += ms; for (const timer of [...intervals.values()]) if (timer.ms === 1000) timer.fn(); await flush(); },
@@ -206,6 +211,7 @@ test('saved-data query ticks from wall time and freezes its measured duration af
   const h = client({ range: async request => { await read.promise; return savedData(request.startDate); } });
   assert.equal(h.elapsed.hidden, true);
   const query = h.api.loadSelectedRange(); await h.flush();
+  assert.equal(h.progress.hidden, true, 'ordinary saved-data reads do not show the forced-query overlay');
   assert.equal(h.elapsed.hidden, false); assert.equal(h.elapsed.dataset.state, 'running');
   assert.equal(h.elapsed.textContent, '조회 경과 00:00 · 저장 자료');
   assert.equal(h.elapsedIntervals().length, 1);
@@ -231,8 +237,16 @@ test('one live clock spans saved GET, forced POST, status polling and final sour
     status: () => complete ? 'complete' : 'pending'
   });
   const query = h.refresh.fire('click'); await h.flush();
+  assert.equal(h.progress.hidden, false); assert.equal(h.refresh.disabled, true);
+  assert.equal(h.progressPhase.textContent, '저장 자료를 확인하고 있어요');
+  assert.equal(h.progressElapsed.textContent, '경과 00:00');
   await h.advance(2100); saved.resolve(); await h.flush();
   assert.equal(h.elapsed.textContent, '조회 경과 00:02 · DataPARC 수집');
+  assert.equal(h.api.state.loading, false, 'saved GET has finished while the forced query continues');
+  assert.equal(h.progress.hidden, false); assert.equal(h.refresh.disabled, true);
+  assert.equal(h.date.disabled, false, 'date navigation remains available during collection');
+  assert.equal(h.progressPhase.textContent, '최신 자료를 불러오고 있어요');
+  assert.equal(h.progressElapsed.textContent, '경과 00:02');
   await h.advance(3200); post.resolve(); await h.flush();
   assert.match(h.status.textContent, /선택일 0\/1건/);
   const startedAt = h.api.state.queryTiming.startedAt;
@@ -242,19 +256,24 @@ test('one live clock spans saved GET, forced POST, status polling and final sour
   complete = true; await h.advance(4800); await h.runDue();
   assert.equal(h.calls.ranges.length, 2);
   assert.equal(h.elapsed.textContent, '조회 경과 00:10 · DataPARC 수집');
+  assert.equal(h.progress.hidden, false); assert.equal(h.refresh.disabled, true);
+  assert.equal(h.progressElapsed.textContent, '경과 00:10');
   await h.advance(6300); finalRead.resolve(); await query;
   assert.equal(h.elapsed.textContent, '조회 경과 00:16 · DataPARC 수집 · 완료');
   assert.equal(h.api.state.queryTiming.endedAt - startedAt, 16400);
   assert.equal(h.elapsedIntervals().length, 0);
+  assert.equal(h.progress.hidden, true); assert.equal(h.refresh.disabled, false);
 });
 
 test('a failed saved-data request freezes its actual failure duration and releases its interval', async () => {
   const read = deferred(); const h = client({ range: () => read.promise });
-  const query = h.api.loadSelectedRange(); await h.flush();
+  const query = h.refresh.fire('click'); await h.flush();
+  assert.equal(h.progress.hidden, false);
   await h.advance(7200); read.reject(new Error('source transport failed')); await query;
   assert.equal(h.elapsed.textContent, '조회 경과 00:07 · 저장 자료 · 실패');
   assert.equal(h.elapsed.dataset.state, 'failed'); assert.equal(h.elapsedIntervals().length, 0);
   assert.equal(h.status.dataset.state, 'error');
+  assert.equal(h.progress.hidden, true); assert.equal(h.refresh.disabled, false);
   await h.advance(10000); assert.match(h.elapsed.textContent, /00:07/);
 });
 
@@ -262,11 +281,13 @@ test('the actual request abort freezes wall-clock time as a timeout', async () =
   const h = client({ range: (_request, _calls, init) => new Promise((_resolve, reject) => {
     init.signal.addEventListener('abort', () => reject(new DOMException('request aborted', 'AbortError')), { once: true });
   }) });
-  const query = h.api.loadSelectedRange(); await h.flush();
+  const query = h.refresh.fire('click'); await h.flush();
+  assert.equal(h.progress.hidden, false);
   await h.advance(31000); await h.runDue(); await query;
   assert.equal(h.elapsed.textContent, '조회 경과 00:31 · 저장 자료 · 시간 초과');
   assert.equal(h.elapsed.dataset.state, 'timeout'); assert.equal(h.elapsedIntervals().length, 0);
   assert.match(h.status.textContent, /30초를 초과/);
+  assert.equal(h.progress.hidden, true); assert.equal(h.refresh.disabled, false);
 });
 
 test('ten-minute collection timeout freezes the measured total including the initial saved read', async () => {
@@ -274,11 +295,13 @@ test('ten-minute collection timeout freezes the measured total including the ini
   const h = client({ range: async request => { await saved.promise; return savedData(request.startDate); }, status: () => 'pending' });
   const query = h.refresh.fire('click'); await h.flush();
   await h.advance(2400); saved.resolve(); await h.flush();
+  assert.equal(h.progress.hidden, false); assert.equal(h.refresh.disabled, true);
   await h.advance(602100); await h.runDue(); await query;
   assert.equal(h.elapsed.textContent, '조회 경과 10:04 · DataPARC 수집 · 시간 초과');
   assert.equal(h.elapsed.dataset.state, 'timeout'); assert.equal(h.elapsedIntervals().length, 0);
   assert.equal(h.api.state.queryTiming.endedAt - h.api.state.queryTiming.startedAt, 604500);
   assert.match(h.status.textContent, /10분 이상 지연/);
+  assert.equal(h.progress.hidden, true); assert.equal(h.refresh.disabled, false);
 });
 
 test('ordinary-to-force promotion resets the clock while old ticks and old finally cannot stop its replacement', async () => {
@@ -322,34 +345,45 @@ test('date and account switches invalidate old clocks and delayed responses with
   assert.equal(h.api.state.queryTiming.startedAt, selectedStartedAt); assert.match(h.elapsed.textContent, /00:02 · 저장 자료/);
   await h.switchAccount('session-b');
   assert.equal(h.elapsed.hidden, true); assert.equal(h.elapsedIntervals().length, 0);
+  assert.equal(h.progress.hidden, true); assert.equal(h.refresh.disabled, false);
   const newQuery = h.refresh.fire('click'); await h.flush();
   const accountStartedAt = h.api.state.queryTiming.startedAt;
   oldAccount.resolve(); await h.flush();
   assert.equal(h.api.state.queryTiming.startedAt, accountStartedAt); assert.equal(h.elapsedIntervals().length, 1);
+  assert.equal(h.progress.hidden, false); assert.equal(h.refresh.disabled, true);
   await h.advance(5200); newAccount.resolve(); await newQuery;
   assert.equal(h.elapsed.textContent, '조회 경과 00:05 · DataPARC 수집 · 완료');
   assert.equal(h.date.value, SELECTED); assert.equal(h.calls.posts.length, 1);
+  assert.equal(h.progress.hidden, true); assert.equal(h.refresh.disabled, false);
 });
 
 test('closing, navigation and page visibility release the interval and reopening catches up to wall time', async () => {
   const read = deferred(); const h = client({ range: async request => { await read.promise; return savedData(request.startDate); } });
-  const query = h.api.loadSelectedRange(); await h.flush(); await h.advance(3000);
+  const query = h.refresh.fire('click'); await h.flush(); await h.advance(3000);
+  assert.equal(h.progress.hidden, false); assert.equal(h.progressElapsed.textContent, '경과 00:03');
   h.view.hidden = true; await h.notify(h.view); assert.equal(h.elapsedIntervals().length, 0);
+  assert.equal(h.progress.hidden, true); assert.equal(h.refresh.disabled, true);
   await h.advance(10000); assert.match(h.elapsed.textContent, /00:03/);
   h.view.hidden = false; await h.notify(h.view);
   assert.equal(h.elapsedIntervals().length, 1); assert.match(h.elapsed.textContent, /00:13/);
+  assert.equal(h.progress.hidden, false); assert.equal(h.progressElapsed.textContent, '경과 00:13');
   h.document.visibilityState = 'hidden'; await h.documentEvent('visibilitychange');
   assert.equal(h.elapsedIntervals().length, 0);
+  assert.equal(h.progress.hidden, true);
   await h.advance(2000); h.document.visibilityState = 'visible'; await h.documentEvent('visibilitychange');
   assert.equal(h.elapsedIntervals().length, 1); assert.match(h.elapsed.textContent, /00:15/);
+  assert.equal(h.progress.hidden, false); assert.equal(h.progressElapsed.textContent, '경과 00:15');
   await h.windowEvent('pagehide'); assert.equal(h.elapsedIntervals().length, 0);
   await h.advance(1000); await h.windowEvent('pageshow');
   assert.equal(h.elapsedIntervals().length, 1); assert.match(h.elapsed.textContent, /00:16/);
   h.modal.setAttribute('aria-hidden', 'true'); await h.notify(h.modal);
   assert.equal(h.elapsedIntervals().length, 0);
+  assert.equal(h.progress.hidden, true); assert.equal(h.refresh.disabled, true);
   await h.advance(5000); read.resolve(); await query;
-  assert.equal(h.elapsed.textContent, '조회 경과 00:21 · 저장 자료 · 완료');
+  assert.equal(h.elapsed.textContent, '조회 경과 00:21 · DataPARC 수집 · 완료');
+  assert.equal(h.progress.hidden, true); assert.equal(h.refresh.disabled, false);
   h.modal.setAttribute('aria-hidden', 'false'); await h.notify(h.modal);
-  assert.equal(h.elapsedIntervals().length, 0); assert.equal(h.calls.ranges.length, 1);
-  assert.equal(h.elapsed.textContent, '조회 경과 00:21 · 저장 자료 · 완료');
+  assert.equal(h.elapsedIntervals().length, 0); assert.equal(h.calls.ranges.length, 2);
+  assert.equal(h.elapsed.textContent, '조회 경과 00:21 · DataPARC 수집 · 완료');
+  assert.equal(h.progress.hidden, true); assert.equal(h.calls.posts.length, 1);
 });

@@ -94,15 +94,18 @@ function savedData(date, options = {}) {
 
 function client(options = {}) {
   let token = 'session-a', now = Date.parse(`${TODAY}T10:22:00+09:00`), timerId = 0;
-  const timers = new Map(), windowListeners = new Map();
+  const timers = new Map(), intervals = new Map(), windowListeners = new Map();
   const ids = [
     'efficiencyBedAshDischargeView', 'efficiencyBedAshDischargeTab',
     'bedAshDischargeAnchorDate', 'refreshBedAshDischargeButton', 'bedAshDischargeRangeLabel',
     'bedAshDischargeStatus', 'bedAshDischargeEventTableBody', 'bedAshDischargeEventCount',
-    'bedAshDischargeLoadingState', 'bedAshDischargeEmptyState'
+    'bedAshDischargeLoadingState', 'bedAshDischargeEmptyState', 'bedAshDischargeElapsedTime',
+    'bedAshDischargeQueryProgress', 'bedAshDischargeQueryProgressPhase', 'bedAshDischargeQueryProgressElapsed'
   ];
   const elements = new Map(ids.map(id => [id, new Element(id.includes('Button') ? 'button' : 'div', id)]));
   elements.get('efficiencyBedAshDischargeView').classList.add('is-active');
+  elements.get('bedAshDischargeQueryProgress').hidden = true;
+  elements.get('bedAshDischargeElapsedTime').hidden = true;
   const calls = { ranges: [], posts: [], statuses: [] };
   const document = {
     readyState: 'loading', visibilityState: 'visible', activeElement: null,
@@ -114,7 +117,9 @@ function client(options = {}) {
     location: { pathname: options.mobile ? '/mobile-app/' : '/' },
     getShiftLogSessionToken: () => token,
     addEventListener: (type, fn) => windowListeners.set(type, [...(windowListeners.get(type) || []), fn]),
-    setInterval() {}, setTimeout: (fn, ms = 0) => {
+    setInterval: (fn, ms) => { const id = ++timerId; intervals.set(id, { fn, ms }); return id; },
+    clearInterval: id => intervals.delete(id),
+    setTimeout: (fn, ms = 0) => {
       const id = ++timerId; timers.set(id, { fn, ms }); return id;
     }, clearTimeout: id => timers.delete(id)
   };
@@ -142,6 +147,7 @@ function client(options = {}) {
       assert.equal(parsed.pathname, '/api/ois-data-requests');
       if (init.method === 'POST') {
         const body = JSON.parse(init.body); calls.posts.push(body);
+        if (options.post) await options.post(body, calls);
         return Response.json({ ok: true, item: {
           id: JOB(body.targetDate), requestType: 'bed_ash_level', targetDate: body.targetDate, status: 'pending'
         } });
@@ -161,6 +167,7 @@ function client(options = {}) {
   const flush = async () => { for (let i = 0; i < 80; i++) await Promise.resolve(); };
   const poll = async () => {
     now += 2000;
+    for (const timer of intervals.values()) if (timer.ms === 1000) timer.fn();
     const pending = [...timers].filter(([, timer]) => timer.ms === 2000);
     assert.ok(pending.length, 'a real poll delay was scheduled');
     for (const [id, timer] of pending) { timers.delete(id); timer.fn(); }
@@ -173,6 +180,9 @@ function client(options = {}) {
   api.initialize();
   return {
     api, calls, date, refresh, status, table, flush, poll,
+    progress: elements.get('bedAshDischargeQueryProgress'),
+    progressPhase: elements.get('bedAshDischargeQueryProgressPhase'),
+    progressElapsed: elements.get('bedAshDischargeQueryProgressElapsed'),
     choose: async value => { date.value = value; await date.fire('change'); await flush(); },
     switchAccount: async value => {
       token = value;
@@ -201,12 +211,15 @@ test('bound minute refresh promotes an hourly load, leaves its adjacent job inde
   await h.api.loadSelectedRange();
   assert.equal(h.date.value, TODAY);
   await h.choose(SELECTED);
+  assert.equal(h.progress.hidden, true, 'ordinary saved navigation has no forced-query overlay');
   assert.deepEqual(h.calls.posts, [{ requestType: 'bed_ash_level', targetDate: TODAY, forceRefresh: true }]);
   assert.equal(h.table.children.length, 5);
   assert.equal(h.status.textContent, '저장된 자료 표시 중 · OIS 수집 0/1건 완료 · 시간자료 보완 0/1건');
   const ordinarySequence = h.api.state.loadSequence;
   await h.poll(); // Hold the old status request while the forced browser load starts.
   const forced = h.refresh.fire('click'); await h.flush();
+  assert.equal(h.progress.hidden, false);
+  assert.equal(h.refresh.disabled, true);
   assert.ok(h.api.state.loadSequence > ordinarySequence, 'force must supersede the ordinary next-day poll');
   const forceSequence = h.api.state.loadSequence;
   assert.equal(h.api.state.activeRangeLoad.forceRefresh, true);
@@ -214,11 +227,16 @@ test('bound minute refresh promotes an hourly load, leaves its adjacent job inde
   oldStatus.resolve('complete'); await h.flush();
   assert.equal(h.api.state.activeRangeLoad.sequence, forceSequence, 'old finally must retain the new active load');
   assert.equal(h.api.state.loading, true, 'old finally must not clear the new loading state');
+  assert.equal(h.progress.hidden, false, 'old ordinary callback cannot dismiss the explicit query');
   assert.equal(h.table.children.length, 5);
   forcedRange.resolve(); await h.flush();
   assert.deepEqual(h.calls.posts.map(body => body.targetDate), [TODAY, SELECTED]);
   assert.equal(h.calls.posts[1].forceRefresh, true);
   assert.deepEqual(h.calls.statuses.at(-1), [JOB(SELECTED)]);
+  assert.equal(h.api.state.loading, false, 'saved history remains usable during collection');
+  assert.equal(h.progress.hidden, false, 'collection retains the central progress display after saved-data loading ends');
+  assert.equal(h.refresh.disabled, true, 'the full explicit operation owns the query button');
+  assert.equal(h.refresh.getAttribute('aria-busy'), 'true');
   assert.equal(h.status.textContent, '저장된 자료 표시 중 · OIS 수집 0/1건 완료 · 선택일 0/1건');
   const readsBeforeRepeat = h.calls.ranges.length;
   await h.refresh.fire('click'); await h.flush();
@@ -236,18 +254,25 @@ test('bound minute refresh promotes an hourly load, leaves its adjacent job inde
   assert.equal(h.status.dataset.state, 'success');
   assert.match(h.status.textContent, /조회 완료 · 반출 감지/);
   assert.match(h.status.title, /DataPARC 1분 자료 1일/);
+  assert.equal(h.progress.hidden, true);
+  assert.equal(h.refresh.disabled, false);
+  assert.equal(h.refresh.getAttribute('aria-busy'), 'false');
 });
 
 test('a forced load remains deduplicated before its first saved-data response arrives', async () => {
   const firstRead = deferred();
   const h = client({ range: async request => { await firstRead.promise; return savedData(request.startDate, { minute: true }); } });
   const first = h.refresh.fire('click'); await h.flush();
+  assert.equal(h.progress.hidden, false, 'progress appears before the first saved response');
+  assert.equal(h.refresh.disabled, true);
   const sequence = h.api.state.loadSequence;
   await h.refresh.fire('click'); await h.flush();
   assert.equal(h.api.state.loadSequence, sequence); assert.equal(h.calls.ranges.length, 1);
   firstRead.resolve(); await first;
   assert.equal(h.calls.posts.length, 1);
   assert.equal(h.calls.posts[0].targetDate, TODAY);
+  assert.equal(h.progress.hidden, true);
+  assert.equal(h.refresh.disabled, false);
 });
 
 test('mobile bound date navigation reads saved hourly data and the refresh button creates no company job', async () => {
@@ -259,6 +284,7 @@ test('mobile bound date navigation reads saved hourly data and the refresh butto
   assert.equal(h.calls.posts.length, 0); assert.equal(h.calls.statuses.length, 0);
   assert.equal(h.calls.ranges.length, rangeCount);
   assert.equal(h.refresh.disabled, true);
+  assert.equal(h.progress.hidden, true);
 });
 
 test('rapid explicit date changes discard a delayed forced response without requesting or painting the prior day', async () => {
@@ -269,9 +295,12 @@ test('rapid explicit date changes discard a delayed forced response without requ
   } });
   await h.choose(SELECTED); blockSelected = true;
   const forced = h.refresh.fire('click'); await h.flush();
+  assert.equal(h.progress.hidden, false);
   await h.choose('2026-10-11');
+  assert.equal(h.progress.hidden, true, 'changing date clears the old explicit query display');
   assert.equal(h.date.value, '2026-10-11');
   assert.equal(h.api.state.events[0].eventKey, 'saved-2026-10-11-0');
+  assert.equal(h.progress.hidden, true);
   staleRead.resolve(); await forced;
   assert.equal(h.calls.posts.length, 0);
   assert.equal(h.api.state.loadedRangeKey, 'daily:2026-10-11:2026-10-11');
@@ -289,7 +318,9 @@ test('account switching invalidates old refresh callbacks while keeping the sele
   } });
   await h.choose(SELECTED); blockAccountA = true;
   const old = h.refresh.fire('click'); await h.flush();
+  assert.equal(h.progress.hidden, false);
   await h.switchAccount('session-b');
+  assert.equal(h.progress.hidden, true, 'account switch clears progress belonging to the prior account');
   assert.equal(h.api.state.activeRangeLoad, null); assert.equal(h.table.children.length, 0);
   assert.equal(h.api.state.anchorDate, SELECTED); assert.equal(h.date.value, SELECTED);
   await h.refresh.fire('click');
@@ -301,4 +332,93 @@ test('account switching invalidates old refresh callbacks while keeping the sele
   assert.equal(h.api.state.events[0].eventKey, newEventKey);
   assert.equal(h.api.state.coverage.minuteDates[0], SELECTED);
   assert.equal(h.status.dataset.state, 'success'); assert.equal(h.date.value, SELECTED);
+  assert.equal(h.progress.hidden, true);
+});
+
+test('centered progress spans request creation, polling and the final result read before it dismisses', async () => {
+  const requestCreated = deferred(), finalRead = deferred();
+  let complete = false;
+  const h = client({
+    post: async () => requestCreated.promise,
+    status: async () => complete ? 'complete' : 'pending',
+    range: async (request, calls) => {
+      if (calls.ranges.length === 2) await finalRead.promise;
+      return savedData(request.startDate, { minute: complete });
+    }
+  });
+  const forced = h.refresh.fire('click'); await h.flush();
+  assert.equal(h.calls.posts.length, 1);
+  assert.equal(h.calls.statuses.length, 0);
+  assert.equal(h.api.state.loading, false);
+  assert.equal(h.table.children.length, 5);
+  assert.equal(h.progress.hidden, false, 'creating the collection request remains visibly busy');
+  assert.equal(h.refresh.disabled, true);
+  assert.ok(h.progressPhase.textContent.trim(), 'the progress panel explains its current phase');
+  requestCreated.resolve(); await h.flush();
+  assert.equal(h.calls.statuses.length, 1);
+  assert.equal(h.progress.hidden, false);
+  complete = true; await h.poll();
+  assert.equal(h.calls.ranges.length, 2);
+  assert.equal(h.progress.hidden, false, 'a terminal job is not completion until its range data is read');
+  assert.equal(h.refresh.disabled, true);
+  assert.match(h.progressElapsed.textContent, /00:02/);
+  finalRead.resolve(); await forced;
+  assert.equal(h.progress.hidden, true);
+  assert.equal(h.refresh.disabled, false);
+  assert.match(h.table.textContent, /07:03 ~ 07:08/);
+  assert.equal(h.status.dataset.state, 'success');
+});
+
+test('saved-read and collection-request failures dismiss centered progress and permit another query', async () => {
+  for (const failAt of ['range', 'post']) {
+    let shouldFail = true;
+    const h = client({
+      range: async request => {
+        if (failAt === 'range' && shouldFail) throw new Error('fixture saved-read failure');
+        return savedData(request.startDate, { minute: !shouldFail });
+      },
+      post: async () => {
+        if (failAt === 'post' && shouldFail) throw new Error('fixture collection-request failure');
+      }
+    });
+    await h.refresh.fire('click');
+    assert.equal(h.progress.hidden, true, `${failAt} failure must end centered progress`);
+    assert.equal(h.refresh.disabled, false);
+    assert.equal(h.refresh.getAttribute('aria-busy'), 'false');
+    assert.ok(['error', 'warning'].includes(h.status.dataset.state));
+    assert.match(h.status.textContent, /실패/);
+    shouldFail = false;
+    await h.refresh.fire('click');
+    assert.equal(h.progress.hidden, true);
+    assert.equal(h.refresh.disabled, false);
+    assert.equal(h.status.dataset.state, 'success');
+  }
+});
+
+test('an obsolete forced response cannot dismiss progress for the newly selected date', async () => {
+  const oldRead = deferred(), newRead = deferred();
+  const nextDate = '2026-10-11';
+  let holdOld = false, holdNew = false;
+  const h = client({ range: async request => {
+    if (holdOld && request.startDate === SELECTED) await oldRead.promise;
+    if (holdNew && request.startDate === nextDate) await newRead.promise;
+    return savedData(request.startDate, { minute: true });
+  } });
+  await h.choose(SELECTED); holdOld = true;
+  const old = h.refresh.fire('click'); await h.flush();
+  assert.equal(h.progress.hidden, false);
+  await h.choose(nextDate);
+  assert.equal(h.progress.hidden, true);
+  holdNew = true;
+  const current = h.refresh.fire('click'); await h.flush();
+  assert.equal(h.progress.hidden, false);
+  oldRead.resolve(); await old;
+  assert.equal(h.progress.hidden, false, 'the old request finally cannot clear the newer progress');
+  assert.equal(h.refresh.disabled, true);
+  assert.equal(h.date.value, nextDate);
+  newRead.resolve(); await current;
+  assert.equal(h.progress.hidden, true);
+  assert.equal(h.refresh.disabled, false);
+  assert.deepEqual(h.calls.posts.map(row => row.targetDate), [nextDate]);
+  assert.equal(h.api.state.loadedRangeKey, `daily:${nextDate}:${nextDate}`);
 });

@@ -999,7 +999,34 @@
     state.queryTimerId = 0;
   }
 
+  function isForcedQueryRunning() {
+    const active = state.activeRangeLoad;
+    const timing = state.queryTiming;
+    return Boolean(active?.forceRefresh && timing?.sequence === active.sequence &&
+      timing.endedAt === null && timing.outcome === "running" && !isMobileClient() &&
+      isCurrentRangeLoad(active.sequence, active.token, active.key));
+  }
+
+  function renderQueryProgress() {
+    const progress = document.getElementById?.("bedAshDischargeQueryProgress");
+    if (!progress) return;
+    const running = isForcedQueryRunning() && isQueryTimerVisible();
+    progress.hidden = !running;
+    if (!running) return;
+    const phase = document.getElementById?.("bedAshDischargeQueryProgressPhase");
+    const message = state.queryTiming.phase === "저장 자료"
+      ? "저장 자료를 확인하고 있어요"
+      : "최신 자료를 불러오고 있어요";
+    if (phase && phase.textContent !== message) phase.textContent = message;
+    const elapsed = document.getElementById?.("bedAshDischargeQueryProgressElapsed");
+    if (elapsed) {
+      const seconds = Math.max(0, Math.floor((Date.now() - state.queryTiming.startedAt) / 1000));
+      elapsed.textContent = `경과 ${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+    }
+  }
+
   function renderQueryElapsedTime() {
+    renderQueryProgress();
     const elapsedTime = document.getElementById?.("bedAshDischargeElapsedTime");
     if (!elapsedTime) return;
     const timing = state.queryTiming;
@@ -1063,15 +1090,17 @@
   function setLoading(isLoading) {
     state.loading = isLoading;
     const elements = getElements();
+    const forcedQueryRunning = isForcedQueryRunning();
+    renderQueryProgress();
 
     if (elements.view) {
       elements.view.setAttribute("aria-busy", String(isLoading));
     }
     if (elements.loadingState) {
-      elements.loadingState.hidden = !isLoading;
+      elements.loadingState.hidden = !isLoading || forcedQueryRunning;
     }
     if (elements.refreshButton) {
-      elements.refreshButton.disabled = isLoading || isMobileClient();
+      elements.refreshButton.disabled = isLoading || forcedQueryRunning || isMobileClient();
     }
     renderPeriodControls();
   }
@@ -1974,10 +2003,12 @@
     }
     if (elements.refreshButton) {
       elements.refreshButton.hidden = isMobileClient();
+      elements.refreshButton.setAttribute("aria-busy", String(isForcedQueryRunning()));
       elements.refreshButton.disabled =
         state.reviewSubmissionControlsLocked ||
         isMobileClient() ||
-        state.loading;
+        state.loading ||
+        isForcedQueryRunning();
     }
 
     return range;
