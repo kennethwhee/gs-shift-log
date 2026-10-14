@@ -17,7 +17,7 @@
 (function installMorningMeetingInstantRestore(root) {
   "use strict";
 
-  const VERSION = "20261009-power-date-sync-v1";
+  const VERSION = "20261014-limestone-date-sync-v1";
   const STORAGE_KEY = "gsShiftLog.morningMeetingDisplaySnapshot.v1";
   const PREVIEW_ID = "efficiencyMorningMeetingAutoPreview";
   const PANEL_ID = "efficiencyMorningMeetingWaterPanel";
@@ -40,6 +40,12 @@
     "efficiencyMorningMeetingAutoSolarMonthlyCumulative",
     "efficiencyMorningMeetingAutoSolarYearlyCumulative"
   ]);
+  // Limestone's calculator restores strict date-matched D1 records. Generic
+  // display copies can contain old stocks/usage captured after date relabelling.
+  // Ignore those entries, including copies already present in local snapshots.
+  function sourceOwnedId(id) {
+    return POWER_IDS.has(id) || String(id || "").startsWith("efficiencyMorningMeetingAutoLimestone");
+  }
   const STATE_CLASSES = Object.freeze([
     "is-loading",
     "is-complete",
@@ -158,7 +164,7 @@
 
   function isEligibleElement(element) {
     if (!(element instanceof root.HTMLElement)) return false;
-    if (POWER_IDS.has(element.id)) return false;
+    if (sourceOwnedId(element.id)) return false;
     if (!element.id || !preview?.contains(element)) return false;
     if (["BUTTON", "INPUT", "SELECT", "TEXTAREA", "A", "SCRIPT", "STYLE", "SVG", "PATH"].includes(element.tagName)) {
       return false;
@@ -210,7 +216,7 @@
     const previous = store.entries[date] && typeof store.entries[date] === "object"
       ? store.entries[date]
       : {date, savedAt: 0, elements: {}};
-    const elements = Object.fromEntries(Object.entries(previous.elements || {}).filter(([id]) => !POWER_IDS.has(id)));
+    const elements = Object.fromEntries(Object.entries(previous.elements || {}).filter(([id]) => !sourceOwnedId(id)));
     let changed = Object.keys(elements).length !== Object.keys(previous.elements || {}).length;
 
     for (const element of preview.querySelectorAll("[id]")) {

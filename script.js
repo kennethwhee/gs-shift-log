@@ -182563,7 +182563,6 @@ async function loadSavedLimestoneUsageRecords(
 ) {
   const {
     silentWhenMissing = false,
-    requireActiveUsageDate = false,
     isCurrentUsageRequest = null,
     requiredRequestId = "",
     displayStatus = "complete",
@@ -182572,6 +182571,11 @@ async function loadSavedLimestoneUsageRecords(
   } = options;
 
   if (!isValidLimestoneOisDate(targetDate)) {
+    return false;
+  }
+
+  // This loader writes the single active calculator, never another date's screen.
+  if (String(getLimestoneOisRequestElements().dateInput?.value || "").trim() !== targetDate) {
     return false;
   }
 
@@ -182641,7 +182645,6 @@ async function loadSavedLimestoneUsageRecords(
   }
 
   if (
-    requireActiveUsageDate &&
     activeUsageDate !== targetDate
   ) {
     return false;
@@ -182689,10 +182692,11 @@ async function loadSavedLimestoneUsageRecords(
   }
 
   // Keep the calculator's receipt state aligned with this saved snapshot.
-  window.setLimestoneUsageSavedReceiptQuantities?.(targetDate, {
+  const receiptsApplied = window.setLimestoneUsageSavedReceiptQuantities?.(targetDate, {
     1: Number(unitOne.receiptQuantity ?? unitOne.receipt_quantity),
     2: Number(unitTwo.receiptQuantity ?? unitTwo.receipt_quantity)
   });
+  if (receiptsApplied === false) return false;
 
   const {
     usageView,
@@ -183469,6 +183473,9 @@ async function loadSavedLimestoneUsageRecords(
     if (
       usageView
     ) {
+      delete usageView.dataset.savedUsageDate;
+      delete usageView.dataset.savedUsageUpdatedAt;
+
       delete usageView.dataset
         .oisRequestId;
 
