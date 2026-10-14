@@ -226,7 +226,7 @@ test('three minute candidates with two incomplete endings do not become confirme
   assert.equal(h.api.state.summary.pendingCount, 1);
   assert.equal(h.api.state.summary.incompleteCount, 2);
   assert.equal(card(h, 'bedAshDischargeTotalAmount').textContent, '22.03t');
-  assert.match(detail(h, 'bedAshDischargeTotalAmount'), /관측 3구간 · 계근 확정 0건 · 0.0t/);
+  assert.match(detail(h, 'bedAshDischargeTotalAmount'), /감지 3구간 · 계근 확정 0건 · 0.0t/);
   assert.equal(card(h, 'bedAshDischargeUnitOneAmount').textContent, '22.03t');
   assert.equal(card(h, 'bedAshDischargeUnitTwoAmount').textContent, '자료 없음');
   assert.match(detail(h, 'bedAshDischargeUnitTwoAmount'), /반출 여부 확인 불가/);
@@ -358,7 +358,7 @@ test('manual confirmed amounts stay separate from ready estimates, incomplete dr
   assert.equal(h.api.state.summary.pendingEstimatedTon, 7); assert.equal(h.api.state.summary.incompleteCount, 2);
   assert.equal(card(h, 'bedAshDischargeTotalAmount').textContent, '32.03t');
   assert.equal(card(h, 'bedAshDischargeUnitOneAmount').textContent, '32.03t');
-  assert.match(detail(h, 'bedAshDischargeUnitOneAmount'), /관측 4구간 · 계근 확정 1건 · 10.7t/);
+  assert.match(detail(h, 'bedAshDischargeUnitOneAmount'), /감지 4구간 · 계근 확정 1건 · 10.7t/);
   assert.equal(h.api.state.events.find(e => e.eventKey === 'confirmed-original').confirmedTon, 10.7);
   assert.equal(JSON.stringify(raw), before);
 });

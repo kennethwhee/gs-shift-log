@@ -6,7 +6,7 @@ import {__bedAshTest as api} from '../functions/api/bed-ash-discharge.js';
 
 // Synthetic upgrade fixtures; no plant packet or operator identity is retained.
 const DAY='2026-08-01',START=Date.parse(DAY+'T00:00:00+09:00'),MINUTE=60000;
-const SOURCE='dataparc_bed_ash_minute',LEGACY='bed-ash-drop-minute-v1',CURRENT='bed-ash-drop-minute-v2';
+const SOURCE='dataparc_bed_ash_minute',LEGACY='bed-ash-drop-minute-v1',CURRENT='bed-ash-drop-minute-v3';
 const iso=minute=>new Date(START+minute*MINUTE+32400000).toISOString().slice(0,19)+'+09:00';
 const actual=minute=>iso(minute).replace(':00+09:00',':17+09:00');
 
@@ -104,7 +104,7 @@ test('a newer pending or failed source suppresses stale attached evidence but ke
   }
 });
 
-test('pending v1 candidates retire in favor of one v2 candidate without mutating stored review history',async t=>{
+test('pending v1 candidates retire in favor of one current candidate without mutating stored review history',async t=>{
   const db=database();t.after(()=>db.close());await api.ensureSchema(db);seedLegacy(db,{key:'legacy-pending',status:'pending'});
   saveSource(db,{gap:false});const data=await getRange(db);assert.equal(data.events.length,1);
   assert.equal(data.events[0].algorithmVersion,CURRENT);assert.equal(data.events[0].reviewReady,true);

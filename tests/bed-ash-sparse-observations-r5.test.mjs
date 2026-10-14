@@ -6,7 +6,7 @@ import {__bedAshTest as api} from '../functions/api/bed-ash-discharge.js';
 
 // All measurements in this file are synthetic. No production packet is used.
 const MINUTE=60000,DAY='2026-08-01',START=Date.parse(DAY+'T00:00:00+09:00'),END=START+86400000;
-const SOURCE='dataparc_bed_ash_minute',VERSION='bed-ash-drop-minute-v2';
+const SOURCE='dataparc_bed_ash_minute',VERSION='bed-ash-drop-minute-v3';
 const iso=at=>new Date(at+32400000).toISOString().slice(0,19)+'+09:00';
 const point=(unitNo,minute,levelTon,offset=17000)=>({unitNo,bucketAt:iso(START+minute*MINUTE),
   sampledAt:iso(START+minute*MINUTE+offset),returnedAt:iso(START+minute*MINUTE+offset),
@@ -92,7 +92,7 @@ test('actual GET derives gap metadata and review POST rejects a bridged candidat
   assert.equal(stored.status,'pending');assert.equal(stored.confirmed_ton,null);assert.equal(stored.review_ready,0);
 });
 
-test('actual GET and review POST still permit a continuous minute v2 candidate with append-only history',async t=>{
+test('actual GET and review POST still permit a continuous current minute candidate with append-only history',async t=>{
   const db=database();t.after(()=>db.close());await api.ensureSchema(db);
   saveSource(db,packet({level:(unit,minute)=>unit===1?(minute<421?30:23):40}));
   const data=await getRange(db);assert.equal(data.events.length,1);const event=data.events[0];
@@ -103,7 +103,7 @@ test('actual GET and review POST still permit a continuous minute v2 candidate w
   const original=savedState(db);await getRange(db);assert.equal(savedState(db),original);
 });
 
-test('v1 confirmed and excluded manual decisions survive overlapping v2 detection without duplicate candidates or history changes',async t=>{
+test('v1 confirmed and excluded manual decisions survive overlapping current detection without duplicate candidates or history changes',async t=>{
   const db=database();t.after(()=>db.close());await api.ensureSchema(db);
   seedLegacyDecision(db,{key:'legacy-confirmed',unitNo:1,status:'confirmed',startMinute:420,endMinute:430,amount:13.7});
   seedLegacyDecision(db,{key:'legacy-excluded',unitNo:2,status:'excluded',startMinute:480,endMinute:490,amount:8.4});

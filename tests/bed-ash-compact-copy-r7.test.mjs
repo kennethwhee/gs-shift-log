@@ -34,7 +34,7 @@ test('routine sparse completion fits one short line while full source quality re
   const full = api.coverageStatusMessage(coverage, 5);
   const compact = api.compactCoverageStatusMessage(coverage);
   api.setStatus(full, 'warning', compact);
-  assert.equal(status.textContent, '조회 완료 · 관측 5구간 · 자료 공백 있음');
+  assert.equal(status.textContent, '조회 완료 · 반출 감지 5구간 · 자료 공백 있음');
   assert.equal(status.dataset.state, 'warning'); assert.equal(status.title, full);
   assert.match(full, /DataPARC 1분 자료 1일/); assert.match(full, /자료 확인 5구간/);
   assert.equal(elements.get('bedAshDischargeSourceStatusText').textContent, full);

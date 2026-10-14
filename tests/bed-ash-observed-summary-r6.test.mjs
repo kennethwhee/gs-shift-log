@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
+import { DatabaseSync } from 'node:sqlite';
+import contract from '../efficiency/bed-ash-minute-contract.js';
+import { __bedAshTest as server } from '../functions/api/bed-ash-discharge.js';
 
 const source = fs.readFileSync(new URL('../efficiency/bed-ash-discharge.js', import.meta.url), 'utf8');
 const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
@@ -77,7 +80,7 @@ const at = time => `${DAY}T${time}+09:00`;
 const amountIds = ['bedAshDischargeTotalAmount', 'bedAshDischargeUnitOneAmount', 'bedAshDischargeUnitTwoAmount'];
 function observation(eventKey, unitNo, estimatedTon, startAt = '07:10:17', endAt = '07:28:42') {
   return {
-    eventKey, unitNo, algorithmVersion: 'bed-ash-drop-minute-v2',
+    eventKey, unitNo, algorithmVersion: 'bed-ash-drop-minute-v3', isRapidDecline: true,
     sourceKind: 'dataparc_bed_ash_minute', sampleIntervalSeconds: 60,
     startAt: at(startAt), endAt: at(endAt), startLevelTon: 60, endLevelTon: 60 - estimatedTon,
     estimatedTon, reviewReady: false, hasSourceGaps: true, sourceGapCount: 3,
@@ -116,7 +119,7 @@ test('five sparse observed intervals display their measured decreases without re
   assert.equal(s.units[2].observedCount, 3); assert.equal(s.units[2].observedTon, 28.954);
   assert.equal(h.value(amountIds[0]), '59.45t');
   assert.equal(h.value(amountIds[1]), '30.5t'); assert.equal(h.value(amountIds[2]), '28.95t');
-  assert.match(h.detail(amountIds[1]), /관측 2구간/); assert.match(h.detail(amountIds[2]), /관측 3구간/);
+  assert.match(h.detail(amountIds[1]), /감지 2구간/); assert.match(h.detail(amountIds[2]), /감지 3구간/);
   for (const id of amountIds) {
     assert.doesNotMatch(h.value(id), /미확정|0\.0t/);
     assert.doesNotMatch(h.detail(id), /1440|1,440|494|697/);
@@ -245,9 +248,132 @@ test('date reset clears observed totals and source-detail text so prior sparse r
 });
 
 test('page titles identify observed amounts and each existing loader requests the current presentation once', () => {
-  for (const label of ['관측 감소량 합계', '1호기 관측 감소량', '2호기 관측 감소량']) assert.ok(html.includes(label), label);
+  for (const label of ['반출 감지량 합계', '1호기 반출 감지량', '2호기 반출 감지량']) assert.ok(html.includes(label), label);
   for (const extension of ['js', 'css']) {
     const matches = [...html.matchAll(new RegExp(`/efficiency/bed-ash-discharge\\.${extension}\\?[^"\\s]+`, 'g'))];
-    assert.equal(matches.length, 1, extension); assert.match(matches[0][0], /minuteDetection=20261013-v1-r7/);
+    assert.equal(matches.length, 1, extension); assert.match(matches[0][0], /minuteDetection=20261014-v1-r18/);
   }
+});
+
+test('R18 rapid 3.83t decline and one merged 14.54t run render as two discharge intervals, never confirmed trucks', () => {
+  const h = client();
+  const first = observation('unit1-rapid-three', 1, 3.83, '00:05:13', '00:07:28');
+  const merged = observation('unit2-resumed-one-run', 2, 14.54, '06:32:33', '06:54:41');
+  const raw = payload([first, merged]);
+  h.api.renderData(raw, [DAY]);
+  assert.equal(h.value(amountIds[0]), '18.37t');
+  assert.equal(h.value(amountIds[1]), '3.83t'); assert.equal(h.value(amountIds[2]), '14.54t');
+  assert.equal(h.api.state.summary.observedCount, 2); assert.equal(h.api.state.summary.units[2].observedCount, 1);
+  const rows = h.elements.get('bedAshDischargeEventTableBody').children;
+  assert.equal(rows.length, 2);
+  for (const row of rows) {
+    assert.equal(row.querySelector('.bed-ash-discharge-status-badge').textContent, 'Silo 반출 감지');
+    assert.match(row.querySelector('.bed-ash-discharge-estimated-cell').textContent, /반출 감지량 · 추정/);
+    assert.match(row.textContent, /자료 공백 포함 · 계근 확인/);
+    assert.equal(row.querySelectorAll('button').length, 0, 'sparse source does not unlock confirmation');
+  }
+  assert.equal(h.value('bedAshDischargeEventCount'), '감지 2구간 · 계근 확정 0건');
+  assert.match(h.detail(amountIds[0]), /감지 2구간 · 계근 확정 0건 · 0.0t/);
+  assert.equal(h.api.state.summary.confirmedCount, 0); assert.equal(h.api.state.summary.confirmedTon, 0);
+  assert.equal(h.api.state.summary.pendingCount, 0); assert.equal(h.requests(), 0);
+});
+
+test('R18 slow decline above 3t stays visible read-only outside discharge totals and requires explicit v3 slow evidence', () => {
+  const h = client(), rapid = observation('rapid', 1, 3.83);
+  const slow = { ...observation('slow', 2, 6.5, '00:00:01', '04:00:02'),
+    isRapidDecline: false, observationReason: 'slow_decline' };
+  const subthreshold = { ...observation('small', 2, 2.5), isRapidDecline: false, observationReason: 'below_threshold' };
+  h.api.renderData(payload([rapid], { minorObservations: [slow, subthreshold,
+    { ...slow, observationReason: '' }, { ...slow, observationReason: 'below_threshold' },
+    { ...slow, isRapidDecline: true }, { ...slow, algorithmVersion: 'bed-ash-drop-minute-v2' }
+  ] }), [DAY]);
+  const minorList = h.elements.get('bedAshDischargeMinorObservationList');
+  assert.equal(minorList.children.length, 2);
+  assert.match(minorList.children[0].textContent, /6.5t · 완만한 감소 · 읽기 전용/);
+  assert.match(minorList.children[1].textContent, /2.5t · 3.0t 미만 · 읽기 전용/);
+  assert.equal(minorList.querySelectorAll('button').length, 0);
+  assert.equal(h.value(amountIds[0]), '3.83t'); assert.equal(h.api.state.summary.observedCount, 1);
+  assert.equal(h.api.state.summary.units[2].observedTon, 0); assert.equal(h.api.state.summary.confirmedTon, 0);
+  assert.equal(h.requests(), 0);
+});
+
+test('R18 legacy v2 confirmation retains its saved amount and provenance without claiming the new rapid rule', () => {
+  const h = client();
+  const legacy = { ...observation('saved-minute-v2', 1, 8.1), algorithmVersion: 'bed-ash-drop-minute-v2',
+    isRapidDecline: undefined, status: 'confirmed', confirmedTon: 10.7, confirmedAt: at('07:40:00'), revision: 5 };
+  const pendingOld = { ...legacy, eventKey: 'old-pending', status: 'pending', confirmedTon: null, confirmedAt: '' };
+  h.api.renderData(payload([legacy, pendingOld]), [DAY]);
+  const rows = h.elements.get('bedAshDischargeEventTableBody').children;
+  assert.doesNotMatch(rows.map(row => row.textContent).join(' '), /Silo 반출 감지|기존 방식 확정 합계/);
+  assert.equal(h.api.state.events[0].revision, 5);
+  assert.equal(h.api.state.summary.confirmedTon, 10.7); assert.equal(h.api.state.summary.confirmedCount, 1);
+  assert.match(rows[0].textContent, /계근 확정량 10.7t/);
+  assert.equal(h.requests(), 0);
+});
+
+
+test('R18 real saved-data GET preserves rapid metadata through database rows to the discharge badge', async t => {
+  const rawDb = new DatabaseSync(':memory:'); t.after(() => rawDb.close());
+  rawDb.exec('CREATE TABLE ois_data_requests(id TEXT PRIMARY KEY,request_type TEXT,target_date TEXT,status TEXT,result_json TEXT,error_message TEXT,requested_at TEXT,completed_at TEXT,updated_at TEXT);');
+  const db = {
+    prepare(sql) { return { values: [], bind(...values) { this.values = values; return this; },
+      async first() { return rawDb.prepare(sql).get(...this.values) || null; },
+      async all() { return { results: rawDb.prepare(sql).all(...this.values) }; },
+      async run() { return { meta: { changes: Number(rawDb.prepare(sql).run(...this.values).changes) } }; }
+    }; },
+    async batch(statements) {
+      rawDb.exec('BEGIN IMMEDIATE');
+      try { const result = []; for (const statement of statements) result.push(await statement.run()); rawDb.exec('COMMIT'); return result; }
+      catch (error) { rawDb.exec('ROLLBACK'); throw error; }
+    }
+  };
+  await server.ensureSchema(db);
+  const minuteAt = minute => new Date(Date.parse(DAY + 'T00:00:00+09:00') + minute * 60000 + 32400000)
+    .toISOString().slice(0, 19) + '+09:00';
+  const raw = { schemaVersion: 2, sourceKind: 'dataparc_bed_ash_minute', sampleIntervalSeconds: 60,
+    targetDate: DAY, intervalStart: minuteAt(0), intervalEnd: minuteAt(440), collectedAt: minuteAt(446),
+    units: contract.UNIT_DEFINITIONS.map(def => ({ ...def, samples: Array.from({ length: 441 }, (_, minute) => ({
+      sampledAt: minuteAt(minute), returnedAt: minuteAt(minute).replace(':00+09:00', ':17+09:00'),
+      quality: 'Raw, Good', levelTon: def.unitNo === 1 ? (minute < 421 ? 30 : 26.17) : 40
+    })) })) };
+  rawDb.prepare('INSERT INTO ois_data_requests VALUES(?,?,?,?,?,?,?,?,?)')
+    .run('synthetic-ui-source', 'bed_ash_level', DAY, 'complete', JSON.stringify(raw), '', raw.collectedAt, raw.collectedAt, raw.collectedAt);
+  const h = client();
+  for (let read = 0; read < 2; read++) {
+    const response = await server.handleRangeGet({ env: { DB: db } }, new URL(`https://fixture.invalid/api/bed-ash-discharge?startDate=${DAY}&endDate=${DAY}`));
+    assert.equal(response.status, 200);
+    const { data } = await response.json();
+    assert.equal(data.events.length, 1); assert.equal(data.events[0].algorithmVersion, 'bed-ash-drop-minute-v3');
+    assert.equal(data.events[0].isRapidDecline, true);
+    h.api.renderData(data, [DAY]);
+    assert.equal(h.value(amountIds[0]), '3.83t');
+    const row = h.elements.get('bedAshDischargeEventTableBody').children[0];
+    assert.equal(row.querySelector('.bed-ash-discharge-status-badge').textContent, 'Silo 반출 감지');
+    assert.match(row.querySelector('.bed-ash-discharge-estimated-cell').textContent, /반출 감지량 · 추정/);
+    assert.equal(h.api.state.summary.confirmedTon, 0);
+  }
+  assert.equal(rawDb.prepare('SELECT COUNT(*) n FROM bed_ash_discharge_events').get().n, 1);
+  assert.equal(rawDb.prepare('SELECT COUNT(*) n FROM bed_ash_discharge_review_history').get().n, 0);
+  assert.equal(h.requests(), 0);
+});
+
+test('R18 shared merged evidence counts once for mixed review decisions and vanishes when both parents are excluded', () => {
+  const merged = { ...observation('merged-shared', 2, 14.54), sharedReviewedEvidence: true,
+    relatedReviewedEventKeys: ['reviewed-first', 'reviewed-second'] };
+  const first = { ...observation('reviewed-first', 2, 11.44), algorithmVersion: 'bed-ash-drop-minute-v2',
+    isRapidDecline: false, status: 'confirmed', confirmedTon: 11.7, minuteObservations: [merged] };
+  const second = { ...first, eventKey: 'reviewed-second', status: 'excluded', estimatedTon: 3.09, confirmedTon: null };
+  const h = client(); h.api.renderData(payload([first, second]), [DAY]);
+  assert.equal(h.value(amountIds[2]), '14.54t'); assert.equal(h.api.state.summary.observedCount, 1);
+  assert.equal(h.api.state.summary.confirmedTon, 11.7); assert.equal(h.api.state.summary.confirmedCount, 1);
+  const table = h.elements.get('bedAshDischargeEventTableBody');
+  for (const row of table.children) {
+    assert.match(row.textContent, /공유 감지 근거 · 개별 반출 연결 미확정/);
+    assert.match(row.textContent, /구간별 배분 안 함/);
+    assert.equal(row.querySelectorAll('button').length, 0);
+  }
+  h.api.renderData(payload([{ ...first, status: 'excluded', confirmedTon: null }, second]), [DAY]);
+  assert.equal(h.api.state.summary.observedCount, 0); assert.equal(h.api.state.summary.observedTon, 0);
+  assert.equal(h.api.state.summary.confirmedCount, 0); assert.equal(h.api.state.summary.confirmedTon, 0);
+  assert.equal(h.requests(), 0);
 });

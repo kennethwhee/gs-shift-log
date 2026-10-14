@@ -31,10 +31,14 @@ const ALGORITHM_VERSION =
 
 
 const LEGACY_MINUTE_ALGORITHM_VERSION = 'bed-ash-drop-minute-v1';
-const MINUTE_ALGORITHM_VERSION = 'bed-ash-drop-minute-v2';
+const PREVIOUS_MINUTE_ALGORITHM_VERSION = 'bed-ash-drop-minute-v2';
+const MINUTE_ALGORITHM_VERSION = 'bed-ash-drop-minute-v3';
 const MINUTE_SOURCE_KIND = 'dataparc_bed_ash_minute';
 const CURRENT_ALGORITHM_VERSIONS = new Set([ALGORITHM_VERSION, MINUTE_ALGORITHM_VERSION]);
 const MINUTE_MILLISECONDS = 60000;
+const MINUTE_DISCHARGE_THRESHOLD_TON = 3;
+const MINUTE_RAPID_WINDOW_MILLISECONDS = 30 * MINUTE_MILLISECONDS;
+const MINUTE_PAUSE_MILLISECONDS = 10 * MINUTE_MILLISECONDS;
 const MAXIMUM_MINOR_OBSERVATIONS = 128;
 
 const DISCHARGE_THRESHOLD_TON =
@@ -2736,13 +2740,13 @@ function detectBedAshEventsForUnit(
 
 function isGoodMinuteQuality(quality){return /^(?:Good|Raw\s*,\s*Good|Good\s*,\s*Raw)$/i.test(quality||'');}
 function isNoDataMinutePoint(point){return point.explicitNull===true&&point.levelTon===null&&/^No Data\s*,\s*Bad$/i.test(point.quality||'');}
-function isMinuteAlgorithm(version){return [MINUTE_ALGORITHM_VERSION,LEGACY_MINUTE_ALGORITHM_VERSION].includes(version);}
+function isMinuteAlgorithm(version){return [MINUTE_ALGORITHM_VERSION,PREVIOUS_MINUTE_ALGORITHM_VERSION,LEGACY_MINUTE_ALGORITHM_VERSION].includes(version);}
 
 // Explicit archive gaps may connect observations, but never supply invented
 // levels or stable-time evidence. Missing/invalid rows and long gaps remain barriers.
 function detectMinuteBedAshObservationsForUnit(unitNo,rawSamples,nowMilliseconds=Date.now()){
   const definition=UNIT_DEFINITIONS[unitNo];if(!definition)return {events:[],minorObservations:[]};
-  const maximumEmptyBuckets=3,maximumBridgeMilliseconds=5*MINUTE_MILLISECONDS;
+  const maximumEmptyBuckets=9,maximumBridgeMilliseconds=MINUTE_PAUSE_MILLISECONDS;
   const requiredQuietMilliseconds=5*MINUTE_MILLISECONDS,minimumQuietGoodPoints=3;
   const byBucket=new Map();
   for(const raw of rawSamples||[]){
@@ -2763,23 +2767,41 @@ function detectMinuteBedAshObservationsForUnit(unitNo,rawSamples,nowMilliseconds
   const points=[...byBucket.values()].sort((a,b)=>a.bucketMilliseconds-b.bucketMilliseconds),events=[],minorObservations=[];
   let peak=null,candidate=null,previous=null,quiet=[],pendingEmpty=[],peakSpan=[];
   const reset=()=>{peak=null;candidate=null;previous=null;quiet=[];pendingEmpty=[];peakSpan=[];};
-  const close=reason=>{
-    if(candidate){
-      const amount=getLevelDifferenceTon(candidate.start.levelTon,candidate.trough.levelTon);
+  const record=(current,reason)=>{
+    if(current){
+      const amount=getLevelDifferenceTon(current.start.levelTon,current.trough.levelTon);
       if(amount>=LEVEL_NOISE_TOLERANCE_TON){
         const observation={algorithmVersion:MINUTE_ALGORITHM_VERSION,unitNo:Number(unitNo),tagNumber:definition.tagNumber,
-          startAt:candidate.start.sampledAt,endAt:candidate.trough.sampledAt,thresholdCrossedAt:candidate.thresholdCrossedAt,
-          startLevelTon:candidate.start.levelTon,endLevelTon:candidate.trough.levelTon,estimatedTon:amount,
-          closeReason:reason,confidence:candidate.sourceGapCount?'low':(['stable','refill'].includes(reason)?'high':'low'),
+          startAt:current.start.sampledAt,endAt:current.trough.sampledAt,thresholdCrossedAt:current.thresholdCrossedAt,
+          startLevelTon:current.start.levelTon,endLevelTon:current.trough.levelTon,estimatedTon:amount,
+          isRapidDecline:Boolean(current.thresholdCrossedAt),
+          closeReason:reason,confidence:current.sourceGapCount?'low':(['stable','refill'].includes(reason)?'high':'low'),
           sourceKind:MINUTE_SOURCE_KIND,sampleIntervalSeconds:60,sourceResolutionSeconds:60,
-          sourceGapCount:candidate.sourceGapCount,hasSourceGaps:candidate.sourceGapCount>0,
-          detectionClosedAt:candidate.last.sampledAt,evidencePoints:candidate.points.map(p=>({sampledAt:p.sampledAt,bucketAt:p.bucketAt,returnedAt:p.returnedAt,quality:p.quality,levelTon:p.levelTon}))};
-        if(candidate.sourceGapCount||!['stable','refill'].includes(reason))observation.reviewReady=false;
-        if(amount>=DISCHARGE_THRESHOLD_TON)events.push(observation);
-        else minorObservations.push({...observation,confidence:'low',reviewReady:false});
+          sourceGapCount:current.sourceGapCount,hasSourceGaps:current.sourceGapCount>0,
+          detectionClosedAt:current.last.sampledAt,evidencePoints:current.points.map(p=>({sampledAt:p.sampledAt,bucketAt:p.bucketAt,returnedAt:p.returnedAt,quality:p.quality,levelTon:p.levelTon}))};
+        if(current.sourceGapCount||!['stable','refill'].includes(reason))observation.reviewReady=false;
+        if(amount>=MINUTE_DISCHARGE_THRESHOLD_TON&&current.thresholdCrossedAt)events.push(observation);
+        else minorObservations.push({...observation,observationReason:amount<MINUTE_DISCHARGE_THRESHOLD_TON?'below_threshold':'slow_decline',confidence:'low',reviewReady:false});
       }
     }
-    candidate=null;
+  };
+  const close=reason=>{record(candidate,reason);candidate=null;};
+  const qualifyRapid=point=>{
+    if(!candidate||candidate.thresholdCrossedAt)return;
+    candidate.rapidWindow=candidate.rapidWindow.filter(row=>point.epochMilliseconds-row.epochMilliseconds<=MINUTE_RAPID_WINDOW_MILLISECONDS);
+    candidate.rapidWindow.push(point);
+    const qualifying=candidate.rapidWindow.filter(row=>row.epochMilliseconds<point.epochMilliseconds&&getLevelDifferenceTon(row.levelTon,point.levelTon)>=MINUTE_DISCHARGE_THRESHOLD_TON);
+    if(!qualifying.length)return;
+    if(point.epochMilliseconds-candidate.start.epochMilliseconds>MINUTE_RAPID_WINDOW_MILLISECONDS){
+      // A slow lead-in is not part of a newly rapid run. Keep its observed net
+      // decrease separately; choose the latest qualifying real onset, not an
+      // interpolated level or an hours-old maximum.
+      const onset=qualifying.at(-1),prefix=candidate.points.filter(row=>row.bucketMilliseconds<=onset.bucketMilliseconds);
+      record({...candidate,trough:onset,last:onset,points:prefix,sourceGapCount:prefix.filter(isNoDataMinutePoint).length},'slow_window');
+      candidate.start=onset;candidate.points=candidate.points.filter(row=>row.bucketMilliseconds>=onset.bucketMilliseconds);
+      candidate.sourceGapCount=candidate.points.filter(isNoDataMinutePoint).length;
+    }
+    candidate.thresholdCrossedAt=point.sampledAt;
   };
   for(const point of points){
     const valid=point.levelTon!==null&&isGoodMinuteQuality(point.quality)&&typeof point.returnedAt==='string'&&Date.parse(point.returnedAt)===point.epochMilliseconds&&Number.isFinite(point.epochMilliseconds)&&
@@ -2791,17 +2813,27 @@ function detectMinuteBedAshObservationsForUnit(unitNo,rawSamples,nowMilliseconds
       }
       close('data_gap');reset();continue;
     }
-    let bridgedCount=0;
+    let bridgedCount=0,bridgedPoints=[];
     if(previous){
       const bucketDelta=point.bucketMilliseconds-previous.bucketMilliseconds,actualDelta=point.epochMilliseconds-previous.epochMilliseconds;
-      const bridge=pendingEmpty.length>0&&bucketDelta===(pendingEmpty.length+1)*MINUTE_MILLISECONDS&&actualDelta>0&&actualDelta<maximumBridgeMilliseconds;
+      const bridge=pendingEmpty.length>0&&bucketDelta===(pendingEmpty.length+1)*MINUTE_MILLISECONDS&&actualDelta>0&&actualDelta<=maximumBridgeMilliseconds;
       if(actualDelta<=0||(bucketDelta!==MINUTE_MILLISECONDS&&!bridge)||pendingEmpty.length&&!bridge){close('data_gap');reset();}
       else if(bridge){
-        bridgedCount=pendingEmpty.length;peakSpan.push(...pendingEmpty);
-        if(candidate){candidate.points.push(...pendingEmpty);candidate.sourceGapCount+=bridgedCount;candidate.decliningStreak=0;}
+        bridgedCount=pendingEmpty.length;bridgedPoints=pendingEmpty;
       }
     }
     pendingEmpty=[];
+    if(candidate&&point.epochMilliseconds-candidate.lastProgressAt>MINUTE_PAUSE_MILLISECONDS){
+      // Grouping uses real elapsed time. Sparse good points cannot accumulate
+      // several short bridges into an unbounded pause. Only observed quiet
+      // time can make the closing evidence stable/reviewable.
+      close(candidate.quietMilliseconds>=requiredQuietMilliseconds&&candidate.quietGoodCount>=minimumQuietGoodPoints?'stable':'pause_elapsed');
+      peak=previous;quiet=previous?[previous]:[];peakSpan=previous?[previous]:[];
+    }
+    if(bridgedCount){
+      peakSpan.push(...bridgedPoints);
+      if(candidate){candidate.points.push(...bridgedPoints);candidate.sourceGapCount+=bridgedCount;candidate.decliningStreak=0;}
+    }
     if(!peak){peak=point;previous=point;quiet=[point];peakSpan=[point];continue;}
     if(candidate){
       candidate.last=point;candidate.points.push(point);
@@ -2810,7 +2842,7 @@ function detectMinuteBedAshObservationsForUnit(unitNo,rawSamples,nowMilliseconds
       if(newTrough)candidate.trough=point;
       const meaningfulDecline=candidate.plateauAnchor-point.levelTon>LEVEL_NOISE_TOLERANCE_TON;
       if(meaningfulDecline||(newTrough&&candidate.decliningStreak>=2)){
-        candidate.plateauAnchor=point.levelTon;candidate.quietMilliseconds=0;candidate.quietGoodCount=1;
+        candidate.plateauAnchor=point.levelTon;candidate.quietMilliseconds=0;candidate.quietGoodCount=1;candidate.lastProgressAt=point.epochMilliseconds;
       }else if(point.levelTon-candidate.trough.levelTon>LEVEL_NOISE_TOLERANCE_TON){
         close('refill');peak=point;previous=point;quiet=[point];peakSpan=[point];continue;
       }else{
@@ -2818,24 +2850,22 @@ function detectMinuteBedAshObservationsForUnit(unitNo,rawSamples,nowMilliseconds
         if(!bridgedCount)candidate.quietMilliseconds+=point.epochMilliseconds-previous.epochMilliseconds;
         candidate.quietGoodCount+=1;
       }
-      if(!candidate.thresholdCrossedAt&&getLevelDifferenceTon(candidate.start.levelTon,candidate.trough.levelTon)>=DISCHARGE_THRESHOLD_TON)candidate.thresholdCrossedAt=point.sampledAt;
-      // Minor declines also settle; they must not absorb a later unrelated event.
-      if(candidate.quietMilliseconds>=requiredQuietMilliseconds&&candidate.quietGoodCount>=minimumQuietGoodPoints){
-        close('stable');peak=point;quiet=[point];peakSpan=[point];
-      }else if(point.bucketMilliseconds-candidate.start.bucketMilliseconds>=MAXIMUM_EVENT_WINDOW_HOURS*HOUR_MILLISECONDS){
+      qualifyRapid(point);
+      if(point.bucketMilliseconds-candidate.start.bucketMilliseconds>=MAXIMUM_EVENT_WINDOW_HOURS*HOUR_MILLISECONDS){
         close('max_window');peak=point;quiet=[point];peakSpan=[point];
       }
     }else if(getLevelDifferenceTon(peak.levelTon,point.levelTon)>=LEVEL_NOISE_TOLERANCE_TON){
-      candidate={start:peak,trough:point,last:point,thresholdCrossedAt:getLevelDifferenceTon(peak.levelTon,point.levelTon)>=DISCHARGE_THRESHOLD_TON?point.sampledAt:'',
-        plateauAnchor:point.levelTon,decliningStreak:1,quietMilliseconds:0,quietGoodCount:1,
+      candidate={start:peak,trough:point,last:point,thresholdCrossedAt:'',rapidWindow:peakSpan.filter(row=>row.levelTon!==null),
+        plateauAnchor:point.levelTon,decliningStreak:1,quietMilliseconds:0,quietGoodCount:1,lastProgressAt:point.epochMilliseconds,
         sourceGapCount:peakSpan.filter(isNoDataMinutePoint).length,points:[...peakSpan,point]};
+      qualifyRapid(point);
     }else{
       quiet.push(point);quiet=quiet.filter(p=>point.bucketMilliseconds-p.bucketMilliseconds<=2*MINUTE_MILLISECONDS);
       const spread=Math.max(...quiet.map(p=>p.levelTon))-Math.min(...quiet.map(p=>p.levelTon));
       if(point.levelTon>=peak.levelTon){peak=point;peakSpan=[point];}
-      else if(quiet.length>=3&&spread<=LEVEL_NOISE_TOLERANCE_TON){
-        // Preserve the observed local maximum within the quiet window; choosing
-        // its final jittered value can move a genuine decline below the threshold.
+      else if(quiet.length>=3&&spread<=LEVEL_NOISE_TOLERANCE_TON&&!quiet.every((row,index)=>index===0||row.levelTon<quiet[index-1].levelTon)){
+        // Preserve the observed local maximum within jitter. A consistently
+        // falling series is not quiet merely because each increment is small.
         const nextPeak=quiet.reduce((best,row)=>row.levelTon>=best.levelTon?row:best);
         peak=nextPeak;peakSpan=[...peakSpan,point].filter(row=>row.bucketMilliseconds>=peak.bucketMilliseconds);
       }else if(point.bucketMilliseconds-peak.bucketMilliseconds>=MAXIMUM_EVENT_WINDOW_HOURS*HOUR_MILLISECONDS){peak=point;peakSpan=[point];}
@@ -4359,6 +4389,7 @@ function convertEventRow(
         row.algorithm_version
       ),
 
+    isRapidDecline:row.algorithm_version===MINUTE_ALGORITHM_VERSION,
     sourceKind:row.source_kind||(isMinuteAlgorithm(row.algorithm_version)?MINUTE_SOURCE_KIND:'ois_bed_ash_hourly'),
     sampleIntervalSeconds:Number(row.sample_interval_seconds)||(isMinuteAlgorithm(row.algorithm_version)?60:3600),
     sourceResolutionSeconds:Number(row.sample_interval_seconds)||(isMinuteAlgorithm(row.algorithm_version)?60:3600),
@@ -4811,7 +4842,7 @@ async function handleSummaryGet(
         WHERE legacy_or_current.candidate_active = 1
           AND legacy_or_current.status = 'pending'
           AND legacy_or_current.review_ready = 1
-          AND legacy_or_current.algorithm_version <> ?
+          AND legacy_or_current.algorithm_version NOT IN (?, ?)
           AND (
             legacy_or_current.algorithm_version IN (?, ?)
 
@@ -4857,6 +4888,7 @@ async function handleSummaryGet(
       `)
       .bind(
         LEGACY_MINUTE_ALGORITHM_VERSION,
+        PREVIOUS_MINUTE_ALGORITHM_VERSION,
         ALGORITHM_VERSION,MINUTE_ALGORITHM_VERSION,
         ALGORITHM_VERSION,MINUTE_ALGORITHM_VERSION,
         ALGORITHM_VERSION,MINUTE_ALGORITHM_VERSION
@@ -4893,11 +4925,11 @@ async function handleSummaryGet(
 
 
 // Newer minute evidence is presentation-only for an existing reviewed hourly
-// or legacy-minute record. Its saved decision, amount and identity remain authoritative;
+// or prior-minute record. Its saved decision, amount and identity remain authoritative;
 // several observations never authorize allocating that amount to vehicles.
 function attachReviewedMinuteObservations(events,observations){
   const isReviewedPriorEvidence=event=>['confirmed','excluded'].includes(event.status)&&(
-    event.algorithmVersion===LEGACY_MINUTE_ALGORITHM_VERSION||
+    [LEGACY_MINUTE_ALGORITHM_VERSION,PREVIOUS_MINUTE_ALGORITHM_VERSION].includes(event.algorithmVersion)||
     event.sampleIntervalSeconds!==60&&event.sourceKind!==MINUTE_SOURCE_KIND&&!isMinuteAlgorithm(event.algorithmVersion)
   );
   const parentsByUnit=new Map(),observationsByUnit=new Map(),byParent=new Map(),reviewedIndices=new Set();
@@ -4927,7 +4959,8 @@ function attachReviewedMinuteObservations(events,observations){
       }
       if(!matches.length)continue;
       const observation=entry.observation,relatedReviewedEventKeys=matches.map(parent=>parent.event.eventKey).sort();
-      const readonly={eventKey:observation.eventKey,unitNo,startAt:observation.startAt,endAt:observation.endAt,
+      const readonly={eventKey:observation.eventKey,algorithmVersion:observation.algorithmVersion,
+        isRapidDecline:observation.isRapidDecline===true,unitNo,startAt:observation.startAt,endAt:observation.endAt,
         startLevelTon:observation.startLevelTon,endLevelTon:observation.endLevelTon,estimatedTon:observation.estimatedTon,
         sourceKind:MINUTE_SOURCE_KIND,sampleIntervalSeconds:60,overlapOtherUnit:observation.overlapOtherUnit===true,
         sourceGapCount:Number.isInteger(observation.sourceGapCount)&&observation.sourceGapCount>0?observation.sourceGapCount:0,
@@ -4962,6 +4995,7 @@ function publicMinorObservation(observation){
     startLevelTon:observation.startLevelTon,endLevelTon:observation.endLevelTon,estimatedTon:observation.estimatedTon,
     closeReason:observation.closeReason,detectionClosedAt:observation.detectionClosedAt,sourceKind:MINUTE_SOURCE_KIND,
     sampleIntervalSeconds:60,sourceGapCount:observation.sourceGapCount||0,hasSourceGaps:observation.hasSourceGaps===true,
+    isRapidDecline:false,observationReason:observation.observationReason==='slow_decline'?'slow_decline':'below_threshold',
     confidence:'low',reviewReady:false};
 }
 

@@ -73,7 +73,7 @@ function client() {
 const DATE = '2026-08-07';
 const at = value => `${DATE}T${value}+09:00`;
 const current = {
-  eventKey: 'current-sparse', unitNo: 1, algorithmVersion: 'bed-ash-drop-minute-v2',
+  eventKey: 'current-sparse', unitNo: 1, algorithmVersion: 'bed-ash-drop-minute-v3', isRapidDecline: true,
   sourceKind: 'dataparc_bed_ash_minute', sampleIntervalSeconds: 60,
   startAt: at('07:10:17'), endAt: at('07:28:42'), startLevelTon: 49, endLevelTon: 34,
   estimatedTon: 15, reviewReady: false, hasSourceGaps: true, sourceGapCount: 4, status: 'pending',
@@ -172,9 +172,9 @@ test('minor observations render only valid subthreshold evidence, stay read-only
   assert.equal(h.minor.hidden, false); assert.equal(h.minorList.children.length, 1);
   assert.match(h.minorList.textContent, /2호기 · 관측 구간 07:10 ~ 07:28/);
   assert.match(h.minorList.textContent, /40.2t → 37.55t · 관측 감소 2.65t/);
-  assert.match(h.minorList.textContent, /5.0t 미만 · 읽기 전용/);
+  assert.match(h.minorList.textContent, /3.0t 미만 · 읽기 전용/);
   assert.match(h.minorList.textContent, /자료 공백 포함 · 계근 확인/);
-  assert.match(h.elements.get('bedAshDischargeMinorObservationSummary').textContent, /1구간 · 추가 2구간 생략/);
+  assert.match(h.elements.get('bedAshDischargeMinorObservationSummary').textContent, /1구간 · 3t 미만·완만한 감소 · 추가 2구간 생략/);
   assert.equal(h.minorList.querySelectorAll('button').length, 0);
   assert.equal(h.api.state.summary.observationCount, 0); assert.equal(h.api.state.summary.pendingEstimatedTon, 0);
   assert.equal(h.api.state.summary.confirmedTon, 0); assert.equal(h.table.children.length, 0);
@@ -189,7 +189,7 @@ test('new empty range and explicit detail reset both remove stale minor evidence
     clear();
     assert.equal(h.minorList.children.length, 0); assert.equal(h.minor.hidden, true);
     assert.equal(h.table.children.length, 0); assert.equal(h.api.state.minorObservationsOmitted, 0);
-    assert.equal(h.api.state.summary.confirmedTon, 0); assert.equal(h.elements.get('bedAshDischargeTotalAmount').textContent, '관측 없음');
+    assert.equal(h.api.state.summary.confirmedTon, 0); assert.equal(h.elements.get('bedAshDischargeTotalAmount').textContent, '감지 내역 없음');
   }
 });
 

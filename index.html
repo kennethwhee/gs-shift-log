@@ -196,7 +196,7 @@
   >
   <link
     rel="stylesheet"
-    href="/efficiency/bed-ash-discharge.css?v=20260901-bed-ash-no-period-nav-v6-1&amp;minuteDetection=20261013-v1-r7"
+    href="/efficiency/bed-ash-discharge.css?v=20260901-bed-ash-no-period-nav-v6-1&amp;minuteDetection=20261014-v1-r18"
   >
   <link
     rel="stylesheet"
@@ -324,7 +324,7 @@
 ></script>
 
 <script
-  src="/efficiency/bed-ash-discharge.js?v=20260912-bed-ash-fast-query-v1&amp;minuteDetection=20261013-v1-r7"
+  src="/efficiency/bed-ash-discharge.js?v=20260912-bed-ash-fast-query-v1&amp;minuteDetection=20261014-v1-r18"
   defer
 ></script>
 
@@ -10697,7 +10697,7 @@
   <header class="efficiency-team-view__heading bed-ash-discharge-heading">
     <div>
       <h3>Bed Ash 반출</h3>
-      <p>5t 이상 감소 관측 · 계근 별도 확인</p>
+      <p>3t 이상 급감 감지 · 10분 내 재개 합산</p>
     </div>
 
     <button
@@ -10936,19 +10936,19 @@
       aria-label="Bed Ash 반출 요약"
     >
       <article class="bed-ash-discharge-summary-card is-total">
-        <span>관측 감소량 합계</span>
+        <span>반출 감지량 합계</span>
         <strong id="bedAshDischargeTotalAmount">--.-t</strong>
-        <small>관측 구간 합계 · 계근 확정량 별도 표시</small>
+        <small>감지 구간 추정량 · 계근 확정량 별도</small>
       </article>
 
       <article class="bed-ash-discharge-summary-card is-unit-one">
-        <span>1호기 관측 감소량</span>
+        <span>1호기 반출 감지량</span>
         <strong id="bedAshDischargeUnitOneAmount">조회 전</strong>
         <small>선택 기간 합계</small>
       </article>
 
       <article class="bed-ash-discharge-summary-card is-unit-two">
-        <span>2호기 관측 감소량</span>
+        <span>2호기 반출 감지량</span>
         <strong id="bedAshDischargeUnitTwoAmount">조회 전</strong>
         <small>선택 기간 합계</small>
       </article>
@@ -10968,7 +10968,7 @@
       <summary>자료 수신 상세</summary>
       <p id="bedAshDischargeSourceStatusText"></p>
       <p id="bedAshDischargeSourceDetailText"></p>
-      <p>DataPARC 자료에서 호기별 5t 이상 감소를 관측합니다. 하루 수신 개수는 자료 현황이며, 각 구간의 시작·종료 중량 차이는 실제 반출량·차량 대수를 확정하지 않습니다. 계근 기록과 대조한 확정량은 별도로 표시합니다.</p>
+      <p>1분 자료에서 호기별 30분 이내 3t 이상 급감하면 Silo 반출로 감지하고, 큰 반등·불량값 없이 10분 이내 재개한 감소는 한 구간으로 합산합니다. 반출 감지량은 중량 변화에 따른 추정량이며 차량 대수가 아닙니다. 하루 수신 개수는 자료 현황입니다. 계근 기록과 대조한 확정량은 별도로 표시합니다.</p>
     </details>
 
     <section
@@ -11001,7 +11001,7 @@
     <section class="bed-ash-discharge-events-card">
       <header class="bed-ash-discharge-events-heading">
         <div>
-          <h4>중량 감소 관측 · 반출 확인</h4>
+          <h4>Silo 반출 감지 · 계근 확인</h4>
         </div>
 
         <div class="bed-ash-discharge-events-toolbar">
@@ -11015,7 +11015,7 @@
             </select>
           </label>
 
-          <strong id="bedAshDischargeEventCount">관측 0구간 · 확정 0건</strong>
+          <strong id="bedAshDischargeEventCount">감지 0구간 · 계근 확정 0건</strong>
         </div>
       </header>
 
@@ -11023,10 +11023,10 @@
         <table aria-label="Bed Ash 반출량 내역">
           <thead>
             <tr>
-              <th>관측·확정 시간</th>
+              <th>감지·확정 시간</th>
               <th>호기</th>
               <th>중량 변화</th>
-              <th>관측·확정 중량</th>
+              <th>감지·확정 중량</th>
               <th>확인 상태</th>
               <th>처리</th>
             </tr>
@@ -11050,7 +11050,7 @@
           class="bed-ash-discharge-table-state is-empty"
           id="bedAshDischargeEmptyState"
         >
-          선택한 기간에 5.0t 이상 감소 관측 또는 확정 기록이 없습니다.
+          선택한 기간에 반출 감지 또는 계근 확정 기록이 없습니다.
         </div>
       </div>
       <details
@@ -11058,8 +11058,8 @@
         id="bedAshDischargeMinorObservations"
         hidden
       >
-        <summary id="bedAshDischargeMinorObservationSummary">추가 중량 감소 관측 · 5t 미만</summary>
-        <p>5t 미만 감소입니다. 차량 건수·확정량에 포함하지 않으며 계근 기록과 대조해주세요.</p>
+        <summary id="bedAshDischargeMinorObservationSummary">기타 중량 감소 · 3t 미만·완만한 감소</summary>
+        <p>3t 미만이거나 급감 기준에 해당하지 않는 감소입니다. 반출 감지량·계근 확정량에 포함하지 않습니다.</p>
         <div id="bedAshDischargeMinorObservationList"></div>
       </details>
     </section>

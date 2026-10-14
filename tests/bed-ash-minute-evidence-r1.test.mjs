@@ -7,7 +7,7 @@ import {__bedAshTest as api} from '../functions/api/bed-ash-discharge.js';
 const MINUTE=60000,DAY='2026-08-01',START=Date.parse(DAY+'T00:00:00+09:00');
 const iso=ms=>new Date(ms+9*3600000).toISOString().slice(0,19)+'+09:00';
 const point=(unitNo,minute,levelTon,start=START)=>({unitNo,bucketAt:iso(start+minute*MINUTE),sampledAt:iso(start+minute*MINUTE+5000),returnedAt:iso(start+minute*MINUTE+5000),quality:'Raw, Good',levelTon,sourceDate:iso(start+minute*MINUTE).slice(0,10),sampleIntervalSeconds:60,sourceKind:'dataparc_bed_ash_minute'});
-function packet({date=DAY,end=440,level=(unit,m)=>30,missing=[]}={}){
+function packet({date=DAY,end=450,level=(unit,m)=>30,missing=[]}={}){
   const start=Date.parse(date+'T00:00:00+09:00');
   return {schemaVersion:2,sourceKind:'dataparc_bed_ash_minute',sampleIntervalSeconds:60,targetDate:date,
     intervalStart:iso(start),intervalEnd:iso(start+end*MINUTE),collectedAt:new Date(start+(end+6)*MINUTE).toISOString(),
@@ -19,6 +19,8 @@ function row(raw,id='source-1'){
   return {id,target_date:raw.targetDate,status:'complete',result_json:JSON.stringify(raw),requested_at:raw.collectedAt,completed_at:raw.collectedAt,updated_at:raw.collectedAt};
 }
 function normalized(raw,id){return api.normalizeCompletedRequestSamples(row(raw,id),Date.parse(raw.collectedAt)+MINUTE);}
+// The actual refill at minute 430 separates the runs. The packet continues
+// beyond the new ten-minute pause window so the second run is settled too.
 const runLevel=(unit,m)=>unit===2?50:m<424?30:m===424?27:m<430?23:m===430?30:m===431?26:20;
 function database(){
   const raw=new DatabaseSync(':memory:');
@@ -48,7 +50,7 @@ async function getRange(db){
   const response=await api.handleRangeGet({env:{DB:db}},new URL('https://fixture.invalid/api/bed-ash-discharge?startDate='+DAY+'&endDate='+DAY));
   assert.equal(response.status,200,JSON.stringify(await response.clone().json()));return (await response.json()).data;
 }
-const allowed=['eventKey','unitNo','startAt','endAt','startLevelTon','endLevelTon','estimatedTon','sourceKind','sampleIntervalSeconds','overlapOtherUnit','reviewReady','relatedReviewedEventKeys','sharedReviewedEvidence','sourceGapCount','hasSourceGaps','confidence'].sort();
+const allowed=['eventKey','algorithmVersion','isRapidDecline','unitNo','startAt','endAt','startLevelTon','endLevelTon','estimatedTon','sourceKind','sampleIntervalSeconds','overlapOtherUnit','reviewReady','relatedReviewedEventKeys','sharedReviewedEvidence','sourceGapCount','hasSourceGaps','confidence'].sort();
 
 test('GET adds separate read-only minute observations to a confirmed hourly aggregate without changing its amount, identity or history',async t=>{
   const fixture=await reviewedFixture();t.after(()=>fixture.db.close());saveSource(fixture.db,packet({level:runLevel}));
@@ -58,7 +60,7 @@ test('GET adds separate read-only minute observations to a confirmed hourly aggr
   assert.equal(event.minuteObservations.length,2);assert.deepEqual(event.minuteObservations.map(item=>item.estimatedTon),[7,10]);
   assert.equal(event.minuteObservations[0].startAt,DAY+'T07:03:05+09:00');assert.equal(event.minuteObservations[0].endAt,DAY+'T07:05:05+09:00');
   assert.equal(event.minuteObservations[1].startAt,DAY+'T07:10:05+09:00');assert.equal(event.minuteObservations[1].endAt,DAY+'T07:12:05+09:00');
-  for(const item of event.minuteObservations){assert.deepEqual(Object.keys(item).sort(),allowed);assert.equal(item.sourceKind,'dataparc_bed_ash_minute');assert.equal(item.sampleIntervalSeconds,60);assert.equal(item.unitNo,1);assert.equal(item.reviewReady,true);assert.deepEqual(item.relatedReviewedEventKeys,[event.eventKey]);assert.equal(item.sharedReviewedEvidence,false);assert.equal(Object.hasOwn(item,'confirmedTon'),false);}
+  for(const item of event.minuteObservations){assert.deepEqual(Object.keys(item).sort(),allowed);assert.equal(item.algorithmVersion,'bed-ash-drop-minute-v3');assert.equal(item.isRapidDecline,true);assert.equal(item.sourceKind,'dataparc_bed_ash_minute');assert.equal(item.sampleIntervalSeconds,60);assert.equal(item.unitNo,1);assert.equal(item.reviewReady,true);assert.deepEqual(item.relatedReviewedEventKeys,[event.eventKey]);assert.equal(item.sharedReviewedEvidence,false);assert.equal(Object.hasOwn(item,'confirmedTon'),false);}
   assert.equal(data.summary.confirmedCount,1);assert.equal(data.summary.confirmedTon,21.4);assert.equal(data.summary.pendingCount,0);
   assert.equal(fixture.before(),fixture.original);assert.equal(fixture.db.raw.prepare('SELECT COUNT(*) n FROM bed_ash_discharge_events').get().n,1);
   assert.equal(fixture.db.raw.prepare('SELECT COUNT(*) n FROM bed_ash_discharge_review_history').get().n,1);
@@ -80,7 +82,7 @@ test('newer pending or failed sources do not advertise previous minute observati
 
 test('only same-unit, strictly overlapping eligible minute observations are attached and their field set is allowlisted',()=>{
   const event={eventKey:'old',unitNo:1,status:'confirmed',sampleIntervalSeconds:3600,sourceKind:'ois_bed_ash_hourly',startAt:DAY+'T07:00:00+09:00',endAt:DAY+'T08:00:00+09:00',confirmedTon:21.4};
-  const candidate={eventKey:'new',unitNo:1,startAt:DAY+'T07:30:05+09:00',endAt:DAY+'T07:35:05+09:00',startLevelTon:30,endLevelTon:23,estimatedTon:7,sourceKind:'dataparc_bed_ash_minute',sampleIntervalSeconds:60,overlapOtherUnit:true,reviewReady:true,confirmedTon:12345,note:'unrequested source field'};
+  const candidate={eventKey:'new',algorithmVersion:'bed-ash-drop-minute-v3',isRapidDecline:true,unitNo:1,startAt:DAY+'T07:30:05+09:00',endAt:DAY+'T07:35:05+09:00',startLevelTon:30,endLevelTon:23,estimatedTon:7,sourceKind:'dataparc_bed_ash_minute',sampleIntervalSeconds:60,overlapOtherUnit:true,reviewReady:true,confirmedTon:12345,note:'unrequested source field'};
   const [result]=api.attachReviewedMinuteObservations([event],[candidate,{...candidate,eventKey:'other-unit',unitNo:2},{...candidate,eventKey:'touching',startAt:event.endAt,endAt:DAY+'T08:03:00+09:00'},{...candidate,eventKey:'unsettled',reviewReady:false}]);
   assert.equal(result.minuteObservations.length,1);assert.deepEqual(Object.keys(result.minuteObservations[0]).sort(),allowed);assert.equal(result.minuteObservations[0].estimatedTon,7);assert.equal(result.minuteObservations[0].overlapOtherUnit,true);assert.equal(result.confirmedTon,21.4);assert.equal(Object.hasOwn(event,'minuteObservations'),false);
   assert.equal(api.attachReviewedMinuteObservations([{...event,status:'pending'}],[candidate])[0].minuteObservations,undefined);
