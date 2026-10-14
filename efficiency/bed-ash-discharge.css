@@ -2032,9 +2032,53 @@
 }
 
 #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-refresh-button {
-  min-height: 32px;
-  padding: 0 10px;
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid #1d4ed8;
+  border-radius: 9px;
+  background: #1d4ed8;
+  color: #ffffff;
+  box-shadow: 0 3px 8px rgb(29 78 216 / 22%);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-refresh-button svg {
+  flex: 0 0 auto;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-refresh-button[hidden] {
+  display: none !important;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-refresh-button:hover:not(:disabled) {
+  border-color: #1e40af;
+  background: #1e40af;
+  color: #ffffff;
+  box-shadow: 0 4px 10px rgb(29 78 216 / 30%);
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-refresh-button:focus-visible {
+  outline: 3px solid #93c5fd;
+  outline-offset: 3px;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-refresh-button:disabled {
+  border-color: #94a3b8;
+  background: #e2e8f0;
+  color: #64748b;
+  box-shadow: none;
+  opacity: 1;
+  cursor: wait;
 }
 
 #efficiencyTeamModal #efficiencyBedAshDischargeView .bed-ash-discharge-dashboard {

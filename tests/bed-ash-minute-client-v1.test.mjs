@@ -93,11 +93,11 @@ test('existing Bed Ash CSS and JS loaders each request the minute revision exact
   const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
   assert.ok(/호기별 30분 이내 3t 이상 급감하면 Silo 반출로 감지/.test(html));
   assert.ok(/계근 기록과 대조한 확정량은 별도로 표시/.test(html));
-  assert.match(html,/DataPARC 새로 조회/);
+  assert.match(html,/반출 내역 조회/);
   for(const asset of ['bed-ash-discharge.js','bed-ash-discharge.css']){
     const hits=[...html.matchAll(/(?:src|href)="([^"]+)"/g)].filter(m=>m[1].startsWith('/efficiency/'+asset+'?'));
     assert.equal(hits.length,1);const url=new URL(hits[0][1].replaceAll('&amp;','&'),'https://review.invalid');
-    assert.equal(url.searchParams.get('minuteDetection'),'20261014-v1-r18');
+    assert.equal(url.searchParams.get('minuteDetection'),'20261014-v1-r19');
   }
 });
 
