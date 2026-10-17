@@ -126,19 +126,50 @@ test('both manual Bio transfer directions conserve fuel totals and each unit hea
 });
 
 test('automatic maximum transfers available excess then compensates excluded Bio at each unit calorific value', () => {
-  const base = fixture();
-  const transfer = adjustment.autoMax(base, settings, 400);
-  verifyAdjustment(base, transfer);
+  const base = fixture(), original = structuredClone(base), upper = () => 0.9999999999999999;
+  const verifyHeatAndTotals = changed => {
+    assert.equal(changed.ok, true, changed.message);
+    let finalBio = 0;
+    for (const unit of UNITS) {
+      const before = base.units[unit], after = changed.result.units[unit];
+      for (const fuel of ['organic', 'manure']) assert.deepEqual(after[fuel], before[fuel]);
+      near(after.heats.total, before.heats.total, 1e-5);
+      near(after.coal.quantity, before.coal.quantity + (before.bio.quantity - after.bio.quantity) *
+        settings[unit].bio.calorific / settings[unit].coal.calorific, 0.000001);
+      near(after.fuelRatios.bio, after.heats.bio / after.heats.total * 100);
+      near(after.fuelRatios.total, (after.heats.bio + after.heats.organic + after.heats.manure) / after.heats.total * 100);
+      finalBio += after.bio.quantity;
+    }
+    assert.ok(finalBio <= 360 + 1e-6);
+    near(changed.adjustment.excludedBioTons, 360 - finalBio, 0.000501);
+    near(changed.result.combined.heats.total, base.combined.heats.total, 2e-5);
+  };
+  const transfer = adjustment.autoMax(base, settings, 400, upper);
+  verifyHeatAndTotals(transfer);
   near(transfer.adjustment.periodCapTons, 200);
   near(transfer.result.units.unit1.bio.quantity, 200);
   near(transfer.result.units.unit2.bio.quantity, 160);
   near(transfer.adjustment.excludedBioTons, 0);
-  const excluded = adjustment.autoMax(base, settings, 120);
-  verifyAdjustment(base, excluded);
+  const excluded = adjustment.autoMax(base, settings, 120, upper);
+  verifyHeatAndTotals(excluded);
   near(excluded.adjustment.periodCapTons, 60);
   near(excluded.result.units.unit1.bio.quantity, 60);
   near(excluded.result.units.unit2.bio.quantity, 60);
   near(excluded.adjustment.excludedBioTons, 240);
+  for (const draw of [0, 0.5]) {
+    const selected = adjustment.autoMax(base, settings, 120, () => draw);
+    verifyHeatAndTotals(selected);
+    for (const unit of UNITS) {
+      const daily = selected.result.units[unit].bio.quantity * 24 / base.period.durationHours;
+      assert.ok(daily >= 119.9 - 1e-8 && daily <= 120 + 1e-8);
+      near(daily * 100, Math.round(daily * 100), 1e-6);
+    }
+    const replay = adjustment.replayAutoMax(base, settings, 120,
+      selected.result.units.unit1.bio.quantity, selected.result.units.unit2.bio.quantity);
+    assert.equal(replay.ok, true, replay.message);
+    assert.deepEqual(replay.result, selected.result);
+  }
+  assert.deepEqual(base, original);
 });
 
 test('direct final Bio edits retain organic and manure, conserve heat and reject invented Bio quantity', () => {

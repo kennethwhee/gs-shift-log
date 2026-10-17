@@ -69,13 +69,43 @@
     return {ok:true,result,adjustment:result.adjustment};
   }
   function manualTransfer(base,settings,fromUnit,tons){const t=Number(tons),dir=Number(fromUnit)===2?2:1,b1=base?.units?.unit1?.bio?.quantity,b2=base?.units?.unit2?.bio?.quantity;if(!Number.isFinite(t)||t<=0)return {ok:false,message:'Bio 이동량을 0보다 크게 입력해 주세요.'};if(![b1,b2].every(Number.isFinite))return {ok:false,message:'먼저 기간 계산을 완료해 주세요.'};const source=dir===1?b1:b2;if(t>source+1e-9)return {ok:false,message:`${dir}호기 Bio 사용량보다 많이 이동할 수 없습니다.`};return adjustFinal(base,settings,dir===1?b1-t:b1+t,dir===1?b2+t:b2-t,{mode:'manual_transfer',fromUnit:dir,bioTransferTons:t});}
-  function autoMax(base,settings,maxTpd){
+  // COFIRING_MAX_TARGET_BAND_V1: choose once for a preview; replay stored finals.
+  const MAX_TARGET_BAND_TPD=0.10;
+  function maxAutoInputs(base,maxTpd){
     const hours=Number(base?.period?.durationHours),cap=periodCap(maxTpd,hours),b1=base?.units?.unit1?.bio?.quantity,b2=base?.units?.unit2?.bio?.quantity;if(!Number.isFinite(cap)||cap<=0)return {ok:false,message:'호기당 Bio 최대량(t/d)을 확인해 주세요.'};if(![b1,b2].every(Number.isFinite))return {ok:false,message:'먼저 기간 계산을 완료해 주세요.'};
-    let f1=Math.min(b1,cap),f2=Math.min(b2,cap),ex1=Math.max(0,b1-f1),ex2=Math.max(0,b2-f2),c1=Math.max(0,cap-f1),c2=Math.max(0,cap-f2);
+    if(b1<=cap&&b2<=cap)return {ok:false,message:`현재 1·2호기 Bio 사용량이 선택기간 환산 최대 ${fmt(cap,2)} t 이하입니다.`};
+    return {ok:true,hours,cap,b1,b2};
+  }
+  function maxAutoAtCaps(base,settings,maxTpd,input,target1,target2){
+    const {cap,b1,b2}=input;
+    let f1=Math.min(b1,target1),f2=Math.min(b2,target2),ex1=Math.max(0,b1-f1),ex2=Math.max(0,b2-f2),c1=Math.max(0,target1-f1),c2=Math.max(0,target2-f2);
     const move12=Math.min(ex1,c2);f2+=move12;ex1-=move12;c2-=move12;
     const move21=Math.min(ex2,c1);f1+=move21;ex2-=move21;c1-=move21;
-    if(Math.abs(f1-b1)<1e-9&&Math.abs(f2-b2)<1e-9)return {ok:false,message:`현재 1·2호기 Bio 사용량이 선택기간 환산 최대 ${fmt(cap,2)} t 이하입니다.`};
     return adjustFinal(base,settings,f1,f2,{mode:'max_auto',maxBioTpd:Number(maxTpd),periodCapTons:cap,fromUnit:move12>0?1:move21>0?2:null,bioTransferTons:move12+move21,excludedBioTons:ex1+ex2});
+  }
+  function autoMax(base,settings,maxTpd,random=Math.random){
+    const input=maxAutoInputs(base,maxTpd);if(!input.ok)return input;
+    const max=Number(maxTpd),low=Math.max(0,max-MAX_TARGET_BAND_TPD);
+    // Integer hundredths include both endpoints without rounding above the limit.
+    const first=Math.ceil(low*100-1e-8),last=Math.floor(max*100+1e-8);
+    const pick=()=>{const r=random();return finite(r)&&r>=0&&r<1?(first+Math.floor(r*(last-first+1)))/100:null;};
+    const one=pick(),two=pick();
+    if(!finite(one)||!finite(two))return {ok:false,message:'자동 조정 목표를 만들지 못했습니다. 다시 실행해 주세요.'};
+    const toPeriod=value=>value===0?0:Math.min(input.cap,periodCap(value,input.hours));
+    return maxAutoAtCaps(base,settings,maxTpd,input,toPeriod(one),toPeriod(two));
+  }
+  function replayAutoMax(base,settings,maxTpd,finalOne,finalTwo){
+    const input=maxAutoInputs(base,maxTpd);if(!input.ok)return input;
+    const lowerTpd=Math.max(0,Number(maxTpd)-MAX_TARGET_BAND_TPD);
+    const lower=lowerTpd===0?0:periodCap(lowerTpd,input.hours),tolerance=0.000001;
+    if(![finalOne,finalTwo].every(v=>finite(v)&&v>=0&&v<=input.cap+tolerance))return {ok:false,message:'저장된 최대혼소 조정값이 최대량 범위를 벗어났습니다.'};
+    // A capped unit retains its selected target; a recipient below the band
+    // retains all available transferred Bio. No new random draw on save/read.
+    const target=value=>value>=lower-tolerance?Math.min(value,input.cap):input.cap;
+    const replay=maxAutoAtCaps(base,settings,maxTpd,input,target(finalOne),target(finalTwo));
+    if(!replay.ok)return replay;
+    if(Math.abs(replay.result.units.unit1.bio.quantity-finalOne)>tolerance||Math.abs(replay.result.units.unit2.bio.quantity-finalTwo)>tolerance)return {ok:false,message:'저장된 최대혼소 조정값의 목표 범위 또는 호기 간 이동량이 올바르지 않습니다.'};
+    return replay;
   }
   function storageKey(spec){return STORAGE_PREFIX+encodeURIComponent(`${spec.startLocal}|${spec.endLocal}`);}
   function readStored(spec,base){try{const raw=root.localStorage?.getItem(storageKey(spec));if(!raw)return null;const data=JSON.parse(raw);if(data.fingerprint!==fingerprint(base,spec))return null;return data;}catch(_){return null;}}
@@ -490,7 +520,11 @@ function modalHtml(){return `<div class="cfv56-adjust-modal" data-cfv56-adjust-m
       if(resultNote){resultNote.hidden=!hasPreview;if(hasPreview)resultNote.textContent='위 수치는 선택기간 기준 미리보기 결과이며, 적용 전 예상 변화량입니다.';}
       q('[data-cfv56-final1]').value=String(round(result.units.unit1.bio.quantity,2));q('[data-cfv56-final2]').value=String(round(result.units.unit2.bio.quantity,2));controls();
     }
-    function cap(){q('[data-cfv56-cap]').textContent=`선택기간 ${base.period.durationHours.toFixed(2)}시간 환산 최대: 호기당 ${fmt(periodCap(Number(q('[data-cfv56-max]').value),base.period.durationHours),2)} t`;}
+    function cap(){
+      const max=Number(q('[data-cfv56-max]').value);
+      q('[data-cfv56-cap]').textContent=`선택기간 ${base.period.durationHours.toFixed(2)}시간 환산 최대: 호기당 ${fmt(periodCap(max,base.period.durationHours),2)} t`;
+      q('[data-cfv56-auto]').title=`자동 목표 ${fmt(Math.max(0,max-MAX_TARGET_BAND_TPD))}~${fmt(max)} t/d · 선택기간에 맞춰 환산`;
+    }
     async function open(){
       if(busy||disposed)return;const ctx=options.getContext?.();base=ctx?.result;settings=ctx?.settings;spec=ctx?.spec;
       if(!base||!settings||!spec){options.onMessage?.('먼저 기간 계산을 완료해 주세요.');return;}
@@ -561,6 +595,6 @@ function modalHtml(){return `<div class="cfv56-adjust-modal" data-cfv56-adjust-m
     modal.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();close();}if(e.key==='Tab'){const nodes=Array.from(modal.querySelectorAll('button:not(:disabled),input:not(:disabled)')).filter(x=>!x.closest('[hidden]'));if(!nodes.length)return;const first=nodes[0],last=nodes[nodes.length-1];if(e.shiftKey&&root.document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&root.document.activeElement===last){e.preventDefault();first.focus();}}});
     return {open,close,isOpen:()=>!modal.hidden,isBusy:()=>busy,resetApplied,resolve:(result,currentSettings,currentSpec)=>resolveStored(result,currentSettings,currentSpec),clear:()=>spec&&clearStored(spec),dispose(){root.removeEventListener?.('cofiring:calorific-settings-saved',calorificSavedHandler);disposed=true;++epoch;modal.remove();}};
   }
-  root.CofiringPeriodAdjustmentV56={periodCap,adjustFinal,manualTransfer,autoMax,resolveStored,resolveServer,create,modalHtml,DEFAULT_MAX_TPD,API};
+  root.CofiringPeriodAdjustmentV56={periodCap,adjustFinal,manualTransfer,autoMax,replayAutoMax,resolveStored,resolveServer,create,modalHtml,DEFAULT_MAX_TPD,API};
   if(typeof module==='object'&&module.exports)module.exports=root.CofiringPeriodAdjustmentV56;
 })(typeof globalThis==='object'?globalThis:this);

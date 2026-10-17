@@ -43,10 +43,43 @@ test('legitimate quality-gap reports retain quantities and quality warnings in t
 test('manual transfer, direct final values and max-auto adjustment use the same server and browser calculation',async t=>{
   for(const mode of ['manual_transfer','fractional_transfer','manual_final','max_auto']){
     const db=database(t),p=packet(),base=p.snapshot.result,s=p.snapshot.settings;
-    const result=mode==='fractional_transfer'?adjust.manualTransfer(base,s,1,0.123456):mode==='manual_transfer'?adjust.manualTransfer(base,s,1,5):mode==='max_auto'?adjust.autoMax(base,s,30):adjust.adjustFinal(base,s,25,35,{mode});
+    const result=mode==='fractional_transfer'?adjust.manualTransfer(base,s,1,0.123456):mode==='manual_transfer'?adjust.manualTransfer(base,s,1,5):mode==='max_auto'?adjust.autoMax(base,s,30,()=>0.9999999999999999):adjust.adjustFinal(base,s,25,35,{mode});
     assert.equal(result.ok,true);p.snapshot.result=result.result;
     const r=await call(db,{body:p});assert.equal(r.status,200,mode+': '+JSON.stringify(r.payload));
     const snap=JSON.parse(stored(db).snapshot_json);assert.deepEqual(snap.result,result.result);
+  }
+});
+test('range-selected max-auto closing preserves low, middle and high preview values without drawing again',async t=>{
+  const selected=[];
+  for(const draw of [0,0.5,0.9999999999999999]){
+    const db=database(t),p=packet(),base=clone(p.snapshot.result),settings=p.snapshot.settings;
+    const preview=adjust.autoMax(base,settings,30,()=>draw);assert.equal(preview.ok,true,preview.message);
+    p.snapshot.result=preview.result;
+    for(const unit of ['unit1','unit2']){
+      const final=preview.result.units[unit].bio.quantity;
+      assert.ok(final>=29.9-1e-6&&final<=30+1e-6);assert.ok(Math.abs(final*100-Math.round(final*100))<1e-6);
+      assert.ok(Math.abs(preview.result.units[unit].heats.total-base.units[unit].heats.total)<1e-5);
+    }
+    const random=t.mock.method(Math,'random',()=>{throw new Error('Server replay must reuse the preview instead of selecting a new target');});
+    try{
+      const response=await call(db,{body:p});assert.equal(response.status,200,JSON.stringify(response.payload));
+      const snapshot=JSON.parse(stored(db).snapshot_json);assert.deepEqual(snapshot.result,preview.result);
+      const reread=await call(db,{method:'GET',query:'?targetDate='+DATE});assert.equal(reread.status,200);
+      assert.deepEqual(reread.payload.item.snapshot.result,preview.result);
+      assert.equal(random.mock.callCount(),0);
+    }finally{random.mock.restore();}
+    selected.push(preview.result.units.unit1.bio.quantity);
+  }
+  assert.equal(new Set(selected).size,3,'Each injected target remains distinct after server validation');
+});
+test('range-selected max-auto closing rejects forged final values outside the permitted band',async t=>{
+  for(const final of [29.89,30.01]){
+    const db=database(t),p=packet(),base=p.snapshot.result,settings=p.snapshot.settings;
+    const forged=adjust.adjustFinal(base,settings,final,final,{mode:'max_auto',maxBioTpd:30,periodCapTons:30});
+    assert.equal(forged.ok,true,'The payload is internally consistent so the server must enforce the maximum-auto rule');
+    p.snapshot.result=forged.result;
+    const response=await call(db,{body:p});assert.equal(response.status,400,JSON.stringify(response.payload));
+    assert.equal(stored(db),undefined);assert.equal(db.writes,0);
   }
 });
 test('missing fuel cannot become zero during adjustment; organic group includes manure consistently',()=>{

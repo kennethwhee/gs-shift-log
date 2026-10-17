@@ -124,7 +124,8 @@ export function validateClosedSnapshot(body, source, now = Date.now()) {
       adjusted = adjustment.adjustFinal(result, settings, final1, final2,
         { mode: 'manual_transfer', fromUnit: meta.fromUnit, bioTransferTons: moved });
     } else if (meta.mode === 'max_auto' && finite(meta.maxBioTpd) && meta.maxBioTpd > 0 && meta.maxBioTpd <= 2000) {
-      adjusted = adjustment.autoMax(result, settings, meta.maxBioTpd);
+      adjusted = adjustment.replayAutoMax(result, settings, meta.maxBioTpd,
+        shown.units?.unit1?.bio?.quantity, shown.units?.unit2?.bio?.quantity);
     } else if (meta.mode === 'manual_final') {
       adjusted = adjustment.adjustFinal(result, settings, shown.units?.unit1?.bio?.quantity,
         shown.units?.unit2?.bio?.quantity, { mode: 'manual_final' });

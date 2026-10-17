@@ -190,14 +190,34 @@ test('real morning editor manual apply writes the shared API once and notifies t
   assert.equal(events.length, 1); assert.equal(events[0].start, spec.startLocal); assert.equal(events[0].source, 'morning-meeting-card');
   assert.equal(JSON.stringify(b.raw), original);
 });
-test('real morning maximum-auto preview uses same engine and only apply persists', async () => {
+test('real morning maximum-auto preview reuses its selected final values through apply and server refresh', async () => {
   const b = browser(); await b.shared.morning.open(); const modal = b.modal();
+  let draws = 0;
+  b.root.Math = Object.create(Math);
+  b.root.Math.random = () => { draws++; return draws % 2 ? 0 : 0.5; };
   modal.querySelector('[data-cfv56-auto]').click(); assert.equal(b.posts.length, 0);
-  const expected = b.adjust.autoMax(b.raw, b.settings, 361.1492);
+  assert.ok(draws > 0, 'Only the operator preview selects a random target');
+  const previewDraws = draws;
+  b.root.Math.random = () => { throw new Error('Saved maximum-auto values must not be selected again'); };
   modal.querySelector('[data-cfv56-apply]').click(); await tick();
   assert.equal(b.posts.length, 1); assert.equal(b.posts[0].body.adjustment.mode, 'max_auto');
-  assert.equal(b.posts[0].body.adjustment.finalBioUnit1, expected.result.units.unit1.bio.quantity);
-  assert.equal(b.posts[0].body.adjustment.finalBioUnit2, expected.result.units.unit2.bio.quantity);
+  const saved = b.posts[0].body.adjustment;
+  const permittedTargets = Array.from({length: 10}, (_, index) =>
+    b.adjust.periodCap((36105 + index) / 100, b.raw.period.durationHours));
+  for (const final of [saved.finalBioUnit1, saved.finalBioUnit2]) {
+    const daily = final * 24 / b.raw.period.durationHours;
+    assert.ok(daily >= 361.0492 - 1e-6 && daily <= 361.1492 + 1e-6);
+    assert.ok(permittedTargets.some(target => Math.abs(target - final) < 1e-6),
+      'The daily 0.01 t/d target uses the existing period-quantity rounding');
+  }
+  const replay = b.adjust.replayAutoMax(b.raw, b.settings, saved.maxBioTpd, saved.finalBioUnit1, saved.finalBioUnit2);
+  assert.equal(replay.ok, true, replay.message);
+  const c = calculator(b); await c.sync.refresh();
+  assert.equal(c.applied.at(-1).result.units.unit1.bio.quantity, saved.finalBioUnit1);
+  assert.equal(c.applied.at(-1).result.units.unit2.bio.quantity, saved.finalBioUnit2);
+  assert.deepEqual(c.applied.at(-1).result.units, copy(replay.result.units));
+  assert.deepEqual(c.applied.at(-1).result.combined, copy(replay.result.combined));
+  assert.equal(draws, previewDraws); assert.equal(b.posts.length, 1);
 });
 test('real morning manual transfer preserves exact donor/recipient values with one shared write', async () => {
   const b = browser(); await b.shared.morning.open(); const modal = b.modal();
