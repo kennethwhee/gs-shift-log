@@ -9,6 +9,7 @@
   const clone=value=>JSON.parse(JSON.stringify(value));
   const fmt=(v,p=2)=>finite(v)?v.toLocaleString('ko-KR',{minimumFractionDigits:p,maximumFractionDigits:p}):'—';
   const pct=v=>finite(v)?v.toFixed(2)+'%':'—';
+  const maxInputText=value=>{const n=Number(value);return finite(n)&&n===round(n,2)?n.toFixed(2):String(n);};
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   // COFIRING_ADJUSTMENT_COMPACT_DELTA_V4
   const compactLocal=(local,omitYear=false)=>{const s=String(local||'');if(!s)return '—';const [d,t='']=s.split('T');const [y,m,day]=d.split('-');if(!y||!m||!day)return s.replace('T',' ');const hhmm=(t||'').slice(0,5);return omitYear?`${m}-${day} ${hhmm}`:`${String(y).slice(-2)}-${m}-${day} ${hhmm}`;};
@@ -149,252 +150,15 @@
   }
   // COFIRING_TOTAL_HEAT_BASIS_V2_R3: adjustment preview displays Bio / total fuel heat.
   function ratioBio(unit){const direct=unit?.fuelRatios?.bio??unit?.ratios?.bio;if(finite(direct))return direct;const b=unit?.heats?.bio,t=unit?.heats?.total;return finite(b)&&finite(t)&&t>0?b/t*100:null;}
-  const COAL_REVIEW_TOAST_MARKER_V13_R1=
-    'COFIRING-MAX-INLINE-MODAL-MESSAGE-V14-R1';
-
-  const COAL_REVIEW_TOAST_ID_V13_R1=
-    'cfv56CoalReviewInlineV14R1';
-
-  const COAL_REVIEW_STYLE_ID_V13_R1=
-    'cfv56CoalReviewInlineStyleV14R1';
-
-  let coalReviewToastTimerV13R1=null;
-
-  function ensureCoalReviewToastStyleV13R1(){
-    const doc=root.document;
-
-    if(
-      !doc ||
-      doc.getElementById(
-        COAL_REVIEW_STYLE_ID_V13_R1
-      )
-    ){
-      return;
-    }
-
-    const style=
-      doc.createElement(
-        'style'
-      );
-
-    style.id=
-      COAL_REVIEW_STYLE_ID_V13_R1;
-
-    style.textContent=`
-      #${COAL_REVIEW_TOAST_ID_V13_R1}{
-        position:absolute;
-        inset:0;
-        z-index:100;
-        display:grid;
-        place-items:center;
-        padding:24px;
-        pointer-events:none;
-      }
-
-      #${COAL_REVIEW_TOAST_ID_V13_R1}
-      .cfv56-coal-review-center-box{
-        position:relative;
-        box-sizing:border-box;
-        width:min(440px,calc(100% - 32px));
-        padding:24px 48px 24px 24px;
-        border:1px solid #e6d198;
-        border-radius:14px;
-        background:#fffdf5;
-        box-shadow:
-          0 18px 48px rgba(25,35,50,.30);
-        color:#293b4c;
-        text-align:center;
-        pointer-events:auto;
-        font-family:
-          Inter,
-          "Pretendard Variable",
-          Pretendard,
-          -apple-system,
-          BlinkMacSystemFont,
-          "Segoe UI",
-          "Malgun Gothic",
-          sans-serif;
-      }
-
-      #${COAL_REVIEW_TOAST_ID_V13_R1}
-      .cfv56-coal-review-center-text{
-        margin:0;
-        font-size:18px;
-        font-weight:700;
-        line-height:1.5;
-        letter-spacing:-.3px;
-        word-break:keep-all;
-      }
-
-      #${COAL_REVIEW_TOAST_ID_V13_R1}
-      .cfv56-coal-review-center-close{
-        position:absolute;
-        top:10px;
-        right:10px;
-        display:flex;
-        width:30px;
-        height:30px;
-        align-items:center;
-        justify-content:center;
-        padding:0;
-        border:0;
-        border-radius:8px;
-        background:transparent;
-        color:#738596;
-        font-size:21px;
-        line-height:1;
-        cursor:pointer;
-      }
-
-      #${COAL_REVIEW_TOAST_ID_V13_R1}
-      .cfv56-coal-review-center-close:hover{
-        background:rgba(62,79,94,.08);
-        color:#33485b;
-      }
-    `;
-
-    doc.head.appendChild(
-      style
-    );
-  }
-
-  function hideCoalReviewToastV13R1(){
-    if(
-      coalReviewToastTimerV13R1 !==
-      null
-    ){
-      root.clearTimeout?.(
-        coalReviewToastTimerV13R1
-      );
-
-      coalReviewToastTimerV13R1=
-        null;
-    }
-
-    root.document
-      ?.getElementById(
-        COAL_REVIEW_TOAST_ID_V13_R1
-      )
-      ?.remove();
-  }
-
-  function showCoalReviewToastV13R1(){
-    const doc=
-      root.document;
-
-    if(!doc){
-      return;
-    }
-
-    const focusedDialog=
-      doc.activeElement
-        ?.closest?.(
-          '.cfv56-adjust-dialog'
-        );
-
-    const visibleDialog=
-      doc.querySelector(
-        '.cfv56-adjust-modal:not([hidden]) .cfv56-adjust-dialog'
-      );
-
-    const host=
-      focusedDialog ||
-      visibleDialog;
-
-    if(!host){
-      return;
-    }
-
-    ensureCoalReviewToastStyleV13R1();
-    hideCoalReviewToastV13R1();
-
-    const computed=
-      root.getComputedStyle?.(
-        host
-      );
-
-    if(
-      computed &&
-      computed.position ===
-      'static'
-    ){
-      host.style.position=
-        'relative';
-    }
-
-    const wrap=
-      doc.createElement(
-        'div'
-      );
-
-    wrap.id=
-      COAL_REVIEW_TOAST_ID_V13_R1;
-
-    wrap.setAttribute(
-      'role',
-      'status'
-    );
-
-    wrap.setAttribute(
-      'aria-live',
-      'polite'
-    );
-
-    wrap.innerHTML=`
-      <div class="cfv56-coal-review-center-box">
-        <button
-          type="button"
-          class="cfv56-coal-review-center-close"
-          data-cfv56-coal-review-center-close
-          aria-label="안내 닫기"
-          title="닫기"
-        >×</button>
-
-        <p class="cfv56-coal-review-center-text">
-          1,2호기 석탄 사용량 검토 필요합니다.
-        </p>
-      </div>
-    `;
-
-    host.appendChild(
-      wrap
-    );
-
-    wrap
-      .querySelector(
-        '[data-cfv56-coal-review-center-close]'
-      )
-      ?.addEventListener(
-        'click',
-        event=>{
-          event.preventDefault();
-          event.stopPropagation();
-
-          hideCoalReviewToastV13R1();
-        }
-      );
-
-    coalReviewToastTimerV13R1=
-      root.setTimeout?.(
-        ()=>{
-          coalReviewToastTimerV13R1=
-            null;
-
-          wrap.remove();
-        },
-        3000
-      ) ??
-      null;
-  }
-
-function modalHtml(){return `<div class="cfv56-adjust-modal" data-cfv56-adjust-modal hidden aria-hidden="true"><div class="cfv56-adjust-dialog" role="dialog" aria-modal="true" aria-label="혼소 조정"><header><div><span>CO-FIRING ADJUSTMENT</span><h3>혼소 조정</h3><p>Bio 이동과 최대혼소 조정 결과를 적용 전에 확인합니다.</p></div><div class="cfv56-header-actions"><button type="button" class="cfv56-calorific-button" data-cfv56-calorific title="발열량 확인 및 수정">발열량 설정</button><button type="button" data-cfv56-close aria-label="닫기">×</button></div></header><div class="cfv56-adjust-body"><div class="cfv56-adjust-top-grid"><section class="cfv56-top-card cfv56-top-card-period"><div class="cfv56-top-card-label">선택 기간 <span class="cfv56-inline-year" data-cfv56-year>2026년</span></div><strong data-cfv56-period>—</strong></section><section class="cfv56-top-card cfv56-top-card-cap"><div class="cfv56-cap-head"><div class="cfv56-top-card-label">호기당 Bio 최대량</div><p class="cfv56-cap-note" data-cfv56-cap>—</p></div><div class="cfv56-cap-group"><input data-cfv56-max type="number" min="0.01" max="2000" step="0.01"><span class="cfv56-unit">t/d</span><button type="button" data-cfv56-save-max>설정 저장</button></div></section></div><div class="cfv56-action-grid"><section class="cfv56-manual-card"><div class="cfv56-section-head"><div><h4>수동 이동</h4><p>호기 간 Bio 배분 조정</p></div></div><div class="cfv56-dir"><button type="button" class="is-selected" aria-pressed="true" data-cfv56-dir="1">1호기 → 2호기</button><button type="button" aria-pressed="false" data-cfv56-dir="2">2호기 → 1호기</button></div><label class="cfv56-transfer"><span class="cfv56-field-label">이동량</span><input data-cfv56-transfer type="number" min="0" step="0.01" placeholder="0.0"><span>t</span><button type="button" data-cfv56-preview-transfer>미리보기</button><button type="button" class="cfv56-transfer-cancel" data-cfv56-cancel-transfer>취소</button></label></section><section class="cfv56-auto cfv56-auto-card"><p class="cfv56-auto-copy-line">호기별 최대 혼소율 기준 · 선택기간 자동 환산</p><button type="button" data-cfv56-auto>최대혼소 조정</button></section></div><p class="cfv56-adjust-msg" data-cfv56-msg role="status" aria-live="polite"></p><section class="cfv56-section cfv56-result-section"><div class="cfv56-final-head"><div><h4>조정 결과 (미리보기)</h4><p>원본 수치 대비 조정된 결과와 변화를 확인하세요.</p></div><div class="cfv56-result-unit">단위: t, % (%p = 퍼센트포인트)</div><button type="button" data-cfv56-edit>수정</button></div><div class="cfv56-final-scroll"><table><thead><tr><th>호기</th><th>Coal (t)</th><th>Bio (t)</th><th>바이오 혼소율</th><th>유기성 및 축분 혼소율</th><th>종합 혼소율</th></tr></thead><tbody data-cfv56-final></tbody></table></div><p class="cfv56-result-note" data-cfv56-result-note>조정 전 원본 수치입니다. 이동 또는 자동 조정으로 미리보기를 만드세요.</p><div class="cfv56-final-edit" data-cfv56-final-edit hidden><label>1호기 최종 Bio (t)<input data-cfv56-final1 type="number" min="0" step="0.01"></label><label>2호기 최종 Bio (t)<input data-cfv56-final2 type="number" min="0" step="0.01"></label><button type="button" data-cfv56-preview-final>직접수정 미리보기</button></div><p class="cfv56-formula">※ Coal 자동 보정 = (실제 Bio − 최종 Bio) × Bio 발열량 ÷ Coal 발열량</p><p class="cfv56-formula">※ 바이오 / 유기성 및 축분 / 종합: 전체 투입열량 기준</p></section></div><footer><button type="button" data-cfv56-reset>원복</button><span></span><button type="button" data-cfv56-cancel>취소</button><button type="button" class="primary" data-cfv56-apply>적용</button></footer></div></div>`;}
+  // COFIRING_ADJUSTMENT_READABILITY_V15: one inline notice owned by this editor.
+  function modalHtml(){return `<div class="cfv56-adjust-modal cfv56-design-v15" data-cfv56-adjust-modal hidden aria-hidden="true"><div class="cfv56-adjust-dialog" role="dialog" aria-modal="true" aria-label="혼소 조정"><header><div><span>CO-FIRING ADJUSTMENT</span><h3>혼소 조정</h3><p>Bio 이동과 최대혼소 조정 결과를 적용 전에 확인합니다.</p></div><div class="cfv56-header-actions"><button type="button" class="cfv56-calorific-button" data-cfv56-calorific title="발열량 확인 및 수정">발열량 설정</button><button type="button" data-cfv56-close aria-label="닫기">×</button></div></header><div class="cfv56-adjust-body"><div class="cfv56-adjust-top-grid"><section class="cfv56-top-card cfv56-top-card-period"><div class="cfv56-top-card-label">선택 기간 <span class="cfv56-inline-year" data-cfv56-year>2026년</span></div><strong data-cfv56-period>—</strong></section><section class="cfv56-top-card cfv56-top-card-cap"><div class="cfv56-cap-head"><div class="cfv56-top-card-label">호기당 Bio 최대량</div><p class="cfv56-cap-note" data-cfv56-cap>—</p></div><div class="cfv56-cap-group"><input data-cfv56-max type="number" min="0.01" max="2000" step="0.01"><span class="cfv56-unit">t/d</span><button type="button" data-cfv56-save-max>설정 저장</button></div></section></div><div class="cfv56-action-grid"><section class="cfv56-manual-card"><div class="cfv56-section-head"><div><h4>수동 이동</h4><p>호기 간 Bio 배분 조정</p></div></div><div class="cfv56-dir"><button type="button" class="is-selected" aria-pressed="true" data-cfv56-dir="1">1호기 → 2호기</button><button type="button" aria-pressed="false" data-cfv56-dir="2">2호기 → 1호기</button></div><label class="cfv56-transfer"><span class="cfv56-field-label">이동량</span><input data-cfv56-transfer type="number" min="0" step="0.01" placeholder="0.0"><span>t</span><button type="button" data-cfv56-preview-transfer>미리보기</button><button type="button" class="cfv56-transfer-cancel" data-cfv56-cancel-transfer>취소</button></label></section><section class="cfv56-auto cfv56-auto-card"><p class="cfv56-auto-copy-line">호기별 최대 혼소율 기준 · 선택기간 자동 환산</p><button type="button" data-cfv56-auto>최대혼소 조정</button></section></div><p class="cfv56-adjust-msg" data-cfv56-msg role="status" aria-live="polite" hidden></p><p class="cfv56-coal-review-notice" data-cfv56-coal-review-notice role="note" hidden><span aria-hidden="true">⚠</span> 최대혼소 조정 후 1·2호기 석탄 사용량을 확인해 주세요.</p><section class="cfv56-section cfv56-result-section"><div class="cfv56-final-head"><div><h4><span data-cfv56-result-title>현재 계산값</span><span class="cfv56-preview-badge" data-cfv56-preview-badge hidden>미리보기</span></h4><p>현재 계산된 원본 수치입니다.</p></div><div class="cfv56-result-unit">단위: t, % (%p = 퍼센트포인트)</div><button type="button" data-cfv56-edit>수정</button></div><div class="cfv56-final-scroll"><table><thead><tr><th>호기</th><th>Coal (t)</th><th>Bio (t)</th><th>바이오 혼소율</th><th>유기성 및 축분 혼소율</th><th>종합 혼소율</th></tr></thead><tbody data-cfv56-final></tbody></table></div><p class="cfv56-result-note" data-cfv56-result-note>조정 전 원본 수치입니다. 이동 또는 자동 조정으로 미리보기를 만드세요.</p><div class="cfv56-final-edit" data-cfv56-final-edit hidden><label>1호기 최종 Bio (t)<input data-cfv56-final1 type="number" min="0" step="0.01"></label><label>2호기 최종 Bio (t)<input data-cfv56-final2 type="number" min="0" step="0.01"></label><button type="button" data-cfv56-preview-final>직접수정 미리보기</button></div><p class="cfv56-formula">※ Coal 자동 보정 = (실제 Bio − 최종 Bio) × Bio 발열량 ÷ Coal 발열량</p><p class="cfv56-formula">※ 혼소율은 전체 투입열량 기준입니다.</p></section></div><footer><button type="button" data-cfv56-reset>원복</button><span></span><button type="button" data-cfv56-cancel>취소</button><button type="button" class="primary" data-cfv56-apply>적용</button></footer></div></div>`;}
   // COFIRING_ADJUSTMENT_MANUAL_AUTO_COMPACT_V8
   // COFIRING_ADJUSTMENT_AUTOCARD_ROLLBACK_V9
   function create(options){
     const container=options.container;if(!container)return null;
     const wrap=root.document.createElement('div');wrap.innerHTML=modalHtml();const modal=wrap.firstElementChild;root.document.body.appendChild(modal);
     let serverRevision=0,direction=1,preview=null,manualPreviewActive=false,base=null,settings=null,spec=null,epoch=0,ready=false,busy=false,disposed=false,returnFocus=null,contextSignature='';
-    const q=s=>modal.querySelector(s),msg=(text,bad=false)=>{const e=q('[data-cfv56-msg]');e.textContent=text||'';e.dataset.bad=bad?'1':'0';};
+    const q=s=>modal.querySelector(s),msg=(text,bad=false)=>{const e=q('[data-cfv56-msg]');e.textContent=text||'';e.dataset.bad=bad?'1':'0';e.hidden=!text;};
     const signature=ctx=>JSON.stringify([ctx?.spec,ctx?.settings,ctx?.result?.units]);
     const currentContext=()=>{try{return options.getContext?.()?.result===base&&signature(options.getContext?.())===contextSignature;}catch(_){return false;}};
     // COFIRING_ADJUSTMENT_CALORIFIC_LINK_V1
@@ -417,82 +181,10 @@ function modalHtml(){return `<div class="cfv56-adjust-modal" data-cfv56-adjust-m
       }
     };
     root.addEventListener?.('cofiring:calorific-settings-saved',calorificSavedHandler);
-    // COFIRING COAL REVIEW TOAST V1
-    // COFIRING CENTERED COAL REVIEW V2
-    let coalReviewToastTimer=null;
-    function hideCoalReviewToast(){
-      if(coalReviewToastTimer){root.clearTimeout?.(coalReviewToastTimer);coalReviewToastTimer=null;}
-      const toast=q('[data-cfv56-coal-review-toast]');if(!toast)return;
-      toast.hidden=true;toast.style.opacity='0';toast.style.transform='translateY(-3px)';
-    }
-    function showCoalReviewToast(){
-      let toast=q('[data-cfv56-coal-review-toast]');
-      if(!toast){
-        const body=q('.cfv56-adjust-body');if(!body)return;
-        toast=root.document.createElement('div');
-        toast.setAttribute('data-cfv56-coal-review-toast','');
-        toast.setAttribute('role','status');
-        toast.setAttribute('aria-live','polite');
-        Object.assign(toast.style,{
-          position:'relative',
-          width:'100%',
-          margin:'12px 0 2px',
-          padding:'11px 42px 11px 14px',
-          border:'1px solid #e3c66b',
-          borderRadius:'10px',
-          background:'#fff6d8',
-          color:'#5b4710',
-          boxShadow:'0 3px 10px rgba(91,71,16,.10)',
-          fontSize:'12px',
-          fontWeight:'800',
-          lineHeight:'1.45',
-          textAlign:'center',
-          boxSizing:'border-box',
-          opacity:'0',
-          transform:'translateY(-3px)',
-          transition:'opacity .16s ease, transform .16s ease'
-        });
-        const text=root.document.createElement('span');
-        text.textContent='최대 혼소 조정 시, 1,2호기 석탄 사용량 검토 필요';
-        text.style.display='block';
-        text.style.width='100%';
-        toast.appendChild(text);
-        const closeButton=root.document.createElement('button');
-        closeButton.type='button';
-        closeButton.setAttribute('aria-label','안내 닫기');
-        closeButton.textContent='×';
-        Object.assign(closeButton.style,{
-          position:'absolute',
-          top:'50%',
-          right:'10px',
-          transform:'translateY(-50%)',
-          display:'inline-flex',
-          alignItems:'center',
-          justifyContent:'center',
-          width:'23px',
-          height:'23px',
-          padding:'0',
-          border:'1px solid #d9bd63',
-          borderRadius:'999px',
-          background:'#fffaf0',
-          color:'#705a17',
-          fontSize:'14px',
-          fontWeight:'800',
-          lineHeight:'1',
-          cursor:'pointer'
-        });
-        closeButton.addEventListener('click',hideCoalReviewToast);
-        toast.appendChild(closeButton);
-        const autoSection=q('.cfv56-auto');
-        if(autoSection?.parentNode===body)autoSection.insertAdjacentElement('afterend',toast);
-        else body.prepend(toast);
-      }
-      if(coalReviewToastTimer)root.clearTimeout?.(coalReviewToastTimer);
-      toast.hidden=false;
-      root.requestAnimationFrame?.(()=>{toast.style.opacity='1';toast.style.transform='translateY(0)';});
-      coalReviewToastTimer=root.setTimeout?.(hideCoalReviewToast,3000)||null;
-    }
     function controls(){
+      const hasPreview=Boolean(preview?.ok);
+      q('[data-cfv56-preview-badge]').hidden=!hasPreview;
+      q('[data-cfv56-coal-review-notice]').hidden=!(hasPreview&&preview.adjustment?.mode==='max_auto');
       for(const e of modal.querySelectorAll('.cfv56-adjust-body input,.cfv56-adjust-body button,[data-cfv56-reset]'))e.disabled=!ready||busy;
       q('[data-cfv56-apply]').disabled=!ready||busy||!preview?.ok;
       for(const sel of ['[data-cfv56-close]','[data-cfv56-cancel]'])q(sel).disabled=busy;
@@ -511,13 +203,19 @@ function modalHtml(){return `<div class="cfv56-adjust-modal" data-cfv56-adjust-m
         const cls=delta>0?'is-pos':delta<0?'is-neg':'is-zero';
         const suffix=type==='pct'?'%p':'';
         const icon=delta>0?'▲':delta<0?'▼':'±';
-        return `<div class="cfv56-metric"><div class="cfv56-metric-main">${main}</div><div class="cfv56-metric-base">원본 ${baseText}</div><div class="cfv56-metric-delta ${cls}">${icon} ${signed(delta,decimals)}${suffix}</div></div>`;
+        return `<div class="cfv56-metric"><div class="cfv56-metric-main">${main}</div><div class="cfv56-metric-base">원본 ${baseText}</div><div class="cfv56-metric-delta ${cls}">${delta===0?'—':`${icon} ${signed(delta,decimals)}${suffix}`}</div></div>`;
       };
       q('[data-cfv56-final]').innerHTML=UNITS.map((u,i)=>{const x=result.units[u],b=base.units[u];return `<tr><th>${i+1}호기</th><td data-label="Coal (t)">${metric(x.coal.quantity,b.coal.quantity,'ton')}</td><td data-label="Bio (t)">${metric(x.bio.quantity,b.bio.quantity,'ton')}</td><td data-label="바이오 혼소율">${metric(ratioBio(x),ratioBio(b),'pct')}</td><td data-label="유기성 및 축분 혼소율">${metric(x.fuelRatios?.organicGroup,b.fuelRatios?.organicGroup,'pct')}</td><td data-label="종합혼소율">${metric(x.fuelRatios?.total,b.fuelRatios?.total,'pct')}</td></tr>`;}).join('');
-      const resultTitle=q('.cfv56-final-head h4'),resultSubtitle=q('.cfv56-final-head p'),resultNote=q('[data-cfv56-result-note]');
-      if(resultTitle)resultTitle.textContent=hasPreview?'조정 결과 (미리보기)':'현재 계산값';
+      const resultTitle=q('[data-cfv56-result-title]'),resultSubtitle=q('.cfv56-final-head p'),resultNote=q('[data-cfv56-result-note]');
+      if(resultTitle)resultTitle.textContent=hasPreview?'조정 결과':'현재 계산값';
       if(resultSubtitle)resultSubtitle.textContent=hasPreview?'원본 수치 대비 조정된 결과와 변화를 확인하세요.':'현재 계산된 원본 수치입니다.';
-      if(resultNote){resultNote.hidden=!hasPreview;if(hasPreview)resultNote.textContent='위 수치는 선택기간 기준 미리보기 결과이며, 적용 전 예상 변화량입니다.';}
+      if(resultNote){
+        resultNote.hidden=!hasPreview;
+        if(hasPreview){
+          const excluded=r.adjustment?.excludedBioTons||0;
+          resultNote.textContent='원본 대비 변경량을 확인한 뒤 적용해 주세요.'+(excluded>0?` Bio ${fmt(excluded)} t를 혼소 계산에서 제외합니다.`:'');
+        }
+      }
       q('[data-cfv56-final1]').value=String(round(result.units.unit1.bio.quantity,2));q('[data-cfv56-final2]').value=String(round(result.units.unit2.bio.quantity,2));controls();
     }
     function cap(){
@@ -534,7 +232,7 @@ function modalHtml(){return `<div class="cfv56-adjust-modal" data-cfv56-adjust-m
       q('[data-cfv56-period]').textContent=compactPeriod(spec);
       const yearNode=q('[data-cfv56-year]');
       if(yearNode){const year=String(spec.startLocal||'').slice(0,4);yearNode.textContent=(/^\d{4}$/.test(year)?year:'2026')+'년';}
-      q('[data-cfv56-max]').value=String(storedMax());cap();render(preview);msg('저장된 조정값을 확인하고 있습니다.');returnFocus=root.document.activeElement;modal.hidden=false;modal.setAttribute('aria-hidden','false');q('[data-cfv56-close]').focus();
+      q('[data-cfv56-max]').value=maxInputText(storedMax());cap();render(preview);msg('저장된 조정값을 확인하고 있습니다.');returnFocus=root.document.activeElement;modal.hidden=false;modal.setAttribute('aria-hidden','false');q('[data-cfv56-close]').focus();
       const bundle=await loadBundle(spec,options.getHeaders);
       if(disposed||token!==epoch||modal.hidden)return;
       if(!currentContext()){msg('계산값이 변경되었습니다. 창을 닫고 다시 열어 주세요.',true);return;}
@@ -543,12 +241,12 @@ function modalHtml(){return `<div class="cfv56-adjust-modal" data-cfv56-adjust-m
       if(bundle.adjustment){const saved=bundle.adjustment,r=adjustFinal(base,settings,saved.finalBioUnit1,saved.finalBioUnit2,saved);if(r.ok)preview=r;}
       // A successful server read is authoritative, including a cleared adjustment.
       if(!bundle.adjustment)clearStored(spec);
-      ready=true;q('[data-cfv56-max]').value=String(Number(bundle.setting?.maxBioTpd)||storedMax());cap();render(preview);
-      msg(preview?'저장된 조정값입니다. 변경 후 미리보기를 확인하고 적용하세요.':'조정 전 계산값입니다. 이동 또는 자동 조정으로 미리보기를 만드세요.');
+      ready=true;q('[data-cfv56-max]').value=maxInputText(Number(bundle.setting?.maxBioTpd)||storedMax());cap();render(preview);
+      msg('');
     }
     function close(){if(busy)return;++epoch;modal.hidden=true;modal.setAttribute('aria-hidden','true');if(returnFocus?.isConnected)returnFocus.focus();}
     function validAction(){if(!ready||busy)return false;if(!currentContext()){ready=false;controls();msg('계산값이 변경되었습니다. 창을 닫고 다시 열어 주세요.',true);return false;}return true;}
-    function showPreview(r,success){preview=r;render(preview);msg(preview.ok?success:preview.message,!preview.ok);}
+    function showPreview(r){preview=r;render(preview);msg(preview.ok?'':preview.message,!preview.ok);}
     for(const b of modal.querySelectorAll('[data-cfv56-dir]'))b.addEventListener('click',()=>{if(!validAction())return;manualPreviewActive=false;direction=Number(b.dataset.cfv56Dir);for(const x of modal.querySelectorAll('[data-cfv56-dir]')){x.classList.toggle('is-selected',x===b);x.setAttribute('aria-pressed',String(x===b));}preview=null;render(null);msg('선택한 방향의 이동량을 입력하고 미리보기를 눌러 주세요.');});
     for(const el of modal.querySelectorAll('[data-cfv56-transfer],[data-cfv56-max],[data-cfv56-final1],[data-cfv56-final2]'))el.addEventListener('input',()=>{manualPreviewActive=false;if(el.hasAttribute('data-cfv56-max'))cap();preview=null;controls();msg('입력값이 변경되었습니다. 미리보기 또는 최대혼소 조정을 다시 실행하세요.');});
     q('[data-cfv56-calorific]')?.addEventListener('click',()=>{
@@ -559,10 +257,10 @@ function modalHtml(){return `<div class="cfv56-adjust-modal" data-cfv56-adjust-m
       Promise.resolve(api.open(targetDate)).catch(e=>msg(e?.message||'발열량 설정창을 열지 못했습니다.',true));
     });
     q('[data-cfv56-save-max]').addEventListener('click',async()=>{if(!validAction())return;busy=true;controls();try{const saved=await saveSharedMax(Number(q('[data-cfv56-max]').value),options.getHeaders);cap();msg(saved.shared?'Bio 최대량을 공용 설정으로 저장했습니다.':'서버 저장을 확인하지 못해 이 브라우저에만 저장했습니다.',!saved.shared);}catch(e){msg(e.message,true);}finally{busy=false;controls();}});
-    q('[data-cfv56-preview-transfer]').addEventListener('click',()=>{  if(!validAction())return;  const r=manualTransfer(base,settings,direction,q('[data-cfv56-transfer]').value);  manualPreviewActive=Boolean(r?.ok);  showPreview(r,'수동 이동 미리보기입니다. 적용하면 계산 화면에 반영됩니다.');});q('[data-cfv56-cancel-transfer]').addEventListener('click',()=>{  if(!validAction())return;  q('[data-cfv56-transfer]').value='';  if(manualPreviewActive){    preview=null;    manualPreviewActive=false;    render(null);    msg('수동 이동 미리보기를 취소했습니다.');    return;  }  manualPreviewActive=false;  controls();  msg(preview?.ok?'수동 이동 입력을 취소했습니다. 현재 미리보기는 유지됩니다.':'수동 이동 입력을 취소했습니다.');});
-    q('[data-cfv56-auto]').addEventListener('click',()=>{manualPreviewActive=false;showCoalReviewToastV13R1();if(!validAction())return;const r=autoMax(base,settings,Number(q('[data-cfv56-max]').value));showPreview(r,r.ok&&r.adjustment.excludedBioTons>0?`최대량 초과 ${fmt(r.adjustment.excludedBioTons)} t를 혼소 계산에서 제외하는 미리보기입니다.`:'최대혼소 자동 조정 미리보기입니다.');if(r?.ok)showCoalReviewToast();});
+    q('[data-cfv56-preview-transfer]').addEventListener('click',()=>{  if(!validAction())return;  const r=manualTransfer(base,settings,direction,q('[data-cfv56-transfer]').value);  manualPreviewActive=Boolean(r?.ok);  showPreview(r);});q('[data-cfv56-cancel-transfer]').addEventListener('click',()=>{  if(!validAction())return;  q('[data-cfv56-transfer]').value='';  if(manualPreviewActive){    preview=null;    manualPreviewActive=false;    render(null);    msg('수동 이동 미리보기를 취소했습니다.');    return;  }  manualPreviewActive=false;  controls();  msg(preview?.ok?'수동 이동 입력을 취소했습니다. 현재 미리보기는 유지됩니다.':'수동 이동 입력을 취소했습니다.');});
+    q('[data-cfv56-auto]').addEventListener('click',()=>{manualPreviewActive=false;if(!validAction())return;showPreview(autoMax(base,settings,Number(q('[data-cfv56-max]').value)));});
     q('[data-cfv56-edit]').addEventListener('click',()=>{if(!validAction())return;const e=q('[data-cfv56-final-edit]');e.hidden=!e.hidden;if(!e.hidden)q('[data-cfv56-final1]').focus();});
-    q('[data-cfv56-preview-final]').addEventListener('click',()=>{manualPreviewActive=false;if(!validAction())return;const v1=q('[data-cfv56-final1]').value,v2=q('[data-cfv56-final2]').value;if(v1.trim()===''||v2.trim()===''){preview=null;controls();msg('두 호기의 최종 Bio를 모두 입력해 주세요. 사용량이 없으면 0을 입력하세요.',true);return;}showPreview(adjustFinal(base,settings,Number(v1),Number(v2),{mode:'manual_final'}),'최종 Bio 직접수정 미리보기입니다.');});
+    q('[data-cfv56-preview-final]').addEventListener('click',()=>{manualPreviewActive=false;if(!validAction())return;const v1=q('[data-cfv56-final1]').value,v2=q('[data-cfv56-final2]').value;if(v1.trim()===''||v2.trim()===''){preview=null;controls();msg('두 호기의 최종 Bio를 모두 입력해 주세요. 사용량이 없으면 0을 입력하세요.',true);return;}showPreview(adjustFinal(base,settings,Number(v1),Number(v2),{mode:'manual_final'}));});
             // COFIRING_ACTIVE_ADJUSTMENT_RESET_API_V1
         async function resetApplied(){
           if(busy||disposed)return false;

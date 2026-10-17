@@ -1,125 +1,34 @@
 'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const repo = path.resolve(__dirname, '..');
+const index = fs.readFileSync(path.join(repo, 'index.html'), 'utf8');
 
-const assert =
-  require('node:assert/strict');
+test('the active page has one shared adjustment owner without legacy coal-warning listeners or cleanup observers', () => {
+  assert.equal((index.match(/<script\b[^>]*\/maintenance\/cofiring-period-adjustment-v56\.js\?/g) || []).length, 1);
+  for (const name of [
+    'morning-meeting-cofiring-coal-review-v1.js',
+    'morning-meeting-cofiring-coal-review-popup-v4.js',
+    'cofiring-max-adjust-warning-bar-cleanup-v1.js'
+  ]) {
+    const scripts = [...index.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)].map(match => match[1].split('?')[0]);
+    assert.equal(scripts.some(url => url.endsWith('/'+name)), false, name+' must not add a second warning owner');
+  }
+});
 
-const fs =
-  require('node:fs');
+test('deprecated warning modules remain available without being registered into the current page', () => {
+  const retainedPopup = fs.readFileSync(path.join(repo, 'maintenance/morning-meeting-cofiring-coal-review-popup-v4.js'), 'utf8');
+  const retainedObserver = fs.readFileSync(path.join(repo, 'maintenance/cofiring-max-adjust-warning-bar-cleanup-v1.js'), 'utf8');
+  assert.match(retainedPopup, /CofiringCoalReviewV12/);
+  assert.match(retainedObserver, /COFIRING_MAX_ADJUST_WARNING_BAR_CLEANUP_V1/);
+});
 
-const path =
-  require('node:path');
-
-const repo =
-  path.resolve(
-    __dirname,
-    '..'
-  );
-
-const adjustment =
-  fs.readFileSync(
-    path.join(
-      repo,
-      'maintenance',
-      'cofiring-period-adjustment-v56.js'
-    ),
-    'utf8'
-  );
-
-const index =
-  fs.readFileSync(
-    path.join(
-      repo,
-      'index.html'
-    ),
-    'utf8'
-  );
-
-assert.ok(
-  adjustment.includes(
-    'COFIRING-MAX-INLINE-MODAL-MESSAGE-V14-R1'
-  )
-);
-
-assert.ok(
-  adjustment.includes(
-    '1,2호기 석탄 사용량 검토 필요합니다.'
-  )
-);
-
-assert.ok(
-  adjustment.includes(
-    '.cfv56-adjust-dialog'
-  )
-);
-
-assert.ok(
-  adjustment.includes(
-    'host.appendChild'
-  )
-);
-
-assert.ok(
-  adjustment.includes(
-    'place-items:center'
-  )
-);
-
-assert.ok(
-  adjustment.includes(
-    'data-cfv56-coal-review-center-close'
-  )
-);
-
-assert.ok(
-  adjustment.includes(
-    '3000'
-  )
-);
-
-assert.ok(
-  adjustment.includes(
-    'showCoalReviewToastV13R1();'
-  )
-);
-
-const handlerIndex =
-  adjustment.indexOf(
-    "q('[data-cfv56-auto]')"
-  );
-
-const toastIndex =
-  adjustment.indexOf(
-    'showCoalReviewToastV13R1();',
-    handlerIndex
-  );
-
-const autoMaxIndex =
-  adjustment.indexOf(
-    'autoMax(',
-    toastIndex
-  );
-
-assert.ok(
-  handlerIndex >= 0 &&
-  toastIndex > handlerIndex &&
-  autoMaxIndex > toastIndex,
-  'maximum handler must show message and then continue existing autoMax'
-);
-
-assert.ok(
-  !adjustment.includes(
-    'doc.body.appendChild(toast)'
-  )
-);
-
-assert.ok(
-  /cofiring-period-adjustment-v56\.js\?v=[^\"\s<>]+/.test(index)
-);
-
-assert.ok(
-  fs.readFileSync(path.join(repo,'maintenance/morning-meeting-permanent-purge-v1.js'),'utf8').includes('if (!confirmDelete(date)) return;')
-);
-
-console.log(
-  'PASS: V14 R1 shows the Coal-review message in the center of the active co-firing dialog for 3 seconds or until X, preserves autoMax, and keeps the login purge hotfix (12).'
-);
+test('the retained purge confirmation guard awaits its existing async confirmation before mutation', () => {
+  // Preserve the old test's independent safety check with the actual async
+  // contract. Its obsolete sync string already failed before this UI change.
+  const purge = fs.readFileSync(path.join(repo, 'maintenance/morning-meeting-permanent-purge-v1.js'), 'utf8');
+  assert.match(purge, /async function confirmDelete\(date\)/);
+  assert.match(purge, /if\s*\(\s*!\(\s*await\s+confirmDelete\(date\)\s*\)\s*\)\s*return\s*;/);
+});
