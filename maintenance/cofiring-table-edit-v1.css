@@ -160,6 +160,34 @@
   background:#f2f5f3 !important;
   cursor:not-allowed !important;
 }
+/* Every editable value retains the same original/delta comparison as the
+   read-only table. The two lines remain directly below their own input. */
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-comparison {
+  width:100% !important;
+  max-width:124px !important;
+  margin:4px auto 0 !important;
+  gap:2px !important;
+  justify-items:center !important;
+  font-variant-numeric:tabular-nums !important;
+  text-align:center !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-comparison:not([hidden]) {
+  display:grid !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-comparison .cfv56-metric-base {
+  margin:0 !important;
+  font-size:12.5px !important;
+  font-weight:500 !important;
+  line-height:1.2 !important;
+  white-space:nowrap !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-comparison .cfv56-metric-delta {
+  margin:0 !important;
+  font-size:13px !important;
+  font-weight:750 !important;
+  line-height:1.2 !important;
+  white-space:nowrap !important;
+}
 .cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-table-edit-actions {
   gap:8px !important;
   justify-content:flex-end !important;
@@ -443,6 +471,18 @@
     height:34px !important;
     padding:6px 8px !important;
     font-size:15px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-edit-table tbody th,
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-edit-table tbody td {
+    padding:5px 8px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-edit-comparison {
+    margin-top:2px !important;
+    gap:1px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-edit-comparison .cfv56-metric-base,
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-edit-comparison .cfv56-metric-delta {
+    line-height:1.15 !important;
   }
   .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-table-edit-actions {
     margin-top:7px !important;
