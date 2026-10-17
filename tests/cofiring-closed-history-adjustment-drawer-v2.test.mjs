@@ -9,7 +9,7 @@ test('closed-history API resolves active persisted period adjustments for old au
   assert.match(source,/PERIOD_ADJUSTMENT_TABLE='cofiring_period_adjustment_history'/);
   assert.match(source,/async function latestClosedPeriodAdjustment/);
   assert.match(source,/function projectClosedPeriodAdjustment/);
-  assert.match(source,/adjustment\.adjustFinal\(base,snapshot\.settings,entry\.finalBioUnit1,entry\.finalBioUnit2,entry\)/);
+  assert.match(source,/adjustment\.resolveAdjustment\(base,snapshot\.settings,entry\)/);
   assert.match(source,/await hydrateActivePeriodAdjustment\(db,item\);/);
   assert.match(source,/async function activeAdjustmentDates/);
   assert.match(source,/await applyMonthAdjustmentFlags\(db,month,items\);/);

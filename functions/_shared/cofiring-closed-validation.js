@@ -126,6 +126,13 @@ export function validateClosedSnapshot(body, source, now = Date.now()) {
     } else if (meta.mode === 'max_auto' && finite(meta.maxBioTpd) && meta.maxBioTpd > 0 && meta.maxBioTpd <= 2000) {
       adjusted = adjustment.replayAutoMax(result, settings, meta.maxBioTpd,
         shown.units?.unit1?.bio?.quantity, shown.units?.unit2?.bio?.quantity);
+    } else if (meta.mode === 'manual_table') {
+      adjusted = adjustment.adjustTable(result, settings, {
+        finalCoalUnit1: shown.units?.unit1?.coal?.quantity,
+        finalCoalUnit2: shown.units?.unit2?.coal?.quantity,
+        finalBioUnit1: shown.units?.unit1?.bio?.quantity,
+        finalBioUnit2: shown.units?.unit2?.bio?.quantity
+      });
     } else if (meta.mode === 'manual_final') {
       adjusted = adjustment.adjustFinal(result, settings, shown.units?.unit1?.bio?.quantity,
         shown.units?.unit2?.bio?.quantity, { mode: 'manual_final' });

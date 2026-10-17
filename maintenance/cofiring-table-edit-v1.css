@@ -1,0 +1,469 @@
+/* COFIRING_TABLE_EDIT_V1
+   Only the shared adjustment dialog's editable table is styled here.
+   Retain V15's dialog, scroll body, fixed actions and read-only result design. */
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-table-editor {
+  min-width:0 !important;
+  margin:0 !important;
+  padding:0 !important;
+  border:0 !important;
+  border-radius:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+  grid-template-columns:none !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-table-editor:not([hidden]) {
+  display:block !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-table-edit-help {
+  margin:0 0 10px !important;
+  padding:10px 12px !important;
+  border:1px solid #d9e8e1 !important;
+  border-radius:10px !important;
+  background:#f4faf7 !important;
+  color:#466c5e !important;
+  font-size:12px !important;
+  line-height:1.5 !important;
+  word-break:keep-all !important;
+  overflow-wrap:anywhere !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-scroll {
+  width:100% !important;
+  min-width:0 !important;
+  max-height:none !important;
+  overflow-x:auto !important;
+  overflow-y:hidden !important;
+  border:1px solid #bbd8cb !important;
+  border-radius:14px !important;
+  background:#fff !important;
+  -webkit-overflow-scrolling:touch;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-table {
+  width:100% !important;
+  min-width:776px !important;
+  table-layout:fixed !important;
+  border:0 !important;
+  border-collapse:separate !important;
+  border-spacing:0 !important;
+  border-radius:13px !important;
+  overflow:hidden !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-table:not([hidden]) {
+  display:table !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-table thead:not([hidden]) {
+  display:table-header-group !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-table tbody:not([hidden]) {
+  display:table-row-group !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-table tr {
+  grid-template-columns:none !important;
+  border:0 !important;
+  border-radius:0 !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-table tr:not([hidden]) {
+  display:table-row !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-table th,
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-table td {
+  grid-column:auto !important;
+  grid-row:auto !important;
+  width:auto !important;
+  height:auto !important;
+  min-height:0 !important;
+  text-align:center !important;
+  vertical-align:middle !important;
+  border-right:1px solid #e2ece6 !important;
+  border-bottom:1px solid #e1eae5 !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-table th:not([hidden]),
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-table td:not([hidden]) {
+  display:table-cell !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-table th:first-child {
+  width:68px !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-table thead th {
+  height:45px !important;
+  padding:9px 7px !important;
+  background:#f1f8f4 !important;
+  color:#4d6e5f !important;
+  font-size:12px !important;
+  line-height:1.4 !important;
+  font-weight:700 !important;
+  white-space:nowrap !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-table tbody th {
+  padding:15px 8px !important;
+  background:#f8faf9 !important;
+  color:#183c2d !important;
+  font-size:15px !important;
+  font-weight:750 !important;
+  white-space:nowrap !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-table tbody td {
+  padding:12px 8px !important;
+  background:#fff !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-table tbody td:last-child {
+  background:#eff9f4 !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-table th:last-child,
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-table td:last-child {
+  border-right:0 !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-table tbody tr:last-child th,
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-table tbody tr:last-child td {
+  border-bottom:0 !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-table td::before {
+  display:none !important;
+  content:none !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-table input[type="number"] {
+  box-sizing:border-box !important;
+  width:100% !important;
+  min-width:0 !important;
+  max-width:124px !important;
+  height:42px !important;
+  margin:0 !important;
+  padding:8px 9px !important;
+  border:1px solid #b4cdbf !important;
+  border-radius:8px !important;
+  background:#fff !important;
+  color:#17392b !important;
+  font-family:inherit !important;
+  font-size:16px !important;
+  line-height:1.3 !important;
+  font-weight:750 !important;
+  font-variant-numeric:tabular-nums !important;
+  text-align:right !important;
+  outline:none !important;
+  box-shadow:inset 0 1px 2px rgba(22,68,43,.035) !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-table input[type="number"]:hover:not(:disabled) {
+  border-color:#7cad97 !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-table input[type="number"]:focus {
+  border-color:#008a75 !important;
+  outline:2px solid #90cdb9 !important;
+  outline-offset:1px !important;
+  box-shadow:none !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-table input[type="number"][aria-invalid="true"],
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-table input[type="number"]:invalid {
+  border-color:#cf695c !important;
+  background:#fff8f6 !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-edit-table input[type="number"]:disabled {
+  opacity:.65 !important;
+  background:#f2f5f3 !important;
+  cursor:not-allowed !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-table-edit-actions {
+  gap:8px !important;
+  justify-content:flex-end !important;
+  flex-wrap:wrap !important;
+  margin-top:11px !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-table-edit-actions:not([hidden]) {
+  display:flex !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-table-edit-actions button {
+  flex:0 1 auto !important;
+  grid-column:auto !important;
+  grid-row:auto !important;
+  width:auto !important;
+  min-width:96px !important;
+  height:39px !important;
+  padding:0 14px !important;
+  border:1px solid #c5d8cd !important;
+  border-radius:9px !important;
+  background:#fff !important;
+  color:#526e5e !important;
+  font-size:12.5px !important;
+  font-weight:750 !important;
+  line-height:1.4 !important;
+  white-space:nowrap !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-table-edit-actions [data-cfv56-preview-final] {
+  border-color:#008a75 !important;
+  background:#008a75 !important;
+  color:#fff !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-table-edit-actions button:focus-visible {
+  outline:2px solid #66b49c !important;
+  outline-offset:2px !important;
+}
+.cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-table-edit-actions button:hover:not(:disabled) {
+  filter:brightness(.97);
+}
+@media (max-width:460px) {
+  .cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-table-edit-help {
+    padding:9px 10px !important;
+    font-size:11.5px !important;
+  }
+  .cfv56-adjust-modal.cfv56-table-edit-v1 .cfv56-table-edit-actions button {
+    flex:1 1 auto !important;
+    min-width:0 !important;
+    padding:0 11px !important;
+  }
+}
+/* Desktop keeps the complete automatic preview in view at 1280x720 and
+   1366x768. Mobile retains V15's independently scrolling dialog body. */
+@media (min-width:900px) {
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 {
+    padding:10px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-adjust-dialog {
+    max-height:calc(100vh - 20px) !important;
+    max-height:calc(100dvh - 20px) !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-adjust-dialog > header {
+    padding:8px 16px 7px !important;
+    gap:12px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-adjust-dialog > header > div:first-child:not([hidden]) {
+    display:grid !important;
+    grid-template-columns:auto minmax(0,1fr) !important;
+    align-items:baseline !important;
+    column-gap:10px !important;
+    row-gap:2px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-adjust-dialog > header > div:first-child > span {
+    grid-column:2 !important;
+    grid-row:1 !important;
+    font-size:8.5px !important;
+    line-height:1.2 !important;
+    letter-spacing:1px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-adjust-dialog > header h3 {
+    grid-column:1 !important;
+    grid-row:1 !important;
+    margin:0 !important;
+    font-size:24px !important;
+    line-height:1.15 !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-adjust-dialog > header p {
+    grid-column:1 / -1 !important;
+    margin:0 !important;
+    font-size:10.5px !important;
+    line-height:1.3 !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-adjust-dialog > header .cfv56-calorific-button {
+    min-width:98px !important;
+    height:34px !important;
+    font-size:11.5px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-adjust-dialog > header [data-cfv56-close] {
+    width:34px !important;
+    height:34px !important;
+    font-size:22px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-adjust-body {
+    padding:0 16px 8px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-adjust-top-grid,
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-action-grid {
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important;
+    gap:8px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-top-card {
+    min-height:62px !important;
+    padding:6px 10px !important;
+    gap:2px !important;
+    border-radius:11px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-top-card-label {
+    font-size:11px !important;
+    line-height:1.3 !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-inline-year {
+    font-size:10px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-top-card-period [data-cfv56-period] {
+    margin-top:4px !important;
+    font-size:16px !important;
+    line-height:1.3 !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-cap-head {
+    margin-bottom:4px !important;
+    gap:6px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-cap-note {
+    font-size:9.5px !important;
+    line-height:1.3 !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-cap-group {
+    min-height:32px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-cap-group [data-cfv56-max],
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-cap-group .cfv56-unit,
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-cap-group [data-cfv56-save-max] {
+    height:32px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-cap-group [data-cfv56-max] {
+    font-size:17px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-action-grid {
+    margin-top:8px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-manual-card,
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-auto-card {
+    padding:6px 10px !important;
+    border-radius:11px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-manual-card .cfv56-section-head {
+    margin-bottom:4px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-manual-card .cfv56-section-head h4 {
+    font-size:14px !important;
+    line-height:1.2 !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-manual-card .cfv56-section-head p {
+    font-size:10px !important;
+    line-height:1.3 !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-manual-card .cfv56-dir button {
+    height:32px !important;
+    font-size:13px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-manual-card .cfv56-transfer {
+    margin-top:5px !important;
+    gap:5px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-manual-card .cfv56-transfer input,
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-manual-card .cfv56-transfer button {
+    height:30px !important;
+    font-size:11.5px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-manual-card .cfv56-field-label,
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-manual-card .cfv56-transfer > span {
+    font-size:11px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-auto-card {
+    grid-template-rows:auto 38px !important;
+    gap:8px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-auto-copy-line {
+    font-size:11px !important;
+    line-height:1.3 !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-auto-card [data-cfv56-auto] {
+    height:38px !important;
+    font-size:14px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-adjust-msg,
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-coal-review-notice {
+    min-height:30px !important;
+    margin-top:7px !important;
+    padding:6px 10px !important;
+    font-size:11px !important;
+    line-height:1.35 !important;
+    border-radius:9px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-result-section {
+    margin-top:10px !important;
+    font-size:10.5px !important;
+    line-height:1.3 !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-final-head {
+    gap:8px !important;
+    margin-bottom:6px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-final-head h4 {
+    font-size:20px !important;
+    line-height:1.2 !important;
+    gap:8px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-final-head p {
+    margin-top:2px !important;
+    font-size:11px !important;
+    line-height:1.3 !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-preview-badge {
+    padding:3px 9px !important;
+    font-size:10.5px !important;
+    line-height:1.2 !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-final-head [data-cfv56-edit] {
+    height:32px !important;
+    font-size:11.5px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-adjust-body thead th {
+    height:34px !important;
+    padding:6px 7px !important;
+    font-size:11px !important;
+    line-height:1.3 !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-adjust-body tbody th,
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-adjust-body tbody td {
+    min-height:0 !important;
+    padding:6px 8px !important;
+    vertical-align:middle !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-adjust-body tbody th {
+    font-size:14px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-metric {
+    gap:2px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-metric-main {
+    font-size:18px !important;
+    line-height:1.2 !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-metric-base {
+    font-size:12.5px !important;
+    line-height:1.2 !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-metric-delta {
+    font-size:13px !important;
+    line-height:1.2 !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-result-note {
+    margin-top:6px !important;
+    padding:4px 10px !important;
+    font-size:11px !important;
+    line-height:1.4 !important;
+    border-radius:8px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-formula:not([hidden]) {
+    display:inline !important;
+    margin:0 10px 0 0 !important;
+    font-size:10.5px !important;
+    line-height:1.3 !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-table-edit-help {
+    margin-bottom:6px !important;
+    padding:4px 10px !important;
+    font-size:10.5px !important;
+    line-height:1.35 !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-edit-table input[type="number"] {
+    height:34px !important;
+    padding:6px 8px !important;
+    font-size:15px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-table-edit-actions {
+    margin-top:7px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-table-edit-actions button {
+    height:32px !important;
+    font-size:11.5px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-adjust-dialog > footer {
+    padding:8px 16px !important;
+    gap:8px !important;
+  }
+  .cfv56-adjust-modal.cfv56-design-v15.cfv56-table-edit-v1 .cfv56-adjust-dialog > footer button {
+    height:36px !important;
+    min-width:88px !important;
+    font-size:13px !important;
+  }
+}
+/* Keep native hidden semantics even when legacy important display rules are
+   present. All display rules above explicitly exclude hidden elements. */
+.cfv56-adjust-modal.cfv56-table-edit-v1[hidden],
+.cfv56-adjust-modal.cfv56-table-edit-v1 [hidden] {
+  display:none !important;
+}

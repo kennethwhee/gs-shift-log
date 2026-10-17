@@ -181,12 +181,21 @@ function normalizeSaveAdjustment(body, currentSetting) {
   const transfer = finite(source.bioTransferTons ?? body?.bioTransferTons) ?? 0;
   const excluded = finite(source.excludedBioTons ?? body?.excludedBioTons ?? result?.excludedBioTons) ?? 0;
   const maxBio = finite(source.maxBioTpd ?? source.maxBioLimit ?? body?.maxBioTpd ?? body?.maxBioLimit ?? currentSetting?.maxBioTpd);
+  const mode = clean(source.mode || body?.mode || result?.mode || "manual_final") || "manual_final";
+  let coal = {};
+  if (mode === "manual_table") {
+    const one = source.finalCoalUnit1 ?? body?.finalCoalUnit1 ?? result?.units?.unit1?.coal?.quantity;
+    const two = source.finalCoalUnit2 ?? body?.finalCoalUnit2 ?? result?.units?.unit2?.coal?.quantity;
+    if (![one, two].every(value => typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1000000)) return null;
+    coal = { finalCoalUnit1: one, finalCoalUnit2: two };
+  }
   return {
-    mode: clean(source.mode || body?.mode || result?.mode || "manual_final") || "manual_final",
+    mode,
     fromUnit,
     bioTransferTons: Math.max(0, transfer),
     finalBioUnit1: finalOne,
     finalBioUnit2: finalTwo,
+    ...coal,
     maxBioTpd: maxBio,
     excludedBioTons: Math.max(0, excluded),
     note: clean(source.note || body?.note || result?.exclusionNote)

@@ -163,11 +163,17 @@ function closedStoredAdjustment(row){
   if(!data||typeof data!=='object'||Array.isArray(data))return null;
   const mode=String(data.mode||'').trim();
   const f1=Number(data.finalBioUnit1),f2=Number(data.finalBioUnit2);
-  if(!['manual_transfer','max_auto','manual_final'].includes(mode)||!Number.isFinite(f1)||f1<0||!Number.isFinite(f2)||f2<0)return null;
+  if(!['manual_transfer','max_auto','manual_final','manual_table'].includes(mode)||!Number.isFinite(f1)||f1<0||!Number.isFinite(f2)||f2<0)return null;
+  let coal={};
+  if(mode==='manual_table'){
+    const keys=['finalCoalUnit1','finalCoalUnit2','finalBioUnit1','finalBioUnit2'];
+    if(!keys.every(k=>typeof data[k]==='number'&&Number.isFinite(data[k])&&data[k]>=0&&data[k]<=1000000))return null;
+    coal={finalCoalUnit1:data.finalCoalUnit1,finalCoalUnit2:data.finalCoalUnit2};
+  }
   const from=data.fromUnit==null?null:Number(data.fromUnit);
   const transfer=Number(data.bioTransferTons||0),excluded=Number(data.excludedBioTons||0),max=data.maxBioTpd==null?null:Number(data.maxBioTpd);
   if((from!==null&&from!==1&&from!==2)||!Number.isFinite(transfer)||transfer<0||!Number.isFinite(excluded)||excluded<0||(max!==null&&(!Number.isFinite(max)||max<=0)))return null;
-  return {mode,fromUnit:from,bioTransferTons:transfer,finalBioUnit1:f1,finalBioUnit2:f2,maxBioTpd:max,excludedBioTons:excluded,note:String(data.note||'').slice(0,500),revision:Number(row.revision)||0,updatedAt:String(row.updated_at||'')};
+  return {mode,fromUnit:from,bioTransferTons:transfer,finalBioUnit1:f1,finalBioUnit2:f2,...coal,maxBioTpd:max,excludedBioTons:excluded,note:String(data.note||'').slice(0,500),revision:Number(row.revision)||0,updatedAt:String(row.updated_at||'')};
 }
 async function latestClosedPeriodAdjustmentState(db,start,end){
   if(typeof start!=='string'||typeof end!=='string'||!start||!end)return {found:false,active:false,entry:null};
@@ -198,7 +204,7 @@ function projectClosedPeriodAdjustment(snapshot,entry){
   const base=snapshot.originalResult||(snapshot.result?.adjustment?.applied===true?null:snapshot.result);
   if(!base||!snapshot.settings)return null;
   try{
-    const projected=adjustment.adjustFinal(base,snapshot.settings,entry.finalBioUnit1,entry.finalBioUnit2,entry);
+    const projected=adjustment.resolveAdjustment(base,snapshot.settings,entry);
     if(!projected?.ok||!projected.result)return null;
     return {originalResult:base,result:projected.result,adjustment:projected.adjustment||entry};
   }catch{return null;}
