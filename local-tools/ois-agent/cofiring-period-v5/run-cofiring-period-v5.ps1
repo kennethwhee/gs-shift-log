@@ -23,9 +23,9 @@ $ProgressPreference='SilentlyContinue'
 [Console]::OutputEncoding=New-Object Text.UTF8Encoding($false)
 $OutputEncoding=[Console]::OutputEncoding
 $runId=[guid]::NewGuid().ToString('N')
-$timeoutSeconds=150
+$timeoutSeconds=300
 $startupTimeoutSeconds=120
-$outerTimeoutSeconds=270
+$outerTimeoutSeconds=420
 $cleanupGraceSeconds=60
 $executionClock=$null
 $readyObservedSeconds=$null
@@ -360,8 +360,8 @@ function Get-CofiringDeadlineDecision {
     [double]$ElapsedSeconds,
     $ReadyObservedSeconds=$null,
     [int]$StartupSeconds=120,
-    [int]$ExecutionSeconds=150,
-    [int]$OuterSeconds=270
+    [int]$ExecutionSeconds=300,
+    [int]$OuterSeconds=420
   )
   if ([double]::IsNaN($ElapsedSeconds) -or [double]::IsInfinity($ElapsedSeconds) -or $ElapsedSeconds -lt 0 -or
       $StartupSeconds -le 0 -or $ExecutionSeconds -le 0 -or $OuterSeconds -le 0) { throw '조회 시간 예산 값이 올바르지 않습니다.' }

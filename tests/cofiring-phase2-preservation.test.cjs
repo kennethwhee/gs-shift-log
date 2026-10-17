@@ -6,7 +6,7 @@ test('exact archive inverse is idempotent and preserves unrelated controller cha
   const restored=restorePhase2Archive(source);
   assert.doesNotMatch(restored,/SkipDiagnosticArchive|COFIRING_PHASE2_ON_DEMAND_ARCHIVE/);
   assert.equal(restorePhase2Archive(restored),restored);
-  const changed=source.replace("$timeoutSeconds=150","$timeoutSeconds=999");
+  const changed=source.replace(/^\$timeoutSeconds=\d+\s*$/m,"$timeoutSeconds=999");
   assert.match(restorePhase2Archive(changed),/\$timeoutSeconds=999/);
 });
 test('archive inverse rejects partial or altered archive patches',()=>{

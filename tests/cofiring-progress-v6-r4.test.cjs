@@ -23,7 +23,7 @@ function harness(t,{chunks=[],result=report(),code=0,progressError=false,onProgr
     setImmediate(async()=>{for(const chunk of chunks){child.stdout.write(chunk);await new Promise(resolve=>setImmediate(resolve));}if(result)fs.writeFileSync(path.join(dir,'period-report.json'),JSON.stringify(result));if(errorInsteadOfClose)child.emit('error',new Error('synthetic child stream failure'));else{child.stdout.end();child.stderr.end();child.emit('close',code,null);}resolveTerminal();});
     return child;
   }});
-  const request={id,requestType:'cofiring_period',status:'processing',agentId:'test-agent',startedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+10*60000).toISOString(),result:contract.periodEnvelope(spec)};
+  const request={id,requestType:'cofiring_period',status:'processing',agentId:'test-agent',startedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+30*60000).toISOString(),result:contract.periodEnvelope(spec)};
   return {root,progress,logs,request,terminal,get calls(){return calls;},get child(){return lastChild;},run:(changes={})=>collect({agentId:'test-agent'},{...request,...changes},{postProgress:async value=>{progress.push(value);if(onProgress)await onProgress(value);if(progressError)throw new Error('synthetic progress outage');}})};
 }
 

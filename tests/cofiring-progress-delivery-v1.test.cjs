@@ -29,7 +29,7 @@ function harness(t,{postProgress,spawnError,pid=777,collectorOptions={}}={}){
     const child=new EventEmitter();child.pid=pid;child.stdout=new PassThrough();child.stderr=new PassThrough();child.dir=args[args.indexOf('-OutputDirectory')+1];
     child.once('close',()=>{child.closed=true;});children.push(child);return child;
   }});
-  const request={id,requestType:'cofiring_period',status:'processing',agentId:'test-agent',startedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+10*60000).toISOString(),result:contract.periodEnvelope(spec)};
+  const request={id,requestType:'cofiring_period',status:'processing',agentId:'test-agent',startedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+30*60000).toISOString(),result:contract.periodEnvelope(spec)};
   return {root,posts,logs,request,get launches(){return launches;},get child(){return children.at(-1);},
     run:(changes={},withProgress=true)=>collect({agentId:'test-agent'},{...request,...changes},withProgress?{postProgress:value=>{posts.push(value);return postProgress?.(value,posts.length);}}:{}),
     emit:(phase,elapsed,overrides)=>children.at(-1).stdout.write(event(phase,elapsed,overrides)),
