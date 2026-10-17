@@ -94,7 +94,14 @@
   }
   function markup(){
     const date=defaultCalculationDate(),d=dailySelectionSpec(date);let partial;try{partial=currentDaySpec();}catch(_){partial=d;}
-    return `<div class="cfv5-sheet">
+    return `<div class="cfv-query-overlay" data-cfv-query-overlay role="status" aria-live="polite" aria-atomic="true" hidden>
+      <div class="cfv-query-overlay__card">
+        <span class="cfv-query-overlay__spinner" aria-hidden="true"></span>
+        <strong class="cfv-query-overlay__title">혼소율을 조회 중입니다</strong>
+        <p data-cfv-query-overlay-phase>필요한 자료를 불러오고 있어요</p>
+        <span data-cfv-query-overlay-elapsed aria-hidden="true">경과 00:00</span>
+      </div>
+    </div><div class="cfv5-sheet">
       <div class="cfv5-title-row">
         <div class="cfv5-title-copy"><span class="cfv5-eyebrow">FUEL OPERATIONS</span><h2>혼소율 분석</h2></div>
         <button type="button" class="cfv5-version" data-cfv-target-open aria-label="Bio 목표 비율 수정, 1·2호기 공통" aria-controls="cfv-dark-target-editor">Bio 목표 <strong data-cfv-target-label>25%</strong><span aria-hidden="true">✎</span></button>
@@ -466,6 +473,26 @@
     paintBioTarget(container);
     const mobile=isMobile();if(!mobile){try{cfvSummaryLayoutPending(queryMode(container)==='daily');}catch(_){cfvSummaryLayoutPending(false);}}let reference=null,lastResult=null,displayResult=null,periodGeneration=0,settingsDirty=false,manualDirty=false,manualTouched=false,disposed=false,fastPrepTimer=null,fastPrepGeneration=0,inputRecalcTimer=null,adjustmentActive=false,conflictRetrying=false,selectedStoreKey='';
     let clickTiming=null,clickToken=null,clickContext=null,clickBusy=false,renderedRequestId=null,dayBoundaryTimer=null,deadlineRefreshTimer=null,selectionEpoch=0,deadlineInputError='',pendingDailyDraft=null,restoringSaved=false;
+    // COFIRING_QUERY_OVERLAY_V2: reuse the guarded click lifecycle and its clock.
+    const queryOverlay=container.querySelector('[data-cfv-query-overlay]');
+    const queryOverlayPhase=container.querySelector('[data-cfv-query-overlay-phase]');
+    const queryOverlayElapsed=container.querySelector('[data-cfv-query-overlay-elapsed]');
+    const queryOverlayHost=container.closest?.('#efficiencyCofiringDraftView')?.parentElement;
+    // Keep the layer in the visible workspace, outside the scrolling document.
+    if(queryOverlay&&queryOverlayHost?.classList.contains('efficiency-team-workspace'))queryOverlayHost.appendChild(queryOverlay);
+    function paintQueryOverlay(s){
+      if(!queryOverlay)return;
+      const showing=clickIsCurrent()&&['running','finishing'].includes(s.status);
+      queryOverlay.hidden=!showing;
+      container.classList.toggle('cfv-query-overlay-active',showing);
+      container.setAttribute('aria-busy',String(showing));
+      if(!showing)return;
+      const phase=s.status==='finishing'?'계산 결과를 화면에 표시하고 있어요':s.phase||'필요한 자료를 불러오고 있어요';
+      if(queryOverlayPhase&&queryOverlayPhase.textContent!==phase)queryOverlayPhase.textContent=phase;
+      const seconds=Math.max(0,Math.floor((s.elapsedMs||0)/1000));
+      const elapsed=`경과 ${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
+      if(queryOverlayElapsed&&queryOverlayElapsed.textContent!==elapsed)queryOverlayElapsed.textContent=elapsed;
+    }
     // The editing transaction is separate from the persisted manual/automatic mode.
     let usageEditSnapshot=null;
     const usageFields=()=>[...container.querySelectorAll('[data-cfv5-manual],[data-cfv5-receipt]')];
@@ -819,7 +846,7 @@
         return false;
       }
     }
-    function paintClickTiming(s){const stageEl=container.querySelector('[data-cfv7-stage-timing]');if(stageEl){stageEl.hidden=!clickIsCurrent()||s.status!=='complete'||!s.details?.length;stageEl.textContent=stageEl.hidden?'':s.details.map(row=>`${row.label}: ${row.seconds.toFixed(2)}초`).join('\n')+'\n※ 포함·잔여 구간이 있어 항목을 모두 더하면 전체 시간과 다릅니다.';}const el=container.querySelector('[data-cfv7-click-timing]');if(!el)return;if(!clickIsCurrent()){el.hidden=true;el.textContent='';return;}el.hidden=s.status==='idle';const seconds=(s.elapsedMs/1000).toFixed(1);const label=s.mode==='resume_existing'?'상태 확인부터':'계산 시간';if(s.status==='complete'){const source=s.source==='saved_recalculate'?'저장값 재계산':s.source==='resume_existing'?'진행 중 조회 결과':'새 DataPARC 결과';const pcSeconds=Number.isFinite(s.agentSeconds)?s.agentSeconds:s.controllerSeconds;const pcLabel=Number.isFinite(s.agentSeconds)?'회사 PC':'조회·정리';const backend=s.source==='new_query'&&Number.isFinite(pcSeconds)?` · ${pcLabel} ${pcSeconds.toFixed(1)}초${Number.isFinite(s.querySeconds)?` (DataPARC ${s.querySeconds.toFixed(1)}초 포함)`:''}`:'';el.textContent=`${label} ${seconds}초 · ${source}${backend}`;}else if(s.status==='failed')el.textContent=`${label} ${seconds}초 · 완료되지 않음`;else if(s.status==='cancelled')el.textContent=`${label} ${seconds}초 · 측정 중단`;else el.textContent=`${label} ${seconds}초 · ${s.phase||'결과 확인 중'}`;refreshStatusLine();}
+    function paintClickTiming(s){paintQueryOverlay(s);const stageEl=container.querySelector('[data-cfv7-stage-timing]');if(stageEl){stageEl.hidden=!clickIsCurrent()||s.status!=='complete'||!s.details?.length;stageEl.textContent=stageEl.hidden?'':s.details.map(row=>`${row.label}: ${row.seconds.toFixed(2)}초`).join('\n')+'\n※ 포함·잔여 구간이 있어 항목을 모두 더하면 전체 시간과 다릅니다.';}const el=container.querySelector('[data-cfv7-click-timing]');if(!el)return;if(!clickIsCurrent()){el.hidden=true;el.textContent='';return;}el.hidden=s.status==='idle';const seconds=(s.elapsedMs/1000).toFixed(1);const label=s.mode==='resume_existing'?'상태 확인부터':'계산 시간';if(s.status==='complete'){const source=s.source==='saved_recalculate'?'저장값 재계산':s.source==='resume_existing'?'진행 중 조회 결과':'새 DataPARC 결과';const pcSeconds=Number.isFinite(s.agentSeconds)?s.agentSeconds:s.controllerSeconds;const pcLabel=Number.isFinite(s.agentSeconds)?'회사 PC':'조회·정리';const backend=s.source==='new_query'&&Number.isFinite(pcSeconds)?` · ${pcLabel} ${pcSeconds.toFixed(1)}초${Number.isFinite(s.querySeconds)?` (DataPARC ${s.querySeconds.toFixed(1)}초 포함)`:''}`:'';el.textContent=`${label} ${seconds}초 · ${source}${backend}`;}else if(s.status==='failed')el.textContent=`${label} ${seconds}초 · 완료되지 않음`;else if(s.status==='cancelled')el.textContent=`${label} ${seconds}초 · 측정 중단`;else el.textContent=`${label} ${seconds}초 · ${s.phase||'결과 확인 중'}`;refreshStatusLine();}
     function refreshStatusLine(){
       const line=container.querySelector('[data-cfv11-status-line]');if(!line||disposed)return;
       const state=live?.state(),item=state?.item,active=item?.active,availability=selectedDayAvailability();
@@ -1377,6 +1404,7 @@
         clickTiming.phase(clickToken,item?.submitting?'요청 등록 중':active?.status==='pending'?'회사 PC 대기':active?.status==='processing'?(presentation.progressLabel||'조회 중'):item?.loading?'결과 확인 중':'화면 반영 중');
         const expected=clickTiming.state().expectedRequestId;
         if(!s?.authenticated)clickTiming.cancel('로그인 상태 변경');
+        else if(item?.statusStopped&&item?.error&&!item.loading)clickTiming.fail(clickToken,'조회 상태 확인 중단');
         else if(!active&&expected&&item?.lastAttempt?.id===expected&&item.lastAttempt.status==='failed')clickTiming.fail(clickToken,'조회 실패');
         finishClickTiming();
       }
@@ -1573,7 +1601,7 @@
     root.addEventListener?.('message',receiptMessageHandler);
     statusRefreshers.set(container,refreshStatusLine);
     updateRange(container);writeSettings(container,settings?.defaults?.()||{unit1:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}},unit2:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}}});const initialManual=manualApi?.blank?.()||{unit1:{organic:null,manure:null},unit2:{organic:null,manure:null}};renderMain(container,null);renderOrganic(container,null,initialManual);renderSummary(container,null,initialManual);bindManualInputs();bindMorningMeetingOrganicObserver();selectStores().catch(e=>setStatus(container,e.message,'error'));scheduleFastPrep(0);
-    return {calculate,periodChanged,settings,manual,live,getResult:()=>lastResult,getDisplayResult:()=>displayResult,getSnapshotInputs:()=>{const values=readManual(container);validateOrganicAllocationBeforeSave(values);return {settings:readSettings(container),manual:values,sourceRequestId:renderedRequestId};},getSpec:currentSpec,dispose(){adjustmentSync?.dispose?.();statusRefreshers.delete(container);root.removeEventListener?.('message',receiptMessageHandler);receiptSyncGeneration++;clearInputRecalc();clearDayBoundary();clearDeadlineRefresh();clickTiming?.dispose();disposed=true;fastPrepGeneration++;if(fastPrepTimer)root.clearTimeout?.(fastPrepTimer);observer?.disconnect();morningCardObserver?.disconnect();if(morningCardBindTimer!==null)root.clearTimeout?.(morningCardBindTimer);adjuster?.dispose?.();settings?.dispose();manual?.dispose();live?.dispose();}};
+    return {calculate,periodChanged,settings,manual,live,getResult:()=>lastResult,getDisplayResult:()=>displayResult,getSnapshotInputs:()=>{const values=readManual(container);validateOrganicAllocationBeforeSave(values);return {settings:readSettings(container),manual:values,sourceRequestId:renderedRequestId};},getSpec:currentSpec,dispose(){adjustmentSync?.dispose?.();statusRefreshers.delete(container);root.removeEventListener?.('message',receiptMessageHandler);receiptSyncGeneration++;clearInputRecalc();clearDayBoundary();clearDeadlineRefresh();clickTiming?.dispose();paintQueryOverlay({status:"idle"});queryOverlay?.remove?.();disposed=true;fastPrepGeneration++;if(fastPrepTimer)root.clearTimeout?.(fastPrepTimer);observer?.disconnect();morningCardObserver?.disconnect();if(morningCardBindTimer!==null)root.clearTimeout?.(morningCardBindTimer);adjuster?.dispose?.();settings?.dispose();manual?.dispose();live?.dispose();}};
   }
   root.CofiringPeriodV5={mount,periodSpec,dailySpec,dailySelectionSpec,dayAvailability,defaultCalculationDate,queryMode,customSpec,currentDaySpec,selectedAvailability,targetReferenceMarkup,fuelUsageMarkup,markup,readSettings,readManual,manualForCalculation,coalBioHeat,coalBioRatio,combinedCoalBio,cachedReference,liveRequestPresentation};if(typeof module==='object'&&module.exports)module.exports=root.CofiringPeriodV5;
   if(root.document){const init=()=>{const container=root.document.querySelector('[data-cofiring-draft-root]');if(container)root.__cofiringPeriodV5Controller=mount(container);};if(root.document.readyState==='loading')root.document.addEventListener('DOMContentLoaded',init,{once:true});else init();}

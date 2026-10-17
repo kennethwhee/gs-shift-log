@@ -20,6 +20,8 @@ function mounted({savedId=null,now='2026-09-15T04:02:00Z',latest=null,manualByRa
   const h={hidden:false,settingsByDate:{},manualByStart:{},manualByRange,latest,latestGate:null,latestCalls:[],savedRecords:new Map(),storeSelections:{},now:Date.parse(now),auth:'Bearer test-user-a',settingsGate:null,manualGate:null,loadGate:null,queryGate:null,savedId,loads:[],posts:[],events:[],clock:100,timers:new Map(),frames:new Map(),timing:null};
   let serial=0,liveOptions,liveState={authenticated:true,canQuery:true,period:null,item:{saved:null,result:null,active:null,lastAttempt:null,loading:false,submitting:false,error:''}};
   const container=new Element(),view={};container.closest=selector=>selector==='[data-efficiency-view]'?view:selector.includes('[hidden]')&&h.hidden?view:null;
+  const classes=new Set();
+  container.classList={add(...names){for(const name of names)classes.add(name);},remove(...names){for(const name of names)classes.delete(name);},contains:name=>classes.has(name),toggle(name,force){const active=force===undefined?!classes.has(name):!!force;if(active)classes.add(name);else classes.delete(name);return active;}};
   const settings={};for(const unit of ['unit1','unit2']){settings[unit]={};for(const fuel of ['coal','bio','organic','manure'])settings[unit][fuel]={calorific:fuel==='coal'?5800:fuel==='bio'?3200:3400,coefficient:1};}
   function store(kind,options){
     let selected=null;
@@ -44,7 +46,7 @@ function mounted({savedId=null,now='2026-09-15T04:02:00Z',latest=null,manualByRa
   h.emitOld=()=>{if(liveState.item.result)liveOptions.onResult(liveState.item.result);emit();};
   const setTimer=(f,ms)=>{const id=++serial;h.timers.set(id,{f,ms});return id;},clearTimer=id=>h.timers.delete(id);
   class FixedDate extends Date{constructor(...args){super(...(args.length?args:[h.now]));}static now(){return h.now;}}
-  const context=vm.createContext({Date:FixedDate,URLSearchParams,fetch:receiptFetch,console,MutationObserver:class {constructor(fn){h.visibilityChanged=fn;}observe(){}disconnect(){}},performance:{now:()=>h.clock},CofiringCore:core,CofiringLive:{createPeriod:options=>{liveOptions=options;return live;}},CofiringCalculationSettingsStorage:{create:options=>store('settings',options)},CofiringPeriodManualStorage:{blank,parseValue:v=>v===''?null:Number(v),create:options=>store('manual',options)},CofiringPeriodAdjustmentV56:{create:()=>null},CofiringTargetReferenceV6:{forUnit:()=>null},getShiftLogAuthHeaders:()=>({Authorization:h.auth}),document:{readyState:'loading',addEventListener(){},getElementById:()=>null},navigator:{userAgent:'desktop'},location:{pathname:'/maintenance/'},setTimeout:setTimer,clearTimeout:clearTimer,requestAnimationFrame:f=>{const id=++serial;h.frames.set(id,f);return id;},cancelAnimationFrame:id=>h.frames.delete(id),confirm:()=>true});
+  const context=vm.createContext({Date:FixedDate,URLSearchParams,fetch:receiptFetch,console,MutationObserver:class {constructor(fn){h.visibilityChanged=fn;}observe(){}disconnect(){}},performance:{now:()=>h.clock},CofiringCore:core,CofiringLive:{createPeriod:options=>{liveOptions=options;return live;}},CofiringCalculationSettingsStorage:{create:options=>store('settings',options)},CofiringPeriodManualStorage:{blank,parseValue:v=>v===''?null:Number(v),create:options=>store('manual',options)},CofiringPeriodAdjustmentV56:{create:()=>null},CofiringTargetReferenceV6:{forUnit:()=>null},getShiftLogAuthHeaders:()=>({Authorization:h.auth}),document:{readyState:'loading',addEventListener(){},getElementById:()=>null,createElement:()=>new Element(),head:{appendChild(){}}},navigator:{userAgent:'desktop'},location:{pathname:'/maintenance/'},setTimeout:setTimer,clearTimeout:clearTimer,requestAnimationFrame:f=>{const id=++serial;h.frames.set(id,f);return id;},cancelAnimationFrame:id=>h.frames.delete(id),confirm:()=>true});
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-click-timing-v1.js'),'utf8'),context);
   const createTiming=context.CofiringClickTimingV1.create;
   context.CofiringClickTimingV1={create:options=>(h.timing=createTiming(options))};
@@ -189,7 +191,7 @@ test('save failure keeps manual editing values, while success locks the saved ma
   await h.find('cfv5-manual-save').fire('click');
   assert.equal(input.value,'8');assert.equal(input.readOnly,false);assert.equal(h.container.dataset.cfvUsageEditing,'true');
   h.saveFailure=false;await h.find('cfv5-manual-save').fire('click');
-  assert.equal(input.value,'8');assert.equal(input.readOnly,true);assert.equal(h.container.dataset.cfvUsageEditing,'false');
+  assert.equal(input.value,'8.00');assert.equal(input.readOnly,true);assert.equal(h.container.dataset.cfvUsageEditing,'false');
   assert.equal(h.container.dataset.cfvUsageInputMode,'manual');assert.equal(h.controller.getResult().units.unit1.organic.quantity,8);
   h.controller.dispose();
 });
