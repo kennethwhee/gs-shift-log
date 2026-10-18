@@ -5,12 +5,12 @@
  */
 (function installMorningMeetingCardOverridesV1(root) {
   "use strict";
-  if (!root || !root.document || root.morningMeetingCardOverrides?.version === "20261003-v3") return;
+  if (!root || !root.document || root.morningMeetingCardOverrides?.version === "20261019-steam-manual-sum-v1") return;
 
   const doc = root.document;
   const API = "/api/morning-meeting-card-overrides";
   const PANEL_ID = "efficiencyMorningMeetingWaterPanel";
-  const VERSION = "20261003-v3";
+  const VERSION = "20261019-steam-manual-sum-v1";
   const MAX_VALUE = 1e12;
 
   const CARDS = Object.freeze({
@@ -248,6 +248,24 @@
     return result;
   }
 
+  // Only manual component edits derive a subtotal. An explicitly saved total
+  // and an untouched OIS subtotal keep their existing meaning.
+  function steamOverrideValues(values, base = {}) {
+    const result = {...values};
+    if (Object.hasOwn(result, "steamSales") ||
+        !["steamSalesLowPressure", "steamSalesHighPressure"].some(key => Object.hasOwn(result, key))) return result;
+    const low = finite(result.steamSalesLowPressure ?? base.steamSalesLowPressure);
+    const high = finite(result.steamSalesHighPressure ?? base.steamSalesHighPressure);
+    if (low !== null && high !== null) result.steamSales = low + high;
+    return result;
+  }
+
+  function steamSourceForSum(date) {
+    const card = byId(CARDS.steam.cardId);
+    if (date !== targetDate() || card?.dataset?.steamSourceDate !== date) return {};
+    return sourceValues("steam", date);
+  }
+
   function clearOverrideMarkers(cardKey) {
     for (const [, id] of CARDS[cardKey].fields) {
       const element = byId(id);
@@ -259,6 +277,9 @@
   }
 
   function paintSource(cardKey, date) {
+    const overridden = new Set(CARDS[cardKey].fields
+      .filter(([, id]) => byId(id)?.dataset?.morningCardOverride === "true")
+      .map(([key]) => key));
     clearOverrideMarkers(cardKey);
     try {
       if (cardKey === "power") root.toNightPower?.renderMeeting?.();
@@ -267,9 +288,9 @@
         const raw = rawProviderValues("steam", date);
         for (const [key, id, , unit, digits] of CARDS.steam.fields) {
           const value = finite(raw?.[key]);
-          if (value !== null) {
+          if (value !== null || overridden.has(key)) {
             const element = byId(id);
-            const next = numberText(value, unit, digits);
+            const next = value === null ? "-" : numberText(value, unit, digits);
             if (element && element.textContent !== next) element.textContent = next;
           }
         }
@@ -385,11 +406,14 @@
     const isEditing = editing?.cardKey === cardKey && editing?.date === date;
     updateControls(cardKey, date);
     if (isEditing) return;
+    const values = cardKey === "steam"
+      ? steamOverrideValues(item.values || {}, steamSourceForSum(date))
+      : item.values || {};
     clearOverrideMarkers(cardKey);
     if (deleted(date) || !item.active) return;
     for (const [key, id, , unit, digits] of config.fields) {
-      if (!Object.hasOwn(item.values || {}, key)) continue;
-      const value = finite(item.values[key]);
+      if (!Object.hasOwn(values, key)) continue;
+      const value = finite(values[key]);
       const element = byId(id);
       if (value === null || !element) continue;
       const next = numberText(value, unit, digits);
@@ -441,7 +465,36 @@
       display.hidden = true;
       input.hidden = false;
     }
+    if (cardKey === "steam" && !text(steamInput("steamSales")?.value)) updateSteamSalesInput();
     updateControls(cardKey, date);
+  }
+
+  function steamInput(key) {
+    return doc.querySelector(`input[data-morning-card-override-input="steam:${key}"]`);
+  }
+
+  function updateSteamSalesInput() {
+    if (editing?.cardKey !== "steam" || editing.date !== targetDate()) return;
+    const total = steamInput("steamSales");
+    if (!total) return;
+    let low = null;
+    let high = null;
+    try {
+      low = parseInput(steamInput("steamSalesLowPressure")?.value, false);
+      high = parseInput(steamInput("steamSalesHighPressure")?.value, false);
+    } catch (_) { /* Incomplete or invalid components must not retain a stale automatic total. */ }
+    total.value = low === null || high === null ? "" : formatInput(low + high, 3);
+    editing.salesTotalAuto = true;
+  }
+
+  function handleInput(event) {
+    if (editing?.cardKey !== "steam" || editing.date !== targetDate()) return;
+    const key = event.target?.dataset?.morningCardOverrideInput;
+    if (key === "steam:steamSalesLowPressure" || key === "steam:steamSalesHighPressure") {
+      updateSteamSalesInput();
+    } else if (key === "steam:steamSales") {
+      editing.salesTotalAuto = false;
+    }
   }
 
   function cancelEdit(cardKey) {
@@ -472,6 +525,7 @@
     const group = controls(cardKey);
     for (const control of group?.querySelectorAll("button") || []) control.disabled = true;
     try {
+      if (cardKey === "steam" && context.salesTotalAuto) updateSteamSalesInput();
       const values = {};
       for (const [key, , , , , integerOnly] of config.fields) {
         const input = doc.querySelector(`input[data-morning-card-override-input="${cardKey}:${key}"]`);
@@ -481,6 +535,11 @@
         const original = finite(context.source?.[key]);
         if (original !== null && approximatelyEqual(value, original)) continue;
         values[key] = value;
+      }
+      if (cardKey === "steam" &&
+          ["steamSalesLowPressure", "steamSalesHighPressure"].some(key => Object.hasOwn(values, key))) {
+        const total = parseInput(steamInput("steamSales")?.value, false);
+        if (total !== null) values.steamSales = total;
       }
       const current = itemFor(date, cardKey);
       if (!Object.keys(values).length) {
@@ -538,7 +597,9 @@
     for (const cardKey of Object.keys(CARDS)) {
       const item = state.items?.[cardKey];
       if (!item?.active || !item.values || typeof item.values !== "object") continue;
-      Object.assign(result, item.values);
+      Object.assign(result, cardKey === "steam"
+        ? steamOverrideValues(item.values, {...steamSourceForSum(date), ...result})
+        : item.values);
       if (cardKey === "organic") {
         if (Object.hasOwn(item.values, "sludgeTruckCount")) result.organicTruckCount = item.values.sludgeTruckCount;
         if (Object.hasOwn(item.values, "sludgeTotal")) result.organicReceivedAmount = item.values.sludgeTotal;
@@ -617,6 +678,7 @@
 
   function initialize() {
     doc.addEventListener("click", handleClick, true);
+    doc.addEventListener("input", handleInput, true);
     for (const eventName of [
       "efficiencyMorningMeetingSteamStatusLoaded",
       "morningMeetingClosedCofiringChanged",
