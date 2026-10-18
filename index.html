@@ -3,6 +3,11 @@
 <html lang="ko">
 
 <head>
+  <!-- DAILY_OPERATION_HIDDEN_V1: retain the feature for later activation. -->
+  <style id="dailyOperationHiddenV1">
+    #efficiencyDailyOperationTab,
+    #efficiencyDailyOperationView { display: none !important; }
+  </style>
   <!-- Efficiency Daily Work standalone boot guard V3 -->
   <script>
     (() => {
@@ -5005,6 +5010,7 @@
 
 <!-- 일일운전현황 -->
   <button type="button" class="efficiency-team-tab" id="efficiencyDailyOperationTab"
+    hidden disabled aria-hidden="true"
     data-efficiency-tab="daily-operation" role="tab" aria-selected="false"
     aria-controls="efficiencyDailyOperationView" tabindex="-1">
     <span class="efficiency-team-tab__icon" aria-hidden="true">
@@ -15073,10 +15079,12 @@
 <script src="/maintenance/morning-meeting-boiler-d1-snapshot-v3.js?v=20261003-v3" defer></script>
 <script src="/maintenance/morning-meeting-instant-restore-v1.js?v=20261014-limestone-date-sync-v1" defer></script>
 <!-- DAILY_OPERATION_REPORT_V1: selected-date saved report; explicit source queries only. -->
+<!-- DAILY_OPERATION_HIDDEN_V1: asset loading paused; restore these loaders when enabling the menu.
 <link rel="stylesheet" href="/maintenance/daily-operation-reports.css?v=20261018-v1" />
 <script src="/maintenance/daily-operation-layout.js?v=20261018-v1" defer></script>
 <script src="/maintenance/daily-operation-sources.js?v=20261018-v1" defer></script>
 <script src="/maintenance/daily-operation-reports.js?v=20261018-v1" defer></script>
+-->
 </body>
 </html>
 
