@@ -24,7 +24,7 @@ function docFor(dates, {row=24, first=1, step=1, titleSpan=1}={}) {
   const cols=dates.map((_,i)=>col(first+1+i*step));
   xml.addInlineCell(doc,row,col(first),'Bio / 유기성 고형연료 혼소율(%)');
   xml.addMerge(doc,`${col(first)}${row}:${cols.at(-1)}${row+titleSpan-1}`);
-  dates.forEach((date,i)=>xml.addInlineCell(doc,row+titleSpan,cols[i],date.slice(5,7)+'월 '+date.slice(8)+'일'));
+  dates.forEach((date,i)=>{const report=day(date,1);xml.addInlineCell(doc,row+titleSpan,cols[i],report.slice(5,7)+'월 '+report.slice(8)+'일');});
   labels.forEach((label,i)=>{xml.addInlineCell(doc,row+titleSpan+1+i,col(first),label);
     cols.forEach(c=>xml.addInlineCell(doc,row+titleSpan+1+i,c,'OLD','73'));});
   xml.addInlineCell(doc,7,'X','TOP');
@@ -38,20 +38,20 @@ function setup({items={}, visible={}, selected='2026-10-02', load, blocked=new S
   const root={document:{getElementById:id=>visible[id]||null},isMorningMeetingSelectedDateResetActive:date=>blocked.has(date),
     morningMeetingClosedCofiring:{targetDate:()=>selected,isBlocked:date=>blocked.has(date),
       state:date=>items[date]?{status:'complete',item:items[date]}:{status:'idle'},peek:date=>date===selected?items[date]:null,
-      loadSavedForWorkbook:async date=>{calls.push(date);return load?load(date):null;}}};
+      loadSavedForWorkbook:async date=>{calls.push(date);return load?load(date):items[date]||null;}}};
   vm.runInNewContext(read('maintenance/morning-meeting-holiday-cofiring-saved-v1.js'),{window:root,console});
   return {root, writer:root.morningMeetingHolidayCofiringSavedV1,calls};
 }
 function values(f,i) { return labels.map((_,r)=>xml.textOf(xml.findCell(f.doc,f.cols[i]+(f.firstRow+r)))); }
 const day=(date,n)=>new Date(Date.parse(date+'T00:00:00Z')+n*86400000).toISOString().slice(0,10);
-for(const count of [1,2,3,4,5,7,24]) test(`${count}-day holiday fills date-keyed cached values and preserves layout`,async()=>{
+for(const count of [1,2,3,4,5,7,24]) test(`${count}-day holiday fills previous-day saved values and preserves layout`,async()=>{
   const dates=Array.from({length:count},(_,i)=>day('2026-09-30',i));
   const items=Object.fromEntries(dates.map((d,i)=>[d,saved(d,20+i)]));
   const f=docFor(dates,{row:count>3?33:24,titleSpan:count>5?count-4:1});
   const before=JSON.stringify(xml.mergeRefs(f.doc));
   const h=setup({items,selected:dates.at(-1)});
-  const result=await h.writer.apply(f.doc,[],{enabled:true,referenceDate:dates.at(-1),captured:h.writer.capture({startDate:dates[0],endDate:dates.at(-1)})});
-  assert.equal(result.appliedDates.length,count);assert.equal(h.calls.length,0);
+  const result=await h.writer.apply(f.doc,[],{enabled:true,referenceDate:day(dates.at(-1),1),captured:h.writer.capture({startDate:dates[0],endDate:dates.at(-1)})});
+  assert.equal(result.appliedDates.length,count);assert.equal(h.calls.length,count);
   dates.forEach((_,i)=>{assert.deepEqual(values(f,i),[(20+i).toFixed(2)+' / 4.76','23.18 / 4.76','24.49 / 4.76','29.25']);
     assert.equal(xml.findCell(f.doc,f.cols[i]+f.firstRow).getAttribute('s'),'73');});
   assert.equal(JSON.stringify(xml.mergeRefs(f.doc)),before);
@@ -63,16 +63,16 @@ test('screenshot three-day fields are filled from their own saved rows',async()=
  items[dates[0]].unitOne={bioRatio:26.51,organicRatio:4.68,totalRatio:31.19};items[dates[0]].unitTwo={bioRatio:19.83,organicRatio:4.65,totalRatio:24.48};
  items[dates[1]].unitOne={bioRatio:29.42,organicRatio:7.76,totalRatio:37.18};items[dates[1]].unitTwo={bioRatio:23.99,organicRatio:7.73,totalRatio:31.73};
  const f=docFor(dates,{first:30,step:3}),h=setup({items});
- await h.writer.apply(f.doc,[],{enabled:true,referenceDate:dates[2]});
+ await h.writer.apply(f.doc,[],{enabled:true,referenceDate:day(dates[2],1)});
  assert.deepEqual(dates.map((_,i)=>values(f,i).slice(0,2)),[['26.51 / 4.68','19.83 / 4.65'],['29.42 / 7.76','23.99 / 7.73'],['25.80 / 4.76','23.18 / 4.76']]);
 });
-test('captured visible values survive later missing caches without a saved-record request',async()=>{
+test('fresh stored effective values replace a captured stale visible card',async()=>{
  const date='2026-10-02',visible={efficiencyMorningMeetingCofiringDate:{textContent:date+' · 저장값'}};
  for(const [index,bio] of [[1,25.80],[2,23.18]]) for(const [key,value] of Object.entries({BioRatio:bio,OrganicRatio:4.76,TotalRatio:bio+4.76})) visible[`efficiencyMorningMeetingCofiringUnit${index}${key}`]={textContent:value.toFixed(2)+'%'};
- const h=setup({visible,load:()=>{throw Error('must not read');}}),f=docFor([date]);const captured=h.writer.capture();
+ const h=setup({visible,load:d=>saved(d,24.60)}),f=docFor([date]);const captured=h.writer.capture();
  for(const element of Object.values(visible)) element.textContent='-';
- await h.writer.apply(f.doc,[],{enabled:true,referenceDate:date,captured});
- assert.deepEqual(values(f,0),['25.80 / 4.76','23.18 / 4.76','24.49 / 4.76','29.25']);assert.equal(h.calls.length,0);
+ await h.writer.apply(f.doc,[],{enabled:true,referenceDate:day(date,1),captured});
+ assert.deepEqual(values(f,0),['24.60 / 4.76','23.18 / 4.76','24.49 / 4.76','29.25']);assert.deepEqual(h.calls,[date]);
 });
 test('rounded card values retain saved aggregate and full precision',async()=>{
  const date='2026-10-02',item=saved(date,25.804);item.combined.totalRatio=29.254;
@@ -83,7 +83,7 @@ test('rounded card values retain saved aggregate and full precision',async()=>{
 test('missing dates use stored-record reads and errors do not erase other dates',async()=>{
  const dates=['2026-09-30','2026-10-01','2026-10-02'],f=docFor(dates);
  const h=setup({load:date=>{if(date===dates[1])throw Error('offline');return saved(date);}});
- const result=await h.writer.apply(f.doc,[],{enabled:true,referenceDate:dates[2]});
+ const result=await h.writer.apply(f.doc,[],{enabled:true,referenceDate:day(dates[2],1)});
  assert.deepEqual(Array.from(result.missingDates),[dates[1]]);assert.equal(result.appliedDates.length,2);
  assert.deepEqual(values(f,1),['','','','']);assert.equal(values(f,0)[0],'25.80 / 4.76');
  assert.deepEqual(h.calls.sort(),dates);
@@ -91,15 +91,15 @@ test('missing dates use stored-record reads and errors do not erase other dates'
 test('zero is valid, a wrong date is rejected, and reset dates stay empty',async()=>{
  const dates=['2026-09-30','2026-10-01','2026-10-02'],zero=saved(dates[0],0);
  for(const unit of ['unitOne','unitTwo','combined'])for(const key of ['bioRatio','organicRatio','totalRatio'])zero[unit][key]=0;
- const h=setup({items:{[dates[0]]:zero,[dates[2]]:saved(dates[2])},blocked:new Set([dates[2]]),load:()=>saved('2026-09-29')});const f=docFor(dates);
- const r=await h.writer.apply(f.doc,[],{enabled:true,referenceDate:dates[2]});
+ const h=setup({items:{[dates[0]]:zero,[dates[2]]:saved(dates[2])},blocked:new Set([dates[2]]),load:d=>d===dates[0]?zero:saved('2026-09-29')});const f=docFor(dates);
+ const r=await h.writer.apply(f.doc,[],{enabled:true,referenceDate:day(dates[2],1)});
  assert.deepEqual(values(f,0),['0.00 / 0.00','0.00 / 0.00','0.00 / 0.00','0.00']);
- assert.deepEqual(values(f,1),['','','','']);assert.deepEqual(values(f,2),['','','','']);assert.deepEqual(h.calls,[dates[1]]);assert.equal(r.appliedDates.length,1);
+ assert.deepEqual(values(f,1),['','','','']);assert.deepEqual(values(f,2),['','','','']);assert.deepEqual(h.calls,dates.slice(0,2));assert.equal(r.appliedDates.length,1);
 });
 test('year boundary uses exact date keys and shared string headers',async()=>{
- const dates=['2026-12-31','2027-01-01'],f=docFor(dates),shared=['12월 31일','01월 01일'];
+ const dates=['2026-12-30','2026-12-31'],f=docFor(dates),shared=['12월 31일','01월 01일'];
  f.cols.forEach((c,i)=>{const cell=xml.findCell(f.doc,c+25);while(cell.firstChild)cell.removeChild(cell.firstChild);cell.setAttribute('t','s');const v=f.doc.createElementNS(xml.NS,'v');v.textContent=String(i);cell.appendChild(v);});
- const h=setup({load:d=>saved(d)});await h.writer.apply(f.doc,shared,{enabled:true,referenceDate:dates[1]});assert.deepEqual(h.calls,dates);
+ const h=setup({load:d=>saved(d)});await h.writer.apply(f.doc,shared,{enabled:true,referenceDate:day(dates[1],1)});assert.deepEqual(h.calls,dates);
 });
 test('five-day layout moves once, then final values follow the final date headings',async()=>{
  const {document,bioColumns}=xml.createWorksheet(),h=setup({load:d=>saved(d,Number(d.slice(-2)))});
@@ -108,8 +108,8 @@ test('five-day layout moves once, then final values follow the final date headin
  const layout=await h.root.applyMorningMeetingFinalHistoryAlignmentV10(document,[],{savedValuesHandledAfterLayout:true});
  assert.equal(layout.rowDelta,1);
  const r=await h.writer.apply(document,[],{enabled:true,referenceDate:'2026-09-21'});
- assert.equal(r.appliedDates.length,5);assert.deepEqual(h.calls.sort(),['2026-09-17','2026-09-18','2026-09-19','2026-09-20','2026-09-21']);
- assert.equal(xml.textOf(xml.findCell(document,bioColumns[0]+'28')),'17.00 / 4.76');
+ assert.equal(r.appliedDates.length,5);assert.deepEqual(h.calls.sort(),['2026-09-16','2026-09-17','2026-09-18','2026-09-19','2026-09-20']);
+ assert.equal(xml.textOf(xml.findCell(document,bioColumns[0]+'28')),'16.00 / 4.76');
  assert.equal(xml.textOf(xml.findCell(document,'B32')),'1. 설비 운영팀');
 });
 test('read-only provider requests only the saved closing and does not repaint or load receipts',async()=>{

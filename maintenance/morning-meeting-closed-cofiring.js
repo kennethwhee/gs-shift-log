@@ -114,8 +114,14 @@
         }
       };
     }
-    // Compatibility for older, non-hydrated closes: preserve their saved summary.
-    return {summary: item.summary, adjustmentApplied,
+    // Normalize a legacy close once against its own result. An effective result
+    // above has already been normalized and must never be overlaid with the
+    // original snapshot's ratios (which would mix adjusted tonnes with raw Bio%).
+    return {summary: {
+      unit1: compatClosedUnitSummary(item.summary?.unit1, result?.units?.unit1),
+      unit2: compatClosedUnitSummary(item.summary?.unit2, result?.units?.unit2),
+      combined: compatClosedCombinedSummary(item.summary?.combined, result?.combined)
+    }, adjustmentApplied,
       adjustmentSource: String(item.adjustmentSource || 'closed_snapshot')};
   }
 
@@ -171,7 +177,7 @@
       source: 'cofiring-closed-history', period: {startLocal: period.startLocal, endLocal: period.endLocal},
       adjustmentApplied: effective.adjustmentApplied, adjustmentSource: effective.adjustmentSource,
       receiptInputMode: snapshot.manual?.inputMode === 'manual' ? 'manual' : 'auto',
-      unitOne: unit(compatClosedUnitSummary(summary?.unit1, snapshot?.result?.units?.unit1)), unitTwo: unit(compatClosedUnitSummary(summary?.unit2, snapshot?.result?.units?.unit2)), combined: ratios(compatClosedCombinedSummary(summary?.combined, snapshot?.result?.combined)),
+      unitOne: unit(summary?.unit1), unitTwo: unit(summary?.unit2), combined: ratios(summary?.combined),
       organic, receiptCountNote: '마감자료에는 입고 건수가 저장되어 있지 않습니다.' };
   }
 
@@ -451,19 +457,24 @@
 
   // MORNING_HOLIDAY_COFIRING_SAVED_V1: read only persisted ratios without
   // refreshing organic receipts, changing the selected card, or queuing Agent work.
-  async function loadSavedForWorkbook(date) {
+  async function loadSavedForWorkbook(date, options = {}) {
     if (!dateValid(date) || isBlocked(date)) return null;
     const identity = checkSession();
     if (!identity) throw new Error('로그인이 필요합니다.');
     const existing = cache.get(date);
-    if (existing?.status === 'complete') return existing.item;
+    if (options.force !== true && existing?.status === 'complete') return existing.item;
+    const generation = generations.get(date) || 0;
     if (typeof root.morningMeetingQuerySources?.loadResetStatus === 'function') {
       const reset = await root.morningMeetingQuerySources.loadResetStatus(date);
       if (!reset) throw new Error('선택일의 초기화 상태를 확인하지 못했습니다.');
     }
-    if (isBlocked(date) || checkSession() !== identity) return null;
+    if (isBlocked(date)) return null;
+    if (checkSession() !== identity) throw new Error('로그인 상태가 바뀌었습니다. 다시 생성해 주세요.');
     const payload = await getJson(API + '?targetDate=' + encodeURIComponent(date), authHeaders());
-    return isBlocked(date) || checkSession() !== identity ? null : normalizeItem(payload.item, date);
+    if (isBlocked(date)) return null;
+    if (checkSession() !== identity) throw new Error('로그인 상태가 바뀌었습니다. 다시 생성해 주세요.');
+    if (generation !== (generations.get(date) || 0)) throw new Error('혼소 조정값이 변경되었습니다. 다시 생성해 주세요.');
+    return normalizeItem(payload.item, date);
   }
 
   function valuesForWorkbook(dailyData, options = {}) {
@@ -669,6 +680,6 @@
     doc.addEventListener('visibilitychange', refreshCofiringOnActivation);
     sync();
   }
-  root.morningMeetingClosedCofiring = Object.freeze({version: '20261002-adjustsync-v1', targetDate, isBlocked, load, loadSavedForWorkbook, peek, state, refresh, refreshOrganicFromClosing, renderOrganic, valuesForWorkbook});
+  root.morningMeetingClosedCofiring = Object.freeze({version: '20261019-effective-export-v3', targetDate, isBlocked, load, loadSavedForWorkbook, peek, state, refresh, refreshOrganicFromClosing, renderOrganic, valuesForWorkbook});
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', initialize, {once: true}); else initialize();
 })(typeof window !== 'undefined' ? window : null);

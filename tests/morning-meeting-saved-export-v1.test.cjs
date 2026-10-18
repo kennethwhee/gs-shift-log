@@ -71,6 +71,7 @@ function checkCells(cells, values) {
 }
 function generationFixture(f, duringPermission = () => {}) {
   const cells = installWriter(f.ctx), errors = [], confirms = [];
+  if (f.ctx.morningMeetingClosedCofiring && !f.ctx.morningMeetingClosedCofiring.loadSavedForWorkbook) f.ctx.morningMeetingClosedCofiring.loadSavedForWorkbook=async()=>null;
   const state = {templateFile:{arrayBuffer:async()=>new ArrayBuffer(0)},shiftPart:{reportDate:DATE},analysis:{team:{reportDate:DATE}}};
   Object.assign(f.ctx, {
     getMorningMeetingWorkbookElements: () => ({}), getMorningMeetingWorkbookState: () => state,
@@ -213,6 +214,10 @@ function withCofiring(f, {status='idle', saved=null}={}) {
   f.ctx.morningMeetingClosedCofiring={targetDate:()=>f.elements.efficiencyMorningMeetingWaterPanel.dataset.morningMeetingAutoBaseDate,
     state:()=>({status}),isBlocked:()=>false,peek:()=>saved,
     load:()=>{loads++;throw Error('no closed requery during saved export');},
+    loadSavedForWorkbook:async()=>saved || {targetDate:DATE,source:'cofiring-closed-history',
+      unitOne:{coal:+f.elements[prefix+'Unit1CoalUsage'].textContent,bio:+f.elements[prefix+'Unit1BioUsage'].textContent,bioRatio:+f.elements[prefix+'Unit1BioRatio'].textContent,organic:+f.elements[prefix+'Unit1OrganicInput'].textContent,organicRatio:+f.elements[prefix+'Unit1OrganicRatio'].textContent},
+      unitTwo:{coal:+f.elements[prefix+'Unit2CoalUsage'].textContent,bio:+f.elements[prefix+'Unit2BioUsage'].textContent,bioRatio:+f.elements[prefix+'Unit2BioRatio'].textContent,organic:+f.elements[prefix+'Unit2OrganicInput'].textContent,organicRatio:+f.elements[prefix+'Unit2OrganicRatio'].textContent},
+      combined:{bioRatio:(+f.elements[prefix+'Unit1BioRatio'].textContent + +f.elements[prefix+'Unit2BioRatio'].textContent)/2,organicRatio:(+f.elements[prefix+'Unit1OrganicRatio'].textContent + +f.elements[prefix+'Unit2OrganicRatio'].textContent)/2}},
     valuesForWorkbook:()=>{throw Error('complete organic card must remain fixed');}};
   return {loads:()=>loads,prefix};
 }
@@ -224,7 +229,7 @@ function assertCofiringCells(cells, values = Object.fromEntries(Object.entries(c
   for(const [key,[,,address]] of Object.entries(cofiringFields)) if(address) assert.equal(cells.get(address),values[key]??null,key);
   for(const address of ['L7','U7','U8','U9','AC7','AC8','AC9','N9','Z9','X10','I11','L11']) assert.equal(cells.has(address),false,address+' formula preserved');
 }
-for(const status of ['idle','loading','missing','error']) test('saved organic and co-firing reach actual download writer with no warning or requery: '+status,async()=>{
+for(const status of ['idle','loading','missing','error']) test('saved organic and fresh stored co-firing reach download without source calculation: '+status,async()=>{
   const f=fixture(); const c=withCofiring(f,{status}); const g=generationFixture(f); installActualCofiringWrapper(f);
   await g.run();assert.deepEqual(g.errors,['TEST_STOP_AFTER_REAL_DAILY_WRITER']);assert.equal(g.confirms.length,0);assert.equal(c.loads(),0);
   assert.equal(g.cells.get('AH14'),118.5); assert.equal(g.cells.get('AC14'),.03); assertCofiringCells(g.cells);

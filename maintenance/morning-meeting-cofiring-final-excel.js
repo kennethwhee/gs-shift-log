@@ -303,6 +303,31 @@
     return Object.freeze(withDerivedAverages(values));
   }
 
+  // A saved display may predate an applied adjustment (or CLEAR). Download reads
+  // one persisted, effective result and replaces the co-firing bundle atomically.
+  // This does not query Excel/DataPARC, recalculate, or change another saved card.
+  async function refreshSavedExcelValues(snapshot) {
+    const date = snapshot?.targetDate;
+    const empty = () => Object.freeze({targetDate: date, referenceDate: date,
+      source: "cofiring-closed-history", savedSnapshot: true});
+    if (!date || savedDateBlocked(date)) return empty();
+    const provider = window.morningMeetingClosedCofiring;
+    if (!provider) return snapshot; // Legacy standalone card, without a closing provider.
+    if (typeof provider.loadSavedForWorkbook !== "function") {
+      throw new Error("혼소율 저장자료 확인 기능을 불러오지 못했습니다. Ctrl+F5 후 다시 생성해 주세요.");
+    }
+    let saved;
+    try { saved = await provider.loadSavedForWorkbook(date, {force: true}); }
+    catch (error) {
+      throw new Error(`혼소율 ${date}의 저장된 조정값을 확인하지 못했습니다. 잠시 후 최종 엑셀을 다시 생성해 주세요. (${error?.message || "조회 실패"})`);
+    }
+    if (getReferenceDate() !== date) throw new Error("엑셀 생성 중 기준일이 바뀌었습니다. 선택일을 확인하고 다시 생성해 주세요.");
+    if (savedDateBlocked(date) || !saved) return empty();
+    if (saved.targetDate !== date) throw new Error("혼소율 저장자료의 날짜가 다릅니다. 선택일을 확인하고 다시 생성해 주세요.");
+    return Object.freeze({...withDerivedAverages(normalizeSnapshot(saved)),
+      targetDate: date, referenceDate: date, savedSnapshot: true});
+  }
+
   /* =====================================================
     Final Excel numeric cell writer compatibility
 
@@ -795,6 +820,7 @@
   }
 
   window.captureMorningMeetingCofiringExcelValues = captureSavedExcelValues;
+  window.refreshMorningMeetingCofiringExcelValues = refreshSavedExcelValues;
   window.getMorningMeetingCofiringExcelValues = getExcelValues;
   window.applyMorningMeetingCofiringExcelValues = applyValuesToWorksheet;
   window.applyMorningMeetingLongHolidayCofiringExcelValues =

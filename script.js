@@ -169183,7 +169183,7 @@ const gearPinionForWorkbook =
         typeof window.captureMorningMeetingCofiringExcelValues !== "function") {
       throw new Error("저장값 엑셀 반영 기능을 불러오지 못했습니다. Ctrl+F5 후 다시 시도해 주세요.");
     }
-    const finalWorkbookCurrentValueBundleV9 =
+    let finalWorkbookCurrentValueBundleV9 =
       finalWorkbookCurrentValueCollectorV9.capture({targetDate: closedValuesTargetDate});
     const assertWorkbookSelection = () => {
       if (finalWorkbookCurrentValueCollectorV9.targetDate() !== closedValuesTargetDate) {
@@ -169191,6 +169191,16 @@ const gearPinionForWorkbook =
       }
     };
     assertWorkbookSelection();
+    if (typeof window.refreshMorningMeetingCofiringExcelValues !== "function") {
+      throw new Error("혼소율 최종 저장값 반영 기능을 불러오지 못했습니다. Ctrl+F5 후 다시 생성해 주세요.");
+    }
+    const finalCofiringSavedValues = await window.refreshMorningMeetingCofiringExcelValues(
+      finalWorkbookCurrentValueBundleV9.cofiringValues
+    );
+    assertWorkbookSelection();
+    finalWorkbookCurrentValueBundleV9 = Object.freeze({
+      ...finalWorkbookCurrentValueBundleV9, cofiringValues: finalCofiringSavedValues
+    });
     /*
       저장 폴더가 기억되어 있다면
       엑셀 생성 전에 쓰기 권한을 확인한다.
@@ -169352,7 +169362,8 @@ let suppressAutomaticWorkbookValues =
 
   최종 Excel은 생성 시작 시 고정한 동일 날짜 저장값을 사용한다.
   - 화면값 우선, 누락 항목만 이미 불러온 저장자료에서 보완
-  - 생성 중 TO / OIS / 혼소율 마감 provider를 다시 조회하지 않음
+  - 생성 중 TO / OIS provider를 다시 조회하지 않음
+  - 혼소율만 저장된 최종 조정값을 읽어 한 묶음으로 고정함
   - Daily DATA Excel 조회는 실행하지 않음
   - 기존 초기화(suppressAutomaticWorkbookValues) 및 writer 흐름은 유지
 =================================================== */
@@ -169942,6 +169953,10 @@ console.log(
           enabled: true, referenceDate: weekendEndDateText, captured: holidayCofiringSavedCapture
         }
       );
+      assertWorkbookSelection();
+      if (holidayCofiringResult.errors?.length) {
+        throw new Error(`혼소율 ${holidayCofiringResult.errors.map(item => item.date).join(", ")} 저장자료를 확인하지 못했습니다. 잠시 후 다시 생성해 주세요.`);
+      }
       console.log("주말·공휴일 혼소율 저장값 최종 반영:", holidayCofiringResult);
     }
 
@@ -178183,19 +178198,31 @@ function resetShiftPart() {
 
 
     if (
-      !cell
+      !cell ||
+      cell.t === "b" ||
+      cell.t === "e"
     ) {
       return null;
     }
 
 
+    // Blank cells and text labels are not zero. In the Ash table,
+    // K47 can contain "Tank Lorry" while the actual kg value is K48.
+    const directText =
+      String(
+        cell.v ??
+        ""
+      ).trim();
+
+
     const directValue =
       Number(
-        cell.v
+        directText
       );
 
 
     if (
+      directText &&
       Number.isFinite(
         directValue
       )
@@ -178204,21 +178231,38 @@ function resetShiftPart() {
     }
 
 
-    const parsedValue =
-      Number(
-        String(
-          cell.w ??
-          cell.v ??
+    const numericText =
+      String(
+        cell.w ??
+        cell.v ??
+        ""
+      );
+
+
+    const parsedText =
+      numericText
+        .replaceAll(
+          ",",
           ""
         )
-          .replaceAll(
-            ",",
-            ""
-          )
-          .replace(
-            /[^0-9.+-]/g,
-            ""
-          )
+        .replace(
+          /[^0-9.+-]/g,
+          ""
+        );
+
+
+    if (
+      !/[0-9]/.test(
+        parsedText
+      )
+    ) {
+      return null;
+    }
+
+
+    const parsedValue =
+      Number(
+        parsedText
       );
 
 
@@ -178857,7 +178901,8 @@ function resetShiftPart() {
     P31 / P32 : 유연탄 입고량 / 차량
     G38 / I38 : Bio 재고량 / 높이
     K44 / M44 : Bio 입고량 / 차량
-    K46 / K48 : Fly Ash 차량 / kg
+    K46 : Fly Ash 차량
+    K47 / K48 : Fly Ash kg (K47이 차량 종류 문구이면 K48 사용)
   ====================================================== */
 
 function extractNumericValues(

@@ -1,7 +1,7 @@
 /* Date-matched, saved-only co-firing values for every holiday workbook layout. */
 (function (root) {
   "use strict";
-  const VERSION = "20261005-v1";
+  const VERSION = "20261019-report-date-v3";
   const TITLE = /Bio\s*\/\s*유기성\s*고형연료\s*혼소율/i;
   const FIELDS = ["bioRatio", "organicRatio", "totalRatio"];
   const LABELS = ["#1 BLR", "#2 BLR", "Average", "Total"];
@@ -122,7 +122,9 @@
     if (!headers.length || headers.length > 24) throw new Error("주말 혼소율 표의 날짜 칸을 확인하지 못했습니다.");
     const dates = headers.map(item => headerDate(item.text, referenceDate));
     if (dates.some(date => !date) || new Set(dates).size !== dates.length) throw new Error("주말 혼소율 표의 날짜가 올바르지 않습니다.");
-    return headers.map((item, i) => ({date: dates[i], cells: labels.map(label => {
+    // Headers are report dates: the Oct 17 report contains Oct 16 operation.
+    // Keep every layout/header unchanged and shift only the saved-record key.
+    return headers.map((item, i) => ({reportDate: dates[i], date: addDays(dates[i], -1), cells: labels.map(label => {
       const target = cells.find(cell => cell.col === item.col && cell.row === label.row);
       if (!target) throw new Error(`주말 혼소율 입력셀 ${item.column}${label.row}을 찾지 못했습니다.`);
       return target.cell;
@@ -172,7 +174,6 @@
   async function apply(doc, sharedStrings = [], options = {}) {
     if (options.enabled !== true) return {enabled: false, appliedDates: [], missingDates: []};
     const targets = locate(doc, sharedStrings, options.referenceDate);
-    const captured = options.captured || capture();
     const results = new Array(targets.length);
     let cursor = 0;
     // Bound saved-record reads for long holidays; never start calculation/Agent work.
@@ -181,14 +182,13 @@
         const index = cursor++, date = targets[index].date;
         let item = null, error = "";
         if (!blocked(date)) {
-          item = normalized(captured.items?.[date], date) || cached(date);
-          if (!complete(item)) {
-            try {
-              const provider = root.morningMeetingClosedCofiring;
-              if (typeof provider?.loadSavedForWorkbook !== "function") throw new Error("혼소율 저장자료 읽기 기능을 불러오지 못했습니다.");
-              item = fillMissing(item, await provider.loadSavedForWorkbook(date), date);
-            } catch (e) { error = text(e?.message) || "저장자료 읽기 실패"; }
-          }
+          // A complete cached card can still contain pre-adjustment ratios.
+          // Use one fresh saved effective result, never merge raw and adjusted fields.
+          try {
+            const provider = root.morningMeetingClosedCofiring;
+            if (typeof provider?.loadSavedForWorkbook !== "function") throw new Error("혼소율 저장자료 읽기 기능을 불러오지 못했습니다.");
+            item = normalized(await provider.loadSavedForWorkbook(date, {force: true}), date);
+          } catch (e) { error = text(e?.message) || "저장자료 읽기 실패"; }
         }
         results[index] = {date, item: blocked(date) ? null : item, error};
       }
@@ -198,9 +198,10 @@
       const values = rowValues(blocked(result.date) ? null : result.item);
       targets[index].cells.forEach((cell, row) => writeCell(doc, cell, values[row]));
       (values.every(Boolean) ? appliedDates : missingDates).push(result.date);
-      if (result.error) errors.push({date: result.date, error: result.error});
+      if (result.error && !blocked(result.date)) errors.push({date: result.date, error: result.error});
     });
-    return {enabled: true, requestedCount: targets.length, appliedDates, missingDates, errors};
+    return {enabled: true, requestedCount: targets.length, appliedDates, missingDates, errors,
+      dateMappings: targets.map(({reportDate, date}) => ({reportDate, calculationDate: date}))};
   }
 
   root.morningMeetingHolidayCofiringSavedV1 = Object.freeze({version: VERSION, capture, apply});
