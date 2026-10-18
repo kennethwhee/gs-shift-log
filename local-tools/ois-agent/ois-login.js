@@ -12,6 +12,9 @@ const {
 // [ORGANIC-SILO-DATAPARC-V1] Query-only hidden Excel collector.
 const { ORGANIC_SILO_REQUEST_TYPE, collectOrganicSiloDataParcValues } =
   require("./organic-silo-dataparc-agent");
+// [DAILY-OPERATION-DATAPARC-V1] Explicit completed-day query, shared Excel lane.
+const { DAILY_OPERATION_REQUEST_TYPE, collectDailyOperationDataParcValues } =
+  require("./daily-operation-dataparc-agent");
 // [BED-ASH-MINUTE-DATAPARC-V1] Precision first; hourly fallback requires verified cleanup.
 const { collectBedAshWithHourlyFallback, isBedAshExcelBlocked } =
   require("./bed-ash-minute-dataparc-agent");
@@ -10895,6 +10898,7 @@ async function getNextOisAgentRequest(
       "cofiring_daily",
       "cofiring_period",
       "daily_data_excel",
+      DAILY_OPERATION_REQUEST_TYPE,
       "logsheet_pdf",
       "open_final_excel_folder"
     ];
@@ -10908,6 +10912,7 @@ async function getNextOisAgentRequest(
     "bed_ash_level",
     "daily_data_excel",
     "steam_status",
+    DAILY_OPERATION_REQUEST_TYPE,
     ORGANIC_SILO_REQUEST_TYPE
   ];
 
@@ -11126,6 +11131,7 @@ async function getNextOisAgentLaneRequests(
       "cofiring_daily",
       "cofiring_period",
       "daily_data_excel",
+      DAILY_OPERATION_REQUEST_TYPE,
       "logsheet_pdf",
       "open_final_excel_folder"
     ];
@@ -11493,6 +11499,7 @@ function isExcelComRequestType(
     ) ||
     normalizedRequestType ===
       BLOWER_RUNTIME_PROBE_REQUEST_TYPE ||
+    normalizedRequestType === "daily_operation_data" ||
     normalizedRequestType ===
       ORGANIC_SILO_REQUEST_TYPE
   );
@@ -11529,6 +11536,7 @@ function getOisAgentRequestLabel(
 ) {
   if (requestType === "cofiring_daily") return "혼소율 하루 DataPARC";
   if (requestType === "cofiring_period") return "혼소율 기간 DataPARC";
+  if (requestType === DAILY_OPERATION_REQUEST_TYPE) return "일일운전 운영정보 DataPARC";
   if (requestType === ORGANIC_SILO_REQUEST_TYPE) {
     return "유기성 Silo DataPARC";
   }
@@ -20546,6 +20554,10 @@ if (
         body: { action: "cofiring_progress", requestId: requestItem.id, ...progress }
       })
     });
+  }
+
+  if (requestType === DAILY_OPERATION_REQUEST_TYPE) {
+    return await collectDailyOperationDataParcValues(config, requestItem);
   }
 
   if (requestType === ORGANIC_SILO_REQUEST_TYPE) {

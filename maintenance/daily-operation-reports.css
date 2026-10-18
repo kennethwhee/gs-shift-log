@@ -1,0 +1,108 @@
+/* Scoped screen UI; the paper styles are shared with the isolated print window. */
+#efficiencyDailyOperationView { min-width: 0; color: #213547; }
+#efficiencyDailyOperationView[hidden] { display: none !important; }
+#efficiencyDailyOperationView .dor-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+#efficiencyDailyOperationView .dor-heading h2 { margin: 0; font-size: 22px; font-weight: 800; }
+#efficiencyDailyOperationView .dor-save-state { padding: 4px 9px; border-radius: 6px; background: #edf1f5; color: #586a7c; font-size: 12px; font-weight: 700; }
+#efficiencyDailyOperationView .dor-save-state.is-dirty { background: #fff0d7; color: #9d5b00; }
+#efficiencyDailyOperationView .dor-save-state.is-saved { background: #dcf2df; color: #206d35; }
+#efficiencyDailyOperationView .dor-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 12px; border: 1px solid #d6e0e8; border-radius: 10px; background: #f5f8fa; }
+#efficiencyDailyOperationView .dor-date-controls, #efficiencyDailyOperationView .dor-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+#efficiencyDailyOperationView .dor-button { min-height: 35px; padding: 7px 12px; background: #fff; color: #294154; border: 1px solid #bacbd8; border-radius: 6px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: none; }
+#efficiencyDailyOperationView .dor-button:hover:not(:disabled) { background: #edf5fa; border-color: #748fa2; }
+#efficiencyDailyOperationView .dor-button:disabled { cursor: default; opacity: .5; }
+#efficiencyDailyOperationView .dor-button-primary { color: #fff; background: #19724d; border-color: #19724d; min-width: 72px; }
+#efficiencyDailyOperationView .dor-button-primary:hover:not(:disabled) { color: #fff; background: #125e3e; border-color: #125e3e; }
+#efficiencyDailyOperationView input[type="date"], #efficiencyDailyOperationView input[type="month"] { min-height: 35px; padding: 5px 8px; border: 1px solid #bacbd8; border-radius: 6px; background: #fff; color: #263d50; font: inherit; font-size: 13px; }
+#efficiencyDailyOperationView .dor-status { min-height: 20px; margin: 10px 2px; color: #51697a; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+#efficiencyDailyOperationView .dor-status.is-error { color: #ae2525; font-weight: 600; }
+#efficiencyDailyOperationView .dor-status.is-success { color: #216c3a; }
+#efficiencyDailyOperationView .dor-status.is-notice { color: #86621b; }
+#efficiencyDailyOperationView[aria-busy="true"] .dor-status::before { content: ''; display: inline-block; width: 12px; height: 12px; margin-right: 8px; vertical-align: -2px; border: 2px solid #bdd1df; border-top-color: #19724d; border-radius: 50%; animation: dor-spin .8s linear infinite; }
+@keyframes dor-spin { to { transform: rotate(360deg); } }
+#efficiencyDailyOperationView .dor-warnings { margin: 0 0 12px; padding: 8px 12px; background: #fff8e8; border: 1px solid #ead29b; border-radius: 6px; color: #73541b; font-size: 12px; line-height: 1.65; }
+#efficiencyDailyOperationView .dor-warnings summary { cursor: pointer; font-weight: 700; }
+#efficiencyDailyOperationView .dor-warnings ul { margin: 8px 0 3px; padding-left: 20px; }
+#efficiencyDailyOperationView .dor-conflict { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; padding: 12px; border: 1px solid #dfaaa2; border-radius: 7px; background: #fff0ed; color: #8b312b; font-size: 13px; }
+#efficiencyDailyOperationView [hidden] { display: none !important; }
+#efficiencyDailyOperationView .dor-content { display: grid; grid-template-columns: 185px minmax(0, 1fr); gap: 14px; align-items: start; }
+#efficiencyDailyOperationView .dor-archive { border: 1px solid #d6e0e8; border-radius: 9px; background: #f7f9fb; overflow: hidden; padding: 11px; }
+#efficiencyDailyOperationView .dor-archive-heading { display: flex; align-items: center; justify-content: space-between; gap: 7px; margin-bottom: 10px; }
+#efficiencyDailyOperationView .dor-archive-heading h3 { margin: 0; font-size: 14px; }
+#efficiencyDailyOperationView .dor-archive-heading .dor-button { min-height: 27px; padding: 4px 6px; font-size: 11px; }
+#efficiencyDailyOperationView #dailyOperationMonth { width: 100%; box-sizing: border-box; }
+#efficiencyDailyOperationView .dor-list-status { font-size: 11px; color: #6a7c8b; line-height: 1.5; overflow-wrap: anywhere; }
+#efficiencyDailyOperationView .dor-list { display: grid; gap: 6px; max-height: 720px; overflow-y: auto; }
+#efficiencyDailyOperationView .dor-record { display: grid; grid-template-columns: minmax(0, 1fr) 34px; border: 1px solid #d7e1e9; border-radius: 6px; background: #fff; align-items: center; }
+#efficiencyDailyOperationView .dor-record.is-active { border-color: #398561; background: #eaf6ef; }
+#efficiencyDailyOperationView .dor-record-open { border: 0; background: transparent; display: grid; gap: 5px; text-align: left; padding: 9px 7px; font-weight: 400; min-width: 0; }
+#efficiencyDailyOperationView .dor-record-open strong { font-size: 14px; }
+#efficiencyDailyOperationView .dor-record-open span { font-size: 10px; color: #637586; overflow-wrap: anywhere; line-height: 1.5; }
+#efficiencyDailyOperationView .dor-record-delete { min-height: 25px; padding: 4px 3px; border: 0; color: #a94343; background: transparent; font-size: 10px; margin-right: 3px; }
+#efficiencyDailyOperationView .dor-help { margin: 0 0 8px; font-size: 12px; line-height: 1.6; color: #617485; }
+#efficiencyDailyOperationView .dor-report-area { min-width: 0; }
+#efficiencyDailyOperationView .dor-paper-scroll { overflow: auto; padding: 16px; background: #e9edf1; border: 1px solid #d8dfe7; border-radius: 6px; }
+.dor-paper { box-sizing: border-box; width: 920px; max-width: none; margin: 0 auto; padding: 17px 15px; background: #fff; color: #000; font-family: "Times New Roman", "Batang", "바탕", serif; font-size: 11px; box-shadow: 0 2px 10px #152a3b15; }
+.dor-paper * { box-sizing: border-box; }
+.dor-paper-header { display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); align-items: start; min-height: 72px; }
+.dor-paper-heading h2 { font-family: inherit; text-align: center; margin: 13px 0 17px; color: #000; font-size: 23px; font-weight: 700; letter-spacing: 2px; text-decoration: underline; text-underline-offset: 3px; }
+.dor-paper-heading p { color: #e13e3e; margin: 0 0 8px 15px; font-size: 12px; }
+.dor-paper table { border-collapse: collapse; table-layout: fixed; width: 100%; color: #000; margin: 0; }
+.dor-approval th, .dor-approval td { border: 1px solid #000; padding: 2px; text-align: center; white-space: pre-line; background: #fff; color: #000; }
+.dor-approval th { height: 23px; font-weight: 700; font-size: 12px; }
+.dor-approval td { height: 47px; }
+.dor-approval .dor-approval-label { width: 25px; font-size: 12px; }
+.dor-paper-section { margin: 0 0 7px; padding: 0; }
+.dor-paper-section h3 { font-family: inherit; margin: 0; padding: 0 3px 2px; line-height: 1.25; color: #000; font-size: 14px; letter-spacing: .3px; font-weight: 700; }
+.dor-report-table { border: 2px solid #000; }
+.dor-report-table td { border: 1px solid #000; padding: 0 2px; text-align: center; vertical-align: middle; line-height: 1.15; color: #000; white-space: pre-line; overflow-wrap: normal; }
+.dor-paper .dor-field { display: block; width: 100%; min-width: 0; height: 100%; min-height: 17px; margin: 0; padding: 1px 0; border: 0; border-radius: 0; background: transparent; color: #146c8b; font-family: inherit; font-size: inherit; font-weight: 400; line-height: 1.15; text-align: center; box-shadow: none; outline-offset: -1px; }
+.dor-paper .dor-field:disabled { opacity: 1; -webkit-text-fill-color: #146c8b; cursor: default; }
+.dor-paper .dor-field:focus { outline: 2px solid #3184b1; background: #e9f7ff; }
+.dor-paper .dor-field.is-calculated { color: #246983; cursor: default; }
+.dor-paper .dor-field.is-manual { text-decoration: underline dotted #bd841e; text-underline-offset: 3px; }
+.dor-paper .dor-field[aria-invalid="true"] { background: #ffdbd7; outline: 1px solid #c33737; color: #a91414; }
+.dor-paper .dor-section-materials { margin-top: 23px; border-top: 23px solid #f2dcdb; }
+.dor-paper .dor-section-receipts { margin-top: 17px; }
+.dor-paper .dor-section-closing { margin-top: -7px; margin-bottom: 0; }
+#efficiencyDailyOperationView .dor-source-detail { min-height: 20px; margin: 8px 0 13px; font-size: 12px; color: #5f7485; line-height: 1.6; overflow-wrap: anywhere; }
+#efficiencyDailyOperationView .dor-note-label { display: block; margin-bottom: 5px; font-size: 12px; font-weight: 700; }
+#efficiencyDailyOperationView #dailyOperationNote { display: block; width: 100%; box-sizing: border-box; border: 1px solid #c4d0da; border-radius: 6px; padding: 9px; font: inherit; font-size: 13px; resize: vertical; color: #263d50; background: #fff; }
+#efficiencyDailyOperationView .dor-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+.dor-print-document { margin: 0; padding: 0; background: #fff; }
+.dor-print-value { display: block; width: 100%; color: #146c8b; text-align: center; font-size: inherit; font-weight: 400; min-height: 14px; white-space: nowrap; overflow-wrap: normal; }
+.dor-print-value.dor-print-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 1150px) {
+  #efficiencyDailyOperationView .dor-content { grid-template-columns: minmax(0, 1fr); }
+  #efficiencyDailyOperationView .dor-archive { display: grid; grid-template-columns: 160px minmax(140px, 180px) 1fr; gap: 8px; align-items: start; }
+  #efficiencyDailyOperationView .dor-archive-heading { margin: 0; }
+  #efficiencyDailyOperationView .dor-list-status { margin: 5px 0; }
+  #efficiencyDailyOperationView .dor-list { grid-column: 1 / -1; display: flex; max-height: 135px; overflow: auto; padding-bottom: 3px; }
+  #efficiencyDailyOperationView .dor-record { min-width: 150px; max-width: 190px; }
+}
+@media (max-width: 650px) {
+  #efficiencyDailyOperationView .dor-heading h2 { font-size: 19px; }
+  #efficiencyDailyOperationView .dor-toolbar { padding: 9px; }
+  #efficiencyDailyOperationView .dor-actions { width: 100%; }
+  #efficiencyDailyOperationView .dor-actions .dor-button { flex: 1 1 auto; padding: 7px 8px; }
+  #efficiencyDailyOperationView .dor-archive { grid-template-columns: minmax(110px, 1fr) minmax(130px, 1fr); }
+  #efficiencyDailyOperationView .dor-list-status { grid-column: 1 / -1; }
+  #efficiencyDailyOperationView .dor-paper-scroll { padding: 8px; }
+}
+@media (prefers-reduced-motion: reduce) { #efficiencyDailyOperationView[aria-busy="true"] .dor-status::before { animation: none; } }
+@media print {
+  @page { size: A4 portrait; margin: 7mm; }
+  .dor-print-document .dor-paper { width: 196mm; padding: 0; box-shadow: none; font-size: 9px; }
+  .dor-print-document .dor-paper-header { min-height: 60px; grid-template-columns: minmax(0, 2fr) minmax(230px, 1fr); }
+  .dor-print-document .dor-paper-heading h2 { margin: 7px 0 12px; font-size: 20px; }
+  .dor-print-document .dor-paper-heading p { font-size: 10px; }
+  .dor-print-document .dor-paper-section { break-inside: avoid; margin-bottom: 5px; }
+  .dor-print-document .dor-report-table tr { height: auto !important; }
+  .dor-print-document .dor-report-table td { padding: 1px 2px; min-height: 14px; }
+  .dor-print-document .dor-report-table td { font-size: 9px !important; }
+  .dor-print-document .dor-paper-section h3 { font-size: 12px; }
+  .dor-print-document .dor-section-materials { margin-top: 12px; border-top-width: 14px; }
+  .dor-print-document .dor-section-receipts { margin-top: 10px; }
+  .dor-print-document .dor-section-closing { margin-top: -5px; margin-bottom: 0; }
+  .dor-print-document .dor-paper, .dor-print-document .dor-paper * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

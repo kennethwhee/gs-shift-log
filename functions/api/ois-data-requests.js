@@ -1,4 +1,5 @@
-﻿import { prepareScheduledBatch, scheduledBatchStatements, isScheduledBatchConflict } from "../_shared/blower-schedule-v1.js";
+﻿import dailyOperationQueryContract from "../../daily-operation/daily-operation-query-contract.js";
+import { prepareScheduledBatch, scheduledBatchStatements, isScheduledBatchConflict } from "../_shared/blower-schedule-v1.js";
 import { loadAppendBase, verifiedAppendBase, ensureAppendSchema, appendIntentStatement } from "../_shared/blower-incremental.js";
 import bedAshMinuteContract from "../../efficiency/bed-ash-minute-contract.js";
 
@@ -1263,6 +1264,7 @@ const OIS_REQUEST_TYPES = [
   "fbhe_vibration",
   "daily_data_excel",
   "organic_silo_dataparc",
+  "daily_operation_data",
   "steam_status",
   "logsheet_approval",
   "logsheet_pdf",
@@ -11191,6 +11193,7 @@ const OIS_AGENT_EXCEL_LANE_REQUEST_TYPES = [
   "cofiring_period",
   "daily_data_excel",
   "organic_silo_dataparc",
+  "daily_operation_data",
   "logsheet_pdf",
   BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
   "open_final_excel_folder"
@@ -16465,6 +16468,7 @@ export async function onRequestGet(
           "_"
         );
 
+    if (action === "daily_operation_data") return await handleDailyOperationDataGet(context, requestUrl);
     if (action === "cofiring_daily") return await handleCofiringLiveGet(context, requestUrl);
     if (action === "cofiring_period") return await handleCofiringPeriodGet(context, requestUrl);
     if (action === "cofiring_period_latest") return await handleCofiringPeriodLatestGet(context, requestUrl);
@@ -20816,6 +20820,16 @@ async function createUserRequest(
   }
 
 
+  if (requestType === "daily_operation_data") {
+    const allowed = ["action", "requestType", "targetDate", "forceRefresh"];
+    if (Object.keys(body).some(key => !allowed.includes(key)) ||
+        (body.forceRefresh !== undefined && typeof body.forceRefresh !== "boolean")) {
+      return jsonResponse({ok:false, message:"일일운전 조회는 날짜와 새로조회 여부만 전달할 수 있습니다."}, 400);
+    }
+    try { dailyOperationQueryContract.completedDay(targetDate); }
+    catch (error) { return jsonResponse({ok:false, message:error.message}, 400); }
+  }
+
   if (requestType === ORGANIC_SILO_DATAPARC_REQUEST_TYPE) {
     const todayKst = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
     if (targetDate < "2021-01-01" || targetDate >= todayKst) {
@@ -22895,6 +22909,7 @@ async function completeAgentRequest(
   }
 
 
+  if (existingRequest.requestType === "daily_operation_data") return await completeDailyOperationData(context, body, authentication, existingRequest);
   if (existingRequest.requestType === "silo_level") return await completeSiloResultV1(context, body, authentication, existingRequest);
   if (existingRequest.requestType === "cofiring_daily") return await completeCofiringLiveRequest(context, body, authentication, existingRequest);
   if (existingRequest.requestType === "cofiring_period") return await completeCofiringPeriodRequest(context, body, authentication, existingRequest);
@@ -24670,3 +24685,46 @@ async function handleCofiringPeriodProgress(context,body) {
 
 export const __cofiringLiveTest = {contract:COFIRING_LIVE,createCofiringLiveRequest,completeCofiringLiveRequest,handleCofiringLiveGet,handleCofiringProgress,createCofiringPeriodRequest,completeCofiringPeriodRequest,handleCofiringPeriodGet,handleCofiringPeriodProgress};
 // COFIRING_WEB_BRIDGE_V1_END
+
+/* DAILY_OPERATION_DATAPARC_API_V1: read-only snapshots; never participates in morning reset. */
+async function handleDailyOperationDataGet(context, requestUrl) {
+  const authentication = await getAuthenticatedUser(context);
+  if (authentication.error) return authentication.error;
+  const targetDate = requestUrl.searchParams.get("targetDate");
+  try { dailyOperationQueryContract.interval(targetDate); }
+  catch (error) { return jsonResponse({ok:false, message:error.message}, 400); }
+  const row = await context.env.DB.prepare(`SELECT * FROM ois_data_requests
+    WHERE request_type = 'daily_operation_data' AND target_date = ? AND status = 'complete'
+    ORDER BY completed_at DESC, requested_at DESC, id DESC LIMIT 1`).bind(targetDate).first();
+  const item = row ? convertRequestRow(row) : null;
+  if (item) {
+    try { item.result = dailyOperationQueryContract.normalize(item.result, targetDate); }
+    catch (error) { return jsonResponse({ok:false,targetDate,item:null,message:error.message}, 422); }
+  }
+  return jsonResponse({ok:true,targetDate,item});
+}
+
+async function completeDailyOperationData(context, body, authentication, existing) {
+  if (!existing.agentId || existing.agentId !== authentication.agentId ||
+      !["processing", "complete"].includes(existing.status) ||
+      (existing.status === "processing" && !(Date.parse(existing.expiresAt) > Date.now()))) {
+    return jsonResponse({ok:false,code:"DAILY_OPERATION_CLAIM_REQUIRED",message:"이 일일운전 요청을 가져간 Excel Agent만 처리시간 안에 완료할 수 있습니다."},409);
+  }
+  let result;
+  try { result = dailyOperationQueryContract.normalize(body.result, existing.targetDate); }
+  catch (error) { return jsonResponse({ok:false,code:"DAILY_OPERATION_INVALID_RESULT",message:error.message},400); }
+  const canonical = JSON.stringify(result);
+  if (existing.status === "complete") {
+    let saved;
+    try { saved = dailyOperationQueryContract.normalize(existing.result, existing.targetDate); } catch (_) {}
+    if (!saved || canonical !== JSON.stringify(saved)) return jsonResponse({ok:false,code:"DAILY_OPERATION_RESULT_CONFLICT",message:"이미 완료된 조회와 다른 결과는 저장할 수 없습니다."},409);
+    return jsonResponse({ok:true,replayed:true,item:existing});
+  }
+  const now = new Date().toISOString();
+  const update = await context.env.DB.prepare(`UPDATE ois_data_requests SET status='complete',
+    completed_at=?,result_json=?,error_message='',updated_at=?
+    WHERE id=? AND request_type='daily_operation_data' AND status='processing' AND agent_id=? AND expires_at>?`)
+    .bind(now,canonical,now,existing.id,authentication.agentId,now).run();
+  if (!update.meta?.changes) return jsonResponse({ok:false,code:"DAILY_OPERATION_CLAIM_CHANGED",message:"일일운전 조회 소유권 또는 처리기간이 변경되었습니다."},409);
+  return jsonResponse({ok:true,item:await findRequestById(context.env.DB,existing.id)});
+}

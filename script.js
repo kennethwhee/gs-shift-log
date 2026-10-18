@@ -86048,6 +86048,8 @@ function switchEfficiencyTeamView(
     new Set([
       "daily-work",
 
+      "daily-operation",
+
       "morning-meeting",
 
       "morning-meeting-auto-history",
@@ -86225,6 +86227,11 @@ function switchEfficiencyTeamView(
   ) {
     selectedViewElement.scrollTop =
       0;
+  }
+
+  if (selectedView === "daily-operation" &&
+      typeof window.openDailyOperationReportView === "function") {
+    window.openDailyOperationReportView();
   }
 
 
