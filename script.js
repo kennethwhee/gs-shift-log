@@ -143197,8 +143197,8 @@ function selectMorningMeetingSourceSheet(
     - 업무내용 기준일과 정확히 같은 날짜 사용
 
     주말:
-    - 선택한 시작일 ~ 종료일 사이의 시트만 후보
-    - 그중 가장 최신 날짜 사용
+    - 주말 시작 전 업무일지 기준일(선택한 시작일)의 시트만 사용
+    - 토요일/일요일 자료는 별도로 필요하지 않음
 
     예:
     주말 2026-08-07 ~ 2026-08-09
@@ -143387,8 +143387,8 @@ function selectMorningMeetingSourceSheet(
   /* =====================================================
     주말 모드
 
-    선택 기간 안의 시트 중
-    가장 최신 날짜를 사용한다.
+    주말 시작 전 업무일지 기준일과
+    정확히 같은 날짜의 시트를 사용한다.
   ====================================================== */
 
   if (
@@ -143400,11 +143400,8 @@ function selectMorningMeetingSourceSheet(
       datedCandidates.filter(
         item => {
           return (
-            item.normalizedReportDate >=
-              weekendStartDate &&
-
-            item.normalizedReportDate <=
-              weekendEndDate
+            item.normalizedReportDate ===
+              weekendStartDate
           );
         }
       );
@@ -143419,23 +143416,6 @@ function selectMorningMeetingSourceSheet(
           first,
           second
         ) => {
-          const dateCompare =
-            second
-              .normalizedReportDate
-              .localeCompare(
-                first
-                  .normalizedReportDate
-              );
-
-
-          if (
-            dateCompare !==
-              0
-          ) {
-            return dateCompare;
-          }
-
-
           /*
             같은 날짜 시트가 여러 개면
             Excel에서 뒤쪽에 있는 시트를 사용
@@ -143464,8 +143444,8 @@ function selectMorningMeetingSourceSheet(
             ]?.name ||
             teamKey,
 
-          range:
-            `${weekendStartDate} ~ ${weekendEndDate}`,
+          workLogDate:
+            weekendStartDate,
 
           sheetName:
             selectedSheet
@@ -143484,7 +143464,7 @@ function selectMorningMeetingSourceSheet(
 
     /*
       날짜가 들어 있는 시트가 존재하는데
-      주말 기간 안에는 하나도 없는 경우
+      주말 시작 전 업무일지 기준일과 일치하는 시트가 없는 경우
 
       엉뚱한 날짜를 사용하는 것보다
       명확하게 오류를 표시한다.
@@ -143512,8 +143492,8 @@ function selectMorningMeetingSourceSheet(
       throw new Error(
         [
           `${TEAM_CONFIG[teamKey]?.name || "팀 자료"}에서`,
-          `${weekendStartDate} ~ ${weekendEndDate}`,
-          "기간의 업무내용 시트를 찾지 못했습니다.",
+          `주말 시작 전 기준일(${weekendStartDate})의`,
+          "업무내용 시트를 찾지 못했습니다.",
           "",
           `확인된 날짜: ${
             availableDates.join(
@@ -168897,35 +168877,21 @@ if (
 /* =====================================================
   주말 4개 팀 자료 날짜 검사
 
-  기존:
-  팀 자료 날짜 === 주말 시작일
-
-  변경:
-  주말 시작일 <= 팀 자료 날짜 <= 주말 종료일
-
-  예:
-  주말 기간 2026-08-06 ~ 2026-08-08
-  팀 자료   2026-08-07
-
-  → 정상 사용
+  주말 시작 전 업무일지 기준일(선택한 시작일)과 같아야 한다.
+  자동수치의 종료일 기준과는 구분한다.
 ====================================================== */
 
 if (
   isWeekendMode &&
   teamReportDateText &&
-  (
-    teamReportDateText <
-      weekendStartDateText ||
-
-    teamReportDateText >
-      weekendEndDateText
-  )
+  teamReportDateText !==
+    weekendStartDateText
 ) {
   showMorningMeetingWorkbookError(
     [
-      "주말 취합의 4개 팀 자료 날짜가 선택 기간 밖입니다.",
-      `선택 기간: ${weekendStartDateText} ~ ${weekendEndDateText}`,
-      `팀 자료: ${teamReportDateText}`
+      "주말 취합에는 주말 시작 전 기준일의 4개 팀 업무일지를 사용합니다.",
+      `업무일지 기준일: ${weekendStartDateText}`,
+      `확인된 팀 자료: ${teamReportDateText}`
     ].join(
       " "
     )
