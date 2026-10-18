@@ -6,6 +6,7 @@
  * into the TO table, so legacy synchronization still cannot clear manual input.
  */
 const FIELDS = Object.freeze(['generatorEcmsGen1', 'ismartReception', 'epowerTransmission', 'solarDailyGeneration']);
+const CAPABILITIES = Object.freeze({partialValues: true, clearFields: true});
 const TABLE = 'to_night_power_daily';
 const AUDIT = 'to_night_power_audit';
 const HISTORY = 'morning_meeting_auto_history_overrides';
@@ -187,7 +188,7 @@ export async function onRequestGet(context) {
     const authority = accountAuthority(user);
     const row = await tableExists(db) ? await db.prepare(`SELECT * FROM ${TABLE} WHERE target_date = ?`).bind(date).first() : null;
     const item = itemFromRow(row, date);
-    return response({ok: true, targetDate: date, shift: 'NS', role: 'TO', unit: 'kWh',
+    return response({ok: true, capabilities: CAPABILITIES, targetDate: date, shift: 'NS', role: 'TO', unit: 'kWh',
       canEdit: Boolean(authority), sourceLog: authority, item, solarCumulative: await deriveSolarCumulative(db, date, item)});
   } catch (error) { return handleError(error); }
 }
@@ -203,11 +204,16 @@ export async function onRequestPost(context) {
     if (new TextEncoder().encode(text).byteLength > 8192) throw new InputError('입력 내용이 너무 큽니다.', 413);
     let body;
     try { body = JSON.parse(text); } catch { throw new InputError('입력 내용을 읽지 못했습니다.'); }
-    const allowed = ['targetDate', 'shift', 'role', 'values', 'expectedRevision', 'sourceLogId', 'sourceLogRevision'];
+    const allowed = ['targetDate', 'shift', 'role', 'values', 'expectedRevision', 'sourceLogId', 'sourceLogRevision', 'clearFields'];
     if (!isObject(body) || Object.keys(body).some(key => !allowed.includes(key))) throw new InputError('허용되지 않은 입력 항목입니다.');
     if (body.shift !== 'NS' || body.role !== 'TO') throw new InputError('야간(N/S) TO 담당자만 입력할 수 있습니다.', 403, 'NIGHT_TO_ONLY');
     if (!validDate(body.targetDate)) throw new InputError('실적 기준일을 확인해 주세요.');
     if (!validValues(body.values)) throw new InputError('한 항목 이상을 0 이상인 kWh 숫자로 입력해 주세요. 미확인 항목은 비워 둘 수 있습니다.');
+    const clearFields = Object.hasOwn(body, 'clearFields') ? body.clearFields : [];
+    if (!Array.isArray(clearFields) || clearFields.length > FIELDS.length || new Set(clearFields).size !== clearFields.length ||
+        clearFields.some(key => !FIELDS.includes(key) || body.values[key] !== null)) {
+      throw new InputError('미입력으로 변경할 항목을 확인해 주세요. 해당 입력칸을 비운 뒤 다시 저장해 주세요.');
+    }
     if (!validRevision(body.expectedRevision) || !validRevision(body.sourceLogRevision) ||
         body.sourceLogRevision < 1 || typeof body.sourceLogId !== 'string' || !body.sourceLogId) {
       throw new InputError('자료 버전을 확인해 주세요. 입력창을 다시 열어 주세요.');
@@ -222,11 +228,13 @@ export async function onRequestPost(context) {
     if (Number(previous?.revision || 0) !== body.expectedRevision) {
       throw new InputError('다른 입력으로 자료가 변경되었습니다. 현재 입력값을 보관한 뒤 저장자료를 다시 불러와 주세요.', 409, 'POWER_REVISION_CONFLICT');
     }
-    // Blank inputs mean unknown, not zero or a request to clear another saved
-    // value. Read the prior snapshot only after its revision and authority pass;
-    // the transactional guard below prevents a concurrent save being overwritten.
+    // A null from older clients still preserves the saved number. Only an
+    // explicit clearFields entry changes a saved number to unknown. Read the
+    // prior snapshot after authority/revision checks; the transactional guard
+    // below prevents a concurrent save being overwritten.
     const previousItem = itemFromRow(previous, date);
-    const values = Object.fromEntries(FIELDS.map(key => [key, body.values[key] ?? previousItem?.values[key] ?? null]));
+    const values = Object.fromEntries(FIELDS.map(key => [key,
+      clearFields.includes(key) ? null : body.values[key] ?? previousItem?.values[key] ?? null]));
     await ensureSchema(db);
     const now = new Date().toISOString(), json = JSON.stringify(values);
     // Recheck the session, registered TO position and power revision IN the write
@@ -265,7 +273,7 @@ export async function onRequestPost(context) {
     }
     const item = itemFromRow(results[3]?.results?.[0], date);
     if (!item) throw new Error('Saved power record missing');
-    return response({ok: true, targetDate: date, shift: 'NS', role: 'TO', unit: 'kWh', canEdit: true,
+    return response({ok: true, capabilities: CAPABILITIES, targetDate: date, shift: 'NS', role: 'TO', unit: 'kWh', canEdit: true,
       sourceLog: authority, item, solarCumulative: await deriveSolarCumulative(db, date, item)});
   } catch (error) { return handleError(error); }
 }

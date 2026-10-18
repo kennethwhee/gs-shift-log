@@ -29,7 +29,7 @@ test('provider loads after the classic main script; both cache keys and CSS are 
   const providers = [...index.matchAll(/<script\b[^>]*src=["']\/maintenance\/to-night-power\.js\?[^"']+["'][^>]*>/gi)];
   assert.equal(providers.length, 1);
   assert.ok(providers[0].index > main[0].index);
-  assert.match(providers[0][0], /partialPower=20261019-v1/);
+  assert.match(providers[0][0], /partialPower=20261019-v2/);
   assert.equal([...index.matchAll(/href=["']\/maintenance\/to-night-power\.css\?[^"']+["']/g)].length, 1);
 });
 test('TO card distinguishes incomplete, complete and checking states', () => {

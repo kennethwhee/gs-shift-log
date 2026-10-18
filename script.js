@@ -142880,58 +142880,44 @@ window.updateEfficiencyMorningMeetingUploadSummary =
   function extractMorningMeetingReportDate(
     rows
   ) {
-    const combinedText =
-      rows
-        .map(
-          normalizeMorningMeetingSearchText
-        )
-        .join(
-          "\n"
-        );
+    const combinedText = rows
+      .map(normalizeMorningMeetingSearchText)
+      .join("\n");
+    const header = combinedText.match(/일일업무[_\s-]*(20\d{2}[.\-/][^\n]*)/i);
+    if (!header) return "";
 
-
-    const match =
-      combinedText.match(
-        /일일업무[_\s-]*(20\d{2})[.\-/](\d{1,2})[.\-/](\d{1,2})/i
-      );
-
-
-    if (
-      !match
-    ) {
-      return "";
+    const invalidDate = () => {
+      throw new Error(`팀 업무일지 제목의 날짜 또는 기간을 확인해 주세요: ${header[0]}`);
+    };
+    const calendarDate = (year, month, day) => {
+      const value = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      const date = new Date(`${value}T00:00:00.000Z`);
+      if (!/^20\d{2}-\d{2}-\d{2}$/.test(value) ||
+          !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) invalidDate();
+      return value;
+    };
+    const startMatch = header[1].match(/^(20\d{2})[.\-/](\d{1,2})[.\-/](\d{1,2})\.?(?=$|\s|[~～(])/);
+    if (!startMatch) invalidDate();
+    const startDate = calendarDate(startMatch[1], startMatch[2], startMatch[3]);
+    const tail = header[1].slice(startMatch[0].length).trim();
+    if (!/^[~～]/.test(tail)) {
+      if (/[~～]/.test(tail)) invalidDate();
+      return startDate.replaceAll("-", ".");
     }
 
-
-    const year =
-      match[
-        1
-      ];
-
-
-    const month =
-      String(
-        match[
-          2
-        ]
-      ).padStart(
-        2,
-        "0"
-      );
-
-
-    const day =
-      String(
-        match[
-          3
-        ]
-      ).padStart(
-        2,
-        "0"
-      );
-
-
-    return `${year}.${month}.${day}`;
+    // A multi-day work report belongs to its explicit closing date. For example,
+    // 일일업무_2026.10.15~16 is the October 16 report, with October 19 plans below.
+    // Abbreviated endpoints inherit only the omitted year/month, never a rollover.
+    const endMatch = tail.match(/^[~～]\s*((?:20\d{2}[.\-/])?(?:\d{1,2}[.\-/])?\d{1,2})\.?(?=$|\s|\()/);
+    if (!endMatch || /[~～]/.test(tail.slice(endMatch[0].length))) invalidDate();
+    const parts = endMatch[1].split(/[.\-/]/);
+    const endDate = parts.length === 3
+      ? calendarDate(parts[0], parts[1], parts[2])
+      : parts.length === 2
+        ? calendarDate(startMatch[1], parts[0], parts[1])
+        : calendarDate(startMatch[1], startMatch[2], parts[0]);
+    if (endDate < startDate) invalidDate();
+    return endDate.replaceAll("-", ".");
   }
 
 

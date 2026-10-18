@@ -22,6 +22,7 @@ function payload(values = VALUES, options = {}) {
   const date = options.date || DATE;
   return {
     ok: true, targetDate: date, shift: 'NS', role: 'TO', unit: 'kWh',
+    ...(options.omitCapabilities ? {} : {capabilities: options.capabilities || {partialValues: true, clearFields: true}}),
     canEdit: options.canEdit !== false, sourceLog: {id: 'employee-position:test-to', revision: 1},
     item: values === null ? null : {targetDate: date, shift: 'NS', role: 'TO', unit: 'kWh',
       revision: options.revision || 1, values: {...values}, updatedBy: 'TO test'},
@@ -133,7 +134,7 @@ function fixture() {
   const window = {document, getShiftLogAuthHeaders: () => token ? {Authorization: token} : {},
     setTimeout: () => 1, clearTimeout() {}, addEventListener() {}, confirm: () => true,
     fetch: (url, request) => new Promise((resolve, reject) => requests.push({url, request,
-      respond: data => resolve({ok: true, status: 200, text: async () => JSON.stringify(data)}),
+      respond: (data, status = 200) => resolve({ok: status >= 200 && status < 300, status, text: async () => JSON.stringify(data)}),
       fail: () => reject(new Error('Test refresh failure'))}))};
   const appState = {selectedDate: DATE, selectedShift: 'NS', logs: []};
   const context = vm.createContext({window, appState, formatInputDate: date => date, Headers, AbortController,
@@ -200,6 +201,7 @@ test('actual form submits three entered fields and null reception; partial cards
   await f.submit();
   const write = f.requests.at(-1); assert.equal(write.request.method, 'POST');
   assert.deepEqual(JSON.parse(write.request.body).values, VALUES);
+  assert.equal(Object.hasOwn(JSON.parse(write.request.body), 'clearFields'), false);
   write.respond(payload()); await f.flush();
   assert.equal(f.get('toNightPowerDialog').open, false);
   assert.equal(f.button().textContent, '일부 입력 3/4');
@@ -214,7 +216,8 @@ test('actual form submits three entered fields and null reception; partial cards
 test('partial dialog reopens blank unknown field; completing it changes count and green state', async () => {
   const f = fixture(); await f.start(payload()); await f.open(payload());
   assert.equal(f.input('ismartReception').value, '');
-  assert.match(f.get('toNightPowerDialog').querySelector('.to-night-power-help').textContent, /빈칸은 기존 저장값을 유지/);
+  assert.match(f.get('toNightPowerDialog').querySelector('.to-night-power-help').textContent, /수전량을 몰라도 빈칸으로 저장/);
+  assert.match(f.get('toNightPowerDialog').querySelector('.to-night-power-help').textContent, /실제 0일 때만 0/);
   f.input('ismartReception').value = '0'; await f.submit();
   const write = f.requests.at(-1);
   assert.equal(JSON.parse(write.request.body).values.ismartReception, 0);
@@ -226,15 +229,72 @@ test('partial dialog reopens blank unknown field; completing it changes count an
   assert.equal(f.get(IDS.ismartReception).textContent, '0 kWh');
 });
 
-test('blanking a saved field submits null and shows the authoritative server-preserved value', async () => {
-  const full = {...VALUES, ismartReception: 33};
+test('explicitly blanking a saved zero requests clearing only that field and displays unknown after save', async () => {
+  const full = {...VALUES, ismartReception: 0};
   const f = fixture(); await f.start(payload(full)); await f.open(payload(full));
   f.input('ismartReception').value = ''; f.input('generatorEcmsGen1').value = '130000'; await f.submit();
   const write = f.requests.at(-1);
   assert.equal(JSON.parse(write.request.body).values.ismartReception, null);
+  assert.deepEqual(JSON.parse(write.request.body).clearFields, ['ismartReception']);
+  assert.equal(JSON.parse(write.request.body).expectedRevision, 1);
+  write.respond(payload({...VALUES, generatorEcmsGen1: 130000}, {revision: 2})); await f.flush();
+  assert.equal(f.get(IDS.ismartReception).textContent, '-');
+  assert.equal(f.status.textContent, 'TO 일부 입력 3/4');
+  await f.open(payload({...VALUES, generatorEcmsGen1: 130000}, {revision: 2}));
+  assert.equal(f.input('ismartReception').value, '');
+});
+
+test('a loaded actual zero remains zero unless the user explicitly clears it', async () => {
+  const full = {...VALUES, ismartReception: 0};
+  const f = fixture(); await f.start(payload(full)); await f.open(payload(full));
+  f.input('generatorEcmsGen1').value = '130000'; await f.submit();
+  const write = f.requests.at(-1), body = JSON.parse(write.request.body);
+  assert.equal(body.values.ismartReception, 0); assert.equal(Object.hasOwn(body, 'clearFields'), false);
   write.respond(payload({...full, generatorEcmsGen1: 130000}, {revision: 2})); await f.flush();
-  assert.equal(f.get(IDS.ismartReception).textContent, '33 kWh');
+  assert.equal(f.get(IDS.ismartReception).textContent, '0 kWh');
   assert.equal(f.status.textContent, 'TO 입력 완료');
+});
+
+for (const options of [{omitCapabilities: true}, {capabilities: {partialValues: true, clearFields: false}}]) {
+  test('explicit clearing waits for server support without losing edits: ' + JSON.stringify(options), async () => {
+    const full = {...VALUES, ismartReception: 0}, data = payload(full, options);
+    const f = fixture(); await f.start(data); await f.open(data);
+    f.input('ismartReception').value = ''; f.input('generatorEcmsGen1').value = '130000';
+    const count = f.requests.length; await f.submit();
+    assert.equal(f.requests.length, count); assert.match(f.get('toNightPowerMessage').textContent, /서버에 반영되지/);
+    assert.equal(f.input('ismartReception').value, ''); assert.equal(f.input('generatorEcmsGen1').value, '130000');
+    assert.equal(f.get('toNightPowerDialog').open, true); assert.equal(f.get('toNightPowerSave').disabled, false);
+  });
+}
+
+test('legacy partial-save server can still save a new unknown field without clearFields', async () => {
+  const f = fixture(); await f.start(payload(null, {omitCapabilities: true})); await f.open(payload(null, {omitCapabilities: true}));
+  for (const key of KEYS) f.input(key).value = VALUES[key] === null ? '' : String(VALUES[key]);
+  await f.submit();
+  const write = f.requests.at(-1), body = JSON.parse(write.request.body);
+  assert.equal(write.request.method, 'POST'); assert.deepEqual(body.values, VALUES);
+  assert.equal(Object.hasOwn(body, 'clearFields'), false);
+  write.respond(payload(VALUES, {omitCapabilities: true})); await f.flush();
+  assert.equal(f.status.textContent, 'TO 일부 입력 3/4');
+});
+
+test('all fields cleared remains invalid and sends no destructive empty-row request', async () => {
+  const full = {...VALUES, ismartReception: 0}; const f = fixture(); await f.start(payload(full)); await f.open(payload(full));
+  for (const key of KEYS) f.input(key).value = '';
+  const count = f.requests.length; await f.submit();
+  assert.equal(f.requests.length, count); assert.match(f.get('toNightPowerMessage').textContent, /하나 이상/);
+});
+
+test('explicit clearing carries the loaded revision and a conflict keeps the pending edit', async () => {
+  const full = {...VALUES, ismartReception: 0}, data = payload(full, {revision: 7});
+  const f = fixture(); await f.start(data); await f.open(data);
+  f.input('ismartReception').value = ''; await f.submit();
+  const write = f.requests.at(-1), body = JSON.parse(write.request.body);
+  assert.equal(body.expectedRevision, 7); assert.deepEqual(body.clearFields, ['ismartReception']);
+  write.respond({ok: false, message: '다른 저장이 먼저 반영되었습니다. 다시 불러와 주세요.'}, 409); await f.flush();
+  assert.equal(f.get('toNightPowerDialog').open, true); assert.equal(f.input('ismartReception').value, '');
+  assert.equal(f.get('toNightPowerSave').disabled, true); assert.match(f.get('toNightPowerMessage').textContent, /현재 입력값은 그대로/);
+  assert.equal(f.get(IDS.ismartReception).textContent, '0 kWh');
 });
 
 test('empty form and invalid number do not POST or lose typed values', async () => {

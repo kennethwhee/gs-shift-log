@@ -133,7 +133,7 @@
   const validNumber = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1e12;
   const validCumulative = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 366e12;
   const enteredCount = values => FIELDS.filter(([key]) => validNumber(values?.[key])).length;
-  const inputHelp = '선택한 야간 근무 시작일 기준 · 단위 kWh · 확인된 항목부터 저장할 수 있습니다. 빈칸은 기존 저장값을 유지합니다.';
+  const inputHelp = '단위 kWh · 수전량을 몰라도 빈칸으로 저장할 수 있습니다. 실제 0일 때만 0을 입력하세요. 저장된 숫자를 지우고 저장하면 미입력으로 변경됩니다.';
   function parseInput(value) {
     const text = String(value ?? '').trim();
     if (!text) return null;
@@ -155,6 +155,11 @@
       throw new Error('TO 담당 업무일지 정보를 확인하지 못했습니다.');
     }
     if (payload.canEdit && !duty) throw new Error('TO 담당자를 확인하지 못했습니다.');
+    if (Object.hasOwn(payload, 'capabilities') && (!payload.capabilities ||
+        typeof payload.capabilities !== 'object' || Array.isArray(payload.capabilities) ||
+        typeof payload.capabilities.partialValues !== 'boolean' || typeof payload.capabilities.clearFields !== 'boolean')) {
+      throw new Error('전력 저장 기능 정보를 확인하지 못했습니다. 새로고침 후 다시 시도해 주세요.');
+    }
     const item = payload.item;
     if (item !== null && (!item || item.targetDate !== date || item.shift !== 'NS' || item.role !== 'TO' || item.unit !== 'kWh' ||
         !Number.isSafeInteger(item.revision) || item.revision < 1 || !item.values || Array.isArray(item.values) ||
@@ -497,9 +502,18 @@
       form.elements.namedItem(FORM_FIELDS[0][0]).focus();
       return;
     }
+    // Only an explicit edit from a loaded number (including 0) to blank clears a
+    // saved value. Unknown blanks retain the partial-save V1 request contract.
+    const clearFields = FORM_FIELDS.filter(([key]) => values[key] === null &&
+      validNumber(state.payload.item?.values[key])).map(([key]) => key);
+    if (clearFields.length && state.payload.capabilities?.clearFields !== true) {
+      say('저장된 숫자를 미입력으로 바꾸는 기능이 아직 서버에 반영되지 않았습니다. 현재 입력값은 유지됩니다. 웹 배포 완료 후 새로고침하고 다시 입력해 주세요.', true);
+      return;
+    }
     setBusy(true); say('저장하고 있습니다.');
     try {
       const payload = await request(state.date, {body: {targetDate: state.date, shift: 'NS', role: 'TO', values,
+        ...(clearFields.length ? {clearFields} : {}),
         expectedRevision: state.payload.item?.revision || 0, sourceLogId: state.payload.sourceLog.id,
         sourceLogRevision: state.payload.sourceLog.revision}});
       if (state !== modalState || state.session !== checkSession()) return;
@@ -718,7 +732,7 @@
     if (entry?.status !== 'ready') throw new Error('TO 전력 저장자료를 확인하지 못했습니다. 전력 카드에서 재조회 후 다시 생성해 주세요.');
     return mergeValues(dailyData, entry.payload, date);
   }
-  root.toNightPower = {version: '20261019-partial-input-v1', targetDate, renderMeeting, refreshMeeting, ensureForWorkbook, valuesForWorkbook,
+  root.toNightPower = {version: '20261019-partial-input-v2', targetDate, renderMeeting, refreshMeeting, ensureForWorkbook, valuesForWorkbook,
     refreshDuty: () => { selectionStamp = ''; queueUI(); }};
   function init() {
     // GS_SELECTED_DATE_DELETE_V8_TO_RESET_REPAINT

@@ -186,3 +186,98 @@ run('historical daily fallback remains available for an earlier day with unknown
   const saved = await f.call('POST', f.body({...EMPTY, solarDailyGeneration: 500}, 0, '2026-10-03'));
   assert.deepEqual(saved.data.solarCumulative, {monthly: 1200, yearly: 151200});
 });
+
+run('GET and POST advertise nullable input and explicit clear support', async f => {
+  const expected = {partialValues: true, clearFields: true};
+  const empty = await f.call('GET');
+  assert.equal(empty.data.item, null);
+  assert.deepEqual(empty.data.capabilities, expected);
+  assert.deepEqual((await f.call('POST', f.body())).data.capabilities, expected);
+  assert.deepEqual((await f.call('GET')).data.capabilities, expected);
+});
+
+run('explicitly clearing a saved placeholder zero stores null and can later be filled', async f => {
+  const initial = {generatorEcmsGen1: 4061112, ismartReception: 0, epowerTransmission: 3548720, solarDailyGeneration: 23.5};
+  await f.call('POST', f.body(initial));
+  const clearedValues = {...initial, ismartReception: null};
+  const cleared = await f.call('POST', {...f.body(clearedValues, 1), clearFields: ['ismartReception']});
+  assert.equal(cleared.status, 200);
+  assert.equal(cleared.data.item.revision, 2);
+  assert.deepEqual(cleared.data.item.values, clearedValues);
+  assert.deepEqual((await f.call('GET')).data.item.values, clearedValues);
+  assert.deepEqual(f.audit().map(row => JSON.parse(row.values_json)), [initial, clearedValues]);
+  const filled = await f.call('POST', f.body({...EMPTY, ismartReception: 18.5}, 2));
+  assert.equal(filled.status, 200);
+  assert.equal(filled.data.item.revision, 3);
+  assert.deepEqual(filled.data.item.values, {...initial, ismartReception: 18.5});
+});
+
+run('explicit clear affects only selected keys; legitimate zeros remain saved', async f => {
+  const initial = {generatorEcmsGen1: 0, ismartReception: 5, epowerTransmission: 0, solarDailyGeneration: 0};
+  await f.call('POST', f.body(initial));
+  const result = await f.call('POST', {...f.body({...EMPTY, generatorEcmsGen1: 0}, 1), clearFields: ['ismartReception']});
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.data.item.values, {...initial, ismartReception: null});
+});
+
+run('malformed or contradictory clearFields cannot change stored values', async f => {
+  const initial = {...PARTIAL, ismartReception: 0};
+  await f.call('POST', f.body(initial));
+  for (const clearFields of [null, {}, 'ismartReception', ['unknown'], ['__proto__'], [0],
+    ['ismartReception', 'ismartReception'], ['solarDailyGeneration']]) {
+    const result = await f.call('POST', {...f.body(PARTIAL, 1), clearFields});
+    assert.equal(result.status, 400, JSON.stringify(clearFields));
+  }
+  assert.deepEqual((await f.call('GET')).data.item.values, initial);
+  assert.equal(f.audit().length, 1);
+});
+
+run('an empty clearFields array keeps older-client null preservation semantics', async f => {
+  const initial = {...PARTIAL, ismartReception: 0};
+  await f.call('POST', f.body(initial));
+  const result = await f.call('POST', {...f.body(PARTIAL, 1), clearFields: []});
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.data.item.values, initial);
+});
+
+run('explicit clear of an unknown new field is harmless but all-blank records remain rejected', async f => {
+  const result = await f.call('POST', {...f.body(), clearFields: ['ismartReception']});
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.data.item.values, PARTIAL);
+  const empty = await f.call('POST', {...f.body(EMPTY, 1), clearFields: Object.keys(EMPTY)});
+  assert.equal(empty.status, 400);
+  assert.equal(f.audit().length, 1);
+  assert.deepEqual((await f.call('GET')).data.item.values, PARTIAL);
+});
+
+run('explicit clear cannot erase a newer value on stale or racing revisions', async f => {
+  await f.call('POST', f.body({...PARTIAL, ismartReception: 0}));
+  const request = {...f.body(PARTIAL, 1), clearFields: ['ismartReception']};
+  assert.equal((await f.call('POST', {...request, expectedRevision: 0})).status, 409);
+  const newer = {...PARTIAL, ismartReception: 42};
+  f.db.beforeWriteBatch = () => f.sql.prepare('UPDATE to_night_power_daily SET values_json = ?, revision = 2').run(JSON.stringify(newer));
+  const raced = await f.call('POST', request);
+  assert.equal(raced.status, 409);
+  assert.equal(raced.data.code, 'POWER_WRITE_CONFLICT');
+  assert.deepEqual((await f.call('GET')).data.item.values, newer);
+  assert.equal(f.audit().length, 1);
+});
+
+run('explicit clear is blocked after TO authority changes', async f => {
+  const initial = {...PARTIAL, ismartReception: 0};
+  await f.call('POST', f.body(initial));
+  f.db.beforeWriteBatch = () => f.sql.exec("UPDATE employees SET position = 'BCO1' WHERE employee_no = 'to'");
+  const result = await f.call('POST', {...f.body(PARTIAL, 1), clearFields: ['ismartReception']});
+  assert.equal(result.status, 409);
+  assert.deepEqual((await f.call('GET')).data.item.values, initial);
+  assert.equal(f.audit().length, 1);
+});
+
+run('clearing solar explicitly invalidates its target cumulative instead of manufacturing zero', async f => {
+  f.history('2026-09-30', {powerSolarYearly: 150000});
+  await f.call('POST', f.body());
+  const result = await f.call('POST', {...f.body({...PARTIAL, solarDailyGeneration: null}, 1), clearFields: ['solarDailyGeneration']});
+  assert.equal(result.status, 200);
+  assert.equal(result.data.item.values.solarDailyGeneration, null);
+  assert.deepEqual(result.data.solarCumulative, {monthly: null, yearly: null});
+});
