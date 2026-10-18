@@ -157030,6 +157030,56 @@ function replaceMorningMeetingFuelArea(
   수식 결과도 새 값으로 계산하게 한다.
 ===================================================== */
 
+// MORNING_MEETING_XLSX_COMPAT_V1
+// Numeric writers replace template formulas and dynamic rows can move cells.
+// The template's calculation chain no longer describes the finished workbook.
+// Remove the optional chain and its package registrations together; Excel will
+// rebuild dependencies from the preserved worksheet formulas on full calculation.
+async function removeMorningMeetingWorkbookCalcChain(zip) {
+  const chainPath = "xl/calcChain.xml";
+  const relationshipPath = "xl/_rels/workbook.xml.rels";
+  const relationshipFile = zip.file(relationshipPath);
+  if (relationshipFile) {
+    const relationshipDocument = parseMorningMeetingXml(
+      await relationshipFile.async("string"), "통합문서 계산 관계"
+    );
+    const relationships = Array.from(
+      relationshipDocument.getElementsByTagNameNS(
+        "http://schemas.openxmlformats.org/package/2006/relationships",
+        "Relationship"
+      )
+    ).filter(relationship =>
+      String(relationship.getAttribute("Type") || "").endsWith("/calcChain")
+    );
+    if (relationships.length) {
+      relationships.forEach(relationship => relationship.remove());
+      zip.file(relationshipPath,
+        new XMLSerializer().serializeToString(relationshipDocument));
+    }
+  }
+
+  const contentTypesPath = "[Content_Types].xml";
+  const contentTypesFile = zip.file(contentTypesPath);
+  if (contentTypesFile) {
+    const contentTypesDocument = parseMorningMeetingXml(
+      await contentTypesFile.async("string"), "통합문서 콘텐츠 형식"
+    );
+    const overrides = Array.from(
+      contentTypesDocument.getElementsByTagNameNS(
+        "http://schemas.openxmlformats.org/package/2006/content-types",
+        "Override"
+      )
+    ).filter(override => override.getAttribute("PartName") === `/${chainPath}`);
+    if (overrides.length) {
+      overrides.forEach(override => override.remove());
+      zip.file(contentTypesPath,
+        new XMLSerializer().serializeToString(contentTypesDocument));
+    }
+  }
+
+  zip.remove(chainPath);
+}
+
 async function forceMorningMeetingWorkbookRecalculation(
   zip
 ) {
@@ -157082,17 +157132,23 @@ async function forceMorningMeetingWorkbookRecalculation(
         );
 
 
-    const extList =
-      workbookDocument
-        .getElementsByTagNameNS(
-          MAIN_XML_NAMESPACE,
-          "extLst"
-        )[0];
+    // calcPr precedes all of these children in the workbook schema.
+    // Do not append it after custom views/pivot caches when the template has
+    // no calculation properties yet.
+    const followingElementNames = new Set([
+      "oleSize", "customWorkbookViews", "pivotCaches", "smartTagPr",
+      "smartTagTypes", "webPublishing", "fileRecoveryPr",
+      "webPublishObjects", "extLst"
+    ]);
+    const followingElement = Array.from(workbookRoot.childNodes).find(node =>
+      node.nodeType === 1 && node.namespaceURI === MAIN_XML_NAMESPACE &&
+      followingElementNames.has(node.localName)
+    );
 
 
     workbookRoot.insertBefore(
       calcPr,
-      extList ||
+      followingElement ||
       null
     );
   }
@@ -157130,6 +157186,8 @@ async function forceMorningMeetingWorkbookRecalculation(
         workbookDocument
       )
   );
+
+  await removeMorningMeetingWorkbookCalcChain(zip);
 }
 
 /* =========================================================
