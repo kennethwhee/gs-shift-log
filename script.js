@@ -235187,10 +235187,10 @@ if (
     if(
       keys.some(
         key=>
-          !autoHistoryCurrentFiniteNonNegative(
-            values[key]
-          )
-      )
+          values[key]!==null &&
+          !autoHistoryCurrentFiniteNonNegative(values[key])
+      ) ||
+      !keys.some(key=>autoHistoryCurrentFiniteNonNegative(values[key]))
     ){
       return null;
     }
@@ -235209,7 +235209,25 @@ if (
         values.solarDailyGeneration
     };
 
+    // A saved TO blank owns the field, including its old compatibility alias.
+    // Otherwise an older daily DATA row could refill the blank during export.
+    for(const [key,alias] of [
+      ["generatorEcmsGen1","powerGeneration"],
+      ["ismartReception","electricityReceived"],
+      ["epowerTransmission","electricityTransmitted"],
+      ["solarDailyGeneration","solarDaily"]
+    ]){
+      if(values[key]===null)normalized[alias]=null;
+    }
+
+    if(values.solarDailyGeneration===null){
+      normalized.solarMonthlyCumulative=null;
+      normalized.solarYearlyCumulative=null;
+      normalized.solarCumulative=null;
+    }
+
     if(
+      values.solarDailyGeneration!==null &&
       autoHistoryCurrentFiniteNonNegative(
         payload?.solarCumulative?.monthly
       )
@@ -235219,6 +235237,7 @@ if (
     }
 
     if(
+      values.solarDailyGeneration!==null &&
       autoHistoryCurrentFiniteNonNegative(
         payload?.solarCumulative?.yearly
       )

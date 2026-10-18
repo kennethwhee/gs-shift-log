@@ -8,7 +8,7 @@
 
   if (!root || !root.document) return;
 
-  const VERSION = "20261005-saved-snapshot-v2";
+  const VERSION = "20261019-to-partial-snapshot-v3";
   const doc = root.document;
 
   const IDS = Object.freeze({
@@ -212,15 +212,23 @@
       const allKeys = [...POWER_KEYS, ...STEAM_KEYS, ...ORGANIC_KEYS];
       fillSaved(values, allKeys, "cardOverrides", () =>
         root.morningMeetingCardOverrides?.overrideValues?.({}, date), sourceErrors);
-      fillSaved(values, POWER_KEYS, "power", () =>
-        root.toNightPower?.valuesForWorkbook?.({}, {targetDate: date}), sourceErrors);
+      const toPowerBlanks = new Set();
+      fillSaved(values, POWER_KEYS, "power", () => {
+        const saved = root.toNightPower?.valuesForWorkbook?.({}, {targetDate: date});
+        for (const key of POWER_KEYS) {
+          if (saved && Object.hasOwn(saved, key) && saved[key] === null) toPowerBlanks.add(key);
+        }
+        return saved;
+      }, sourceErrors);
       const steam = root.__morningMeetingSteamOisProbeLastResult;
       if (text(steam?.sourceDate || steam?.targetDate) === date) {
         copyFiniteKeys(values, steam, STEAM_KEYS, {overwrite: false});
       }
       fillSaved(values, ORGANIC_KEYS, "organic", () =>
         root.morningMeetingClosedCofiring?.valuesForWorkbook?.({}, {targetDate: date}), sourceErrors);
-      fillSaved(values, allKeys, "legacy", () => legacyValues(date), sourceErrors);
+      // A partial TO record deliberately leaves its unknown fields blank. Older
+      // same-date daily DATA values cannot silently restore those fields.
+      fillSaved(values, allKeys.filter(key => !toPowerBlanks.has(key)), "legacy", () => legacyValues(date), sourceErrors);
     }
     return Object.freeze({
       version: VERSION, targetDate: date, savedSnapshot: true, cofiringValues,

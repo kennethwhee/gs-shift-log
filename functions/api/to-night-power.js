@@ -20,9 +20,10 @@ class InputError extends Error {
 const validDate = value => typeof value === 'string' && /^20\d{2}-\d{2}-\d{2}$/.test(value) &&
   Number.isFinite(Date.parse(value + 'T00:00:00Z')) && new Date(value + 'T00:00:00Z').toISOString().slice(0, 10) === value;
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+const validDailyNumber = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= MAX_VALUE;
 const validValues = value => isObject(value) && Object.keys(value).length === FIELDS.length &&
-  FIELDS.every(key => Object.hasOwn(value, key) && typeof value[key] === 'number' &&
-    Number.isFinite(value[key]) && value[key] >= 0 && value[key] <= MAX_VALUE);
+  FIELDS.every(key => Object.hasOwn(value, key) && (value[key] === null || validDailyNumber(value[key]))) &&
+  FIELDS.some(key => validDailyNumber(value[key]));
 const validRevision = value => Number.isSafeInteger(value) && value >= 0;
 const storedNumber = (value, maximum = MAX_CUMULATIVE) =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= maximum ? value : null;
@@ -206,7 +207,7 @@ export async function onRequestPost(context) {
     if (!isObject(body) || Object.keys(body).some(key => !allowed.includes(key))) throw new InputError('허용되지 않은 입력 항목입니다.');
     if (body.shift !== 'NS' || body.role !== 'TO') throw new InputError('야간(N/S) TO 담당자만 입력할 수 있습니다.', 403, 'NIGHT_TO_ONLY');
     if (!validDate(body.targetDate)) throw new InputError('실적 기준일을 확인해 주세요.');
-    if (!validValues(body.values)) throw new InputError('네 항목을 모두 0 이상인 kWh 숫자로 입력해 주세요.');
+    if (!validValues(body.values)) throw new InputError('한 항목 이상을 0 이상인 kWh 숫자로 입력해 주세요. 미확인 항목은 비워 둘 수 있습니다.');
     if (!validRevision(body.expectedRevision) || !validRevision(body.sourceLogRevision) ||
         body.sourceLogRevision < 1 || typeof body.sourceLogId !== 'string' || !body.sourceLogId) {
       throw new InputError('자료 버전을 확인해 주세요. 입력창을 다시 열어 주세요.');
@@ -217,12 +218,17 @@ export async function onRequestPost(context) {
       throw new InputError('TO 보직 정보가 변경되었습니다. 입력값을 확인한 뒤 저장자료를 다시 불러와 주세요.', 409, 'TO_POSITION_CHANGED');
     }
     const exists = await tableExists(db);
-    const previous = exists ? await db.prepare(`SELECT revision FROM ${TABLE} WHERE target_date = ?`).bind(date).first() : null;
+    const previous = exists ? await db.prepare(`SELECT * FROM ${TABLE} WHERE target_date = ?`).bind(date).first() : null;
     if (Number(previous?.revision || 0) !== body.expectedRevision) {
       throw new InputError('다른 입력으로 자료가 변경되었습니다. 현재 입력값을 보관한 뒤 저장자료를 다시 불러와 주세요.', 409, 'POWER_REVISION_CONFLICT');
     }
+    // Blank inputs mean unknown, not zero or a request to clear another saved
+    // value. Read the prior snapshot only after its revision and authority pass;
+    // the transactional guard below prevents a concurrent save being overwritten.
+    const previousItem = itemFromRow(previous, date);
+    const values = Object.fromEntries(FIELDS.map(key => [key, body.values[key] ?? previousItem?.values[key] ?? null]));
     await ensureSchema(db);
-    const now = new Date().toISOString(), json = JSON.stringify(Object.fromEntries(FIELDS.map(key => [key, body.values[key]])));
+    const now = new Date().toISOString(), json = JSON.stringify(values);
     // Recheck the session, registered TO position and power revision IN the write
     // transaction. 업무일지 synchronization has no authority over this record.
     // Invalid JSON deliberately aborts/rolls back the batch on any conflict.

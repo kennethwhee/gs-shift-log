@@ -120,7 +120,7 @@ run('leap day is accepted; registered TO permission is date-independent', async 
 for (const [key, value] of [['shift', 'DS'], ['shift', 'N/S'], ['role', 'BCO1'], ['role', 'admin']]) run(`reject duty spoof: ${key}=${value}`, async f => {
   const body = f.body(); body[key] = value; assert.equal((await f.call('POST', body)).status, 403); assert.equal(f.count('to_night_power_daily'), 0);
 });
-for (const [name, value] of [['empty string', ''], ['number string', '1'], ['null', null], ['negative', -1], ['boolean', true], ['array', []], ['too large', 1e13]]) run(`invalid value: ${name}`, async f => {
+for (const [name, value] of [['empty string', ''], ['number string', '1'], ['negative', -1], ['boolean', true], ['array', []], ['too large', 1e13]]) run(`invalid value: ${name}`, async f => {
   const body = f.body(); body.values.ismartReception = value; assert.equal((await f.call('POST', body)).status, 400);
 });
 run('all four fields must be explicitly present; extra fields rejected', async f => {
@@ -200,10 +200,10 @@ run('audit failure rolls back the saved values', async f => {
   assert.equal(result.status, 500); const row = (await f.call()).data.item;
   assert.equal(row.revision, 1); assert.equal(row.values.ismartReception, 0); assert.equal(f.count('to_night_power_audit'), 1);
 });
-for (const [text, expected] of [['0', 0], ['0.125', .125], ['1,234.56', 1234.56], [' 25 ', 25], ['0000', 0]]) {
+for (const [text, expected] of [['', null], [' ', null], ['0', 0], ['0.125', .125], ['1,234.56', 1234.56], [' 25 ', 25], ['0000', 0]]) {
   test(`UI parse accepts ${text}`, () => assert.equal(pure.parseInput(text), expected));
 }
-for (const text of ['', ' ', '1,2', '-1', 'NaN', 'Infinity', '0xFF', '1e3', '+2', '1.2.3', '1,000,00']) {
+for (const text of ['1,2', '-1', 'NaN', 'Infinity', '0xFF', '1e3', '+2', '1.2.3', '1,000,00']) {
   test(`UI parse rejects ${JSON.stringify(text)}`, () => assert.throws(() => pure.parseInput(text)));
 }
 run('workbook merge is date-scoped, nonmutating and preserves unrelated fields', async f => {

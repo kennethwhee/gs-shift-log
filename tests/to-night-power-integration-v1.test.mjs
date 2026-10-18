@@ -26,13 +26,16 @@ test('actual patched main script parses', () => { new vm.Script(source, {filenam
 test('provider loads after the classic main script; both cache keys and CSS are present', () => {
   const main = [...index.matchAll(/<script\b[^>]*src=["']\/?script\.js(?:\?[^"']*)?["'][^>]*>/gi)];
   assert.equal(main.length, 1); assert.match(main[0][0], /toNightPower=20260928-v1-r6-state1/);
-  assert.ok(index.indexOf('/maintenance/to-night-power.js?v=20260928-v1-r6-state1') > main[0].index);
-  assert.equal(index.split('/maintenance/to-night-power.js?v=20260928-v1-r6-state1').length - 1, 1);
-  assert.equal(index.split('/maintenance/to-night-power.css?v=20260928-v1-r2-ui2-state1').length - 1, 1);
+  const providers = [...index.matchAll(/<script\b[^>]*src=["']\/maintenance\/to-night-power\.js\?[^"']+["'][^>]*>/gi)];
+  assert.equal(providers.length, 1);
+  assert.ok(providers[0].index > main[0].index);
+  assert.match(providers[0][0], /partialPower=20261019-v1/);
+  assert.equal([...index.matchAll(/href=["']\/maintenance\/to-night-power\.css\?[^"']+["']/g)].length, 1);
 });
 test('TO card distinguishes incomplete, complete and checking states', () => {
   assert.match(providerSource, /function paintInputButton\(button, entry, eligible\)/);
-  assert.match(providerSource, /const complete = ready && Boolean\(entry\.payload\.item\)/);
+  assert.match(providerSource, /const complete = count === FIELDS\.length/);
+  assert.match(providerSource, /일부 입력 \$\{count\}\/4/);
   assert.match(providerSource, /setText\(button, '전력 입력'\)/);
   assert.match(providerSource, /setText\(button, '✓ 입력 완료'\)/);
   assert.match(providerSource, /setText\(button, '확인 중…'\)/);
@@ -41,8 +44,18 @@ test('TO card distinguishes incomplete, complete and checking states', () => {
   assert.match(providerCss, /background:\s*#eaf8ef/);
   assert.match(providerCss, /\.to-night-power-button\.is-checking/);
 });
-test('TO render runs after existing closed-data/query render', () => {
-  assert.match(source, /window\.morningMeetingClosedCofiring\?\.renderOrganic\(\);\s*window\.morningMeetingQuerySources\?\.render\(\);\s*window\.toNightPower\?\.renderMeeting\(\);/);
+test('TO repaint runs after the common morning meeting renderer', () => {
+  const calls = [];
+  const start = providerSource.indexOf('  function redrawMeeting()');
+  const end = providerSource.indexOf('  function renderSolarCumulative(', start);
+  assert.ok(start >= 0 && end > start);
+  const sandbox = vm.createContext({
+    root: {renderEfficiencyMorningMeetingSteamStatus: () => calls.push('base')},
+    targetDate: () => '2026-10-18', dateValid: () => true, blocked: () => false,
+    renderMeeting: () => calls.push('TO'), queueMicrotask: callback => callback()
+  });
+  vm.runInContext('let meetingQueued = false;\n' + providerSource.slice(start, end) + '\nredrawMeeting();', sandbox);
+  assert.deepEqual(calls, ['base', 'TO']);
 });
 test('TO provider renders server-derived monthly/yearly solar cumulative fields', () => {
   assert.match(providerSource, /efficiencyMorningMeetingAutoSolarMonthlyCumulative/);

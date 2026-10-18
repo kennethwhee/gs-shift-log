@@ -132,9 +132,11 @@
     Number.isFinite(Date.parse(value + 'T00:00:00Z')) && new Date(value + 'T00:00:00Z').toISOString().slice(0, 10) === value;
   const validNumber = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1e12;
   const validCumulative = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 366e12;
+  const enteredCount = values => FIELDS.filter(([key]) => validNumber(values?.[key])).length;
+  const inputHelp = '선택한 야간 근무 시작일 기준 · 단위 kWh · 확인된 항목부터 저장할 수 있습니다. 빈칸은 기존 저장값을 유지합니다.';
   function parseInput(value) {
     const text = String(value ?? '').trim();
-    if (!text) throw new Error('값을 입력해 주세요. 실제 사용량이 없으면 0을 입력해 주세요.');
+    if (!text) return null;
     if (!/^(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?$/.test(text)) {
       throw new Error('0 이상의 숫자를 입력해 주세요. 쉼표는 천 단위로만 사용할 수 있습니다.');
     }
@@ -155,8 +157,9 @@
     if (payload.canEdit && !duty) throw new Error('TO 담당자를 확인하지 못했습니다.');
     const item = payload.item;
     if (item !== null && (!item || item.targetDate !== date || item.shift !== 'NS' || item.role !== 'TO' || item.unit !== 'kWh' ||
-        !Number.isSafeInteger(item.revision) || item.revision < 1 || !item.values ||
-        FIELDS.some(([key]) => !validNumber(item.values[key])))) {
+        !Number.isSafeInteger(item.revision) || item.revision < 1 || !item.values || Array.isArray(item.values) ||
+        FIELDS.some(([key]) => !Object.hasOwn(item.values, key) || (item.values[key] !== null && !validNumber(item.values[key]))) ||
+        enteredCount(item.values) === 0)) {
       throw new Error('저장된 전력 자료를 확인하지 못했습니다.');
     }
     const solarCumulative = payload.solarCumulative;
@@ -167,6 +170,10 @@
         (solarCumulative.monthly !== null && !validCumulative(solarCumulative.monthly)) ||
         (solarCumulative.yearly !== null && !validCumulative(solarCumulative.yearly))) {
       throw new Error('태양광 누적 자료를 확인하지 못했습니다.');
+    }
+    if (item && item.values.solarDailyGeneration === null &&
+        (solarCumulative.monthly !== null || solarCumulative.yearly !== null)) {
+      throw new Error('태양광 발전량 미입력 날짜의 누적 자료를 확인하지 못했습니다.');
     }
     return {...payload,
       item: item === null ? null : {...item, values: Object.fromEntries(FIELDS.map(([key]) => [key, item.values[key]]))},
@@ -190,8 +197,16 @@
     if (suppressed || !payload?.item) return source;
     const result = normalizePayload(payload, date);
     return {...source, ...result.item.values,
-      ...(validCumulative(result.solarCumulative?.monthly) ? {solarMonthlyCumulative: result.solarCumulative.monthly} : {}),
-      ...(validCumulative(result.solarCumulative?.yearly) ? {solarYearlyCumulative: result.solarCumulative.yearly} : {})};
+      powerGeneration: result.item.values.generatorEcmsGen1,
+      electricityReceived: result.item.values.ismartReception,
+      electricityTransmitted: result.item.values.epowerTransmission,
+      solarDaily: result.item.values.solarDailyGeneration,
+      ...(result.item.values.solarDailyGeneration === null
+        ? {solarMonthlyCumulative: null, solarYearlyCumulative: null, solarCumulative: null}
+        : {
+          ...(validCumulative(result.solarCumulative?.monthly) ? {solarMonthlyCumulative: result.solarCumulative.monthly} : {}),
+          ...(validCumulative(result.solarCumulative?.yearly) ? {solarYearlyCumulative: result.solarCumulative.yearly} : {})
+        })};
   }
   if (typeof module === 'object' && module.exports) module.exports = {FIELDS, dateValid, parseInput, normalizePayload, acceptRefresh, mergeValues};
   if (!root?.document || root.toNightPower) return;
@@ -312,7 +327,8 @@
     const checking = eligible && (!entry || entry.status === 'loading');
     const editable = ready && entry.payload?.canEdit === true;
     const readOnly = ready && !editable;
-    const complete = ready && Boolean(entry.payload?.item);
+    const count = ready ? enteredCount(entry.payload?.item?.values) : 0;
+    const complete = count === FIELDS.length;
     // TO_POWER_READONLY_NEUTRAL_BUTTON_V3
     setHidden(button, !(ready || checking));
     button.disabled = checking;
@@ -326,13 +342,16 @@
       setText(button, '확인 중…');
       button.title = '저장된 전력 입력 여부를 확인하고 있습니다.';
     } else if (readOnly) {
-      setText(button, '전력 확인');
+      setText(button, count > 0 && !complete ? `전력 확인 · 일부 입력 ${count}/4` : '전력 확인');
       button.title = complete
         ? 'TO가 저장한 전력 실적 확인 (읽기 전용)'
         : 'TO 전력 실적 확인 (읽기 전용)';
     } else if (complete) {
       setText(button, '✓ 입력 완료');
       button.title = '전력 입력 완료 · 클릭하여 저장값 확인/수정';
+    } else if (count > 0) {
+      setText(button, `일부 입력 ${count}/4`);
+      button.title = `전력 ${count}/4개 항목 저장 · 클릭하여 미입력 항목 추가`;
     } else if (ready) {
       setText(button, '전력 입력');
       button.title = 'N/S TO 전력 실적 입력 (kWh)';
@@ -377,10 +396,10 @@
       <header><div><span class="to-night-power-eyebrow">N/S · TO</span><h2 id="toNightPowerTitle">전력 실적 입력</h2></div>
         <button type="button" data-close aria-label="입력창 닫기" class="to-night-power-close">×</button></header>
       <div class="to-night-power-date"><span>실적 기준일</span><strong id="toNightPowerDate"></strong></div>
-      <p class="to-night-power-help">선택한 야간 근무 시작일 기준 · 단위 kWh</p>
+      <p class="to-night-power-help">${inputHelp}</p>
       <div class="to-night-power-fields">${FORM_FIELDS.map(([key, label]) => `<label for="toNightPower-${key}">${label}
         <span class="to-night-power-input"><input id="toNightPower-${key}" name="${key}" type="text" inputmode="decimal"
-          autocomplete="off" maxlength="32" placeholder="0" required aria-describedby="toNightPowerMessage"><span>kWh</span></span></label>`).join('')}</div>
+          autocomplete="off" maxlength="32" placeholder="미입력" aria-describedby="toNightPowerMessage"><span>kWh</span></span></label>`).join('')}</div>
       <p id="toNightPowerMessage" class="to-night-power-message" role="status" aria-live="polite"></p>
       <footer><button type="button" id="toNightPowerReload">저장자료 다시 불러오기</button>
         <div><button type="button" data-close>취소</button><button type="submit" id="toNightPowerSave">저장</button></div></footer>
@@ -428,11 +447,11 @@
       const editable = payload.canEdit === true;
       setText(byId('toNightPowerTitle'), editable ? '전력 실적 입력' : '전력 실적 확인');
       setText(dialog.querySelector('.to-night-power-help'), editable
-        ? '선택한 야간 근무 시작일 기준 · 단위 kWh'
+        ? inputHelp
         : '읽기 전용 · N/S TO 담당자가 저장한 전력 실적입니다.');
       for (const [key] of FORM_FIELDS) {
         const input = form.elements.namedItem(key);
-        const value = payload.item ? String(payload.item.values[key]) : '';
+        const value = String(payload.item?.values[key] ?? '');
         input.value = value;
         input.readOnly = !editable;
         if (editable) input.removeAttribute('aria-readonly');
@@ -445,7 +464,7 @@
           ? `저장자료를 불러왔습니다. 입력자: ${payload.item.updatedBy || 'TO 담당자'}`
           : `저장자료를 읽기 전용으로 불러왔습니다. 입력자: ${payload.item.updatedBy || 'TO 담당자'}`
         : editable
-          ? '네 항목을 모두 입력해 주세요. 사용량이 없으면 0을 입력해 주세요.'
+          ? '확인된 항목을 하나 이상 입력해 주세요. 미확인 값은 빈칸으로, 실제 사용량이 없으면 0으로 입력해 주세요.'
           : '저장된 전력 자료가 없습니다. TO 담당자 입력 대기 중입니다.');
     } catch (error) { if (state === modalState) { state.payload = null; say(error.message, true); } }
     finally {
@@ -472,6 +491,11 @@
       const input = form.elements.namedItem(key);
       try { values[key] = parseInput(input.value); }
       catch (error) { input.setAttribute('aria-invalid', 'true'); input.focus(); say(`${label}: ${error.message}`, true); return; }
+    }
+    if (enteredCount(values) === 0) {
+      say('확인된 항목을 하나 이상 입력해 주세요. 빈칸만으로는 저장할 수 없습니다.', true);
+      form.elements.namedItem(FORM_FIELDS[0][0]).focus();
+      return;
     }
     setBusy(true); say('저장하고 있습니다.');
     try {
@@ -515,8 +539,23 @@
     const cumulative = payload?.solarCumulative;
     for (const [key, suffix] of [['monthly', 'Monthly'], ['yearly', 'Yearly']]) {
       const value = cumulative?.[key];
-      setText(byId('efficiencyMorningMeetingAutoSolar' + suffix + 'Cumulative'),
+      const element = byId('efficiencyMorningMeetingAutoSolar' + suffix + 'Cumulative');
+      setText(element,
         validCumulative(value) ? value.toLocaleString('ko-KR', {maximumFractionDigits: 6}) + ' kWh' : '-');
+      if (!validCumulative(value) && element?.dataset) {
+        delete element.dataset.rawValue;
+        delete element.dataset.morningCardOverride;
+      }
+    }
+  }
+  function renderDailyValues(payload) {
+    for (const [key, , suffix] of FIELDS) {
+      const value = payload.item.values[key], element = byId(PREFIX + suffix);
+      setText(element, validNumber(value) ? value.toLocaleString('ko-KR', {maximumFractionDigits: 6}) + ' kWh' : '-');
+      if (value === null && element?.dataset) {
+        delete element.dataset.rawValue;
+        delete element.dataset.morningCardOverride;
+      }
     }
   }
   function renderMeeting() {
@@ -536,6 +575,15 @@
         const text = String(byId(id)?.textContent || '').trim();
         return text !== '' && text !== '-' && /\d/.test(text);
       });
+    const visibleDailyCount = () => FIELDS.filter(([, , suffix]) => {
+      const text = String(byId(PREFIX + suffix)?.textContent || '').trim();
+      return text !== '' && text !== '-' && /\d/.test(text);
+    }).length;
+    const savedBadge = label => {
+      const count = visibleDailyCount();
+      badge(count > 0 && count < FIELDS.length ? `${label} · 일부 입력 ${count}/4` : label,
+        count === FIELDS.length ? 'complete' : 'idle');
+    };
 
     const clearVisiblePowerValues = () => {
       for (const id of [...FIELDS.map(([, , suffix]) => PREFIX + suffix),
@@ -579,7 +627,7 @@
     let entry = cache.get(date);
 
     if (session && entry?.payload?.item && entry.status !== 'ready') {
-      for (const [key, , suffix] of FIELDS) setText(byId(PREFIX + suffix), entry.payload.item.values[key].toLocaleString('ko-KR', {maximumFractionDigits: 6}) + ' kWh');
+      renderDailyValues(entry.payload);
       renderSolarCumulative(entry.payload);
       setText(byId(PREFIX + 'PowerDate'), date);
       badge(entry.status === 'error' ? '재조회 실패 · 마지막 저장값 유지' : '재확인 중 · 마지막 저장값 유지', entry.status === 'error' ? 'error' : 'loading');
@@ -593,7 +641,7 @@
       setText(byId(PREFIX + 'PowerDate'), date);
 
       if (!session) {
-        badge(hasExisting ? '저장값' : '로그인 필요', hasExisting ? 'complete' : 'idle');
+        if (hasExisting) savedBadge('저장값'); else badge('로그인 필요', 'idle');
         card.title = hasExisting
           ? `${date} 오전회의 저장값 · 로그인 후 TO 원본 확인 가능`
           : `${date} 로그인 후 TO 원본 확인 가능`;
@@ -601,7 +649,7 @@
       }
 
       if (!entry) {
-        badge(hasExisting ? '저장값' : '조회 대기', hasExisting ? 'complete' : 'idle');
+        if (hasExisting) savedBadge('저장값'); else badge('조회 대기', 'idle');
         card.title = hasExisting
           ? `${date} 오전회의 D1 저장값 · 전력 카드 진입 시 TO 원본 확인`
           : `${date} 오전회의 저장값 없음 · 전력 카드 진입 시 TO 원본 확인`;
@@ -622,10 +670,11 @@
     }
 
     if (entry.payload.item) {
-      for (const [key, , suffix] of FIELDS) setText(byId(PREFIX + suffix), entry.payload.item.values[key].toLocaleString('ko-KR', {maximumFractionDigits: 6}) + ' kWh');
+      renderDailyValues(entry.payload);
       renderSolarCumulative(entry.payload);
       setText(byId(PREFIX + 'PowerDate'), date);
-      badge('TO 입력 완료', 'complete');
+      const count = enteredCount(entry.payload.item.values);
+      badge(count === FIELDS.length ? 'TO 입력 완료' : `TO 일부 입력 ${count}/4`, count === FIELDS.length ? 'complete' : 'idle');
       card.title = `${date} N/S TO · ${entry.payload.item.updatedBy || 'TO 담당자'} · ${entry.payload.item.updatedAt || ''} · kWh`;
     } else {
       // A missing TO record does not delete an independent same-date saved card.
@@ -633,7 +682,7 @@
         .match(/20\d{2}-\d{2}-\d{2}/)?.[0];
       if (visibleDate === date && hasVisibleD1Values()) {
         setText(byId(PREFIX + 'PowerDate'), date + ' · 기존 저장값');
-        badge('기존 저장값', 'complete');
+        savedBadge('기존 저장값');
         card.title = `${date} 저장값 유지 · TO 원본 없음 · 최종 엑셀에 표시값 반영`;
         return;
       }
@@ -669,7 +718,7 @@
     if (entry?.status !== 'ready') throw new Error('TO 전력 저장자료를 확인하지 못했습니다. 전력 카드에서 재조회 후 다시 생성해 주세요.');
     return mergeValues(dailyData, entry.payload, date);
   }
-  root.toNightPower = {version: '20261009-power-date-sync-v1', targetDate, renderMeeting, refreshMeeting, ensureForWorkbook, valuesForWorkbook,
+  root.toNightPower = {version: '20261019-partial-input-v1', targetDate, renderMeeting, refreshMeeting, ensureForWorkbook, valuesForWorkbook,
     refreshDuty: () => { selectionStamp = ''; queueUI(); }};
   function init() {
     // GS_SELECTED_DATE_DELETE_V8_TO_RESET_REPAINT

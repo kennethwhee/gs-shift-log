@@ -223,5 +223,5 @@ test("meeting date may be next day while rendered source date remains the workbo
 
 test("collector exposes saved snapshot version", () => {
   const sandbox = installSandbox({ elements: fullVisibleElements() });
-  assert.equal(sandbox.morningMeetingWorkbookCurrentValues.version, "20261005-saved-snapshot-v2");
+  assert.equal(sandbox.morningMeetingWorkbookCurrentValues.version, "20261019-to-partial-snapshot-v3");
 });
