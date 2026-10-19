@@ -11093,8 +11093,29 @@ async function getNextOisAgentRequest(
 async function getNextOisAgentLaneRequests(
   config
 ) {
-  if (isCofiringExcelBlocked()) throw new Error("혼소율 조회용 Excel 종료 확인이 필요합니다. 추가 Agent 요청을 보류합니다.");
-  if (isBedAshExcelBlocked()) throw new Error("Bed Ash 조회용 Excel 종료 확인이 필요합니다. 추가 Agent 요청을 보류합니다.");
+  const cofiringExcelBlocked = isCofiringExcelBlocked();
+  const bedAshExcelBlocked = isBedAshExcelBlocked();
+  if (cofiringExcelBlocked || bedAshExcelBlocked) {
+    if (config.agentMode === "excel") {
+      throw new Error(cofiringExcelBlocked
+        ? "혼소율 조회용 Excel 종료 확인이 필요합니다. 추가 Agent 요청을 보류합니다."
+        : "Bed Ash 조회용 Excel 종료 확인이 필요합니다. 추가 Agent 요청을 보류합니다.");
+    }
+
+    // LIMESTONE CLEANUP BLOCK ISOLATION V1
+    // Limestone reads OIS only. Keep every Excel cleanup marker and use the
+    // existing guarded single-request route to avoid claiming any Excel work.
+    const result = await requestOisAgentApi(config, getOisAgentApiUrl(config, {
+      action: "next",
+      requestTypes: "limestone_stock",
+      _: Date.now()
+    }));
+    const item = result?.item || null;
+    if (item && normalizeOisAgentText(item.requestType || item.request_type) !== "limestone_stock") {
+      throw new Error("Excel 정리 확인 중 석회석 이외 요청이 반환되었습니다.");
+    }
+    return item ? [item] : [];
+  }
   if (
     config.agentMode ===
       "excel"
