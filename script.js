@@ -143786,6 +143786,40 @@ function cleanMorningMeetingSectionRows(
 }
 
   /* =====================================================
+    기계팀 외주공사 표 → 예정사항
+
+    행 문자열에는 병합 셀의 작업명·위치·시간·작업자·비고가
+    모두 포함된다. 표 제목/헤더/빈 행은 제외하고 원문 순서를 유지한다.
+  ====================================================== */
+
+  function extractMorningMeetingOutsourcedWorkRows(rows) {
+    const headingIndex = findMorningMeetingRowIndex(
+      rows,
+      /^(?:◇|◆|▣)?\s*외주\s*공사(?:\s|[(:（]|$)/i
+    );
+    if (headingIndex < 0) return [];
+
+    const result = [];
+    for (let index = headingIndex + 1; index < rows.length; index += 1) {
+      const line = normalizeMorningMeetingSearchText(rows[index]);
+      if (!line) continue;
+      if (/^(?:◇|◆|▣)/.test(line) ||
+          /^(?:기타\s*사항|근태\s*현황|전일\s*특이사항|예정\s*사항)(?:\s|[(:（]|$)/.test(line) ||
+          /^[1-5]\s*[.)]\s*(?:안전팀|환경팀|기계팀|전기제어팀)(?:\s|$)/.test(line)) break;
+
+      // A merged table header is not a construction entry. Empty template
+      // rows may contain only the pre-filled category "외주".
+      const compact = line.replace(/\s+/g, "");
+      if (/^(?:구분)?(?:주요)?작업명작업위치/.test(compact)) continue;
+      const content = line.replace(/^외주(?:\s+|$)/, "").trim();
+      if (!content || /^(?:[-–—]+|없음|해당\s*없음)$/.test(content)) continue;
+      result.push(`[외주공사] ${content}`);
+    }
+    return result;
+  }
+
+
+  /* =====================================================
     전일 특이사항·예정사항 추출
   ====================================================== */
 
@@ -143864,7 +143898,7 @@ function cleanMorningMeetingSectionRows(
       const nextSectionIndex =
         findMorningMeetingRowIndex(
           rows,
-          /(?:기타사항|근태현황|외주공사)/i,
+          /^(?:◇|◆|▣)?\s*(?:기타\s*사항|근태\s*현황|외주\s*공사)(?:\s|[(:（]|$)/i,
           scheduleHeadingIndex +
             1
         );
@@ -143900,6 +143934,11 @@ function cleanMorningMeetingSectionRows(
             )
           )
         : [];
+
+
+    if (teamName === "기계팀") {
+      scheduleRows.push(...extractMorningMeetingOutsourcedWorkRows(rows));
+    }
 
 
     return {
