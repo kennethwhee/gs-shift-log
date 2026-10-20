@@ -6,10 +6,10 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="description" content="설비별 Sounding과 벌크밀도로 SILO 재고를 환산합니다.">
   <title>SILO 재고 계산 · GS Shift Log</title>
-  <link rel="stylesheet" href="style.css?v=2.1.0-20261020">
+  <link rel="stylesheet" href="style.css?v=3.0.0-20261020">
   <script src="/maintenance/shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
-  <script src="calculator.js?v=2.1.0-20261020" defer></script>
-  <script src="app.js?v=2.1.0-20261020" defer></script>
+  <script src="calculator.js?v=3.0.0-20261020" defer></script>
+  <script src="app.js?v=3.0.0-20261020" defer></script>
 </head>
 <body>
   <header class="page-header">
@@ -32,12 +32,6 @@
         <div class="model-summary"><span class="kind-badge" id="modelKind"></span><p id="modelDescription"></p></div>
       </section>
 
-      <section class="drawing-reference" id="drawingReference" aria-labelledby="drawingReferenceTitle" hidden>
-        <h2 id="drawingReferenceTitle">BIO 도면 표기 참고값</h2>
-        <dl class="drawing-reference-grid" id="drawingReferenceValues"></dl>
-        <p>도면 표기값은 별도 참고값이며, 재고 계산 용적을 보정하는 데 사용하지 않습니다.</p>
-      </section>
-
       <div class="workspace-grid">
         <section class="panel input-panel" aria-labelledby="inputTitle">
           <div class="panel-heading"><h2 id="inputTitle">입력값</h2><span class="panel-caption" id="inputCaption">밀도·측정 기준 확인</span></div>
@@ -50,7 +44,7 @@
               <button class="text-button" id="resetButton" type="button">기본값으로</button>
             </div>
           </form>
-          <p class="input-footnote">입력값을 바꾸면 결과가 바로 갱신됩니다. Sounding은 위 기준면에서 재료 표면까지의 빈 거리입니다.</p>
+          <p class="live-hint">입력하면 결과와 그림이 바로 갱신됩니다.</p>
         </section>
 
         <section class="panel result-panel" aria-labelledby="resultTitle">
@@ -60,8 +54,15 @@
             <div class="result-empty" id="resultEmpty"><strong id="emptyTitle">측정값을 입력하세요</strong><p id="resultMessage"></p></div>
             <div id="resultNumbers" hidden>
               <div class="primary-result"><span id="primaryLabel"></span><div><strong id="massValue"></strong><span class="result-unit">t</span></div></div>
-              <section class="silo-visual" id="siloVisual" aria-labelledby="siloVisualTitle" hidden>
-                <div class="silo-visual-heading"><h3 id="siloVisualTitle">SILO 채움 상태</h3><span id="siloVisualKind"></span></div>
+              <div class="key-results" id="keyResults"></div>
+              <dl class="result-details" id="resultDetails"></dl>
+            </div>
+          </div>
+        </section>
+        <section class="panel silo-panel" aria-labelledby="siloVisualTitle">
+          <div class="panel-heading"><h2 id="siloVisualTitle">SILO 채움 상태</h2><span class="panel-caption" id="siloVisualKind">입력 대기</span></div>
+          <div class="silo-placeholder" id="siloPlaceholder"><span class="placeholder-label">SILO LEVEL</span><strong>재료 높이 확인</strong><p id="siloPlaceholderMessage">측정값을 입력하면 재료면과 높이를 표시합니다.</p></div>
+              <div class="silo-visual" id="siloVisual" aria-labelledby="siloVisualTitle" hidden>
                 <div class="silo-visual-layout">
                   <svg id="siloDiagram" viewBox="0 0 400 390" role="img" aria-labelledby="siloDiagramTitle siloDiagramDesc">
                     <title id="siloDiagramTitle">SILO 재료 높이</title>
@@ -95,17 +96,26 @@
                     <p id="siloVisualNote"></p>
                   </div>
                 </div>
-                <p class="silo-visual-footnote" id="siloVisualFootnote"></p>
-              </section>
-              <div class="key-results" id="keyResults"></div>
-              <dl class="result-details" id="resultDetails"></dl>
-            </div>
-          </div>
+              </div>
         </section>
       </div>
 
-      <section class="basis-notes" aria-labelledby="noticeTitle"><h2 id="noticeTitle">적용 기준과 확인 사항</h2><ul id="modelWarnings"></ul></section>
+      <div class="supporting-details">
+      <details class="input-help-details" id="inputHelpDetails"><summary>입력 방법 · 측정 기준</summary><div class="details-content">
+          <p class="input-footnote">입력값을 바꾸면 결과가 바로 갱신됩니다. Sounding은 위 기준면에서 재료 표면까지의 빈 거리입니다.</p>
+        <div id="inputGuidance" class="input-guidance"></div>
+        <p class="silo-visual-footnote" id="siloVisualFootnote"></p>
+      </div></details>
+      <details class="drawing-reference" id="drawingReference" aria-labelledby="drawingReferenceTitle" hidden>
+        <summary id="drawingReferenceTitle">BIO 도면 참고값 <span>Gross 589.1 · Net 419.5 m³</span></summary>
+        <div class="details-content">
+        <dl class="drawing-reference-grid" id="drawingReferenceValues"></dl>
+        <p>도면 표기값은 별도 참고값이며, 재고 계산 용적을 보정하는 데 사용하지 않습니다.</p>
+      </div></details>
+
+      <details class="basis-notes" aria-labelledby="noticeTitle"><summary id="noticeTitle">적용 기준과 확인 사항</summary><ul id="modelWarnings"></ul></details>
       <details class="calculation-details" id="basisDetails"><summary>계산식 · 원자료 기준 보기</summary><div class="details-content"><p id="basisText"></p><pre id="formulaText"></pre><p class="source-note" id="sourceText"></p></div></details>
+      </div>
       <p class="page-footnote">표시값은 입력한 벌크밀도와 형상 기준의 환산값입니다. 범위 밖·계산 보류는 재고가 0이라는 뜻이 아닙니다.</p>
     </div>
   </main>

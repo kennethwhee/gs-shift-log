@@ -97,6 +97,14 @@
     // hides the whole picture, including its previous level and percentages.
     var show = result.status === 'ok' && model.kind === 'inventory';
     byId('siloVisual').hidden = !show;
+    byId('siloPlaceholder').hidden = show;
+    byId('siloPlaceholderMessage').textContent = model.kind === 'capacity'
+      ? '운전조건별 만적재량 계산입니다. 현재 재고의 채움 그림은 표시하지 않습니다.'
+      : result.status === 'unverified' ? '설비와 원도면을 확인한 뒤 채움 상태를 표시할 수 있습니다.'
+      : result.status === 'missing' ? '측정값을 입력하면 재료면과 높이를 표시합니다.'
+      : '유효한 범위의 입력값을 확인하세요. 이전 채움 상태는 표시하지 않습니다.';
+    byId('siloVisualKind').textContent = '';
+    byId('siloVisualFootnote').textContent = '';
     byId('siloFillPercent').textContent = '';
     byId('siloHeightValue').textContent = '';
     byId('siloDiagramDesc').textContent = '';
@@ -255,6 +263,7 @@
     selectedModel = engine.getModel(id) || engine.MODELS[0];
     select.value = selectedModel.id;
     fields.replaceChildren();
+    byId('inputGuidance').replaceChildren();
     controls = {};
     byId('modelDescription').textContent = selectedModel.description;
     byId('modelKind').textContent = selectedModel.drawingBased ? '도면 치수 기준' : selectedModel.provisional ? '원도면 미확인 · 잠정 환산' : selectedModel.kind === 'capacity' ? '운전조건별 만적재량' : selectedModel.kind === 'unverified' ? '계산 보류' : '측정값 → 재고 환산';
@@ -298,7 +307,14 @@
       inputWrap.appendChild(element('span', 'field-unit', field.unit));
       wrapper.appendChild(label);
       wrapper.appendChild(inputWrap);
-      wrapper.appendChild(helpNode);
+      if (help) {
+        var guidance = element('div', 'guidance-item');
+        guidance.appendChild(element('strong', '', field.label));
+        guidance.appendChild(helpNode);
+        byId('inputGuidance').appendChild(guidance);
+      } else {
+        wrapper.appendChild(helpNode);
+      }
       wrapper.appendChild(error);
       fields.appendChild(wrapper);
       controls[field.key] = input;
