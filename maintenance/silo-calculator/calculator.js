@@ -8,7 +8,7 @@
 
   // Calculation basis: corrected SILO workbooks, 2026-10-20.
   // Values are a geometric/section-capacity conversion, not a live sensor feed.
-  var VERSION = '1.0.0-20261020';
+  var VERSION = '2.1.0-20261020';
   function input(key, label, unit, defaultValue, options) {
     return Object.assign({ key: key, label: label, unit: unit, defaultValue: defaultValue,
       step: 'any', required: true }, options || {});
@@ -45,13 +45,20 @@
       geometry: { top: 1628, bottom: 11300, cylinderVolume: 336.4, hopperVolume: 102 }
     },
     {
-      id: 'bio-day', name: 'Bio Day Silo', label: 'Bio Day SILO', kind: 'inventory',
-      description: '원통부의 남은 높이에서 재고를 계산합니다.',
-      basis: '지름 8 m · 원통 11.65 m · 지붕 높이 0.4 m. 수평 재료면 가정.',
-      range: { min: 400, max: 12050, unit: 'mm', basis: '지붕 꼭대기 기준 Sounding' },
-      inputs: mmInputs(0.22), example: { sounding: 9980, density: 0.22, offset: 0 },
-      warnings: [datumWarning, '상부 지붕 구간은 형상이 확정되지 않아 계산하지 않습니다. 12,050 mm에서 모델상 재고는 0 t입니다.'],
-      source: 'Bio Day Silo.JPG / SILO 현재고량.xlsx의 수정 계산',
+      id: 'bio-day', name: 'Bio Day Silo', label: 'Bio Day SILO', kind: 'inventory', drawingBased: true,
+      description: '제작도면의 명목 내경과 높이로 원통 구간의 재고를 계산합니다.',
+      basis: '내경 8 m · 원통 11.65 m · 지붕 높이 0.4 m. 중앙 평탄 지붕 높이 = Sounding 0 mm, 바닥판 상면 = 12,050 mm. 수평 재료면 가정.',
+      range: { min: 400, max: 12050, unit: 'mm', basis: '도면 기준 Sounding (원통 구간)' },
+      inputs: [input('sounding', '도면 기준 Sounding', 'mm', '', { min: 0,
+        help: '도면의 중앙 평탄 지붕 높이에서 재료면까지 아래로 잰 거리입니다.' }),
+        input('density', '벌크밀도', 't/m³', 0.22, { min: 0, minExclusive: true,
+          help: '도면의 설계 밀도는 0.22 t/m³입니다. 변경하면 입력한 밀도로 환산합니다.' })],
+      example: { sounding: 10500, density: 0.22 },
+      warnings: ['명목 내경을 사용하는 기하 계산입니다. 라이너·배출기 등 내부 구조물의 치환체적은 공제하지 않습니다.',
+        '0 이상 400 mm 미만은 중앙 평탄부가 있는 경사지붕 구간으로, 이 원통 계산의 범위에 포함하지 않습니다.',
+        'Gross 589.1 m³와 Net 419.5 m³는 도면의 참고 용량(Estimated)입니다. 높이별 재고를 임의 비례 보정하는 데 사용하지 않습니다.'],
+      source: 'GSPC-004-EB-TSS-M-511 Rev.F / PDF 2쪽(도면 1/30), 지붕 상세 PDF 8–10쪽',
+      references: { grossVolumeM3: 589.1, netVolumeM3: 419.5, designDensity: 0.22, operatingMassTon: 92.3 },
       geometry: { top: 400, bottom: 12050, radius: 4 }
     },
     {
@@ -131,7 +138,8 @@
   }
   function result(model, status, message, additional) {
     return Object.assign({ modelId: model ? model.id : null, status: status, message: message,
-      provisional: !!(model && model.provisional), warnings: model ? model.warnings.slice() : [] }, additional || {});
+      provisional: !!(model && model.provisional), drawingBased: !!(model && model.drawingBased),
+      warnings: model ? model.warnings.slice() : [] }, additional || {});
   }
   function validateFields(model, supplied) {
     var values = {}, errors = [], own = Object.prototype.hasOwnProperty;
@@ -159,7 +167,8 @@
       return typeof values[key] !== 'number' || Number.isFinite(values[key]);
     });
     if (!finite) return result(model, 'invalid', '계산 가능한 숫자 범위를 벗어났습니다. 입력값을 확인하세요.');
-    return result(model, 'ok', model.provisional ? '잠정 환산값입니다. 원도면을 확인하세요.' : '입력한 기준으로 계산했습니다.', values);
+    return result(model, 'ok', model.drawingBased ? '도면의 명목 치수와 입력 밀도로 계산했습니다. 내부 구조물의 체적은 공제하지 않았습니다.'
+      : model.provisional ? '잠정 환산값입니다. 원도면을 확인하세요.' : '입력한 기준으로 계산했습니다.', values);
   }
 
   function calculate(id, supplied) {
@@ -170,6 +179,13 @@
     if (!supplied || typeof supplied !== 'object' || Array.isArray(supplied)) {
       return result(model, 'invalid', '입력값 형식을 확인하세요.');
     }
+    // Reject a stale V1 non-zero sensor correction: BIO V2 accepts drawing distances only.
+    if (model.drawingBased && Object.prototype.hasOwnProperty.call(supplied, 'offset')) {
+      var legacyOffset = parseNumber(supplied.offset);
+      if (legacyOffset.status !== 'ok' || legacyOffset.value !== 0) {
+        return result(model, 'invalid', 'BIO는 도면 기준 Sounding을 직접 입력합니다. 이전 센서높이차 입력을 제거하세요.');
+      }
+    }
     var validated = validateFields(model, supplied);
     if (validated.errors.length) {
       var invalid = validated.errors.some(function (error) { return error.status === 'invalid'; });
@@ -179,10 +195,13 @@
     var p = validated.values;
     if (model.geometry) {
       var geometry = model.geometry;
-      var d = p.sounding - p.offset;
+      var d = model.drawingBased ? p.sounding : p.sounding - p.offset;
       if (!Number.isFinite(d)) return result(model, 'invalid', '측정값과 센서높이차의 범위를 확인하세요.');
       if (d < geometry.top || d > geometry.bottom) {
-        return result(model, 'unsupported', d < geometry.top ? '상부 형상 확인이 필요한 구간입니다.' : '하부 형상 또는 측정값 확인이 필요한 구간입니다.',
+        var rangeMessage = model.drawingBased
+          ? (d < geometry.top ? '지붕 구간은 원통 재고 계산 범위에 포함하지 않습니다.' : '도면의 바닥판 상면 기준 12,050 mm를 벗어났습니다.')
+          : (d < geometry.top ? '상부 형상 확인이 필요한 구간입니다.' : '하부 형상 또는 측정값 확인이 필요한 구간입니다.');
+        return result(model, 'unsupported', rangeMessage,
           { effectiveSounding: d, soundingUnit: 'mm', supportedMin: geometry.top, supportedMax: geometry.bottom });
       }
       var cylinderVolume = model.id === 'bio-day'
@@ -190,7 +209,7 @@
         : geometry.cylinderVolume * (geometry.bottom - d) / (geometry.bottom - geometry.top);
       var hopperVolume = geometry.hopperVolume || 0;
       var volume = cylinderVolume + hopperVolume;
-      var answer = { primaryLabel: model.provisional ? '총 재고 (잠정)' : '총 재고', massTon: volume * p.density,
+      var answer = { primaryLabel: model.drawingBased ? '도면 기준 재고' : model.provisional ? '총 재고 (잠정)' : '총 재고', massTon: volume * p.density,
         volumeM3: volume, cylinderVolumeM3: cylinderVolume, hopperVolumeM3: hopperVolume,
         effectiveSounding: d, soundingUnit: 'mm', supportedMin: geometry.top, supportedMax: geometry.bottom,
         remainingCylinderHeightM: (geometry.bottom - d) / 1000,

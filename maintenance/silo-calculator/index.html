@@ -6,10 +6,10 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="description" content="설비별 Sounding과 벌크밀도로 SILO 재고를 환산합니다.">
   <title>SILO 재고 계산 · GS Shift Log</title>
-  <link rel="stylesheet" href="style.css?v=20261020-v1">
+  <link rel="stylesheet" href="style.css?v=2.1.0-20261020">
   <script src="/maintenance/shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
-  <script src="calculator.js?v=20261020-v1" defer></script>
-  <script src="app.js?v=20261020-v1" defer></script>
+  <script src="calculator.js?v=2.1.0-20261020" defer></script>
+  <script src="app.js?v=2.1.0-20261020" defer></script>
 </head>
 <body>
   <header class="page-header">
@@ -32,9 +32,15 @@
         <div class="model-summary"><span class="kind-badge" id="modelKind"></span><p id="modelDescription"></p></div>
       </section>
 
+      <section class="drawing-reference" id="drawingReference" aria-labelledby="drawingReferenceTitle" hidden>
+        <h2 id="drawingReferenceTitle">BIO 도면 표기 참고값</h2>
+        <dl class="drawing-reference-grid" id="drawingReferenceValues"></dl>
+        <p>도면 표기값은 별도 참고값이며, 재고 계산 용적을 보정하는 데 사용하지 않습니다.</p>
+      </section>
+
       <div class="workspace-grid">
         <section class="panel input-panel" aria-labelledby="inputTitle">
-          <div class="panel-heading"><h2 id="inputTitle">입력값</h2><span class="panel-caption">밀도·측정 기준 확인</span></div>
+          <div class="panel-heading"><h2 id="inputTitle">입력값</h2><span class="panel-caption" id="inputCaption">밀도·측정 기준 확인</span></div>
           <p class="range-note" id="rangeNote"></p>
           <form id="calculatorForm" novalidate>
             <div class="fields-grid" id="inputFields"></div>
@@ -54,6 +60,43 @@
             <div class="result-empty" id="resultEmpty"><strong id="emptyTitle">측정값을 입력하세요</strong><p id="resultMessage"></p></div>
             <div id="resultNumbers" hidden>
               <div class="primary-result"><span id="primaryLabel"></span><div><strong id="massValue"></strong><span class="result-unit">t</span></div></div>
+              <section class="silo-visual" id="siloVisual" aria-labelledby="siloVisualTitle" hidden>
+                <div class="silo-visual-heading"><h3 id="siloVisualTitle">SILO 채움 상태</h3><span id="siloVisualKind"></span></div>
+                <div class="silo-visual-layout">
+                  <svg id="siloDiagram" viewBox="0 0 400 390" role="img" aria-labelledby="siloDiagramTitle siloDiagramDesc">
+                    <title id="siloDiagramTitle">SILO 재료 높이</title>
+                    <desc id="siloDiagramDesc"></desc>
+                    <defs>
+                      <clipPath id="siloClip"><path id="siloClipShape" d="M100 62H300V353H100Z"/></clipPath>
+                      <pattern id="materialPattern" width="12" height="12" patternUnits="userSpaceOnUse"><circle cx="3" cy="4" r="1.2" fill="#fff" opacity=".35"/><circle cx="10" cy="10" r=".9" fill="#fff" opacity=".25"/></pattern>
+                      <linearGradient id="materialGradient" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#258990"/><stop offset="1" stop-color="#4ca99f"/></linearGradient>
+                    </defs>
+                    <path id="siloShell" class="silo-shell" d="M100 62H300V353H100Z"/>
+                    <g clip-path="url(#siloClip)" id="siloMaterial" visibility="hidden">
+                      <rect id="siloFill" x="0" y="353" width="400" height="0" fill="url(#materialGradient)"/>
+                      <rect id="siloTexture" x="0" y="353" width="400" height="0" fill="url(#materialPattern)"/>
+                    </g>
+                    <path id="siloOutline" class="silo-outline" d="M100 62H300V353H100Z"/>
+                    <path id="siloShoulder" class="silo-guide" d="M100 62H300"/>
+                    <path id="siloHopperTop" class="silo-guide" d=""/>
+                    <path id="siloTicks" class="silo-ticks" d=""/>
+                    <path id="siloDatum" class="silo-datum" d="M72 52H318"/>
+                    <text id="siloDatumLabel" class="silo-label" x="200" y="31" text-anchor="middle"></text>
+                    <path id="siloDistance" class="silo-distance" d="" visibility="hidden"/>
+                    <text id="siloDistanceLabel" class="silo-distance-label" x="64" y="190" text-anchor="middle" visibility="hidden"></text>
+                    <path id="siloSurface" class="silo-surface" d="" visibility="hidden"/>
+                    <text id="siloSurfaceLabel" class="silo-surface-label" x="326" y="320" visibility="hidden">재료면</text>
+                    <text id="siloBottomLabel" class="silo-label" x="200" y="377" text-anchor="middle"></text>
+                  </svg>
+                  <div class="silo-level-summary">
+                    <span id="siloFillLabel"></span><strong id="siloFillPercent"></strong>
+                    <div class="silo-level-track" aria-hidden="true"><span id="siloLevelBar"></span></div>
+                    <span id="siloHeightLabel"></span><b id="siloHeightValue"></b>
+                    <p id="siloVisualNote"></p>
+                  </div>
+                </div>
+                <p class="silo-visual-footnote" id="siloVisualFootnote"></p>
+              </section>
               <div class="key-results" id="keyResults"></div>
               <dl class="result-details" id="resultDetails"></dl>
             </div>
