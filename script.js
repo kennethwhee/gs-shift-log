@@ -143786,36 +143786,92 @@ function cleanMorningMeetingSectionRows(
 }
 
   /* =====================================================
-    기계팀 외주공사 표 → 예정사항
+    기계팀 외주공사 원본 표 추출
 
-    행 문자열에는 병합 셀의 작업명·위치·시간·작업자·비고가
-    모두 포함된다. 표 제목/헤더/빈 행은 제외하고 원문 순서를 유지한다.
+    예정사항과 분리하여 병합 셀의 여섯 열과 줄바꿈을 유지한다.
+    !ref가 B열 등에서 시작해도 헤더 위치를 기준으로 읽는다.
   ====================================================== */
 
-  function extractMorningMeetingOutsourcedWorkRows(rows) {
-    const headingIndex = findMorningMeetingRowIndex(
-      rows,
-      /^(?:◇|◆|▣)?\s*외주\s*공사(?:\s|[(:（]|$)/i
+  function extractMorningMeetingOutsourcedWorkTable(worksheet) {
+    if (!worksheet) return null;
+    const matrix = XLSX.utils.sheet_to_json(worksheet, {
+      header: 1, defval: "", raw: false, blankrows: true
+    });
+    const cellText = value => String(value ?? "").replace(/\r\n?/g, "\n").trim();
+    const rowText = row => (Array.isArray(row) ? row : []).map(cellText).filter(Boolean).join(" ");
+    const isNextSection = text => /^(?:◇|◆|▣)/.test(text) ||
+      /^(?:기타\s*사항|근태\s*현황|전일\s*특이사항|예정\s*사항)(?:\s|[(:（]|$)/.test(text) ||
+      /^[1-5]\s*[.)]\s*(?:안전팀|환경팀|기계팀|전기제어팀)(?:\s|$)/.test(text);
+    const headingIndex = matrix.findIndex(row =>
+      /^(?:◇|◆|▣)?\s*외주\s*공사\s*(?:[(:（].*)?$/i.test(rowText(row))
     );
-    if (headingIndex < 0) return [];
+    if (headingIndex < 0) return null;
 
-    const result = [];
-    for (let index = headingIndex + 1; index < rows.length; index += 1) {
-      const line = normalizeMorningMeetingSearchText(rows[index]);
-      if (!line) continue;
-      if (/^(?:◇|◆|▣)/.test(line) ||
-          /^(?:기타\s*사항|근태\s*현황|전일\s*특이사항|예정\s*사항)(?:\s|[(:（]|$)/.test(line) ||
-          /^[1-5]\s*[.)]\s*(?:안전팀|환경팀|기계팀|전기제어팀)(?:\s|$)/.test(line)) break;
-
-      // A merged table header is not a construction entry. Empty template
-      // rows may contain only the pre-filled category "외주".
-      const compact = line.replace(/\s+/g, "");
-      if (/^(?:구분)?(?:주요)?작업명작업위치/.test(compact)) continue;
-      const content = line.replace(/^외주(?:\s+|$)/, "").trim();
-      if (!content || /^(?:[-–—]+|없음|해당\s*없음)$/.test(content)) continue;
-      result.push(`[외주공사] ${content}`);
+    const headerPatterns = [/^구분$/, /^(?:주요)?작업명$/, /^작업위치$/, /^작업시간$/, /^작업자$/, /^비고$/];
+    let headerIndex = -1;
+    let columns = [];
+    for (let index = headingIndex + 1; index < matrix.length; index += 1) {
+      if (isNextSection(rowText(matrix[index]))) break;
+      const cells = (matrix[index] || []).map(value => cellText(value).replace(/\s+/g, ""));
+      const positions = headerPatterns.map(pattern => cells.findIndex(value => pattern.test(value)));
+      if (positions.every(position => position >= 0)) {
+        headerIndex = index;
+        columns = positions;
+        break;
+      }
     }
-    return result;
+    if (headerIndex < 0) return null;
+
+    const rows = [];
+    for (let index = headerIndex + 1; index < matrix.length; index += 1) {
+      const sourceRow = matrix[index] || [];
+      if (isNextSection(rowText(sourceRow))) break;
+      const values = columns.map(column => cellText(sourceRow[column]));
+      // The category may be pre-filled on otherwise unused template rows.
+      if (!values.slice(1).some(value => value && !/^(?:[-–—]+|없음|해당\s*없음)$/.test(value))) continue;
+      rows.push(values);
+    }
+
+    // sheet_to_json uses !ref's first column as matrix column zero. !cols and
+    // !merges retain absolute worksheet coordinates, so translate the anchors.
+    const decodeCell = address => {
+      const match = String(address || "A1").match(/\$?([A-Z]+)\$?(\d+)/i);
+      if (!match) return { c: 0, r: 0 };
+      let column = 0;
+      for (const letter of match[1].toUpperCase()) column = column * 26 + letter.charCodeAt(0) - 64;
+      return { c: column - 1, r: Number(match[2]) - 1 };
+    };
+    const refParts = String(worksheet["!ref"] || "A1").split(":");
+    const start = decodeCell(refParts[0]);
+    const end = decodeCell(refParts[1] || refParts[0]);
+    const sourceColumns = columns.map(column => column + start.c);
+    const fallbackWidths = [8.377, 41.883, 12.565, 8.377, 12.341, 16.458];
+    const columnWidths = sourceColumns.map(column => {
+      const mergedHeader = (worksheet["!merges"] || []).find(merge =>
+        merge.s?.r === start.r + headerIndex && merge.s?.c === column
+      );
+      const nextColumn = sourceColumns.filter(value => value > column).sort((a, b) => a - b)[0];
+      const endColumn = mergedHeader ? mergedHeader.e.c + 1 : (nextColumn ?? end.c + 1);
+      let width = 0;
+      for (let current = column; current < endColumn; current += 1) {
+        const info = worksheet["!cols"]?.[current];
+        if (!info) return null;
+        if (info.hidden) continue;
+        const value = Number(info.wpx ?? info.width ?? info.wch);
+        if (!Number.isFinite(value) || value <= 0) return null;
+        width += value;
+      }
+      return width;
+    });
+    // Avoid mixing source units and fallback percentages when dimensions are
+    // incomplete. The standard source geometry is the compatible fallback.
+    const hasAllWidths = columnWidths.every(width => Number.isFinite(width) && width > 0);
+
+    return {
+      headers: columns.map(column => cellText(matrix[headerIndex][column])),
+      rows,
+      columnWidths: hasAllWidths ? columnWidths : fallbackWidths
+    };
   }
 
 
@@ -143936,11 +143992,6 @@ function cleanMorningMeetingSectionRows(
         : [];
 
 
-    if (teamName === "기계팀") {
-      scheduleRows.push(...extractMorningMeetingOutsourcedWorkRows(rows));
-    }
-
-
     return {
       previousText:
         previousRows.join(
@@ -144000,7 +144051,10 @@ function cleanMorningMeetingSectionRows(
             true,
 
           cellDates:
-            false
+            false,
+
+          cellStyles:
+            true
         }
       );
 
@@ -144043,7 +144097,12 @@ function cleanMorningMeetingSectionRows(
         sections.previousCount,
 
       scheduleCount:
-        sections.scheduleCount
+        sections.scheduleCount,
+
+      outsourcedWork:
+        teamKey === "mechanical"
+          ? extractMorningMeetingOutsourcedWorkTable(selectedSheet.worksheet)
+          : null
     };
   }
 
@@ -144052,6 +144111,32 @@ function cleanMorningMeetingSectionRows(
 
   교대파트와 운탄일지는 이 영역에 표시하지 않는다.
 ===================================================== */
+
+function renderMorningMeetingOutsourcedWorkPreview(result) {
+  const table = result?.teamKey === "mechanical" ? result.outsourcedWork : null;
+  if (!table || !Array.isArray(table.headers) || table.headers.length !== 6 || !Array.isArray(table.rows)) return "";
+  const fallbackWidths = [8.377, 41.883, 12.565, 8.377, 12.341, 16.458];
+  const widths = Array.isArray(table.columnWidths) && table.columnWidths.length === 6 &&
+      table.columnWidths.every(width => Number.isFinite(Number(width)) && Number(width) > 0)
+    ? table.columnWidths.map(Number) : fallbackWidths;
+  const totalWidth = widths.reduce((sum, width) => sum + width, 0);
+  const cellStyle = "padding:3px 5px;border-bottom:1px dotted #9ca3af;text-align:center;vertical-align:middle;white-space:pre-line;overflow-wrap:anywhere;";
+  const rows = table.rows.length ? table.rows : [Array(6).fill("")];
+  return `
+    <div class="efficiency-morning-meeting-preview-section" data-morning-meeting-outsourced-work="mechanical">
+      <div class="efficiency-morning-meeting-preview-section__title">
+        <strong>◇ 외주공사</strong><span>${table.rows.length}건</span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table aria-label="기계팀 외주공사" style="width:100%;min-width:680px;border-collapse:collapse;table-layout:fixed;font-family:Arial,sans-serif;font-size:11pt;border:1px solid #374151;">
+          <colgroup>${widths.map(width => `<col style="width:${(width / totalWidth * 100).toFixed(4)}%;">`).join("")}</colgroup>
+          <thead><tr>${table.headers.map(header => `<th scope="col" style="${cellStyle}background:#9DC3E6;color:#111827;font-weight:normal;">${escapeMorningMeetingHtml(header)}</th>`).join("")}</tr></thead>
+          <tbody>${rows.map(row => `<tr>${Array.from({ length: 6 }, (_, column) => `<td style="${cellStyle}">${escapeMorningMeetingHtml(row[column] ?? "")}</td>`).join("")}</tr>`).join("")}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
 
 function renderMorningMeetingAnalysisPreview(
   analysisResults
@@ -144192,6 +144277,8 @@ function renderMorningMeetingAnalysisPreview(
                 )}</textarea>
 
               </div>
+
+              ${renderMorningMeetingOutsourcedWorkPreview(result)}
 
             </article>
           `;
@@ -151356,6 +151443,222 @@ function cloneMorningMeetingDynamicRow(
 }
 
 /* =====================================================
+  기계팀 외주공사: 원본 6열 표의 비율을 취합본 B:AO 폭에 맞춘다.
+  취합본 열 너비는 상단 운전현황과 공유하므로 변경하지 않는다.
+===================================================== */
+
+function getMorningMeetingOutsourcedTableGroups(worksheetDocument, columnWidths) {
+  const fallback = [0.08377, 0.41883, 0.12565, 0.08377, 0.12341, 0.16458];
+  const weights = Array.isArray(columnWidths) && columnWidths.length === 6 &&
+    columnWidths.every(value => Number.isFinite(Number(value)) && Number(value) > 0)
+    ? columnWidths.map(Number) : fallback;
+  const weightTotal = weights.reduce((sum, value) => sum + value, 0);
+  const format = worksheetDocument.getElementsByTagNameNS(MAIN_XML_NAMESPACE, "sheetFormatPr")[0];
+  const defaultWidth = Number(format?.getAttribute("defaultColWidth")) || 8.43;
+  const columns = Array.from(worksheetDocument.getElementsByTagNameNS(MAIN_XML_NAMESPACE, "col"));
+  const name = number => {
+    let text = "";
+    while (number > 0) {
+      number -= 1;
+      text = String.fromCharCode(65 + number % 26) + text;
+      number = Math.floor(number / 26);
+    }
+    return text;
+  };
+  const widths = [];
+  for (let column = 2; column <= 41; column += 1) {
+    const definition = columns.find(item => Number(item.getAttribute("min")) <= column &&
+      Number(item.getAttribute("max")) >= column);
+    widths.push(definition?.getAttribute("hidden") === "1" ? 0 :
+      Number(definition?.getAttribute("width")) || defaultWidth);
+  }
+  const cumulative = [0];
+  widths.forEach(width => cumulative.push(cumulative.at(-1) + width));
+  if (cumulative.at(-1) <= 0) throw new Error("외주공사 표를 넣을 인쇄 영역 너비가 없습니다.");
+  const groups = [];
+  let start = 0, usedWeight = 0;
+  weights.forEach((weight, index) => {
+    usedWeight += weight;
+    let end = widths.length;
+    if (index < 5) {
+      const target = cumulative.at(-1) * usedWeight / weightTotal;
+      const last = widths.length - (5 - index);
+      end = start + 1;
+      for (let boundary = start + 1; boundary <= last; boundary += 1) {
+        if (Math.abs(cumulative[boundary] - target) < Math.abs(cumulative[end] - target)) end = boundary;
+      }
+    }
+    groups.push({startColumn: name(start + 2), endColumn: name(end + 1),
+      width: cumulative[end] - cumulative[start]});
+    start = end;
+  });
+  return groups;
+}
+
+/*
+  표 행은 buildMorningMeetingDynamicRows에서 미리 확보한다.
+  주말표·이력 정렬에 따른 이동이 끝난 뒤 확보한 영역에 표 서식을 적용한다.
+*/
+async function applyMorningMeetingOutsourcedWorkTable(zip, worksheetDocument, sharedStrings, mechanicalResult) {
+  const table = mechanicalResult?.outsourcedWork;
+  if (!table) {
+    if (/\[외주공사\]/.test(String(mechanicalResult?.scheduleText || ""))) {
+      throw new Error("기계팀 자료가 이전 문장 형식으로 분석되어 있습니다. 기계팀 파일을 다시 첨부하고 자료 분석을 실행해 주세요.");
+    }
+    return {applied: false};
+  }
+  if (!Array.isArray(table.headers) || table.headers.length !== 6 || !Array.isArray(table.rows) ||
+      table.rows.some(row => !Array.isArray(row) || row.length !== 6)) {
+    throw new Error("기계팀 외주공사 표의 6열 자료를 확인해 주세요. 자료를 다시 분석해 주세요.");
+  }
+  const sheetData = worksheetDocument.getElementsByTagNameNS(MAIN_XML_NAMESPACE, "sheetData")[0];
+  const mergeCells = worksheetDocument.getElementsByTagNameNS(MAIN_XML_NAMESPACE, "mergeCells")[0];
+  const records = sheetData ? getMorningMeetingDirectXmlChildren(sheetData, "row").map(element => ({
+    element, rowNumber: getMorningMeetingRowNumber(element),
+    text: getMorningMeetingRowColumnBText(element, sharedStrings)
+  })).sort((a, b) => a.rowNumber - b.rowNumber) : [];
+  const mechanical = records.find(record => /^4\s*[.)]\s*기계팀$/.test(record.text));
+  const electrical = mechanical && records.find(record => record.rowNumber > mechanical.rowNumber &&
+    /^5\s*[.)]\s*전기제어팀$/.test(record.text));
+  const headings = mechanical && electrical ? records.filter(record =>
+    record.rowNumber > mechanical.rowNumber && record.rowNumber < electrical.rowNumber &&
+    /^◇\s*외주\s*공사$/.test(record.text)) : [];
+  const titleRow = headings[0]?.rowNumber;
+  const lastRow = titleRow + table.rows.length + 2; // header + data + bordered blank tail
+  if (!mergeCells || headings.length !== 1 || lastRow >= electrical.rowNumber) {
+    throw new Error("기계팀 외주공사 표의 예약 영역을 찾지 못했습니다. 자료를 다시 분석해 주세요.");
+  }
+  const targets = [];
+  for (let row = titleRow; row <= lastRow; row += 1) {
+    const record = records.find(item => item.rowNumber === row);
+    if (!record) throw new Error(`외주공사 표의 예약 행 ${row}이 없습니다.`);
+    targets.push(record);
+  }
+  const existingMerges = getMorningMeetingDirectXmlChildren(mergeCells, "mergeCell");
+  const overlappingMerges = existingMerges.filter(element => {
+    const range = parseMorningMeetingMergeReference(element.getAttribute("ref"));
+    if (!range || range.endRow < titleRow || range.startRow > lastRow ||
+        getMorningMeetingColumnNumber(range.endColumn) < 2 ||
+        getMorningMeetingColumnNumber(range.startColumn) > 41) return false;
+    if (range.startRow < titleRow || range.endRow > lastRow ||
+        getMorningMeetingColumnNumber(range.startColumn) < 2 ||
+        getMorningMeetingColumnNumber(range.endColumn) > 41) {
+      throw new Error("외주공사 표의 예약 영역을 가로지르는 병합 셀이 있습니다.");
+    }
+    return true;
+  });
+  const groups = getMorningMeetingOutsourcedTableGroups(worksheetDocument, table.columnWidths);
+  const stylesFile = zip.file("xl/styles.xml");
+  if (!stylesFile) throw new Error("기준 취합본의 셀 스타일을 찾지 못했습니다.");
+  const stylesDocument = parseMorningMeetingXml(await stylesFile.async("string"), "외주공사 표 스타일");
+  const parts = Object.fromEntries(["fonts", "fills", "borders", "cellXfs"].map(name =>
+    [name, stylesDocument.getElementsByTagNameNS(MAIN_XML_NAMESPACE, name)[0]]));
+  if (Object.values(parts).some(part => !part)) throw new Error("외주공사 표의 셀 스타일 구조가 올바르지 않습니다.");
+  const create = (name, attributes = {}, children = []) => {
+    const node = stylesDocument.createElementNS(MAIN_XML_NAMESPACE, name);
+    Object.entries(attributes).forEach(([key, value]) => node.setAttribute(key, String(value)));
+    children.forEach(child => node.appendChild(child));
+    return node;
+  };
+  const serializer = new XMLSerializer();
+  const addStylePart = (parent, name, element) => {
+    const signature = serializer.serializeToString(element);
+    const children = getMorningMeetingDirectXmlChildren(parent, name);
+    let id = children.findIndex(child => serializer.serializeToString(child) === signature);
+    if (id < 0) { id = children.length; parent.appendChild(element); }
+    parent.setAttribute("count", String(getMorningMeetingDirectXmlChildren(parent, name).length));
+    return id;
+  };
+  const fontId = addStylePart(parts.fonts, "font", create("font", {}, [
+    create("sz", {val: 11}), create("color", {rgb: "FF000000"}),
+    create("name", {val: "Arial"}), create("family", {val: 2})
+  ]));
+  const titleFontId = addStylePart(parts.fonts, "font", create("font", {}, [
+    create("b"), create("sz", {val: 12}), create("color", {rgb: "FF000000"}),
+    create("name", {val: "Times New Roman"}), create("family", {val: 1})
+  ]));
+  const blueFillId = addStylePart(parts.fills, "fill", create("fill", {}, [
+    create("patternFill", {patternType: "solid"}, [create("fgColor", {rgb: "FF9DC3E6"}), create("bgColor", {indexed: 64})])
+  ]));
+  const styleCache = new Map();
+  const styleFor = (kind, left, right, bottom) => {
+    const key = [kind, left, right, bottom].join("|");
+    if (styleCache.has(key)) return styleCache.get(key);
+    const side = (name, style) => create(name, style ? {style} : {}, style ? [create("color", {rgb: "FF000000"})] : []);
+    const borderId = addStylePart(parts.borders, "border", create("border", {}, [
+      side("left", left ? "medium" : ""), side("right", right ? "medium" : ""),
+      side("top", ""), side("bottom", bottom), create("diagonal")
+    ]));
+    const style = create("xf", {numFmtId: 0, fontId: kind === "title" ? titleFontId : fontId,
+      fillId: kind === "header" ? blueFillId : 0, borderId, xfId: 0,
+      applyFont: 1, applyFill: 1, applyBorder: 1, applyAlignment: 1}, [
+      create("alignment", {horizontal: kind === "title" ? "left" : "center", vertical: "center",
+        wrapText: kind === "title" ? 0 : 1})
+    ]);
+    const id = addStylePart(parts.cellXfs, "xf", style);
+    styleCache.set(key, id);
+    return id;
+  };
+  const columnName = number => {
+    let text = "";
+    while (number > 0) { number -= 1; text = String.fromCharCode(65 + number % 26) + text; number = Math.floor(number / 26); }
+    return text;
+  };
+  const addMerge = (start, end, row) => {
+    if (start === end) return;
+    const element = worksheetDocument.createElementNS(MAIN_XML_NAMESPACE, "mergeCell");
+    element.setAttribute("ref", `${start}${row}:${end}${row}`);
+    mergeCells.appendChild(element);
+  };
+  const writeText = (cell, value) => {
+    if (value === "") return;
+    cell.setAttribute("t", "inlineStr");
+    const inline = worksheetDocument.createElementNS(MAIN_XML_NAMESPACE, "is");
+    const text = worksheetDocument.createElementNS(MAIN_XML_NAMESPACE, "t");
+    text.setAttributeNS("http://www.w3.org/XML/1998/namespace", "xml:space", "preserve");
+    text.textContent = String(value);
+    inline.appendChild(text); cell.appendChild(inline);
+  };
+  // Coordinates are final. Replace only the reserved table band, never insert rows.
+  overlappingMerges.forEach(element => element.remove());
+  targets.forEach((record, offset) => {
+    const kind = offset === 0 ? "title" : offset === 1 ? "header" : "body";
+    const values = offset === 0 ? ["◇ 외주공사"] : offset === 1 ? table.headers : table.rows[offset - 2] || Array(6).fill("");
+    const rowGroups = offset === 0 ? [{startColumn: "B", endColumn: "AO", width: groups.reduce((sum, group) => sum + group.width, 0)}] : groups;
+    getMorningMeetingDirectXmlChildren(record.element, "c").forEach(cell => {
+      const column = getMorningMeetingColumnNumber(getMorningMeetingCellColumn(cell.getAttribute("r")));
+      if (column >= 2 && column <= 41) cell.remove();
+    });
+    const after = getMorningMeetingDirectXmlChildren(record.element, "c").find(cell =>
+      getMorningMeetingColumnNumber(getMorningMeetingCellColumn(cell.getAttribute("r"))) > 41) || null;
+    const bottom = record.rowNumber === lastRow ? "medium" : offset === 0 ? "" : "hair";
+    rowGroups.forEach((group, index) => {
+      const start = getMorningMeetingColumnNumber(group.startColumn), end = getMorningMeetingColumnNumber(group.endColumn);
+      for (let column = start; column <= end; column += 1) {
+        const cell = worksheetDocument.createElementNS(MAIN_XML_NAMESPACE, "c");
+        cell.setAttribute("r", `${columnName(column)}${record.rowNumber}`);
+        cell.setAttribute("s", String(styleFor(kind, column === 2, column === 41, bottom)));
+        if (column === start) writeText(cell, String(values[index] ?? ""));
+        record.element.insertBefore(cell, after);
+      }
+      addMerge(group.startColumn, group.endColumn, record.rowNumber);
+    });
+    let height = offset === 0 ? 15.6 : offset === 1 ? 13.8 : 14.25;
+    if (offset > 0 && record.rowNumber !== lastRow) {
+      const lines = Math.max(1, ...values.map((value, index) => String(value ?? "").split(/\r\n?|\n/).reduce((sum, line) =>
+        sum + Math.max(1, Math.ceil(calculateMorningMeetingDynamicTextUnits(line) / Math.max(1, groups[index].width - 1))), 0)));
+      height = Math.max(height, lines * (offset === 1 ? 13.8 : 14.25));
+    }
+    record.element.setAttribute("ht", String(height));
+    record.element.setAttribute("customHeight", "1");
+    record.element.removeAttribute("hidden");
+  });
+  mergeCells.setAttribute("count", String(getMorningMeetingDirectXmlChildren(mergeCells, "mergeCell").length));
+  zip.file("xl/styles.xml", serializer.serializeToString(stylesDocument));
+  return {applied: true, titleRow, lastRow, jobCount: table.rows.length, groups};
+}
+
+/* =====================================================
   네 팀 내용을 실제 줄 수만큼 생성
 ===================================================== */
 
@@ -151414,6 +151717,15 @@ function buildMorningMeetingDynamicRows(
 
       const teamStartRow =
         nextRowNumber;
+
+      const outsourcedWork = config.key === "mechanical" ? result.outsourcedWork : null;
+      const outsourcedDefinitions = outsourcedWork ? [
+        {template: teamLayout.templates.separatorBlank, text: ""},
+        {template: teamLayout.templates.scheduleHeading, text: "◇ 외주공사"},
+        {template: teamLayout.templates.scheduleContent, text: ""}, // header
+        ...outsourcedWork.rows.map(() => ({template: teamLayout.templates.scheduleContent, text: ""})),
+        {template: teamLayout.templates.scheduleContent, text: ""} // bordered blank tail
+      ] : [];
 
 
       const rowDefinitions = [
@@ -151498,6 +151810,8 @@ function buildMorningMeetingDynamicRows(
             };
           }
         ),
+
+        ...outsourcedDefinitions,
 
         {
           template:
@@ -152832,7 +153146,6 @@ function buildMorningMeetingShiftPartRows(
         };
       }
     ),
-
 
     {
       template:
@@ -169682,10 +169995,13 @@ const limestoneResult =
       );
 
 
+    // The same text/table snapshot must survive asynchronous final formatting.
+    const teamAnalysisForWorkbook = JSON.parse(JSON.stringify(state.analysis || {}));
+
     const buildResult =
       buildMorningMeetingDynamicRows(
         layout,
-        state.analysis,
+        teamAnalysisForWorkbook,
         teamPreviousDate,
         teamScheduleDate
       );
@@ -170056,6 +170372,12 @@ console.log(
       }
       console.log("주말·공휴일 혼소율 저장값 최종 반영:", holidayCofiringResult);
     }
+
+    // MORNING MEETING MECHANICAL OUTSOURCED TABLE V2
+    // All row shifts are complete; render the reserved six-column source table.
+    await applyMorningMeetingOutsourcedWorkTable(
+      zip, worksheetDocument, sharedStrings, teamAnalysisForWorkbook.mechanical
+    );
 
     zip.file(
       worksheetPath,
