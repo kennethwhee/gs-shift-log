@@ -37,6 +37,9 @@
   }
   function format(value) { return numberFormat.format(value); }
   function isFiniteNumber(value) { return typeof value === 'number' && Number.isFinite(value); }
+  function needsStorageReference() {
+    return selectedModel.id === 'bio-storage' && engine.parseNumber(controls.referenceHeight.value).status === 'missing';
+  }
   function readValues() {
     var values = {};
     Object.keys(controls).forEach(function (key) { values[key] = controls[key].value; });
@@ -59,9 +62,11 @@
       var storageRange = engine.getBioStorageRange(values.referenceHeight, values.angle);
       byId('rangeNote').textContent = storageRange
         ? '현재 기준점·안식각의 Sounding 지원 범위: ' + format(storageRange.minSoundingMm) + '–' + format(storageRange.maxSoundingMm) + ' mm. 저레벨 구간은 별도 검토가 필요합니다.'
-        : '측정 Sounding과 바닥 기준 측정 시작점 높이를 mm로 입력하세요. LT는 벽에서 3,400 mm 안쪽 위치를 기준으로 합니다.';
+        : needsStorageReference()
+          ? '먼저 Sounding 기준점 높이(필수)를 입력하세요. 바닥에서 센서 측정 시작점까지의 높이이며, 측정 Sounding과 함께 있어야 계산할 수 있습니다.'
+          : '기준점 높이와 안식각을 확인하세요. 유효한 조합을 입력하면 계산 가능한 Sounding 범위를 표시합니다.';
     } else {
-      byId('rangeNote').textContent = 'Fly Ash Silo (2) 원자료: 설비명·지름·높이·용적을 확인해야 합니다.';
+      byId('rangeNote').textContent = '설비의 측정값과 계산 기준을 입력하세요.';
     }
   }
   function addKey(label, value, unit, note) {
@@ -115,7 +120,12 @@
     byId('siloVisual').hidden = !show;
     byId('siloLevelSummary').hidden = !show || model.id === 'bio-storage';
     byId('siloPlaceholder').hidden = show;
-    byId('siloPlaceholderMessage').textContent = model.kind === 'capacity'
+    byId('siloPlaceholderTitle').textContent = needsStorageReference() ? '기준점 높이 입력 필요' : '재료 높이 확인';
+    byId('siloPlaceholderMessage').textContent = needsStorageReference()
+      ? '왼쪽의 Sounding 기준점 높이에 실제 설치 높이(mm)를 입력하세요. 측정값이 계산 범위에 들어오면 재고와 그림이 표시됩니다.'
+      : model.id === 'bio-storage' && result.status !== 'ok'
+        ? byId('resultMessage').textContent
+        : model.kind === 'capacity'
       ? '운전조건별 만적재량 계산입니다. 현재 재고의 채움 그림은 표시하지 않습니다.'
       : result.status === 'unverified' ? '설비와 원도면을 확인한 뒤 채움 상태를 표시할 수 있습니다.'
       : result.status === 'missing' ? '측정값을 입력하면 재료면과 높이를 표시합니다.'
@@ -159,8 +169,11 @@
       var values = readValues();
       var cylinderHeight = engine.parseNumber(values.cylinderHeight).value / 1000, coneHeight = engine.parseNumber(values.coneHeight).value / 1000;
       var radius = engine.parseNumber(values.radius).value / 1000;
-      var scale = Math.min(280 / result.emptySoundingM, 190 / (2 * radius));
-      left = 200 - radius * scale; right = 400 - left;
+      var scale = 280 / result.emptySoundingM;
+      // This is a level diagram: preserve height ratios while keeping narrow
+      // vessels legible. Horizontal width is not a fabrication drawing scale.
+      var displayWidth = Math.max(150, Math.min(230, 2 * radius * scale));
+      left = 200 - displayWidth / 2; right = 400 - left;
       datum = bodyTop;
       bodyBottom = bodyTop + cylinderHeight * scale;
       bottom = bodyBottom + coneHeight * scale;
@@ -225,7 +238,7 @@
       byId(id).setAttribute('visibility', 'visible');
     });
     var percent = new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 1 }).format(ratio * 100) + '%';
-    byId('siloVisualKind').textContent = bio ? '도면 높이 기준' : model.drawingBased ? '수평 재료면 가정 · 형상 개념도' : '형상 개념도';
+    byId('siloVisualKind').textContent = bio ? '도면 높이 기준' : sludge ? '높이 비율 개념도 · 가로폭 조정' : model.drawingBased ? '수평 재료면 가정 · 형상 개념도' : '형상 개념도';
     byId('siloFillLabel').textContent = fillLabel;
     byId('siloFillPercent').textContent = percent;
     byId('siloLevelBar').setAttribute('style', 'width:' + Math.max(0, Math.min(100, ratio * 100)) + '%');
@@ -234,7 +247,7 @@
     byId('siloVisualNote').textContent = bio ? '재료 높이 ÷ 원통 높이 11.65 m' : sludge ? '재료 높이 ÷ 원통·원뿔 전체 높이' : ash ? 'LL 위 재료 높이 ÷ LL–지붕 하단 높이 14.64 m' : '원통부 재료 높이 ÷ 공칭 원통 높이 · 용적 비율과 다름';
     byId('siloVisualFootnote').textContent = bio
       ? '지붕 윤곽은 개념도입니다. 채움 높이는 도면 치수에 연동하며, 내부 구조물은 생략합니다.'
-      : sludge ? '입력한 치수와 원통·원뿔 형상 가정을 반영합니다. 높이 비율과 용적 비율은 다릅니다.'
+      : sludge ? '원통·원뿔 높이와 재료면은 입력값의 높이 비율을 반영합니다. 화면 가독성을 위해 가로폭을 조정한 개념도이며, 높이 비율과 용적 비율은 다릅니다.'
       : ash ? '재료 적재 프로파일의 경사 바닥을 단순화했습니다. LL 아래 표기용적 36 m³가 채워진 것으로 계산하며, %는 LL 위 계산구간 높이 기준입니다.'
       : '평탄 지붕과 하부 형상을 단순화한 개념도입니다. 하부 표기용적은 채워진 것으로 계산합니다. 내부 구조물과 두 갈래 배출 형상은 생략하며 %는 원통 높이 기준입니다.';
     byId('siloDiagramDesc').textContent = model.label + ', ' + fillLabel + ' ' + percent + ', ' + heightLabel + ' ' + format(sludge ? height * 1000 : height) + (sludge ? ' mm, 측정 Sounding ' : ' m, 도면 기준 Sounding ') + format(result.effectiveSounding) + ' ' + result.soundingUnit + ', ' + result.primaryLabel + ' ' + massFormat.format(result.massTon) + ' t.';
@@ -285,6 +298,13 @@
     byId('emptyTitle').textContent = titles[result.status] || '측정값을 입력하세요';
     byId('resultMessage').textContent = result.message + (result.status === 'unsupported' && isFiniteNumber(result.effectiveSounding)
       ? ' 적용 Sounding: ' + format(result.effectiveSounding) + ' ' + result.soundingUnit + '.' : '');
+    byId('referenceHeightButton').hidden = !needsStorageReference();
+    if (needsStorageReference()) {
+      byId('emptyTitle').textContent = '기준점 높이를 입력해 주세요';
+      byId('resultMessage').textContent = '측정 Sounding만으로는 재고를 계산할 수 없습니다. 바닥에서 센서의 측정 시작점까지 실제 높이를 mm로 입력하세요.';
+    } else if (selectedModel.id === 'bio-storage' && result.status === 'unsupported' && isFiniteNumber(result.supportedMin) && isFiniteNumber(result.supportedMax)) {
+      byId('resultMessage').textContent = '현재 입력: ' + format(result.effectiveSounding) + ' mm. 현재 기준점·안식각의 계산 가능 범위는 ' + format(result.supportedMin) + '–' + format(result.supportedMax) + ' mm입니다. 입력 단위와 기준점 높이를 확인하세요.';
+    }
     byId('exampleNotice').hidden = !usingExample;
     byId('exampleNotice').textContent = selectedModel.id === 'bio-storage'
       ? '예시 입력값이 포함되어 있습니다. 예시 기준점 20,895 mm는 Chute 높이를 가정한 값이며 실제 센서 높이가 아닙니다. Sounding과 기준점 높이를 실제값으로 바꾸세요.'
@@ -324,6 +344,12 @@
     var values = readValues();
     var result = engine.calculate(selectedModel.id, values);
     updateRange(values);
+    if (selectedModel.id === 'bio-storage') {
+      var sounding = engine.parseNumber(values.sounding);
+      byId('help-sounding').textContent = sounding.status === 'ok'
+        ? '입력한 빈 거리: ' + format(sounding.value / 1000) + ' m (' + format(sounding.value) + ' mm). 1 m = 1,000 mm입니다.'
+        : '센서에서 재료면까지의 빈 거리입니다. 예: 6.1 m는 6,100 mm로 입력하세요.';
+    }
     if (selectedModel.references && controls.density) {
       var density = engine.parseNumber(values.density);
       var designDensity = selectedModel.references.designDensity;
@@ -335,7 +361,8 @@
     }
     Object.keys(controls).forEach(function (key) {
       var error = (result.errors || []).find(function (item) { return item.key === key; });
-      var show = error && (touched[key] || submitted);
+      var storageMissingReference = selectedModel.id === 'bio-storage' && key === 'referenceHeight' && values.sounding.trim() !== '';
+      var show = error && (touched[key] || submitted || storageMissingReference);
       controls[key].setAttribute('aria-invalid', show ? 'true' : 'false');
       byId('error-' + key).textContent = show ? error.message : '';
     });
@@ -361,6 +388,7 @@
     byId('modelKind').className = 'kind-badge' + (selectedModel.provisional ? ' is-provisional' : selectedModel.kind === 'unverified' ? ' is-unverified' : '');
     byId('formActions').hidden = selectedModel.inputs.length === 0;
     byId('inputCaption').textContent = selectedModel.drawingBased ? '도면 기준 Sounding' : '밀도·측정 기준 확인';
+    byId('exampleButton').textContent = selectedModel.id === 'bio-storage' ? '계산 예시 보기' : '예시값 넣기';
     document.querySelector('.input-footnote').hidden = selectedModel.kind !== 'inventory';
     document.querySelector('.input-footnote').textContent = selectedModel.directSounding
       ? '중앙 평탄 지붕 기준면을 0 mm로 하여 아래로 잰 거리입니다. 바닥판 상면은 12,050 mm입니다.'
@@ -378,7 +406,7 @@
     document.querySelector('.basis-notes').className = 'basis-notes' + (selectedModel.provisional || selectedModel.kind === 'unverified' || selectedModel.id === 'fly-ash' ? ' is-caution' : '');
     selectedModel.inputs.forEach(function (field) {
       var wrapper = element('div', 'field' + (field.key === 'sounding' ? ' is-main' : ''));
-      var label = element('label', '', field.label);
+      var label = element('label', '', field.label + (field.key === 'referenceHeight' ? ' (필수)' : ''));
       label.setAttribute('for', 'input-' + field.key);
       var inputWrap = element('div', 'field-input-wrap');
       var input = element('input');
@@ -404,6 +432,9 @@
       wrapper.appendChild(inputWrap);
       if (field.key === 'referenceHeight') {
         input.placeholder = '실제 설치 높이 입력';
+        helpNode.textContent = '바닥에서 센서 측정 시작점까지 높이입니다. 이 값이 있어야 재고를 계산할 수 있습니다.';
+        wrapper.appendChild(helpNode);
+      } else if (selectedModel.id === 'bio-storage' && field.key === 'sounding') {
         wrapper.appendChild(helpNode);
       } else if (field.key === 'density' && selectedModel.references) {
         wrapper.appendChild(helpNode);
@@ -443,6 +474,12 @@
   });
   byId('exampleButton').addEventListener('click', function () { loadValues(selectedModel.example, true); });
   byId('resetButton').addEventListener('click', function () { loadValues(engine.getDefaults(selectedModel.id), false); });
+  byId('referenceHeightButton').addEventListener('click', function () {
+    if (!controls.referenceHeight) return;
+    touched.referenceHeight = true;
+    recalculate();
+    controls.referenceHeight.focus();
+  });
 
   function returnContext() {
     var navigation = window.GSShiftLogNavigation;

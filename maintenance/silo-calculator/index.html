@@ -6,10 +6,10 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="description" content="설비별 Sounding과 벌크밀도로 SILO 재고를 환산합니다.">
   <title>SILO 재고 계산 · GS Shift Log</title>
-  <link rel="stylesheet" href="style.css?v=7.0.0-20261020">
+  <link rel="stylesheet" href="style.css?v=8.0.0-20261020">
   <script src="/maintenance/shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
-  <script src="calculator.js?v=7.0.0-20261020" defer></script>
-  <script src="app.js?v=7.0.0-20261020" defer></script>
+  <script src="calculator.js?v=8.0.0-20261020" defer></script>
+  <script src="app.js?v=8.0.0-20261020" defer></script>
 </head>
 <body class="silo-calculator">
   <header class="page-header">
@@ -21,7 +21,7 @@
   <main class="page-shell" id="siloCalculatorPage">
     <div class="page-heading">
       <div><p class="eyebrow">SILO INVENTORY</p><h1>SILO 재고 계산</h1><p class="page-description">설비를 선택하고 측정값과 계산 기준을 입력하세요.</p></div>
-      <span class="local-note">수동 입력 · V7</span>
+      <span class="local-note">수동 입력 · V8</span>
     </div>
 
     <noscript><p class="fatal-message">계산하려면 브라우저에서 JavaScript를 사용할 수 있어야 합니다.</p></noscript>
@@ -65,16 +65,16 @@
           <div class="panel-heading"><h2 id="resultTitle">SILO · 재고</h2><span class="status-pill" id="resultStatus">입력 대기</span></div>
           <div id="resultLive" role="status" aria-live="polite" aria-atomic="true">
             <p class="example-notice" id="exampleNotice" hidden>예시 입력값이 포함되어 있습니다. 실제 측정값과 운전조건을 확인하세요.</p>
-            <div class="result-empty" id="resultEmpty"><strong id="emptyTitle">측정값을 입력하세요</strong><p id="resultMessage"></p></div>
+            <div class="result-empty" id="resultEmpty"><strong id="emptyTitle">측정값을 입력하세요</strong><p id="resultMessage"></p><button class="button" id="referenceHeightButton" type="button" hidden>기준점 높이 입력하기</button></div>
             <div id="resultNumbers" hidden>
               <div class="primary-result"><span id="primaryLabel"></span><div><strong id="massValue"></strong><span class="result-unit">t</span></div></div>
             </div>
           </div>
           <h3 class="visually-hidden" id="siloVisualTitle">SILO 채움 상태</h3>
-          <div class="silo-placeholder" id="siloPlaceholder"><span class="placeholder-label">SILO LEVEL</span><strong>재료 높이 확인</strong><p id="siloPlaceholderMessage">측정값을 입력하면 재료면과 높이를 표시합니다.</p></div>
+          <div class="silo-placeholder" id="siloPlaceholder"><span class="placeholder-label">SILO LEVEL</span><strong id="siloPlaceholderTitle">재료 높이 확인</strong><p id="siloPlaceholderMessage">측정값을 입력하면 재료면과 높이를 표시합니다.</p></div>
               <div class="silo-visual" id="siloVisual" aria-labelledby="siloVisualTitle" hidden>
                 <div class="silo-visual-layout">
-                  <svg id="siloDiagram" viewBox="0 0 400 390" role="img" aria-labelledby="siloDiagramTitle siloDiagramDesc">
+                  <svg id="siloDiagram" viewBox="30 8 370 382" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="siloDiagramTitle siloDiagramDesc">
                     <title id="siloDiagramTitle">SILO 재료 높이</title>
                     <desc id="siloDiagramDesc"></desc>
                     <defs>

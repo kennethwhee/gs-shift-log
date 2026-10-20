@@ -8,7 +8,7 @@
 
   // Calculation basis: supplied SILO drawings and corrected workbooks, 2026-10-20.
   // Values are a geometric/section-capacity conversion, not a live sensor feed.
-  var VERSION = '7.0.0-20261020';
+  var VERSION = '8.0.0-20261020';
   function input(key, label, unit, defaultValue, options) {
     return Object.assign({ key: key, label: label, unit: unit, defaultValue: defaultValue,
       step: 'any', required: true }, options || {});
