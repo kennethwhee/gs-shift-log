@@ -8,7 +8,7 @@
 
   // Calculation basis: supplied SILO drawings and corrected workbooks, 2026-10-20.
   // Values are a geometric/section-capacity conversion, not a live sensor feed.
-  var VERSION = '6.0.0-20261020';
+  var VERSION = '7.0.0-20261020';
   function input(key, label, unit, defaultValue, options) {
     return Object.assign({ key: key, label: label, unit: unit, defaultValue: defaultValue,
       step: 'any', required: true }, options || {});
@@ -26,7 +26,7 @@
   var datumWarning = '센서높이차 0은 센서와 표시된 도면 기준면의 높이가 같다는 가정입니다. 실제 센서 설치 높이차를 반영하세요.';
   var MODELS = [
     {
-      id: 'limestone', name: 'Limestone Silo', label: '석회석 SILO', kind: 'inventory', drawingBased: true,
+      id: 'limestone', name: 'Limestone Silo', label: 'Limestone Silo', kind: 'inventory', drawingBased: true,
       description: '공칭 내경의 원통 체적과 도면 하부 용량으로 재고를 환산합니다.',
       basis: '공칭 내경 5,500 mm + 도면 하부 표기 60.9 m³. 도면 19,655 mm 치수 상단 기준으로 아래로 잰 Sounding입니다. 수평 재료면 가정.',
       range: { min: 0, max: 19655, unit: 'mm', basis: '도면 19,655 mm 치수 상단 기준 Sounding' },
@@ -42,7 +42,7 @@
       geometry: { top: 0, bottom: 19655, radius: 2.75, hopperVolume: 60.9, excludedVolume: 6.6 }
     },
     {
-      id: 'coal-day', name: 'Coal Day Silo', label: 'Coal Day SILO', kind: 'inventory', drawingBased: true,
+      id: 'coal-day', name: 'Coal Day Silo', label: 'Coal Day Silo', kind: 'inventory', drawingBased: true,
       description: '제작도면의 공칭 내경과 높이, 하부 표기 용량으로 재고를 환산합니다.',
       basis: '공칭 내경 6,500 mm · 원통 기준 높이 11,300 mm + 도면 하부 표기 102 m³. 조립도 11,300 mm 치수 상단 기준 Sounding입니다. 수평 재료면 가정.',
       range: { min: 0, max: 11300, unit: 'mm', basis: '도면 11,300 mm 치수 상단 기준 Sounding' },
@@ -57,7 +57,7 @@
       geometry: { top: 0, bottom: 11300, radius: 3.25, hopperVolume: 102 }
     },
     {
-      id: 'bio-day', name: 'Bio Day Silo', label: 'Bio Day SILO', kind: 'inventory', drawingBased: true, directSounding: true,
+      id: 'bio-day', name: 'Bio Day Silo', label: 'Bio Day Silo', kind: 'inventory', drawingBased: true, directSounding: true,
       description: '제작도면의 명목 내경과 높이로 원통 구간의 재고를 계산합니다.',
       basis: '내경 8 m · 원통 11.65 m · 지붕 높이 0.4 m. 중앙 평탄 지붕 높이 = Sounding 0 mm, 바닥판 상면 = 12,050 mm. 수평 재료면 가정.',
       range: { min: 400, max: 12050, unit: 'mm', basis: '도면 기준 Sounding (원통 구간)' },
@@ -74,7 +74,7 @@
       geometry: { top: 400, bottom: 12050, radius: 4 }
     },
     {
-      id: 'fly-ash', name: 'Fly Ash Silo', label: 'Fly Ash SILO', kind: 'inventory', drawingBased: true,
+      id: 'fly-ash', name: 'Fly Ash Silo', label: 'Fly Ash Silo', kind: 'inventory', drawingBased: true,
       description: '도면 계산 프로파일의 공칭 내경과 높이, 하부 표기 용량으로 재고를 환산합니다.',
       basis: '공칭 내경 13,000 mm · 원통 14,640 mm + 도면 하부 표기 36 m³. PDF 28쪽 프로파일의 Sounding 600–15,240 mm 구간, 수평 재료면 가정.',
       range: { min: 600, max: 15240, unit: 'mm', basis: 'PDF 28쪽 계산 프로파일 기준 Sounding' },
@@ -120,14 +120,6 @@
         '벽면 재료 높이가 저레벨보다 낮거나 내부 구조물이 완전히 덮이지 않는 구간은 계산하지 않습니다. 계산 하한을 공실로 보지 않습니다.',
         '점검창 여유는 원자료의 약 4,700 mm 기준 근사값입니다.'],
       source: 'Bio Storage Silo 적재량 검토 / 수정 계산 및 Calculation Sheet(Bio Storage).pdf'
-    },
-    {
-      id: 'fly-ash-2', name: 'Fly Ash Silo (2)', label: '설비 미확인 시트', kind: 'unverified',
-      description: '원자료의 설비명·치수·구간용적이 섞여 있어 계산을 보류합니다.',
-      basis: '실제 설비명과 원도면을 확보한 뒤 계산 모델을 확정해야 합니다.',
-      inputs: [], example: {},
-      warnings: ['기존 음수 재고 및 mm/m³ 혼합 계산은 사용하지 않습니다.'],
-      source: 'SILO 현재고량.xlsx / Fly Ash Silo (2)'
     }
   ];
 
@@ -140,7 +132,6 @@
   }
   deepFreeze(MODELS);
   function getModel(id) {
-    if (id === 'unresolved') id = 'fly-ash-2';
     return MODELS.find(function (model) { return model.id === id; }) || null;
   }
   function getDefaults(id) {
@@ -209,7 +200,6 @@
   function calculate(id, supplied) {
     var model = getModel(id);
     if (!model) return result(null, 'invalid', '지원하지 않는 설비입니다.');
-    if (model.kind === 'unverified') return result(model, 'unverified', '설비명과 원도면 확인 전에는 재고를 계산하지 않습니다.');
     if (supplied === undefined) supplied = {};
     if (!supplied || typeof supplied !== 'object' || Array.isArray(supplied)) {
       return result(model, 'invalid', '입력값 형식을 확인하세요.');
