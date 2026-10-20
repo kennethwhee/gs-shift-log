@@ -1,4 +1,4 @@
-/* V4: two physical columns; input/details left, headline mass and diagram right. */
+/* V5: two physical columns; input/details left, headline mass and diagram right. */
 :root{color-scheme:light;--ink:#172d45;--muted:#617185;--border:#dce4ec;--blue:#1761ab;--pale:#edf5fc;--navy:#15304d;--warning:#8a5210;--warning-bg:#fff8e9;--danger:#a33030;font-family:Pretendard,"Noto Sans KR","Malgun Gothic",system-ui,sans-serif;font-synthesis:none}
 body.silo-calculator{margin:0;background:#f3f6fa;color:var(--ink);font-size:14px;line-height:1.5}
 body.silo-calculator *{box-sizing:border-box}
@@ -25,7 +25,7 @@ body.silo-calculator .back-link:hover{background:#244564}
 #siloCalculatorPage .panel-heading{display:flex;align-items:center;justify-content:space-between;gap:9px;margin-bottom:12px}
 #siloCalculatorPage h2{font-size:15px;line-height:1.4;letter-spacing:-.25px;margin:0}
 #siloCalculatorPage .panel-caption{font-size:10px;color:var(--muted)}
-#siloCalculatorPage .model-panel{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);align-items:end;gap:12px;margin-bottom:12px}
+#siloCalculatorPage .model-panel{display:grid;grid-template-columns:minmax(0,1fr);align-items:end;gap:6px;margin-bottom:12px}
 #siloCalculatorPage .model-select-wrap label{display:block;font-size:11px;font-weight:700;margin-bottom:4px}
 #siloCalculatorPage .model-select-wrap select{width:100%;height:39px;padding:0 10px;color:var(--ink);background:#f7faff;border:1px solid #c4d4e5;border-radius:7px;font-size:14px;font-weight:700}
 #siloCalculatorPage .model-summary{padding-bottom:6px}

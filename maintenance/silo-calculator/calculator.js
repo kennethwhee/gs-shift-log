@@ -8,7 +8,7 @@
 
   // Calculation basis: corrected SILO workbooks, 2026-10-20.
   // Values are a geometric/section-capacity conversion, not a live sensor feed.
-  var VERSION = '2.1.0-20261020';
+  var VERSION = '5.0.0-20261020';
   function input(key, label, unit, defaultValue, options) {
     return Object.assign({ key: key, label: label, unit: unit, defaultValue: defaultValue,
       step: 'any', required: true }, options || {});
@@ -73,29 +73,34 @@
       geometry: { top: 600, bottom: 15240, cylinderVolume: 1945.67, hopperVolume: 36, grossVolume: 2000 }
     },
     {
-      id: 'sludge', name: 'Sludge Silo', label: '하수슬러지 SILO', kind: 'inventory',
+      id: 'sludge', name: '유기성 고형연료 Day Silo', label: '유기성 고형연료 Day Silo', kind: 'inventory',
       description: '원통과 하부 원뿔을 나누어 공실까지 계산합니다.',
-      basis: '원통 + 끝이 뾰족한 원뿔이라는 원자료 형상 가정. Sounding 단위는 m입니다.',
-      inputs: [input('sounding', '측정 Sounding', 'm', '', { min: 0 }), density(0.8),
-        input('radius', '반지름', 'm', 1.45, { min: 0, minExclusive: true }),
-        input('cylinderHeight', '원통 높이', 'm', 8.3, { min: 0, minExclusive: true }),
-        input('coneHeight', '원뿔 높이', 'm', 1.928, { min: 0, minExclusive: true }),
+      basis: '원통 + 끝이 뾰족한 원뿔이라는 원자료 형상 가정. Sounding과 모든 길이는 mm로 입력합니다.',
+      inputs: [input('sounding', '측정 Sounding', 'mm', '', { min: 0 }), density(0.8),
+        input('radius', '반지름', 'mm', 1450, { min: 0, minExclusive: true }),
+        input('cylinderHeight', '원통 높이', 'mm', 8300, { min: 0, minExclusive: true }),
+        input('coneHeight', '원뿔 높이', 'mm', 1928, { min: 0, minExclusive: true }),
         input('hours', '평균 환산 기준시간', 'h', 4, { min: 0, minExclusive: true })],
-      example: { sounding: 7.7, density: 0.8, radius: 1.45, cylinderHeight: 8.3, coneHeight: 1.928, hours: 4 },
-      warnings: ['Sounding은 상부 기준면부터 아래로 잰 거리(m)입니다. 실제 계측 영점·유효 내경을 확인하세요.',
+      example: { sounding: 7700, density: 0.8, radius: 1450, cylinderHeight: 8300, coneHeight: 1928, hours: 4 },
+      warnings: ['Sounding은 상부 기준면부터 아래로 잰 거리(mm)입니다. 실제 계측 영점·유효 내경을 확인하세요.',
         '시간당 평균 환산은 현재 재고를 기준시간에 모두 사용한다는 가정이며 실제 사용량 측정값이 아닙니다.'],
       source: '하수슬러지 Silo 재고 계산.xlsx의 수정 계산'
     },
     {
-      id: 'bio-storage', name: 'Bio Storage Silo', label: 'Bio Storage SILO', kind: 'capacity',
-      description: '안식각·Chute 여유에 따른 Net 만적재량과 예상 LT Level을 계산합니다.',
-      basis: '반지름 8 m, Chute 높이 20.895 m, 저레벨 0.61 m. LT는 벽에서 3.4 m 위치 가정.',
-      inputs: [input('angle', '안식각', '°', 45, { min: 0, max: 90, minExclusive: true, maxExclusive: true }),
-        input('clearance', 'Chute까지 여유', 'm', 1.5, { min: 0 }), density(0.22)],
-      example: { angle: 45, clearance: 1.5, density: 0.22 },
-      warnings: ['현재 측정 재고가 아니라, 지정 조건의 Net 만적재량을 계산합니다.',
-        'Net는 저레벨 0.61 m 아래 잔량을 제외합니다. 전체 물리적 재고와 다릅니다.',
-        'LT 위치와 안식각은 원자료 가정입니다. 점검창 여유는 원자료의 약 4.7 m 기준 근사값입니다.'],
+      id: 'bio-storage', name: 'Bio Storage Silo', label: 'Bio Storage Silo', kind: 'inventory',
+      description: '측정 Sounding과 실제 기준점 높이로 안식각을 고려한 Net 재고를 계산합니다.',
+      basis: '반지름 8,000 mm · Chute 높이 20,895 mm · 저레벨 610 mm. LT는 벽에서 3,400 mm 위치라는 원자료 가정입니다.',
+      inputs: [input('sounding', '측정 Sounding', 'mm', '', { min: 0,
+        help: '센서의 Sounding 시작점에서 LT 위치 재료면까지 아래로 잰 거리입니다.' }),
+        input('referenceHeight', 'Sounding 기준점 높이', 'mm', '', { min: 0, minExclusive: true,
+          help: 'SILO 바닥에서 센서의 Sounding 시작점까지 높이. 실제 설치값을 입력하세요.' }),
+        input('angle', '안식각', '°', 45, { min: 0, max: 90, minExclusive: true, maxExclusive: true }), density(0.22)],
+      example: { sounding: 6100, referenceHeight: 20895, angle: 45, density: 0.22 },
+      warnings: ['기준점 높이는 실제 센서 설치값을 입력해야 합니다. 예시 20,895 mm는 Chute 높이를 사용한 계산 예일 뿐 실제 센서 높이가 아닙니다.',
+        '원자료의 중앙 원뿔형 재료면과 LT 위치를 가정한 환산 재고입니다. 실제 재료면 형상에 따라 달라집니다.',
+        'Net는 저레벨 610 mm 아래 잔량을 제외합니다. 전체 물리적 재고와 다릅니다.',
+        '벽면 재료 높이가 저레벨보다 낮거나 내부 구조물이 완전히 덮이지 않는 구간은 계산하지 않습니다. 계산 하한을 공실로 보지 않습니다.',
+        '점검창 여유는 원자료의 약 4,700 mm 기준 근사값입니다.'],
       source: 'Bio Storage Silo 적재량 검토 / 수정 계산 및 Calculation Sheet(Bio Storage).pdf'
     },
     {
@@ -171,6 +176,17 @@
       : model.provisional ? '잠정 환산값입니다. 원도면을 확인하세요.' : '입력한 기준으로 계산했습니다.', values);
   }
 
+  function getBioStorageRange(referenceHeightMm, angleDeg) {
+    var reference = parseNumber(referenceHeightMm), angle = parseNumber(angleDeg);
+    if (reference.status !== 'ok' || angle.status !== 'ok' || reference.value <= 0 || angle.value <= 0 || angle.value >= 90) return null;
+    var height = reference.value / 1000, tangent = Math.tan(angle.value * Math.PI / 180);
+    // Apex <= Chute, wall <= cylinder roof, wall >= low level, and block fully buried.
+    var min = Math.max(0, height - 20.895 + 4.6 * tangent, height - 17 - 3.4 * tangent) * 1000;
+    var max = Math.min(height - 0.61 - 3.4 * tangent, height - 1.7 + 3.5 * tangent) * 1000;
+    if (!Number.isFinite(min) || !Number.isFinite(max) || min > max) return null;
+    return { minSoundingMm: min, maxSoundingMm: max };
+  }
+
   function calculate(id, supplied) {
     var model = getModel(id);
     if (!model) return result(null, 'invalid', '지원하지 않는 설비입니다.');
@@ -225,53 +241,67 @@
       return checkedSuccess(model, answer);
     }
     if (model.id === 'sludge') {
-      var totalHeight = p.cylinderHeight + p.coneHeight;
-      if (!Number.isFinite(totalHeight)) return result(model, 'invalid', '설비 높이의 숫자 범위를 확인하세요.');
-      // Rounding only removes binary summation noise (8.3 + 1.928); no out-of-range clamping.
-      var emptySounding = Math.round(totalHeight * 1e9) / 1e9;
-      if (!Number.isFinite(emptySounding)) return result(model, 'invalid', '설비 높이의 숫자 범위를 확인하세요.');
-      if (p.sounding > emptySounding) return result(model, 'unsupported', '공실 기준보다 큰 Sounding입니다. 측정값 또는 설비 높이를 확인하세요.',
-        { supportedMin: 0, supportedMax: emptySounding, soundingUnit: 'm' });
-      var cylinderHeight = p.sounding <= p.cylinderHeight ? p.cylinderHeight - p.sounding : 0;
-      var coneHeight = p.sounding <= p.cylinderHeight ? p.coneHeight : emptySounding - p.sounding;
-      var area = Math.PI * p.radius * p.radius;
+      // V5 accepts every length in mm; geometry and volumes are calculated in metres.
+      var totalHeightMm = p.cylinderHeight + p.coneHeight;
+      if (!Number.isFinite(totalHeightMm)) return result(model, 'invalid', '설비 높이의 숫자 범위를 확인하세요.');
+      var emptySoundingMm = Math.round(totalHeightMm * 1e6) / 1e6;
+      if (!Number.isFinite(emptySoundingMm)) return result(model, 'invalid', '설비 높이의 숫자 범위를 확인하세요.');
+      if (p.sounding > emptySoundingMm) return result(model, 'unsupported', '공실 기준보다 큰 Sounding입니다. 측정값 또는 설비 높이를 확인하세요.',
+        { effectiveSounding: p.sounding, supportedMin: 0, supportedMax: emptySoundingMm, soundingUnit: 'mm' });
+      var soundingM = p.sounding / 1000;
+      var cylinderHeightM = p.cylinderHeight / 1000;
+      var coneHeightM = p.coneHeight / 1000;
+      var radiusM = p.radius / 1000;
+      var emptySoundingM = emptySoundingMm / 1000;
+      var cylinderHeight = p.sounding <= p.cylinderHeight ? cylinderHeightM - soundingM : 0;
+      var coneHeight = p.sounding <= p.cylinderHeight ? coneHeightM : emptySoundingM - soundingM;
+      var area = Math.PI * radiusM * radiusM;
       var cylinder = area * cylinderHeight;
-      var cone = area * coneHeight * coneHeight * coneHeight / (3 * p.coneHeight * p.coneHeight);
-      var fullVolume = area * (p.cylinderHeight + p.coneHeight / 3);
+      var cone = area * coneHeight * coneHeight * coneHeight / (3 * coneHeightM * coneHeightM);
+      var fullVolume = area * (cylinderHeightM + coneHeightM / 3);
       var sludgeVolume = cylinder + cone;
       return checkedSuccess(model, { primaryLabel: '총 재고', volumeM3: sludgeVolume, massTon: sludgeVolume * p.density,
         cylinderVolumeM3: cylinder, coneVolumeM3: cone, remainingCylinderHeightM: cylinderHeight,
-        remainingConeHeightM: coneHeight, emptySoundingM: emptySounding,
+        remainingConeHeightM: coneHeight, emptySoundingM: emptySoundingM, emptySoundingMm: emptySoundingMm,
         fullVolumeM3: fullVolume, volumeFillRatio: sludgeVolume / fullVolume,
         rateTonPerHour: sludgeVolume * p.density / p.hours, hours: p.hours,
-        effectiveSounding: p.sounding, soundingUnit: 'm', density: p.density });
+        effectiveSounding: p.sounding, soundingUnit: 'mm', supportedMin: 0, supportedMax: emptySoundingMm, density: p.density });
     }
     if (model.id === 'bio-storage') {
       var tangent = Math.tan(p.angle * Math.PI / 180);
-      var baseHeight = 20.895 - p.clearance - 8 * tangent;
-      var cylinderNetHeight = baseHeight - 0.61;
-      var blockSurfaceHeight = 20.895 - p.clearance - 1.1 * tangent;
-      if (cylinderNetHeight < 0 || baseHeight > 17 || blockSurfaceHeight < 1.7) {
-        return result(model, 'unsupported', '현재 조건은 원통부·지붕·내부 구조물의 계산 범위를 벗어납니다. 안식각과 Chute 여유를 확인하세요.');
+      var referenceHeight = p.referenceHeight / 1000;
+      var level = referenceHeight - p.sounding / 1000;
+      var apexHeight = level + 4.6 * tangent;
+      var baseHeight = apexHeight - 8 * tangent;
+      var blockSurfaceHeight = apexHeight - 1.1 * tangent;
+      var range = getBioStorageRange(p.referenceHeight, p.angle);
+      var rangeFields = { effectiveSounding: p.sounding, soundingUnit: 'mm', referenceHeightM: referenceHeight };
+      if (range) Object.assign(rangeFields, range, { supportedMin: range.minSoundingMm, supportedMax: range.maxSoundingMm });
+      // Preserve the validated original full-footprint cone and fully buried block model.
+      // A 1e-9 m tolerance admits decimal boundary values despite binary round-off.
+      var tolerance = 1e-9;
+      if (!range || baseHeight < 0.61 - tolerance || baseHeight > 17 + tolerance ||
+          blockSurfaceHeight < 1.7 - tolerance || apexHeight > 20.895 + tolerance) {
+        return result(model, 'unsupported', '현재 Sounding은 원자료 형상으로 계산 가능한 범위를 벗어납니다. 기준점 높이·안식각을 확인하세요. 저레벨 이하 구간은 공실로 환산하지 않습니다.', rangeFields);
       }
+      var cylinderNetHeight = Math.max(0, baseHeight - 0.61);
+      var clearance = Math.max(0, 20.895 - apexHeight);
       var coneVolume = Math.PI * 8 * 8 * (8 * tangent) / 3;
       var cylinderNetVolume = Math.PI * 8 * 8 * cylinderNetHeight;
       var excludedBlockVolume = Math.PI * 1.1 * 1.1 * 1.09;
       var netVolume = coneVolume + cylinderNetVolume - excludedBlockVolume;
       var residualVolume = Math.PI * (8 * 8 - 1.1 * 1.1) * 0.61;
-      return checkedSuccess(model, { primaryLabel: 'Net 만적재량', massTon: netVolume * p.density,
+      return checkedSuccess(model, Object.assign(rangeFields, { primaryLabel: 'Net 재고', massTon: netVolume * p.density,
         netMassTon: netVolume * p.density, volumeM3: netVolume, netVolumeM3: netVolume,
-        levelM: 20.895 - p.clearance - 4.6 * tangent,
-        hatchClearanceM: 4.7 + p.clearance + 8 * (tangent - 1),
-        apexHeightM: 20.895 - p.clearance, wallLevelM: baseHeight,
-        clearanceM: p.clearance, angleDeg: p.angle,
+        levelM: level, hatchClearanceM: 4.7 + clearance + 8 * (tangent - 1),
+        apexHeightM: apexHeight, wallLevelM: baseHeight, clearanceM: clearance, angleDeg: p.angle,
         coneVolumeM3: coneVolume, cylinderVolumeM3: cylinderNetVolume,
         excludedStructureVolumeM3: excludedBlockVolume,
         residualVolumeM3: residualVolume, residualMassTon: residualVolume * p.density,
-        estimatedPhysicalMassTon: (netVolume + residualVolume) * p.density, density: p.density });
+        estimatedPhysicalMassTon: (netVolume + residualVolume) * p.density, density: p.density }));
     }
     return result(model, 'unverified', '계산 모델 확인이 필요합니다.');
   }
   return Object.freeze({ VERSION: VERSION, MODELS: MODELS, getModel: getModel, getDefaults: getDefaults,
-    parseNumber: parseNumber, calculate: calculate });
+    parseNumber: parseNumber, getBioStorageRange: getBioStorageRange, calculate: calculate });
 });
