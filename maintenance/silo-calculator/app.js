@@ -404,10 +404,20 @@
     byId('modelWarnings').replaceChildren();
     selectedModel.warnings.forEach(function (warning) { byId('modelWarnings').appendChild(element('li', '', warning)); });
     document.querySelector('.basis-notes').className = 'basis-notes' + (selectedModel.provisional || selectedModel.kind === 'unverified' || selectedModel.id === 'fly-ash' ? ' is-caution' : '');
-    selectedModel.inputs.forEach(function (field) {
+    // GS_SILO_SOUNDING_INPUT_V1: settings first, measured Sounding last.
+    var orderedInputs = selectedModel.inputs.slice().sort(function (first, second) {
+      function priority(field) {
+        return field.key === 'offset' ? 0 : field.key === 'density' ? 1 : field.key === 'sounding' ? 3 : 2;
+      }
+      return priority(first) - priority(second);
+    });
+    orderedInputs.forEach(function (field) {
       var wrapper = element('div', 'field' + (field.key === 'sounding' ? ' is-main' : ''));
-      var label = element('label', '', field.label + (field.key === 'referenceHeight' ? ' (필수)' : ''));
+      wrapper.setAttribute('data-input-key', field.key);
+      var fieldLabel = field.key === 'offset' ? '센서 높이차' : field.label;
+      var label = element('label', '', fieldLabel + (field.key === 'referenceHeight' ? ' (필수)' : ''));
       label.setAttribute('for', 'input-' + field.key);
+      if (field.key === 'sounding') label.appendChild(element('span', 'sounding-priority', '핵심 입력'));
       var inputWrap = element('div', 'field-input-wrap');
       var input = element('input');
       input.id = 'input-' + field.key;
@@ -418,7 +428,7 @@
       input.spellcheck = false;
       input.required = field.required;
       input.setAttribute('aria-describedby', 'help-' + field.key + ' error-' + field.key);
-      if (field.key === 'sounding') input.placeholder = selectedModel.directSounding ? '도면 기준 Sounding 입력' : '측정값을 입력하세요';
+      if (field.key === 'sounding') input.placeholder = selectedModel.directSounding ? '도면 기준 Sounding 입력' : '측정 Sounding을 입력하세요';
       var help = selectedModel.drawingBased && field.key === 'density'
         ? '도면 설계밀도를 기본값으로 사용합니다.'
         : field.help || (field.key === 'density' ? '현장 벌크밀도를 확인해 적용하세요.' : field.key === 'hours' ? '현재 재고를 모두 사용하는 가정 시간' : field.key === 'angle' ? '0° 초과, 90° 미만' : '');
