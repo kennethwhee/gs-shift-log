@@ -151621,6 +151621,7 @@ async function applyMorningMeetingOutsourcedWorkTable(zip, worksheetDocument, sh
   };
   // Coordinates are final. Replace only the reserved table band, never insert rows.
   overlappingMerges.forEach(element => element.remove());
+  let uniformRowHeight = 20.1;
   targets.forEach((record, offset) => {
     const kind = offset === 0 ? "title" : offset === 1 ? "header" : "body";
     const values = offset === 0 ? ["◇ 외주공사"] : offset === 1 ? table.headers : table.rows[offset - 2] || Array(6).fill("");
@@ -151643,16 +151644,19 @@ async function applyMorningMeetingOutsourcedWorkTable(zip, worksheetDocument, sh
       }
       addMerge(group.startColumn, group.endColumn, record.rowNumber);
     });
-    let height = offset === 0 ? 15.6 : offset === 1 ? 13.8 : 14.25;
+    let height = 20.1;
     if (offset > 0 && record.rowNumber !== lastRow) {
       const lines = Math.max(1, ...values.map((value, index) => String(value ?? "").split(/\r\n?|\n/).reduce((sum, line) =>
         sum + Math.max(1, Math.ceil(calculateMorningMeetingDynamicTextUnits(line) / Math.max(1, groups[index].width - 1))), 0)));
-      height = Math.max(height, lines * (offset === 1 ? 13.8 : 14.25));
+      height = Math.max(height, lines * 20.1);
     }
-    record.element.setAttribute("ht", String(height));
+    uniformRowHeight = Math.max(uniformRowHeight, height);
     record.element.setAttribute("customHeight", "1");
     record.element.removeAttribute("hidden");
   });
+  // The section determines the rows, not fixed worksheet row numbers. If any
+  // label or job needs more room, grow the entire outsourced-work table equally.
+  targets.forEach(record => record.element.setAttribute("ht", String(uniformRowHeight)));
   mergeCells.setAttribute("count", String(getMorningMeetingDirectXmlChildren(mergeCells, "mergeCell").length));
   zip.file("xl/styles.xml", serializer.serializeToString(stylesDocument));
   return {applied: true, titleRow, lastRow, jobCount: table.rows.length, groups};

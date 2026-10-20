@@ -226,6 +226,18 @@ function tableMerges(document, row) {
     .filter(item => item.range.top <= row && item.range.bottom >= row);
 }
 
+function assertUniformTableHeight(document, titleRow, jobCount, minimum = 20.1) {
+  const heights = Array.from({ length: jobCount + 3 }, (_, offset) => {
+    const row = rowAt(document, titleRow + offset);
+    assert.ok(row, 'title, header, every job and empty tail have a reserved row');
+    assert.equal(row.getAttribute('customHeight'), '1');
+    return Number(row.getAttribute('ht'));
+  });
+  assert.ok(heights[0] >= minimum, `shared table height is at least ${minimum} points`);
+  assert.equal(new Set(heights).size, 1, 'title, header, every job and empty tail have identical heights');
+  return heights[0];
+}
+
 test('table groups respect source proportions and leave destination column widths intact', () => {
   const f = fixture();
   const before = xmlOf(f.worksheet.getElementsByTagNameNS(MAIN, 'cols')[0]);
@@ -257,8 +269,7 @@ test('final painter creates six bordered columns under a separate title without 
   const styles = await f.styles();
   assert.deepEqual(direct(styles.getElementsByTagNameNS(MAIN, 'cellXfs')[0], 'xf').slice(0, originalXfs.length).map(xmlOf), originalXfs);
   assert.equal(cellText(cellAt(f.worksheet, 'B10')), '◇ 외주공사');
-  assert.equal(Number(rowAt(f.worksheet, 10).getAttribute('ht')), 15.6);
-  assert.ok(Number(rowAt(f.worksheet, 11).getAttribute('ht')) >= 13.8, 'header keeps its baseline height and grows for narrow groups');
+  assertUniformTableHeight(f.worksheet, 10, JOBS.length);
   const groups = f.context.getMorningMeetingOutsourcedTableGroups(f.worksheet, WIDTHS);
   for (const [row, expected] of [[11, HEADERS], [12, JOBS[0]], [13, JOBS[1]], [14, Array(6).fill('')]]) {
     assert.deepEqual(Array.from(groups, group => cellText(cellAt(f.worksheet, `${group.startColumn}${row}`))), expected);
@@ -317,39 +328,66 @@ test('an empty source table keeps its blue header and one bordered empty tail', 
   assert.deepEqual(Array.from(groups, group => cellText(cellAt(f.worksheet, `${group.startColumn}11`))), HEADERS);
   assert.deepEqual(Array.from(groups, group => cellText(cellAt(f.worksheet, `${group.startColumn}12`))), Array(6).fill(''));
   assert.equal(tableMerges(f.worksheet, 12).length, 6);
+  assertUniformTableHeight(f.worksheet, 10, 0);
 });
 
-test('repeated jobs remain separate table rows and multiline work raises row height', async () => {
+test('repeated jobs remain separate table rows and multiline work raises the shared table height', async () => {
   const job = ['외주', '점검 및 보강\n추가 작업\n마감 확인', '지하\n상부', '종일', '협력업체C', '일반'];
   const f = fixture({ jobs: [job, job] }); await f.paint();
   const groups = f.context.getMorningMeetingOutsourcedTableGroups(f.worksheet, WIDTHS);
   const nameColumn = groups[1].startColumn;
   assert.equal(cellText(cellAt(f.worksheet, `${nameColumn}12`)), job[1]);
   assert.equal(cellText(cellAt(f.worksheet, `${nameColumn}13`)), job[1]);
-  assert.ok(Number(rowAt(f.worksheet, 12).getAttribute('ht')) > 14.25);
+  assertUniformTableHeight(f.worksheet, 10, 2, 3 * 20.1);
   const styles = await f.styles();
   assert.equal(direct(styleFor(styles, cellAt(f.worksheet, `${nameColumn}12`)), 'alignment')[0].getAttribute('wrapText'), '1');
 });
 
-test('long text receives adaptive body height without changing destination widths', async () => {
+test('long text raises all table rows together without changing destination widths', async () => {
   const longJob = [...JOBS[0]]; longJob[1] = '긴 작업 내용과 세부 조치 '.repeat(30);
   const f = fixture({ jobs: [longJob] });
   const before = xmlOf(f.worksheet.getElementsByTagNameNS(MAIN, 'cols')[0]);
   await f.paint();
-  assert.ok(Number(rowAt(f.worksheet, 12).getAttribute('ht')) > 14.25);
+  assert.ok(assertUniformTableHeight(f.worksheet, 10, 1) > 20.1);
   assert.equal(xmlOf(f.worksheet.getElementsByTagNameNS(MAIN, 'cols')[0]), before);
 });
 
-test('multiline column headings grow the blue header without dropping any label text', async () => {
+test('multiline column headings grow all table rows without dropping any label text', async () => {
   const f = fixture();
   f.result.outsourcedWork.headers[3] = '작업\n시간\n(주간)';
   await f.paint();
   const groups = f.context.getMorningMeetingOutsourcedTableGroups(f.worksheet, WIDTHS);
   assert.equal(cellText(cellAt(f.worksheet, `${groups[3].startColumn}11`)), '작업\n시간\n(주간)');
-  assert.ok(Number(rowAt(f.worksheet, 11).getAttribute('ht')) >= 3 * 13.8);
+  assertUniformTableHeight(f.worksheet, 10, JOBS.length, 3 * 20.1);
   const styles = await f.styles();
   assert.equal(direct(styleFor(styles, cellAt(f.worksheet, `${groups[3].startColumn}11`)), 'alignment')[0].getAttribute('wrapText'), '1');
 });
+
+for (const jobCount of [0, 1, 3]) {
+  test(`a moved external-work section applies one height through its actual ${jobCount}-job extent`, async () => {
+    const jobs = Array.from({ length: jobCount }, (_, index) => [...JOBS[index % JOBS.length]]);
+    const titleRow = 14;
+    const lastRow = titleRow + jobCount + 2;
+    const f = fixture({ jobs, titleRow });
+    // The empty-table case also proves the ordinary 20.1-point baseline when
+    // all header labels fit; the other cases retain narrow wrapping columns.
+    if (jobCount === 0) f.worksheet.getElementsByTagNameNS(MAIN, 'col').forEach(column => column.setAttribute('width', '10'));
+    const beforeRows = f.worksheet.getElementsByTagNameNS(MAIN, 'row').length;
+    const beforeNeighborHeights = [titleRow - 1, lastRow + 1].map(row => rowAt(f.worksheet, row).getAttribute('ht'));
+    const applied = await f.paint();
+    assert.equal(applied.titleRow, titleRow);
+    assert.equal(applied.lastRow, lastRow);
+    assert.equal(applied.jobCount, jobCount);
+    const height = assertUniformTableHeight(f.worksheet, titleRow, jobCount);
+    if (jobCount === 0) assert.equal(height, 20.1);
+    assert.equal(f.worksheet.getElementsByTagNameNS(MAIN, 'row').length, beforeRows);
+    assert.deepEqual([titleRow - 1, lastRow + 1].map(row => rowAt(f.worksheet, row).getAttribute('ht')), beforeNeighborHeights);
+    const groups = f.context.getMorningMeetingOutsourcedTableGroups(f.worksheet, WIDTHS);
+    jobs.forEach((job, index) => assert.deepEqual(Array.from(groups, group =>
+      cellText(cellAt(f.worksheet, `${group.startColumn}${titleRow + index + 2}`))), job));
+    assert.deepEqual(Array.from(groups, group => cellText(cellAt(f.worksheet, `${group.startColumn}${lastRow}`))), Array(6).fill(''));
+  });
+}
 
 test('the actual workbook capture and final hook use the same table snapshot across awaited style reads', async () => {
   const f = fixture();
