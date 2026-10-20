@@ -1,0 +1,191 @@
+/* GS_MOBILE_MENU_COMPACT_V1 / 20261021
+ * Approved palette: Navigator blue; fuel/SILO/Blower green; maintenance orange.
+ * Scoped to the mobile-app header. Application permissions keep their hidden/style state.
+ */
+#headerMoreDropdown[data-mobile-menu-compact="v1"] {
+  width: min(216px, calc(100vw - 20px));
+  min-width: 0;
+  padding: 6px;
+  border: 1px solid #dde5ee;
+  border-radius: 11px;
+  background: #fff;
+  box-shadow: 0 9px 25px rgba(32, 58, 84, .12);
+  max-height: calc(100vh - 80px);
+  max-height: calc(100dvh - 80px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+#headerMoreDropdown[data-mobile-menu-compact="v1"] .mobile-menu-section-title {
+  padding: 4px 9px 5px;
+  margin: 0;
+  color: #748193;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 15px;
+  letter-spacing: .3px;
+}
+#headerMoreDropdown[data-mobile-menu-compact="v1"] .mobile-menu-section-title:not(:first-child) {
+  margin-top: 7px;
+  padding-top: 12px;
+  border-top: 1px solid #e7ecf2;
+}
+#headerMoreDropdown[data-mobile-menu-compact="v1"] .header-more-item {
+  position: relative;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 7px 9px 7px 33px;
+  margin: 0;
+  gap: 8px;
+  justify-content: flex-start;
+  border: 0;
+  border-radius: 7px;
+  box-shadow: none;
+  background: #fff;
+  color: #28374c;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  letter-spacing: normal;
+  text-decoration: none;
+}
+#headerMoreDropdown[data-mobile-menu-compact="v1"] .header-more-item::before {
+  display: none;
+  content: none;
+}
+#headerMoreDropdown[data-mobile-menu-compact="v1"] .header-more-item:hover,
+#headerMoreDropdown[data-mobile-menu-compact="v1"] .header-more-item:focus-visible {
+  background: #f4f7fa;
+  color: #28374c;
+}
+#headerMoreDropdown[data-mobile-menu-compact="v1"] .header-more-item:focus-visible,
+#headerMoreDropdown[data-mobile-menu-compact="v1"] .header-more-subitem:focus-visible {
+  outline: 2px solid #4380b9;
+  outline-offset: -2px;
+}
+#headerMoreDropdown[data-mobile-menu-compact="v1"] .header-more-item__label { flex: 1 1 auto; }
+#headerMoreDropdown[data-mobile-menu-compact="v1"] .header-more-item__meta { margin-left: auto; }
+#headerMoreDropdown[data-mobile-menu-compact="v1"] .header-menu-kind-badge {
+  height: 18px;
+  min-width: 0;
+  padding: 0 5px;
+  margin-left: auto;
+  border: 0;
+  border-radius: 5px;
+  background: #f0f3f7;
+  color: #667487;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 18px;
+}
+#headerMoreDropdown[data-mobile-menu-compact="v1"] :is(#facilityNavigatorHeaderButton, #solidFuelTroubleHeaderLink, #siloCalculatorHeaderLink, #blowerHistoryHeaderButton, #plannedMaintenanceHeaderButton) {
+  margin-top: 2px;
+  border-radius: 7px;
+  background: var(--menu-row-bg);
+  color: var(--menu-row-ink);
+  box-shadow: none;
+}
+#headerMoreDropdown[data-mobile-menu-compact="v1"] :is(#facilityNavigatorHeaderButton, #solidFuelTroubleHeaderLink, #siloCalculatorHeaderLink, #blowerHistoryHeaderButton, #plannedMaintenanceHeaderButton):is(:hover, :focus-visible) {
+  background: var(--menu-row-hover);
+  color: var(--menu-row-ink);
+}
+#headerMoreDropdown[data-mobile-menu-compact="v1"] #facilityNavigatorHeaderButton {
+  --menu-row-bg: #eff6ff; --menu-row-hover: #e3efff; --menu-row-ink: #2168b5;
+}
+#headerMoreDropdown[data-mobile-menu-compact="v1"] :is(#solidFuelTroubleHeaderLink, #siloCalculatorHeaderLink, #blowerHistoryHeaderButton) {
+  --menu-row-bg: #f0f7f3; --menu-row-hover: #e4f1e9; --menu-row-ink: #28694d;
+}
+#headerMoreDropdown[data-mobile-menu-compact="v1"] #plannedMaintenanceHeaderButton {
+  --menu-row-bg: #fff7eb; --menu-row-hover: #fff0d8; --menu-row-ink: #aa671a;
+}
+#headerMoreDropdown[data-mobile-menu-compact="v1"] #plannedMaintenanceHeaderButton[aria-expanded="true"] {
+  border-radius: 7px 7px 0 0;
+  background: #fff0d8;
+}
+#headerMoreDropdown[data-mobile-menu-compact="v1"] #plannedMaintenanceHeaderButton .header-more-item__chevron { color: #aa671a; }
+#headerMoreDropdown[data-mobile-menu-compact="v1"] #plannedMaintenanceHeaderSubmenuPanel {
+  padding: 3px 5px 6px 27px;
+  gap: 2px;
+  border-radius: 0 0 7px 7px;
+  background: #fff7eb;
+  box-shadow: none;
+}
+#headerMoreDropdown[data-mobile-menu-compact="v1"] #plannedMaintenanceHeaderSubmenuPanel .header-more-subitem {
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 0;
+  background: transparent;
+  color: #865d29;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+}
+#headerMoreDropdown[data-mobile-menu-compact="v1"] #plannedMaintenanceHeaderSubmenuPanel .header-more-subitem:is(:hover, :focus-visible) { background: #fff0d8; }
+/* Pseudo-element icons leave labels, alert counters and all DOM listeners intact. */
+#headerMoreDropdown[data-mobile-menu-compact="v1"] .header-more-item::after {
+  content: none;
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  width: 15px;
+  height: 15px;
+  transform: translateY(-50%);
+  background-color: currentColor;
+  -webkit-mask: var(--menu-icon) center / contain no-repeat;
+  mask: var(--menu-icon) center / contain no-repeat;
+  pointer-events: none;
+}
+@media (pointer: coarse) {
+  #headerMoreDropdown[data-mobile-menu-compact="v1"] .header-more-item { min-height: 44px; }
+  #headerMoreDropdown[data-mobile-menu-compact="v1"] #plannedMaintenanceHeaderSubmenuPanel .header-more-subitem { min-height: 44px; }
+}
+@media (forced-colors: active) {
+  #headerMoreDropdown[data-mobile-menu-compact="v1"] .header-more-item::after { background-color: ButtonText; }
+}
+
+/* Only the optional groups fold. Never override an application's hidden flag. */
+#headerMoreDropdown[data-mobile-menu-compact="v1"] [hidden] { display: none !important; }
+#headerMoreDropdown[data-mobile-menu-compact="v1"][data-compact-work-open="false"] [data-compact-group="work"],
+#headerMoreDropdown[data-mobile-menu-compact="v1"][data-compact-settings-open="false"] [data-compact-group="settings"] {
+  display: none !important;
+}
+#headerMoreDropdown[data-mobile-menu-compact="v1"] #mobileHeaderInspectionItem {
+  margin-top: 6px;
+  padding-top: 7px;
+  border-top: 1px solid #e8edf2;
+  border-radius: 0 0 6px 6px;
+  background: #fff;
+  color: #28694d;
+}
+#headerMoreDropdown[data-mobile-menu-compact="v1"] .mobile-menu-group-toggle {
+  background: #fff;
+  color: #29394d;
+}
+#headerMoreDropdown[data-mobile-menu-compact="v1"] .mobile-menu-group-toggle .header-more-item__chevron {
+  width: 13px;
+  height: 15px;
+  font-size: 12px;
+  color: #8190a2;
+}
+#headerMoreDropdown[data-mobile-menu-compact="v1"] .mobile-menu-group-toggle[aria-expanded="true"] .header-more-item__chevron { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) {
+  #headerMoreDropdown[data-mobile-menu-compact="v1"] .header-more-item__chevron { transition: none; }
+}
+
+/* Local monochrome vector icons; no external fonts or icon service. */
+#headerMoreDropdown[data-mobile-menu-compact="v1"] #facilityNavigatorHeaderButton::after { content: ""; --menu-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%229%22%2F%3E%3Cpath%20d%3D%22m16%208-2.5%205.5L8%2016l2.5-5.5Z%22%2F%3E%3C%2Fsvg%3E"); }
+#headerMoreDropdown[data-mobile-menu-compact="v1"] #solidFuelTroubleHeaderLink::after { content: ""; --menu-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m3%207%209-5%209%205v10l-9%205-9-5ZM3%207l9%205%209-5M12%2012v10M7.5%204.5l9%205%22%2F%3E%3C%2Fsvg%3E"); }
+#headerMoreDropdown[data-mobile-menu-compact="v1"] #siloCalculatorHeaderLink::after { content: ""; --menu-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%225%22%20y%3D%222%22%20width%3D%2214%22%20height%3D%2220%22%20rx%3D%222%22%2F%3E%3Cpath%20d%3D%22M8%206h8M8%2010h1m3%200h1m3%200h.1M8%2014h1m3%200h1m3%200h.1M8%2018h1m3%200h1m3%200h.1%22%2F%3E%3C%2Fsvg%3E"); }
+#headerMoreDropdown[data-mobile-menu-compact="v1"] #blowerHistoryHeaderButton::after { content: ""; --menu-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%222%22%2F%3E%3Cpath%20d%3D%22M10%2010C5%202%2015%200%2016%206c.3%202-1%203-2%204M14%2010c9-1%207%209%202%208-2-.3-2.5-2-3-4M10%2013c-4%208-11%201-7-3%201.5-1.3%203.3-.5%205%201%22%2F%3E%3C%2Fsvg%3E"); }
+#headerMoreDropdown[data-mobile-menu-compact="v1"] #plannedMaintenanceHeaderButton::after { content: ""; --menu-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M14.5%206.5a5.5%205.5%200%200%200-7%207L2%2019l3%203%205.5-5.5a5.5%205.5%200%200%200%207-7L14%2013l-3-3Z%22%2F%3E%3C%2Fsvg%3E"); }
+#headerMoreDropdown[data-mobile-menu-compact="v1"] #operationInfoHeaderLink::after { content: ""; --menu-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%225%22%20y%3D%224%22%20width%3D%2214%22%20height%3D%2217%22%20rx%3D%222%22%2F%3E%3Crect%20x%3D%229%22%20y%3D%222%22%20width%3D%226%22%20height%3D%224%22%20rx%3D%221%22%2F%3E%3Cpath%20d%3D%22M9%2011h6M9%2015h6%22%2F%3E%3C%2Fsvg%3E"); }
+#headerMoreDropdown[data-mobile-menu-compact="v1"] #tmIssueHeaderLink::after { content: ""; --menu-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M14%202H6a2%202%200%200%200-2%202v16a2%202%200%200%200%202%202h12a2%202%200%200%200%202-2V8ZM14%202v6h6M8%2012h8M8%2016h6%22%2F%3E%3C%2Fsvg%3E"); }
+#headerMoreDropdown[data-mobile-menu-compact="v1"] #boisoHeaderLink::after { content: ""; --menu-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%223%22%20y%3D%223%22%20width%3D%227%22%20height%3D%227%22%20rx%3D%221%22%2F%3E%3Crect%20x%3D%2214%22%20y%3D%223%22%20width%3D%227%22%20height%3D%227%22%20rx%3D%221%22%2F%3E%3Crect%20x%3D%223%22%20y%3D%2214%22%20width%3D%227%22%20height%3D%227%22%20rx%3D%221%22%2F%3E%3Crect%20x%3D%2214%22%20y%3D%2214%22%20width%3D%227%22%20height%3D%227%22%20rx%3D%221%22%2F%3E%3C%2Fsvg%3E"); }
+#headerMoreDropdown[data-mobile-menu-compact="v1"] #vacationReplacementHeaderButton::after { content: ""; --menu-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%2218%22%20height%3D%2216%22%20rx%3D%222%22%2F%3E%3Cpath%20d%3D%22M7%202v6M17%202v6M3%2011h18M7%2015h2m4%200h2M7%2018h2%22%2F%3E%3C%2Fsvg%3E"); }
+#headerMoreDropdown[data-mobile-menu-compact="v1"] #accountPasswordMenuLink::after { content: ""; --menu-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%228%22%20r%3D%225%22%2F%3E%3Cpath%20d%3D%22m11.5%2011.5-9%209M3%2020h4v-4h4%22%2F%3E%3C%2Fsvg%3E"); }
+#headerMoreDropdown[data-mobile-menu-compact="v1"] #adminButton::after { content: ""; --menu-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M12%202%203%206v6c0%205%209%2010%209%2010s9-5%209-10V6ZM8%2012l3%203%205-6%22%2F%3E%3C%2Fsvg%3E"); }
+
+#headerMoreDropdown[data-mobile-menu-compact="v1"] #mobileHeaderInspectionItem::after { content: ""; --menu-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%225%22%20y%3D%224%22%20width%3D%2214%22%20height%3D%2217%22%20rx%3D%222%22%2F%3E%3Cpath%20d%3D%22M9%202h6v4H9ZM9%2013l2%202%204-4%22%2F%3E%3C%2Fsvg%3E"); }
+
+#headerMoreDropdown[data-mobile-menu-compact="v1"] #mobileCompactWorkToggle::after { content: ""; --menu-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%223%22%20y%3D%226%22%20width%3D%2218%22%20height%3D%2215%22%20rx%3D%222%22%2F%3E%3Cpath%20d%3D%22M8%206V3h8v3M3%2012h18M10%2012v3h4v-3%22%2F%3E%3C%2Fsvg%3E"); }
+
+#headerMoreDropdown[data-mobile-menu-compact="v1"] #mobileCompactSettingsToggle::after { content: ""; --menu-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m9%203%20.5%203-2%201-3-.5-2%203%202.5%202v2l-2.5%202%202%203%203-.5%202%201-.5%203h5l.5-3%202-1%203%20.5%202-3-2.5-2v-2l2.5-2-2-3-3%20.5-2-1%20.5-3Z%22%2F%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%223%22%2F%3E%3C%2Fsvg%3E"); }
