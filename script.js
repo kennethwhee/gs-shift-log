@@ -151817,15 +151817,12 @@ function buildMorningMeetingDynamicRows(
 
         ...outsourcedDefinitions,
 
-        {
-          template:
-            teamLayout
-              .templates
-              .finalBlank,
-
-          text:
-            ""
-        }
+        // The table's bordered blank tail already closes this team section.
+        // Place the next team directly below it to share a single divider.
+        ...(outsourcedWork ? [] : [{
+          template: teamLayout.templates.finalBlank,
+          text: ""
+        }])
       ];
 
 

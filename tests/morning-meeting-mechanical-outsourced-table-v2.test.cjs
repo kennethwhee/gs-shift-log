@@ -429,6 +429,10 @@ test('the actual workbook capture and final hook use the same table snapshot acr
     merges.appendChild(element(f.worksheet, 'mergeCell', { ref: `B${rowNumber}:AO${rowNumber}` }));
   });
   const titleRow = captured.buildResult.rows.find(item => cellText(direct(item.element, 'c')[0]) === '◇ 외주공사').rowNumber;
+  const tableTailRow = titleRow + JOBS.length + 2;
+  assert.equal(captured.buildResult.teamRanges.mechanical.endRow, tableTailRow);
+  assert.equal(captured.buildResult.teamRanges.electrical.startRow, tableTailRow + 1,
+    'the bordered table tail shares one boundary with the next team, without another blank divider row');
   const reservedRows = sheetData.childNodes.length;
   const styleFile = f.zip.file('xl/styles.xml');
   const readStyles = styleFile.async.bind(styleFile);
