@@ -97,6 +97,7 @@
     // hides the whole picture, including its previous level and percentages.
     var show = result.status === 'ok' && model.kind === 'inventory';
     byId('siloVisual').hidden = !show;
+    byId('siloLevelSummary').hidden = !show;
     byId('siloPlaceholder').hidden = show;
     byId('siloPlaceholderMessage').textContent = model.kind === 'capacity'
       ? '운전조건별 만적재량 계산입니다. 현재 재고의 채움 그림은 표시하지 않습니다.'
@@ -204,6 +205,7 @@
     byId('resultStatus').className = 'status-pill is-' + state;
     byId('resultEmpty').hidden = isOk;
     byId('resultNumbers').hidden = !isOk;
+    byId('detailNumbers').hidden = !isOk;
     byId('emptyTitle').textContent = titles[result.status] || '측정값을 입력하세요';
     byId('resultMessage').textContent = result.message + (result.status === 'unsupported' && isFiniteNumber(result.effectiveSounding)
       ? ' 도면 기준 Sounding: ' + format(result.effectiveSounding) + ' ' + result.soundingUnit + '.' : '');
@@ -227,8 +229,8 @@
     addDetail(selectedModel.drawingBased ? '도면 치수 환산 용적' : selectedModel.kind === 'capacity' ? 'Net 용적' : '재고 환산 용적', result.volumeM3, 'm³');
     addDetail('적용 벌크밀도', result.density, 't/m³');
     addDetail(selectedModel.id === 'sludge' ? '측정 Sounding' : '도면 기준 Sounding', result.effectiveSounding, result.soundingUnit);
-    addDetail('원통부 남은 높이', result.remainingCylinderHeightM, 'm');
     if (selectedModel.id === 'sludge') {
+      addDetail('원통부 남은 높이', result.remainingCylinderHeightM, 'm');
       addDetail('원뿔부 남은 높이', result.remainingConeHeightM, 'm');
       addDetail('공실 Sounding 기준', result.emptySoundingM, 'm');
     }
