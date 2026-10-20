@@ -14,6 +14,7 @@
   var fields = byId('inputFields');
   var selectedModel;
   var controls = {};
+  var mobileLayout = null;
   var touched = {};
   var submitted = false;
   var usingExample = false;
@@ -380,6 +381,7 @@
   function chooseModel(id) {
     selectedModel = engine.getModel(id) || engine.MODELS[0];
     select.value = selectedModel.id;
+    if (mobileLayout) mobileLayout.restoreFields();
     fields.replaceChildren();
     byId('inputGuidance').replaceChildren();
     controls = {};
@@ -469,7 +471,80 @@
       });
     });
     loadValues(engine.getDefaults(selectedModel.id), false);
+    if (mobileLayout) mobileLayout.sync();
   }
+  // GS_SILO_MOBILE_COMPACT_V2: one live set of controls, moved at the mobile breakpoint.
+  function createMobileLayout() {
+    if (typeof window.matchMedia !== 'function') return null;
+    var inputPanel = document.querySelector('.input-panel');
+    var resultPanel = document.querySelector('.result-panel');
+    var details = byId('detailNumbers');
+    var range = byId('rangeNote');
+    var grid = resultPanel.parentNode;
+    var media = window.matchMedia('(max-width: 650px)');
+    var savedFields = [];
+    var detailsAnchor = document.createComment('Desktop calculation details');
+    var rangeAnchor = document.createComment('Desktop input range');
+    details.parentNode.insertBefore(detailsAnchor, details);
+    range.parentNode.insertBefore(rangeAnchor, range);
+    var settings = element('section', 'panel mobile-settings-panel');
+    settings.id = 'mobileSettings';
+    settings.setAttribute('aria-labelledby', 'mobileSettingsTitle');
+    settings.hidden = true;
+    var heading = element('div', 'panel-heading');
+    var title = element('h2', '', '계산 기준');
+    title.id = 'mobileSettingsTitle';
+    heading.appendChild(title);
+    heading.appendChild(element('span', 'panel-caption', '필요 시 변경'));
+    var settingsFields = element('div', 'fields-grid');
+    settingsFields.id = 'mobileSettingsFields';
+    settings.appendChild(heading);
+    settings.appendChild(settingsFields);
+    var originalTitle = byId('inputTitle').textContent;
+    function restoreFields() {
+      savedFields.forEach(function (item) {
+        item.anchor.parentNode.insertBefore(item.node, item.anchor);
+        item.anchor.parentNode.removeChild(item.anchor);
+        item.input.removeAttribute('form');
+      });
+      savedFields = [];
+    }
+    function sync() {
+      if (media.matches) {
+        Array.prototype.slice.call(fields.children).forEach(function (node) {
+          if (node.getAttribute('data-input-key') === 'sounding') return;
+          var input = node.querySelector('input');
+          var anchor = document.createComment('Desktop setting field');
+          fields.insertBefore(anchor, node);
+          savedFields.push({ node: node, anchor: anchor, input: input });
+          input.setAttribute('form', 'calculatorForm');
+          settingsFields.appendChild(node);
+        });
+        // Results come directly after the measured value; settings remain accessible.
+        grid.insertBefore(settings, resultPanel.nextSibling);
+        grid.insertBefore(details, settings.nextSibling);
+        settings.appendChild(range);
+        settings.hidden = settingsFields.children.length === 0;
+        details.classList.add('mobile-detail-panel');
+        inputPanel.classList.add('compact-input-panel');
+        byId('inputTitle').textContent = '실측 입력';
+      } else {
+        restoreFields();
+        rangeAnchor.parentNode.insertBefore(range, rangeAnchor.nextSibling);
+        detailsAnchor.parentNode.insertBefore(details, detailsAnchor.nextSibling);
+        settings.hidden = true;
+        if (settings.parentNode) settings.parentNode.removeChild(settings);
+        details.classList.remove('mobile-detail-panel');
+        inputPanel.classList.remove('compact-input-panel');
+        byId('inputTitle').textContent = originalTitle;
+      }
+    }
+    if (typeof media.addEventListener === 'function') media.addEventListener('change', sync);
+    else if (typeof media.addListener === 'function') media.addListener(sync);
+    sync();
+    return { sync: sync, restoreFields: restoreFields };
+  }
+
   engine.MODELS.forEach(function (model) {
     var option = element('option', '', model.label);
     option.value = model.id;
@@ -510,30 +585,6 @@
   window.addEventListener('pageshow', syncBackLink);
   chooseModel(engine.MODELS[0].id);
   syncBackLink();
+  mobileLayout = createMobileLayout();
   byId('calculatorWorkspace').hidden = false;
-})();
-
-// GS_SILO_MOBILE_DETAILS_V1
-(function () {
-  'use strict';
-  if (typeof window.matchMedia !== 'function') return;
-  var details = document.getElementById('detailNumbers');
-  var result = document.querySelector('.silo-workspace-two-column > .result-panel');
-  if (!details || !result || !details.parentNode || !result.parentNode) return;
-  // Keep one live result node: all IDs, hidden state and calculation updates survive.
-  var anchor = document.createComment('SILO desktop calculation details');
-  details.parentNode.insertBefore(anchor, details);
-  var media = window.matchMedia('(max-width: 650px)');
-  function syncLayout() {
-    if (media.matches) {
-      result.parentNode.insertBefore(details, result.nextSibling);
-      details.classList.add('mobile-detail-panel');
-    } else {
-      anchor.parentNode.insertBefore(details, anchor.nextSibling);
-      details.classList.remove('mobile-detail-panel');
-    }
-  }
-  if (typeof media.addEventListener === 'function') media.addEventListener('change', syncLayout);
-  else if (typeof media.addListener === 'function') media.addListener(syncLayout);
-  syncLayout();
 })();

@@ -209,22 +209,61 @@ body.silo-calculator .back-link:hover{background:#244564}
   #siloCalculatorPage #inputFields > .field.is-main input::placeholder { font-size: 14px; }
 }
 
-/* GS_SILO_MOBILE_DETAILS_V1 */
+/* GS_SILO_MOBILE_COMPACT_V2 */
 @media (max-width: 650px) {
+  #siloCalculatorPage { padding: 12px 10px 22px; }
+  #siloCalculatorPage .page-heading { margin-bottom: 10px; }
+  #siloCalculatorPage .eyebrow { display: none; }
+  #siloCalculatorPage h1 { font-size: 21px; }
+  #siloCalculatorPage .page-description { font-size: 11px; margin-top: 2px; }
+  #siloCalculatorPage .silo-workspace-two-column { gap: 10px; }
+  #siloCalculatorPage .panel { padding: 12px; border-radius: 10px; }
+  #siloCalculatorPage .panel-heading { margin-bottom: 9px; }
+  #siloCalculatorPage .compact-input-panel > .panel-heading { margin-bottom: 7px; }
+  #siloCalculatorPage .compact-input-panel #inputTitle { font-size: 13px; color: #47647e; }
+  #siloCalculatorPage .compact-input-panel #inputCaption,
+  #siloCalculatorPage .compact-input-panel .model-summary { display: none; }
+  #siloCalculatorPage .compact-input-panel .model-panel { margin-bottom: 10px; gap: 0; }
+  #siloCalculatorPage .model-select-wrap select { height: 44px; min-height: 44px; font-size: 16px; }
+  #siloCalculatorPage #inputFields { grid-template-columns: 1fr; gap: 0; }
+  #siloCalculatorPage #inputFields > .field.is-main {
+    margin: 0;
+    padding: 9px 10px;
+    border-radius: 8px;
+    background: #f0f6ff;
+  }
+  #siloCalculatorPage #inputFields > .field.is-main label { font-size: 13px; margin-bottom: 6px; gap: 4px; }
+  #siloCalculatorPage #inputFields .sounding-priority { padding: 2px 5px; font-size: 10px; }
+  #siloCalculatorPage #inputFields > .field.is-main input {
+    height: 46px;
+    min-height: 46px;
+    padding: 7px 43px 7px 11px;
+    border-radius: 7px;
+    font-size: 22px;
+  }
+  #siloCalculatorPage #inputFields > .field.is-main input::placeholder { font-size: 12px; }
+  #siloCalculatorPage #inputFields > .field.is-main .field-unit { right: 11px; font-size: 12px; }
+  #siloCalculatorPage .form-actions { gap: 6px; margin-top: 9px; flex-wrap: wrap; }
+  #siloCalculatorPage .button { min-height: 44px; padding: 7px 10px; }
+  #siloCalculatorPage .text-button { min-height: 44px; padding: 7px 3px; }
+  #siloCalculatorPage .live-hint { margin-top: 6px; }
+  #siloCalculatorPage .primary-result { padding: 10px 12px; gap: 4px 10px; }
+  #siloCalculatorPage .primary-result strong { font-size: 32px; }
+  #siloCalculatorPage #siloDiagram { max-height: 280px; }
+  #siloCalculatorPage .silo-placeholder { min-height: 110px; margin-top: 9px; padding: 14px; }
+  #siloCalculatorPage .result-empty { padding: 12px; }
+  #siloCalculatorPage .mobile-settings-panel .fields-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  #siloCalculatorPage .mobile-settings-panel .field label { font-size: 11px; overflow-wrap: anywhere; }
+  #siloCalculatorPage .mobile-settings-panel .field input { height: 44px; min-height: 44px; padding-left: 10px; font-size: 16px; }
+  #siloCalculatorPage .mobile-settings-panel .field-help { font-size: 10px; line-height: 1.5; }
+  #siloCalculatorPage .mobile-settings-panel .range-note { margin: 10px 0 0; padding: 7px 9px; font-size: 10px; }
   #siloCalculatorPage .detail-numbers.mobile-detail-panel {
     min-width: 0;
     margin: 0;
-    padding: 17px 16px;
+    padding: 12px;
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: 10px;
     background: #fff;
   }
-  #siloCalculatorPage .detail-numbers.mobile-detail-panel h3 {
-    margin: 0 0 12px;
-    color: var(--text, #203148);
-    font-size: 16px;
-  }
-}
-@media (max-width: 380px) {
-  #siloCalculatorPage .detail-numbers.mobile-detail-panel { padding: 15px 13px; }
+  #siloCalculatorPage .detail-numbers.mobile-detail-panel h3 { margin: 0 0 8px; color: var(--ink); font-size: 14px; }
 }
