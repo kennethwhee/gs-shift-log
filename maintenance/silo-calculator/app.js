@@ -21,10 +21,10 @@
   var numberFormat = new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 3 });
   var massFormat = new Intl.NumberFormat('ko-KR', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
   var formulas = {
-    limestone: 'd = 측정 Sounding − 센서높이차 (mm)\nV = 60.9 + 403 × (19,655 − d) ÷ 17,001 (m³)\n총재고 = V × 벌크밀도 (t)\n유효재고 = (V − 6.6) × 벌크밀도 (t)',
-    'coal-day': 'd = 측정 Sounding − 센서높이차 (mm)\nV = 102 + 336.4 × (11,300 − d) ÷ 9,672 (m³)\n잠정 총재고 = V × 벌크밀도 (t)',
+    limestone: 'd = 측정 Sounding − 센서높이차 (mm)\n영점 = 도면 19,655 mm 치수 상단 기준\nV원통 = π × 2.75² × (19,655 − d) ÷ 1,000 (m³)\nV하부 = V3 + V4 + V5 = 54.3 + 4.5 + 2.1 = 60.9 m³\n환산 재고 = (V원통 + V하부) × 입력 밀도 (t)\n하부 6.6 m³ 제외 재고 = (V원통 + V하부 − 6.6) × 입력 밀도\n0 ≤ d ≤ 19,655 mm, 수평 재료면 가정.\n공칭 내경과 하부 표기용적을 사용하며 라이너 등 내부물은 별도 공제하지 않습니다.\n도면 Net 474.3 m³ = V1 + V2 + V3이며 현재 재고를 이 값으로 제한하지 않습니다.',
+    'coal-day': 'd = 측정 Sounding − 센서높이차 (mm)\n영점 = 조립도 11,300 mm 치수 상단 기준\nV원통 = π × 3.25² × (11,300 − d) ÷ 1,000 (m³)\nV하부 = V3 + V4 = 74.8 + 27.2 = 102 m³\n환산 재고 = (V원통 + V하부) × 입력 밀도 (t)\n0 ≤ d ≤ 11,300 mm, 수평 재료면 가정.\n상부 V1의 경사 재료면 용적을 원통 높이에 비례 배분하지 않습니다.\n공칭 내경과 하부 표기용적을 사용하며 라이너 등 내부물은 별도 공제하지 않습니다.\n도면 Net 388 m³ / Gross 476 m³는 참고 용량입니다.',
     'bio-day': 'd = 중앙 평탄 지붕 기준면(0 mm)에서 아래로 잰 Sounding\n바닥판 상면 = 12,050 mm, 원통 공칭 내경 = 8 m\nV = π × 4² × (12,050 − d) ÷ 1,000 (m³)\n도면 기준 재고 = V × 벌크밀도 (t)\n수평 재료면을 가정하며, 400 ≤ d ≤ 12,050 mm에 적용합니다.\n상부 경사 지붕 구간(d < 400 mm)은 이 계산의 산정 범위 밖입니다.',
-    'fly-ash': 'd = 측정 Sounding − 센서높이차 (mm)\nV = 36 + 1,945.67 × (15,240 − d) ÷ 14,640 (m³)\n총재고 = V × 벌크밀도 (t)\n빈 용량 환산 = (2,000 − V) × 벌크밀도 (t)\n2,000 m³는 원자료의 총 용량 참고값입니다.',
+    'fly-ash': 'd = 측정 Sounding − 센서높이차 (mm)\n영점 = 재료 적재 프로파일의 중앙 지붕 정점 기준\nV원통 = π × 6.5² × (15,240 − d) ÷ 1,000 (m³)\nV하부 = LL 아래 표기용적 36 m³\n환산 재고 = (V원통 + V하부) × 입력 밀도 (t)\n600 ≤ d ≤ 15,240 mm, 수평 재료면 가정.\n기본밀도 0.8 t/m³는 본체 설계값이며 현장값으로 변경할 수 있습니다.\nPDF 28쪽 프로파일 기준. 일반배치의 지붕 610 mm와 10 mm 차이가 있습니다.\nGross 2,000 m³, Net 1,816/1,742 m³, 구조계산 MAX 1,762 m³는 서로 다른 참고값입니다.\nGross 차이를 추가 투입 가능량으로 환산하지 않습니다.',
     sludge: '입력 길이(mm)를 1,000으로 나누어 m로 변환합니다.\nd = Sounding (m), r = 반지름 (m)\nHc = 원통 높이, Hk = 원뿔 높이\n원통 구간 (0 ≤ d ≤ Hc):\n  V = πr²(Hc − d) + πr²Hk ÷ 3\n원뿔 구간 (Hc < d ≤ Hc + Hk):\n  h = Hc + Hk − d\n  V = πr²h³ ÷ (3Hk²)\n총재고 = V × 벌크밀도 (t)\n시간당 평균 환산 = 총재고 ÷ 기준시간 (t/h)',
     'bio-storage': 'S = 측정 Sounding(mm) ÷ 1,000\nR = 바닥 기준 Sounding 시작점 높이(mm) ÷ 1,000\nT = tan(안식각)\nLT Level = R − S (m)\n중앙 정점 A = LT Level + 4.6T\n벽면 높이 H = LT Level − 3.4T\nV원뿔 = π × 8² × (8T) ÷ 3\nV원통 = π × 8² × (H − 0.61)\nV구조물 = π × 1.1² × 1.09\nNet 재고 = (V원뿔 + V원통 − V구조물) × 벌크밀도\n적용: A ≤ 20.895 m, 0.61 ≤ H ≤ 17 m, A − 1.1T ≥ 1.7 m\n저레벨 아래 잔량 ≈ π × (8² − 1.1²) × 0.61 × 벌크밀도 (t)\n지원 하한 밖은 계산 보류이며, 공실을 뜻하지 않습니다.',
     'fly-ash-2': '계산 보류 · 설비명 및 원도면 확인이 필요합니다.'
@@ -47,6 +47,9 @@
     if (selectedModel.range) {
       var range = selectedModel.range;
       byId('rangeNote').textContent = range.basis + ' ' + format(range.min) + '–' + format(range.max) + ' ' + range.unit + '에서 계산합니다.';
+      if (selectedModel.drawingBased && !selectedModel.directSounding) {
+        byId('rangeNote').textContent += ' 수평 재료면 가정이며 운전 허용범위를 뜻하지 않습니다.';
+      }
     } else if (selectedModel.id === 'sludge') {
       var cylinder = engine.parseNumber(values.cylinderHeight), cone = engine.parseNumber(values.coneHeight);
       var max = cylinder.status === 'ok' && cone.status === 'ok' ? cylinder.value + cone.value : NaN;
@@ -81,12 +84,22 @@
     var references = selectedModel.drawingBased && selectedModel.references;
     byId('drawingReference').hidden = !references;
     byId('drawingReferenceValues').replaceChildren();
+    byId('drawingReferenceTitle').textContent = '도면 참고값';
+    byId('drawingReferenceHint').textContent = '';
     if (!references) return;
+    byId('drawingReferenceTitle').textContent = selectedModel.label + ' · 도면 참고값';
+    byId('drawingReferenceHint').textContent = selectedModel.id === 'fly-ash'
+      ? '같은 자료 안에서 Net 표기가 다릅니다. 프로파일(PDF 28쪽)과 설계조건(PDF 8쪽)을 구분해 표시합니다. 구조검토 밀도 1.445 t/m³는 재고 환산에 사용하지 않습니다. Gross 차이는 추가 투입 가능량이 아닙니다.'
+      : selectedModel.id === 'limestone' ? 'Net 474.3 m³는 V1+V2+V3의 합입니다. 하부 6.6 m³ 제외 재고와 별개이며, 현재 재고를 Net에 맞추어 보정하지 않습니다.'
+      : '도면의 추정 용량은 별도 참고값입니다. 재고를 이 값에 맞추어 비례 보정하거나 운전 허용 투입량으로 사용하지 않습니다.';
     [
       ['Gross (도면 표기)', references.grossVolumeM3, 'm³'],
-      ['Net (도면 표기)', references.netVolumeM3, 'm³'],
+      [selectedModel.id === 'fly-ash' ? 'Net (프로파일)' : 'Net (도면 표기)', references.netVolumeM3, 'm³'],
       ['설계밀도', references.designDensity, 't/m³'],
-      ['운전중량 (도면 표기)', references.operatingMassTon, 't']
+      ['운전중량 (도면 표기)', references.operatingMassTon, 't'],
+      ['Net (설계조건)', references.alternateNetVolumeM3, 'm³'],
+      ['MAX (구조계산)', references.structuralMaxVolumeM3, 'm³'],
+      ['지지구조 검토 밀도', references.structuralDensity, 't/m³']
     ].forEach(function (item) {
       if (!isFiniteNumber(item[1])) return;
       var cell = element('div', 'drawing-reference-cell');
@@ -121,13 +134,21 @@
 
     var bio = model.id === 'bio-day';
     var sludge = model.id === 'sludge';
+    var ash = model.id === 'fly-ash';
+    var flatRoof = model.id === 'limestone' || model.id === 'coal-day';
     var geometry = model.geometry;
     var bodyTop = bio ? 62 : 67;
     var bodyBottom = bio ? 353.25 : 303;
     var bottom = bio ? bodyBottom : 353;
     var left = 115, right = 285, datum = bio ? 52 : 45;
     var surface, ratio, height, heightLabel, fillLabel;
-    var hopper = !bio && !sludge;
+    var hopper = flatRoof;
+    if (flatRoof) datum = bodyTop;
+    if (ash) {
+      left = 90; right = 310;
+      bodyTop = datum + (bottom - datum) * 600 / 16040;
+      bodyBottom = datum + (bottom - datum) * 15240 / 16040;
+    }
     if (bio) {
       left = 100; right = 300;
       ratio = result.cylinderFillRatio;
@@ -156,13 +177,23 @@
       heightLabel = '원통부 재료 높이';
       fillLabel = '원통 높이 대비';
     }
-    var roof = sludge ? 'M' + left + ' ' + bodyTop + 'H' + right
+    if (ash) { heightLabel = 'LL 위 재료 높이'; fillLabel = 'LL 위 계산구간 높이 대비'; }
+    var roof = sludge || flatRoof ? 'M' + left + ' ' + bodyTop + 'H' + right
       : 'M' + left + ' ' + bodyTop + 'L180 ' + datum + 'H220L' + right + ' ' + bodyTop;
-    var shape = roof + 'V' + bodyBottom + (sludge ? 'L200 ' + bottom
+    if (ash) roof = 'M' + left + ' ' + bodyTop + 'L200 ' + datum + 'L' + right + ' ' + bodyTop;
+    var shape = ash ? roof + 'V' + bottom + 'H' + left + 'Z'
+      : roof + 'V' + bodyBottom + (sludge ? 'L200 ' + bottom
       : hopper ? 'L235 ' + bottom + 'H165' : 'H' + left) + 'L' + left + ' ' + bodyBottom + 'Z';
     ['siloClipShape', 'siloShell', 'siloOutline'].forEach(function (id) { byId(id).setAttribute('d', shape); });
     byId('siloShoulder').setAttribute('d', 'M' + left + ' ' + bodyTop + 'H' + right);
     byId('siloHopperTop').setAttribute('d', hopper || sludge ? 'M' + left + ' ' + bodyBottom + 'H' + right : '');
+    if (ash) {
+      var outletHalf = (right - left) * 2.2 / 13 / 2;
+      var outletY = bottom - (bottom - datum) * 114 / 16040;
+      var floor = 'L' + (200 + outletHalf) + ' ' + outletY + 'H' + (200 - outletHalf) + 'L' + left + ' ' + bodyBottom;
+      byId('siloClipShape').setAttribute('d', roof + 'V' + bodyBottom + floor + 'Z');
+      byId('siloHopperTop').setAttribute('d', 'M' + right + ' ' + bodyBottom + floor);
+    }
     var ticks = '';
     [0.25, 0.5, 0.75].forEach(function (fraction) {
       var y = bodyBottom - (bodyBottom - bodyTop) * fraction;
@@ -176,12 +207,16 @@
     });
     byId('siloMaterial').setAttribute('visibility', 'visible');
     byId('siloDatum').setAttribute('d', 'M80 ' + datum + 'H320');
-    byId('siloDatumLabel').textContent = bio ? '중앙 평탄 지붕 기준 · 0 mm' : sludge ? 'Sounding 기준 · 0 mm' : 'Sounding 기준 · 0 mm';
+    byId('siloDatumLabel').textContent = bio ? '중앙 평탄 지붕 기준 · 0 mm' : ash ? '프로파일 지붕 정점 · 0 mm' : flatRoof ? '도면 치수 상단 · 0 mm' : 'Sounding 기준 · 0 mm';
     byId('siloBottomLabel').setAttribute('y', bottom + 24);
     byId('siloBottomLabel').textContent = bio ? '바닥판 상면 · 12,050 mm' : sludge ? '공실 기준 · ' + format(result.emptySoundingMm) + ' mm' : '원통 하단 · ' + format(geometry.bottom) + ' mm';
-    if (hopper) byId('siloBottomLabel').textContent = '하부 용적 · ' + format(result.hopperVolumeM3) + ' m³';
+    if (hopper) byId('siloBottomLabel').textContent = '하부 표기용적 · ' + format(result.hopperVolumeM3) + ' m³';
+    if (ash) byId('siloBottomLabel').textContent = 'LL 아래 표기용적 · 36 m³';
     byId('siloDistance').setAttribute('d', 'M84 ' + datum + 'h-12M78 ' + datum + 'V' + surface + 'M84 ' + surface + 'h-12');
-    byId('siloDistanceLabel').setAttribute('transform', 'translate(61 ' + ((datum + surface) / 2) + ') rotate(-90)');
+    // Keep a short Sounding label below the roof caption near the full end.
+    var distanceLabelY = (datum + surface) / 2;
+    if (ash || flatRoof) distanceLabelY = Math.max(110, distanceLabelY);
+    byId('siloDistanceLabel').setAttribute('transform', 'translate(61 ' + distanceLabelY + ') rotate(-90)');
     byId('siloDistanceLabel').setAttribute('x', 0);
     byId('siloDistanceLabel').setAttribute('y', 0);
     byId('siloDistanceLabel').textContent = format(result.effectiveSounding) + ' ' + result.soundingUnit;
@@ -191,17 +226,18 @@
       byId(id).setAttribute('visibility', 'visible');
     });
     var percent = new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 1 }).format(ratio * 100) + '%';
-    byId('siloVisualKind').textContent = bio ? '도면 높이 기준' : '형상 개념도';
+    byId('siloVisualKind').textContent = bio ? '도면 높이 기준' : model.drawingBased ? '수평 재료면 가정 · 형상 개념도' : '형상 개념도';
     byId('siloFillLabel').textContent = fillLabel;
     byId('siloFillPercent').textContent = percent;
     byId('siloLevelBar').setAttribute('style', 'width:' + Math.max(0, Math.min(100, ratio * 100)) + '%');
     byId('siloHeightLabel').textContent = heightLabel;
     byId('siloHeightValue').textContent = format(sludge ? height * 1000 : height) + (sludge ? ' mm' : ' m');
-    byId('siloVisualNote').textContent = bio ? '재료 높이 ÷ 원통 높이 11.65 m' : sludge ? '재료 높이 ÷ 원통·원뿔 전체 높이' : '원통부 재료 높이 ÷ 원통 전체 높이';
+    byId('siloVisualNote').textContent = bio ? '재료 높이 ÷ 원통 높이 11.65 m' : sludge ? '재료 높이 ÷ 원통·원뿔 전체 높이' : ash ? 'LL 위 재료 높이 ÷ LL–지붕 하단 높이 14.64 m' : '원통부 재료 높이 ÷ 공칭 원통 높이 · 용적 비율과 다름';
     byId('siloVisualFootnote').textContent = bio
       ? '지붕 윤곽은 개념도입니다. 채움 높이는 도면 치수에 연동하며, 내부 구조물은 생략합니다.'
       : sludge ? '입력한 치수와 원통·원뿔 형상 가정을 반영합니다. 높이 비율과 용적 비율은 다릅니다.'
-      : '형상은 축척 없는 개념도입니다. 지원 범위에서 하부는 채워진 것으로 계산하며, %는 원통부 높이 기준입니다.';
+      : ash ? '재료 적재 프로파일의 경사 바닥을 단순화했습니다. LL 아래 표기용적 36 m³가 채워진 것으로 계산하며, %는 LL 위 계산구간 높이 기준입니다.'
+      : '평탄 지붕과 하부 형상을 단순화한 개념도입니다. 하부 표기용적은 채워진 것으로 계산합니다. 내부 구조물과 두 갈래 배출 형상은 생략하며 %는 원통 높이 기준입니다.';
     byId('siloDiagramDesc').textContent = model.label + ', ' + fillLabel + ' ' + percent + ', ' + heightLabel + ' ' + format(sludge ? height * 1000 : height) + (sludge ? ' mm, 측정 Sounding ' : ' m, 도면 기준 Sounding ') + format(result.effectiveSounding) + ' ' + result.soundingUnit + ', ' + result.primaryLabel + ' ' + massFormat.format(result.massTon) + ' t.';
   }
   function renderStorageSilo(result) {
@@ -263,8 +299,7 @@
     if (!isOk) return;
     byId('primaryLabel').textContent = result.primaryLabel;
     byId('massValue').textContent = massFormat.format(result.massTon);
-    if (selectedModel.id === 'limestone') addKey('유효재고', result.usableTon, 't', '하부 6.6 m³ 중량 제외');
-    if (selectedModel.id === 'fly-ash') addKey('빈 용량 환산', result.emptyCapacityMassTon, 't', '총 용량 참고값 2,000 m³ 기준');
+    if (selectedModel.id === 'limestone') addKey('하부 6.6 m³ 제외 재고', result.usableTon, 't', '도면 Net 용량과 별개');
     if (selectedModel.id === 'sludge') addKey('시간당 평균 환산', result.rateTonPerHour, 't/h', format(result.hours) + '시간에 모두 사용하는 경우');
     if (selectedModel.id === 'bio-storage') {
       addKey('LT 위치 재료 높이', result.levelM * 1000, 'mm', '바닥 기준 · 벽에서 3,400 mm 안쪽');
@@ -278,7 +313,6 @@
       addDetail('원뿔부 남은 높이', result.remainingConeHeightM * 1000, 'mm');
       addDetail('공실 Sounding 기준', result.emptySoundingMm, 'mm');
     }
-    if (selectedModel.id === 'fly-ash') addDetail('총 용량 환산 (참고)', result.referenceGrossMassTon, 't');
     if (selectedModel.id === 'bio-storage') {
       addDetail('입력한 Sounding 기준점 높이', result.referenceHeightM * 1000, 'mm');
       addDetail('중앙 정점 높이', result.apexHeightM * 1000, 'mm');
@@ -291,6 +325,15 @@
     var values = readValues();
     var result = engine.calculate(selectedModel.id, values);
     updateRange(values);
+    if (selectedModel.references && controls.density) {
+      var density = engine.parseNumber(values.density);
+      var designDensity = selectedModel.references.designDensity;
+      byId('help-density').textContent = density.status === 'ok' && density.value === designDensity
+        ? '도면 설계밀도 ' + format(designDensity) + ' t/m³ 적용 · 실제 운전값은 확인 후 변경하세요.'
+        : density.status === 'ok' && density.value > 0
+          ? '입력 밀도 ' + format(density.value) + ' t/m³ 적용 · 도면 설계밀도는 ' + format(designDensity) + ' t/m³입니다.'
+          : '유효한 벌크밀도를 입력하세요. 도면 설계밀도는 ' + format(designDensity) + ' t/m³입니다.';
+    }
     Object.keys(controls).forEach(function (key) {
       var error = (result.errors || []).find(function (item) { return item.key === key; });
       var show = error && (touched[key] || submitted);
@@ -320,9 +363,12 @@
     byId('formActions').hidden = selectedModel.inputs.length === 0;
     byId('inputCaption').textContent = selectedModel.drawingBased ? '도면 기준 Sounding' : '밀도·측정 기준 확인';
     document.querySelector('.input-footnote').hidden = selectedModel.kind !== 'inventory';
-    document.querySelector('.input-footnote').textContent = selectedModel.drawingBased
+    document.querySelector('.input-footnote').textContent = selectedModel.directSounding
       ? '중앙 평탄 지붕 기준면을 0 mm로 하여 아래로 잰 거리입니다. 바닥판 상면은 12,050 mm입니다.'
       : selectedModel.id === 'bio-storage' ? '기준점 높이는 바닥에서 센서의 측정 시작점까지, Sounding은 그 시작점에서 LT 위치 재료면까지의 수직 빈 거리입니다. 두 길이는 모두 mm입니다.'
+      : selectedModel.id === 'limestone' ? '영점은 도면의 19,655 mm 치수 상단입니다. 셸 치수 19,645 mm와 상단 10 mm를 구분하며, 실제 센서 시작점과의 차이는 센서높이차로 반영하세요.'
+      : selectedModel.id === 'coal-day' ? '영점은 조립도의 11,300 mm 치수 상단입니다. 센서 노즐의 돌출 높이만으로 측정 영점을 확정하지 않으며, 실제 센서 시작점과의 차이를 입력하세요.'
+      : selectedModel.id === 'fly-ash' ? '영점은 PDF 28쪽 프로파일의 지붕 정점입니다. 센서 시작점이 이 기준보다 높으면 센서높이차를 +로 입력하세요.'
       : '입력값을 바꾸면 결과가 바로 갱신됩니다. Sounding은 위 기준면에서 재료 표면까지의 빈 거리입니다.';
     renderDrawingReferences();
     byId('basisText').textContent = selectedModel.basis;
@@ -345,7 +391,7 @@
       input.spellcheck = false;
       input.required = field.required;
       input.setAttribute('aria-describedby', 'help-' + field.key + ' error-' + field.key);
-      if (field.key === 'sounding') input.placeholder = selectedModel.drawingBased ? '도면 기준 Sounding 입력' : '측정값을 입력하세요';
+      if (field.key === 'sounding') input.placeholder = selectedModel.directSounding ? '도면 기준 Sounding 입력' : '측정값을 입력하세요';
       var help = selectedModel.drawingBased && field.key === 'density'
         ? '도면 설계밀도를 기본값으로 사용합니다.'
         : field.help || (field.key === 'density' ? '현장 벌크밀도를 확인해 적용하세요.' : field.key === 'hours' ? '현재 재고를 모두 사용하는 가정 시간' : field.key === 'angle' ? '0° 초과, 90° 미만' : '');
@@ -359,6 +405,8 @@
       wrapper.appendChild(inputWrap);
       if (field.key === 'referenceHeight') {
         input.placeholder = '실제 설치 높이 입력';
+        wrapper.appendChild(helpNode);
+      } else if (field.key === 'density' && selectedModel.references) {
         wrapper.appendChild(helpNode);
       } else if (help) {
         var guidance = element('div', 'guidance-item');

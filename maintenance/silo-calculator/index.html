@@ -6,10 +6,10 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="description" content="설비별 Sounding과 벌크밀도로 SILO 재고를 환산합니다.">
   <title>SILO 재고 계산 · GS Shift Log</title>
-  <link rel="stylesheet" href="style.css?v=5.0.0-20261020">
+  <link rel="stylesheet" href="style.css?v=6.0.0-20261020">
   <script src="/maintenance/shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
-  <script src="calculator.js?v=5.0.0-20261020" defer></script>
-  <script src="app.js?v=5.0.0-20261020" defer></script>
+  <script src="calculator.js?v=6.0.0-20261020" defer></script>
+  <script src="app.js?v=6.0.0-20261020" defer></script>
 </head>
 <body class="silo-calculator">
   <header class="page-header">
@@ -21,7 +21,7 @@
   <main class="page-shell" id="siloCalculatorPage">
     <div class="page-heading">
       <div><p class="eyebrow">SILO INVENTORY</p><h1>SILO 재고 계산</h1><p class="page-description">설비를 선택하고 측정값과 계산 기준을 입력하세요.</p></div>
-      <span class="local-note">수동 입력 · V5</span>
+      <span class="local-note">수동 입력 · V6</span>
     </div>
 
     <noscript><p class="fatal-message">계산하려면 브라우저에서 JavaScript를 사용할 수 있어야 합니다.</p></noscript>
@@ -116,10 +116,10 @@
         <p class="silo-visual-footnote" id="siloVisualFootnote"></p>
       </div></details>
       <details class="drawing-reference" id="drawingReference" aria-labelledby="drawingReferenceTitle" hidden>
-        <summary id="drawingReferenceTitle">BIO 도면 참고값 <span>Gross 589.1 · Net 419.5 m³</span></summary>
+        <summary id="drawingReferenceTitle">도면 참고값</summary>
         <div class="details-content">
         <dl class="drawing-reference-grid" id="drawingReferenceValues"></dl>
-        <p>도면 표기값은 별도 참고값이며, 재고 계산 용적을 보정하는 데 사용하지 않습니다.</p>
+        <p id="drawingReferenceHint"></p>
       </div></details>
 
       <details class="basis-notes" aria-labelledby="noticeTitle"><summary id="noticeTitle">적용 기준과 확인 사항</summary><ul id="modelWarnings"></ul></details>

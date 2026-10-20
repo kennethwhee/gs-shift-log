@@ -1,4 +1,4 @@
-/* V5: two physical columns; input/details left, headline mass and diagram right. */
+/* V6: two physical columns; input/details left, headline mass and diagram right. */
 :root{color-scheme:light;--ink:#172d45;--muted:#617185;--border:#dce4ec;--blue:#1761ab;--pale:#edf5fc;--navy:#15304d;--warning:#8a5210;--warning-bg:#fff8e9;--danger:#a33030;font-family:Pretendard,"Noto Sans KR","Malgun Gothic",system-ui,sans-serif;font-synthesis:none}
 body.silo-calculator{margin:0;background:#f3f6fa;color:var(--ink);font-size:14px;line-height:1.5}
 body.silo-calculator *{box-sizing:border-box}
