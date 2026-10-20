@@ -208,3 +208,23 @@ body.silo-calculator .back-link:hover{background:#244564}
   }
   #siloCalculatorPage #inputFields > .field.is-main input::placeholder { font-size: 14px; }
 }
+
+/* GS_SILO_MOBILE_DETAILS_V1 */
+@media (max-width: 650px) {
+  #siloCalculatorPage .detail-numbers.mobile-detail-panel {
+    min-width: 0;
+    margin: 0;
+    padding: 17px 16px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: #fff;
+  }
+  #siloCalculatorPage .detail-numbers.mobile-detail-panel h3 {
+    margin: 0 0 12px;
+    color: var(--text, #203148);
+    font-size: 16px;
+  }
+}
+@media (max-width: 380px) {
+  #siloCalculatorPage .detail-numbers.mobile-detail-panel { padding: 15px 13px; }
+}

@@ -512,3 +512,28 @@
   syncBackLink();
   byId('calculatorWorkspace').hidden = false;
 })();
+
+// GS_SILO_MOBILE_DETAILS_V1
+(function () {
+  'use strict';
+  if (typeof window.matchMedia !== 'function') return;
+  var details = document.getElementById('detailNumbers');
+  var result = document.querySelector('.silo-workspace-two-column > .result-panel');
+  if (!details || !result || !details.parentNode || !result.parentNode) return;
+  // Keep one live result node: all IDs, hidden state and calculation updates survive.
+  var anchor = document.createComment('SILO desktop calculation details');
+  details.parentNode.insertBefore(anchor, details);
+  var media = window.matchMedia('(max-width: 650px)');
+  function syncLayout() {
+    if (media.matches) {
+      result.parentNode.insertBefore(details, result.nextSibling);
+      details.classList.add('mobile-detail-panel');
+    } else {
+      anchor.parentNode.insertBefore(details, anchor.nextSibling);
+      details.classList.remove('mobile-detail-panel');
+    }
+  }
+  if (typeof media.addEventListener === 'function') media.addEventListener('change', syncLayout);
+  else if (typeof media.addListener === 'function') media.addListener(syncLayout);
+  syncLayout();
+})();
