@@ -42,8 +42,8 @@ const finalsFor = (index, activeBio, inactiveBio = 0) => index === 0 ? [activeBi
 
 for (const activeIndex of [0, 1]) {
   for (const [draw, target] of [[0, 361.3], [0.5, 361.35], [1 - Number.EPSILON, 361.4]]) {
-    test(`screenshot regression: only unit ${activeIndex + 1} used Bio and target ${target} stays in that unit`, () => {
-      const original = base(...finalsFor(activeIndex, 328.66));
+    test(`above daily limit: only unit ${activeIndex + 1} used Bio and target ${target} stays in that unit`, () => {
+      const original = base(...finalsFor(activeIndex, 450));
       const preserved = structuredClone(original);
       let draws = 0;
       const changed = adjustment.autoMax(original, settings, 361.4, () => { draws++; return draw; });
@@ -58,9 +58,9 @@ for (const activeIndex of [0, 1]) {
       assert.deepEqual(changed.adjustment.deltas[inactive], {bioDelta: 0, coalDelta: 0});
       assert.equal(changed.adjustment.fromUnit, null);
       assert.equal(changed.adjustment.bioTransferTons, 0);
-      near(changed.adjustment.excludedBioTons, Math.round((328.66 - expected) * 1000) / 1000);
+      near(changed.adjustment.excludedBioTons, Math.round((450 - expected) * 1000) / 1000);
       near(changed.result.units[active].coal.quantity,
-        original.units[active].coal.quantity + (328.66 - expected) * 3237 / 5868);
+        original.units[active].coal.quantity + (450 - expected) * 3237 / 5868);
       near(changed.result.units[active].heats.total, original.units[active].heats.total, 0.00001);
       for (const unit of units) for (const fuel of ['organic', 'manure']) {
         assert.deepEqual(changed.result.units[unit][fuel], original.units[unit][fuel]);
@@ -151,7 +151,7 @@ test('saved adjustment paths refuse old redistributions into a zero-use unit', (
   }
 });
 
-test('local stored old redistribution is ignored while a valid zero-preserving saved edit reloads', () => {
+test('local obsolete maximum reductions are ignored while a valid zero-preserving manual edit reloads', () => {
   const original = base(), spec = {startLocal: '2026-10-21T00:00', endLocal: '2026-10-21T17:51'};
   const round = value => Math.round((value + Number.EPSILON) * 1e6) / 1e6;
   const fingerprint = JSON.stringify([spec.startLocal, spec.endLocal,
@@ -162,6 +162,9 @@ test('local stored old redistribution is ignored while a valid zero-preserving s
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../maintenance/cofiring-period-adjustment-v56.js'), 'utf8'), sandbox);
   assert.equal(sandbox.module.exports.resolveStored(original, settings, spec), null);
   saved = {...saved, finalBioUnit2: 0};
+  assert.equal(sandbox.module.exports.resolveStored(original, settings, spec), null,
+    'Even a zero-preserving automatic reduction is obsolete when actual Bio is below the full daily maximum');
+  saved = {...saved, meta: {mode: 'manual_final'}};
   const restored = sandbox.module.exports.resolveStored(original, settings, spec);
   assert.equal(restored.ok, true);
   assert.equal(restored.result.units.unit2.bio.quantity, 0);

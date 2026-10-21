@@ -133,7 +133,7 @@ test('fractional configured maxima never round selected targets above the maximu
 });
 
 for (const hours of [12, 48, 24 + 1 / 60]) {
-  test(`daily target band is converted to the exact ${hours}-hour selected period`, () => {
+  test(`daily target band uses a full-day minimum for the ${hours}-hour selected period`, () => {
     const original = base(hours, 1000, 1000);
     const changed = adjustment.autoMax(original, settings, 361.4, sequence(0, 1 - Number.EPSILON));
     verifyPhysicalContracts(original, changed);
@@ -179,10 +179,10 @@ test('both saturated units record only the excess not accepted by the chosen tar
   assert.equal(changed.adjustment.excludedBioTons, 177.3);
 });
 
-test('replay accepts historic exact-cap daily and partial-period adjustments', () => {
+test('replay accepts exact-cap daily and longer-period adjustments', () => {
   for (const [hours, maximum, b1, b2, final1, final2] of [
     [24, 361.4, 450, 400, 361.4, 361.4],
-    [12, 240, 150, 50, 120, 80],
+    [48, 240, 600, 100, 480, 220],
     [24, 361.1492, 450, 400, 361.149, 361.149]
   ]) {
     const original = base(hours, b1, b2);

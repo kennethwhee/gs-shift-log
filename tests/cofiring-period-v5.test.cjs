@@ -113,22 +113,22 @@ test('V5.6 manual Bio transfer keeps Bio total and compensates Coal by heat equi
  assert.ok(r.result.units.unit1.fuelRatios.total>0);assert.ok(r.result.combined.fuelRatios.total>0);
 });
 
-test('V5.6 max Bio t/d converts the period, samples the near-cap band, and preserves heat and totals',()=>{
- assert.equal(adjust.periodCap(240,12),120);assert.equal(adjust.periodCap(361.74,24),361.74);
+test('V5.6 maximum keeps the full daily threshold, samples the near-cap band, and preserves heat and totals',()=>{
+ assert.equal(adjust.periodCap(240,12),240);assert.equal(adjust.periodCap(361.74,24),361.74);
  const base={period:{durationHours:12},units:{unit1:{coal:{quantity:400},bio:{quantity:150},organic:{quantity:0},manure:{quantity:0},heats:{}},unit2:{coal:{quantity:400},bio:{quantity:50},organic:{quantity:0},manure:{quantity:0},heats:{}}},combined:{}};
  const settings={unit1:{coal:{calorific:5868},bio:{calorific:3237},organic:{calorific:3487},manure:{calorific:3487}},unit2:{coal:{calorific:5868},bio:{calorific:3237},organic:{calorific:3487},manure:{calorific:3487}}};
  const original=structuredClone(base),upper=()=>0.9999999999999999;
- // The upper endpoint remains available for historical exact-cap results.
- const r=adjust.autoMax(base,settings,240,upper);assert.equal(r.ok,true);assert.equal(r.adjustment.periodCapTons,120);assert.equal(r.result.units.unit1.bio.quantity,120);assert.equal(r.result.units.unit2.bio.quantity,80);assert.equal(r.adjustment.excludedBioTons,0);
- const high=adjust.autoMax(base,settings,100,upper);assert.equal(high.ok,true);assert.equal(high.adjustment.periodCapTons,50);assert.equal(high.result.units.unit1.bio.quantity,50);assert.equal(high.result.units.unit2.bio.quantity,50);assert.equal(high.adjustment.excludedBioTons,100);
+ // Incomplete days do not prorate down a daily threshold that has not been exceeded.
+ const r=adjust.autoMax(base,settings,240,()=>{throw Error('Unexpected target');});assert.equal(r.ok,false);
+ const high=adjust.autoMax(base,settings,100,upper);assert.equal(high.ok,true);assert.equal(high.adjustment.periodCapTons,100);assert.equal(high.result.units.unit1.bio.quantity,100);assert.equal(high.result.units.unit2.bio.quantity,100);assert.equal(high.adjustment.excludedBioTons,0);
  const chosen=[];
  for(const draw of [0,0.5,0.9999999999999999]){
    const changed=adjust.autoMax(base,settings,100,()=>draw);assert.equal(changed.ok,true,changed.message);
    let finalTotal=0;
    for(const unit of ['unit1','unit2']){
-     const before=base.units[unit],after=changed.result.units[unit],rate=after.bio.quantity*24/base.period.durationHours;
-     assert.ok(rate>=99.90-1e-8&&rate<=100+1e-8,'Saturated units remain inside the daily near-cap band');
-     assert.ok(Math.abs(rate*100-Math.round(rate*100))<1e-6,'The chosen daily rate stays on a 0.01 t/d grid');
+     const before=base.units[unit],after=changed.result.units[unit],quantity=after.bio.quantity;
+     assert.ok(quantity>=99.90-1e-8&&quantity<=100+1e-8,'Adjusted quantities remain inside the full daily near-cap band');
+     assert.ok(Math.abs(quantity*100-Math.round(quantity*100))<1e-6,'The chosen daily quantity stays on a 0.01 t grid');
      assert.equal(after.organic.quantity,before.organic.quantity);assert.equal(after.manure.quantity,before.manure.quantity);
      const beforeHeat=before.coal.quantity*5868+before.bio.quantity*3237;
      assert.ok(Math.abs(after.coal.quantity*5868+after.bio.quantity*3237-beforeHeat)<0.006,'Coal compensates each unit by equivalent heat');

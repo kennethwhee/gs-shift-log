@@ -59,5 +59,5 @@ test('both Bio-active units retain manual direction and Bio edit controls',async
     assert.equal(field(b,unit,'bio').disabled,false);
     assert.equal(field(b,unit,'bioRatio').disabled,false);
   }
-  assert.equal(b.modal().querySelector('.cfv56-auto-copy-line').textContent,'호기별 최대 혼소율 기준 · 선택기간 자동 환산');
+  assert.equal(b.modal().querySelector('.cfv56-auto-copy-line').textContent,'호기별 Bio 최대량 초과 시 조정');
 });

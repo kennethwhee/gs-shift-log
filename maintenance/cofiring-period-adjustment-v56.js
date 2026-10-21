@@ -29,7 +29,9 @@
     const end=compactLocal(shownEnd,true);
     return `${start} ~ ${end}`;
   };
-  function periodCap(maxTpd,durationHours){const n=Number(maxTpd),h=Number(durationHours);return Number.isFinite(n)&&n>0&&Number.isFinite(h)&&h>0?round(n*h/24,3):null;}
+  // COFIRING_BIO_DAILY_THRESHOLD_V1: an incomplete day keeps the full daily limit.
+  // Longer selected periods retain the established proportional period limit.
+  function periodCap(maxTpd,durationHours){const n=Number(maxTpd),h=Number(durationHours);return Number.isFinite(n)&&n>0&&Number.isFinite(h)&&h>0?(h<=24?n:round(n*h/24,3)):null;}
   function fingerprint(base,spec){const a=base?.units?.unit1,b=base?.units?.unit2;return JSON.stringify([spec?.startLocal,spec?.endLocal,round(a?.coal?.quantity,6),round(a?.bio?.quantity,6),round(b?.coal?.quantity,6),round(b?.bio?.quantity,6)]);}
   function recalcUnit(unit,settings,durationHours){
     if(!unit)return null;const h=unit.heats||(unit.heats={});const cals=settings||{};
@@ -71,7 +73,8 @@
       if(!Number.isFinite(coalHv)||coalHv<=0||!Number.isFinite(bioHv)||bioHv<=0)return {ok:false,message:'Coal/Bio 발열량을 확인해 주세요.'};
       const bioDelta=Number(raw.bio.quantity)-finalBio,coalDelta=bioDelta*bioHv/coalHv,finalCoal=Number(raw.coal.quantity)+coalDelta;
       if(!Number.isFinite(finalCoal)||finalCoal<0)return {ok:false,message:'조정 후 Coal 사용량이 0 미만이 됩니다.'};
-      u.bio.quantity=round(finalBio,6);u.coal.quantity=raw.bio.quantity===0?raw.coal.quantity:round(finalCoal,6);deltas[unit]={bioDelta,coalDelta};
+      const unchangedAuto=meta.mode==='max_auto'&&finalBio===raw.bio.quantity;
+      u.bio.quantity=unchangedAuto?raw.bio.quantity:round(finalBio,6);u.coal.quantity=raw.bio.quantity===0||unchangedAuto?raw.coal.quantity:round(finalCoal,6);deltas[unit]={bioDelta,coalDelta};
       if(!recalcUnit(u,s,hours))return {ok:false,message:'조정 후 열량/혼소율을 계산하지 못했습니다.'};
     }
     recalcCombined(result);
@@ -149,18 +152,19 @@
     const meta=saved.meta||saved;
     if(meta.mode==='manual_table')return adjustTable(base,settings,saved);
     if(meta.mode&&!['manual_transfer','max_auto','manual_final'].includes(meta.mode))return {ok:false,message:'저장된 혼소 조정 방식을 확인해 주세요.'};
+    if(meta.mode==='max_auto')return replayAutoMax(base,settings,meta.maxBioTpd,saved.finalBioUnit1,saved.finalBioUnit2);
     return adjustFinal(base,settings,saved.finalBioUnit1,saved.finalBioUnit2,meta);
   }
   // COFIRING_MAX_TARGET_BAND_V1: choose once for a preview; replay stored finals.
   const MAX_TARGET_BAND_TPD=0.10;
   function maxAutoInputs(base,maxTpd){
     const hours=Number(base?.period?.durationHours),cap=periodCap(maxTpd,hours),b1=base?.units?.unit1?.bio?.quantity,b2=base?.units?.unit2?.bio?.quantity;if(!Number.isFinite(cap)||cap<=0)return {ok:false,message:'호기당 Bio 최대량(t/d)을 확인해 주세요.'};if(![b1,b2].every(Number.isFinite))return {ok:false,message:'먼저 기간 계산을 완료해 주세요.'};
-    if(b1<=cap&&b2<=cap)return {ok:false,message:`현재 1·2호기 Bio 사용량이 선택기간 환산 최대 ${fmt(cap,2)} t 이하입니다.`};
+    if(b1<=cap&&b2<=cap)return {ok:false,message:`현재 1·2호기 Bio 사용량이 ${hours<=24?'일일':'선택기간 환산'} 최대 ${fmt(cap,2)} t 이하이므로 조정하지 않습니다.`};
     return {ok:true,hours,cap,b1,b2};
   }
   function maxAutoAtCaps(base,settings,maxTpd,input,target1,target2){
     const {cap,b1,b2}=input;
-    let f1=Math.min(b1,target1),f2=Math.min(b2,target2),ex1=Math.max(0,b1-f1),ex2=Math.max(0,b2-f2),c1=b1>0?Math.max(0,target1-f1):0,c2=b2>0?Math.max(0,target2-f2):0;
+    let f1=b1<=cap?b1:Math.min(b1,target1),f2=b2<=cap?b2:Math.min(b2,target2),ex1=Math.max(0,b1-f1),ex2=Math.max(0,b2-f2),c1=b1>0?Math.max(0,target1-f1):0,c2=b2>0?Math.max(0,target2-f2):0;
     const move12=Math.min(ex1,c2);f2+=move12;ex1-=move12;c2-=move12;
     const move21=Math.min(ex2,c1);f1+=move21;ex2-=move21;c1-=move21;
     return adjustFinal(base,settings,f1,f2,{mode:'max_auto',maxBioTpd:Number(maxTpd),periodCapTons:cap,fromUnit:move12>0?1:move21>0?2:null,bioTransferTons:move12+move21,excludedBioTons:ex1+ex2});
@@ -265,7 +269,7 @@
             <div class="cfv56-control-tabs" role="tablist" aria-label="조정 방법"><button type="button" id="${prefix}-auto-tab" role="tab" aria-selected="true" aria-controls="${prefix}-auto-panel" data-cfv56-tab="auto">최대혼소 조정</button><button type="button" id="${prefix}-manual-tab" role="tab" aria-selected="false" aria-controls="${prefix}-manual-panel" data-cfv56-tab="manual">수동 이동</button></div>
             <section class="cfv56-control-panel" id="${prefix}-auto-panel" role="tabpanel" aria-labelledby="${prefix}-auto-tab" data-cfv56-panel="auto">
               <section class="cfv56-top-card-cap"><div class="cfv56-top-card-label"><label for="${prefix}-max">호기당 Bio 최대량</label></div><div class="cfv56-cap-group"><input id="${prefix}-max" data-cfv56-max type="number" min="0.01" max="2000" step="0.01"><span class="cfv56-unit">t/d</span><button type="button" data-cfv56-save-max>설정 저장</button></div></section>
-              <section class="cfv56-auto cfv56-auto-card"><p class="cfv56-cap-note" data-cfv56-cap>—</p><p class="cfv56-auto-copy-line">호기별 최대 혼소율 기준 · 선택기간 자동 환산</p><button type="button" data-cfv56-auto>최대혼소 미리보기 <span aria-hidden="true">→</span></button></section>
+              <section class="cfv56-auto cfv56-auto-card"><p class="cfv56-cap-note" data-cfv56-cap>—</p><p class="cfv56-auto-copy-line">호기별 Bio 최대량 초과 시 조정</p><button type="button" data-cfv56-auto>최대혼소 미리보기 <span aria-hidden="true">→</span></button></section>
             </section>
             <section class="cfv56-control-panel" id="${prefix}-manual-panel" role="tabpanel" aria-labelledby="${prefix}-manual-tab" data-cfv56-panel="manual" hidden>
               <section class="cfv56-manual-card"><div class="cfv56-section-head"><div><h4>Bio 이동 방향</h4><p>호기 간 Bio 배분 조정</p></div></div><div class="cfv56-dir"><button type="button" class="is-selected" aria-pressed="true" data-cfv56-dir="1">1호기 → 2호기</button><button type="button" aria-pressed="false" data-cfv56-dir="2">2호기 → 1호기</button></div><label class="cfv56-transfer"><span class="cfv56-field-label">이동량</span><input data-cfv56-transfer aria-label="Bio 이동량" type="number" min="0" step="0.01" placeholder="0.0"><span>t</span><button type="button" data-cfv56-preview-transfer>미리보기</button><button type="button" class="cfv56-transfer-cancel" data-cfv56-cancel-transfer>초기화</button></label></section>
@@ -428,7 +432,7 @@
       const manualCopy=q('.cfv56-manual-card .cfv56-section-head p');
       if(manualCopy)manualCopy.textContent=inactiveReason||'호기 간 Bio 배분 조정';
       const autoCopy=q('.cfv56-auto-copy-line');
-      if(autoCopy)autoCopy.textContent=inactiveUnits.length===1?`${inactiveUnits[0]==='unit1'?'2호기':'1호기'} Bio만 조정 · ${inactiveNames} 0t 유지`:inactiveUnits.length===2?'Bio 미사용 · 조정할 사용량이 없습니다.':'호기별 최대 혼소율 기준 · 선택기간 자동 환산';
+      if(autoCopy)autoCopy.textContent=inactiveUnits.length===1?`${inactiveUnits[0]==='unit1'?'2호기':'1호기'} Bio만 조정 · ${inactiveNames} 0t 유지`:inactiveUnits.length===2?'Bio 미사용 · 조정할 사용량이 없습니다.':'호기별 Bio 최대량 초과 시 조정';
       q('[data-cfv56-apply]').disabled=!ready||busy||tableEditing||!preview?.ok;
       q('[data-cfv56-edit]').disabled=!ready||busy||tableEditing;
       q('[data-cfv56-edit]').textContent=tableEditing?'수정 중':'직접 수정';
@@ -469,9 +473,10 @@
       if(!tableEditing)fillTable(result);controls();
     }
     function cap(){
-      const max=Number(q('[data-cfv56-max]').value);
-      q('[data-cfv56-cap]').textContent=`선택기간 ${base.period.durationHours.toFixed(2)}시간 환산 최대: 호기당 ${fmt(periodCap(max,base.period.durationHours),2)} t`;
-      q('[data-cfv56-auto]').title=`자동 목표 ${fmt(Math.max(0,max-MAX_TARGET_BAND_TPD))}~${fmt(max)} t/d · 선택기간에 맞춰 환산`;
+      const max=Number(q('[data-cfv56-max]').value),hours=base.period.durationHours,limit=periodCap(max,hours);
+      q('[data-cfv56-cap]').textContent=hours<=24?`일일 최대: 호기당 ${fmt(limit,2)} t · 시간 비례 감액 없음`:`선택기간 ${hours.toFixed(2)}시간 환산 최대: 호기당 ${fmt(limit,2)} t`;
+      const low=Math.max(0,max-MAX_TARGET_BAND_TPD),lower=low===0?0:periodCap(low,hours);
+      q('[data-cfv56-auto]').title=`최대량 초과 시 자동 목표 ${fmt(lower)}~${fmt(limit)} t`+(hours>24?' · 선택기간 환산':'');
     }
     async function open(){
       if(busy||disposed)return;const ctx=options.getContext?.();base=ctx?.result;settings=ctx?.settings;spec=ctx?.spec;
