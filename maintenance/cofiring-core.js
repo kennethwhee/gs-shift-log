@@ -374,6 +374,8 @@
 
   function periodSummaryCounter(definition, item, period) {
     // COFIRING_BIO_BOUNDARY_NODATA_CORE_V4
+    // COFIRING_BIO_CONSTANT_ZERO_CORE_V1: require both canonical recovery flags
+    // and exact zero/constant evidence; never reinterpret missing values as zero.
     const issues = [];
     if (!item || item.key !== definition.id || item.unit !== definition.unit || item.fuel !== definition.fuel || item.tag !== definition.queryTag) {
       return { id: definition.id, quantity: null, referenceQuantity: null, complete: false, missingSamples: 1, observedSamples: 0, qualityVerified: false, issues: ['summary_identity_mismatch'], startBoundaryRecovered: false, endBoundaryRecovered: false };
@@ -385,13 +387,16 @@
     const contractStart=n(item.effectiveStartValue), contractEnd=n(item.effectiveEndValue);
     const startFallback = definition.fuel === 'bio' && item.startBoundaryFallbackApplied === true && item.startBoundaryRecovered === true && item.endBoundaryRecovered !== true && item.usageBasis === 'end_minus_period_min_start_nodata_fallback' && startValue === null && endValue !== null && startFallbackValue !== null && contractStart !== null && Math.abs(startFallbackValue-contractStart) <= 0.001 && noDataQuality(item.startQuality) && qualityGood(item.endQuality);
     const endFallback = definition.fuel === 'bio' && item.endBoundaryFallbackApplied === true && item.endBoundaryRecovered === true && item.startBoundaryRecovered !== true && item.usageBasis === 'period_max_end_nodata_fallback_minus_start_boundary' && startValue !== null && endValue === null && endFallbackValue !== null && contractEnd !== null && Math.abs(endFallbackValue-contractEnd) <= 0.001 && qualityGood(item.startQuality) && noDataQuality(item.endQuality);
+    const constantNoData = function(value) { return typeof value === 'string' && ['bad,no data','no data,bad'].includes(value.toLowerCase().split(',').map(function(s){return s.trim();}).join(',')); };
+    const constantFallback = definition.fuel === 'bio' && item.startBoundaryFallbackApplied === true && item.endBoundaryFallbackApplied === true && item.startBoundaryRecovered === true && item.endBoundaryRecovered === true && item.usageBasis === 'constant_bio_counter_full_good_both_nodata_fallback' && item.startValue === null && item.endValue === null && constantNoData(item.startQuality) && constantNoData(item.endQuality) && min !== null && min >= 0 && min === max && delta === 0 && usage === 0 && item.rangeSpread === 0 && startFallbackValue === min && endFallbackValue === min && contractStart === min && contractEnd === min && item.durationBadSeconds === 0 && n(item.durationGoodSeconds) !== null && item.durationGoodSeconds >= 0 && Math.abs(item.durationGoodSeconds-period.durationMinutes*60) <= 2;
+    if (!constantFallback && (item.usageBasis === 'constant_bio_counter_full_good_both_nodata_fallback' || item.startBoundaryFallbackApplied === true && item.endBoundaryFallbackApplied === true || item.startBoundaryRecovered === true && item.endBoundaryRecovered === true)) issues.push('constant_counter_fallback_invalid');
     const direct = startValue !== null && endValue !== null && item.startBoundaryRecovered !== true && item.endBoundaryRecovered !== true;
-    const effectiveStart = contractStart !== null ? contractStart : (startFallback ? startFallbackValue : startValue);
-    const effectiveEnd = contractEnd !== null ? contractEnd : (endFallback ? endFallbackValue : endValue);
+    const effectiveStart = contractStart !== null ? contractStart : ((startFallback || constantFallback) ? startFallbackValue : startValue);
+    const effectiveEnd = contractEnd !== null ? contractEnd : ((endFallback || constantFallback) ? endFallbackValue : endValue);
     if ([effectiveStart,effectiveEnd,min,max,delta,usage].some(function(v){return v===null;})) issues.push('summary_number_missing');
     if ([effectiveStart,effectiveEnd,min,max].some(function(v){return v!==null&&v<0;})) issues.push('negative_counter');
     if (direct && (!qualityGood(item.startQuality) || !qualityGood(item.endQuality))) issues.push('bad_quality');
-    if (!direct && !startFallback && !endFallback) issues.push('bad_quality');
+    if (!direct && !startFallback && !endFallback && !constantFallback) issues.push('bad_quality');
     const startAt=Date.parse(item.startTime), endAt=Date.parse(item.endTime);
     if (!Number.isFinite(startAt) || startAt < period.startMs || startAt >= period.startMs + MINUTE) issues.push('start_time_invalid');
     if (!Number.isFinite(endAt) || endAt < period.endMs || endAt >= period.endMs + MINUTE) issues.push('end_time_invalid');
@@ -415,7 +420,7 @@
       referenceQuantity: derived===null?null:Math.max(0,derived), complete,
       missingSamples: complete?0:1, observedSamples: complete?2:0,
       qualityVerified: complete&&qualityGapSeconds<=0.001, qualityGapSeconds,
-      issues: Array.from(new Set(issues)), summary: item, startBoundaryRecovered: startFallback, endBoundaryRecovered: endFallback
+      issues: Array.from(new Set(issues)), summary: item, startBoundaryRecovered: (startFallback || constantFallback), endBoundaryRecovered: (endFallback || constantFallback), constantCounterRecovered: constantFallback
     };
   }
   function analyzePeriodSummary(reference, options) {
@@ -429,8 +434,10 @@
     const counters=REQUIRED_SERIES.map(function(def){return periodSummaryCounter(def,entries.get(def.id),period);});
     const units={},warnings=[],actualCalorifics={},actualCoefficients={};
     const maxQualityGapSeconds=counters.reduce(function(max,c){return Math.max(max,c.qualityGapSeconds||0);},0);
-    const recoveredStartCounters=counters.filter(function(c){return c.startBoundaryRecovered===true;});
-    const recoveredEndCounters=counters.filter(function(c){return c.endBoundaryRecovered===true;});
+    const constantCounters=counters.filter(function(c){return c.complete&&c.constantCounterRecovered===true;});
+    if(constantCounters.length)warnings.push('Bio 양쪽 경계 #NODATA '+constantCounters.map(function(c){return c.id;}).join(', ')+'는 전체 Good 구간에서 누적값이 일정하고 Delta=0임을 확인해 사용량을 0t로 계산했습니다.');
+    const recoveredStartCounters=counters.filter(function(c){return c.startBoundaryRecovered===true&&!c.constantCounterRecovered;});
+    const recoveredEndCounters=counters.filter(function(c){return c.endBoundaryRecovered===true&&!c.constantCounterRecovered;});
     if(recoveredStartCounters.length)warnings.push('Bio 시작 경계 #NODATA '+recoveredStartCounters.map(function(c){return c.id;}).join(', ')+'는 전체 Good 구간과 Min/Max/Delta 검증 후 기간 Min값으로 복구해 사용량을 계산했습니다.');
     if(recoveredEndCounters.length)warnings.push('Bio 종료 경계 #NODATA '+recoveredEndCounters.map(function(c){return c.id;}).join(', ')+'는 전체 Good 구간과 Min/Max/Delta 검증 후 기간 Max값으로 복구해 사용량을 계산했습니다.');
     if(maxQualityGapSeconds>0.001)warnings.push('DataPARC 중간 품질 공백이 최대 '+maxQualityGapSeconds.toFixed(1)+'초 확인됐습니다. 시작·종료 누적 경계와 Min/Max가 정상인 TAG는 경계값 차이로 사용량을 표시합니다.');

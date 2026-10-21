@@ -2642,6 +2642,24 @@ try {
         $endBoundaryFallbackApplied=$true
         $endBoundaryFallbackValue=[double]$maxValue
       }
+      # COFIRING_BIO_CONSTANT_BOTH_NODATA_FALLBACK_V1
+      # Keep the V4 single-boundary rules above unchanged. Recover two missing
+      # Bio boundaries only when every other queried cell is a valid response
+      # and full-Good interval statistics prove an exactly constant counter.
+      # Preserve original boundary values, qualities and timestamps in diagnostics.
+      $constantBioCounterBothNoDataFallbackApplied=$false
+      $startBoundaryExactNoData=($startBoundaryNoData -and ([string]($matrix.GetValue($rb+$r,$cb+0))).Trim() -ieq '#NODATA' -and $startQuality.Trim() -imatch '^No\s+Data\s*,\s*Bad$')
+      $endBoundaryExactNoData=($endBoundaryNoData -and ([string]($matrix.GetValue($rb+$r,$cb+3))).Trim() -ieq '#NODATA' -and $endQuality.Trim() -imatch '^No\s+Data\s*,\s*Bad$')
+      $constantBioQueryResponseValid=($null -ne $fastState -and $fastState.shapeValid -and $fastState.complete -and $fastState.pendingCells -eq 0 -and $fastState.errorCells -eq 0 -and $fastState.invalidCells -eq 2 -and $fastState.cells -eq ($rowsFast*$columnsFast) -and $fastState.valueCells -eq ($fastState.cells-2))
+      $constantBioFullGood=($durationCoverageValid -and $null -ne $durationGood -and $null -ne $durationBad -and $durationBad -eq 0 -and [Math]::Abs([double]$durationGood-$durationExpected) -le 2.0)
+      $constantBioRangeValid=($null -ne $minValue -and $null -ne $maxValue -and $null -ne $deltaValue -and $minValue -ge 0 -and $minValue -eq $maxValue -and $deltaValue -eq 0)
+      if ([string]$tag.fuel -eq 'bio' -and $startBoundaryExactNoData -and $endBoundaryExactNoData -and $constantBioQueryResponseValid -and $constantBioFullGood -and $constantBioRangeValid) {
+        $constantBioCounterBothNoDataFallbackApplied=$true
+        $startBoundaryFallbackApplied=$true
+        $startBoundaryFallbackValue=[double]$minValue
+        $endBoundaryFallbackApplied=$true
+        $endBoundaryFallbackValue=[double]$maxValue
+      }
       $effectiveStartValue=$(if($startBoundaryFallbackApplied){$startBoundaryFallbackValue}else{$startValue})
       $effectiveEndValue=$(if($endBoundaryFallbackApplied){$endBoundaryFallbackValue}else{$endValue})
       $boundaryValid=(($startBoundaryDirectValid -or $startBoundaryFallbackApplied) -and ($endBoundaryDirectValid -or $endBoundaryFallbackApplied))
@@ -2662,7 +2680,8 @@ try {
         key=[string]$tag.key;unit=[string]$tag.unit;fuel=[string]$tag.fuel;tag=[string]$tag.tag
         startValue=$startValue;startQuality=$startQuality;startTime=$(if($null -ne $startTime){$startTime.ToString('yyyy-MM-ddTHH:mm:ss')+'+09:00'}else{$null})
         endValue=$endValue;endQuality=$endQuality;endTime=$(if($null -ne $endTime){$endTime.ToString('yyyy-MM-ddTHH:mm:ss')+'+09:00'}else{$null})
-        usageTon=$usage;usageBasis=$(if($startBoundaryFallbackApplied){'end_minus_period_min_start_nodata_fallback'}elseif($endBoundaryFallbackApplied){'period_max_end_nodata_fallback_minus_start_boundary'}else{'end_minus_start_boundary'})
+        usageTon=$usage;usageBasis=$(if($constantBioCounterBothNoDataFallbackApplied){'constant_bio_counter_full_good_both_nodata_fallback'}elseif($startBoundaryFallbackApplied){'end_minus_period_min_start_nodata_fallback'}elseif($endBoundaryFallbackApplied){'period_max_end_nodata_fallback_minus_start_boundary'}else{'end_minus_start_boundary'})
+        constantBioCounterBothNoDataFallbackApplied=[bool]$constantBioCounterBothNoDataFallbackApplied
         startBoundaryFallbackApplied=[bool]$startBoundaryFallbackApplied;startBoundaryFallbackValue=$startBoundaryFallbackValue
         endBoundaryFallbackApplied=[bool]$endBoundaryFallbackApplied;endBoundaryFallbackValue=$endBoundaryFallbackValue
         min=$minValue;max=$maxValue;rangeSpread=$rangeSpread;delta=$deltaValue

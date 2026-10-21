@@ -2,17 +2,19 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const {spawnSync}=require('node:child_process');
 const {restoreStartupV3,profile}=require('./helpers/cofiring-startup-v3-preservation.cjs');
+const {restoreBioZero}=require('./helpers/cofiring-bio-zero-v1-preservation.cjs');
 const root=path.resolve(__dirname,'..'),workerPath=path.join(root,'local-tools/ois-agent/cofiring-period-v5/cofiring-period-worker-v5.ps1');
 const bytes=fs.readFileSync(workerPath),text=bytes.toString('utf8');
+const startupText=restoreBioZero(text);
 const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
 test('new worker reverses byte-exactly to the reviewed pre-V3 runtime without changing old baselines',()=>{
- assert.equal(sha(bytes),profile.productionWorkerSha256);
- const original=restoreStartupV3(text);
+ assert.equal(sha(Buffer.from('\uFEFF'+startupText.replace(/\n/g,'\r\n'))),profile.productionWorkerSha256);
+ const original=restoreStartupV3(startupText);
  assert.equal(sha(Buffer.from('\uFEFF'+original.replace(/\n/g,'\r\n'))),profile.previousWorkerSha256);
  assert.equal(profile.previousWorkerSha256,'a84b83ea1f024e779414ac647d3ad3dda7b0bc19888e91a6b18f90b53d1413aa');
  assert.equal(restoreStartupV3(original),original);
- assert.equal(restoreStartupV3(text+'\n# unrelated edit'),original+'\n# unrelated edit');
- assert.throws(()=>restoreStartupV3(text.replace("Operation 'Load.DataPARC.Workbooks.Open'","Operation 'Changed.Open'")),/mismatch/);
+ assert.equal(restoreStartupV3(startupText+'\n# unrelated edit'),original+'\n# unrelated edit');
+ assert.throws(()=>restoreStartupV3(startupText.replace("Operation 'Load.DataPARC.Workbooks.Open'","Operation 'Changed.Open'")),/mismatch/);
 });
 test('production uses only the successful trial Open path and keeps add-in/security settings intact',()=>{
  assert.doesNotMatch(text,/RunAutoMacros\(|\.Installed\s*=|\$Application\.AutomationSecurity\s*=|\$excel\.AutomationSecurity\s*=/);

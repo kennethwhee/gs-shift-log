@@ -7,7 +7,8 @@ const rule=JSON.parse(ruleRaw);
 const sha=v=>crypto.createHash('sha256').update(v).digest('hex');
 const workerBytes=fs.readFileSync(path.join(root,'local-tools/ois-agent/cofiring-period-v5/cofiring-period-worker-v5.ps1'));
 const {restoreStartupV3}=require('./helpers/cofiring-startup-v3-preservation.cjs');
-const worker=restoreStartupV3(workerBytes.toString('utf8'));
+const {restoreBioZero}=require('./helpers/cofiring-bio-zero-v1-preservation.cjs');
+const worker=restoreStartupV3(restoreBioZero(workerBytes.toString('utf8')));
 const controller=fs.readFileSync(path.join(root,'local-tools/ois-agent/cofiring-period-v5/run-cofiring-period-v5.ps1'));
 const agent=fs.readFileSync(path.join(root,'local-tools/ois-agent/cofiring-dataparc-agent.js'),'utf8');
 test('post-V15 mapping is pinned to the exact current V4 Worker and the reviewed V15 R2 Worker',()=>{

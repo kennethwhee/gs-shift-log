@@ -1,4 +1,4 @@
-﻿import dailyOperationQueryContract from "../../daily-operation/daily-operation-query-contract.js";
+import dailyOperationQueryContract from "../../daily-operation/daily-operation-query-contract.js";
 import { prepareScheduledBatch, scheduledBatchStatements, isScheduledBatchConflict } from "../_shared/blower-schedule-v1.js";
 import { loadAppendBase, verifiedAppendBase, ensureAppendSchema, appendIntentStatement } from "../_shared/blower-incremental.js";
 import bedAshMinuteContract from "../../efficiency/bed-ash-minute-contract.js";
@@ -24308,19 +24308,22 @@ function createCofiringLiveContract() {
   function periodEnvelope(spec) { const p=period(spec); return {kind:'cofiring_period_request',schemaVersion:1,startLocal:p.startLocal,endLocal:p.endLocal,stepUnit:p.stepUnit,stepValue:p.stepValue,key:periodKey(p)}; }
   function validatePeriodSummaryItem(item,def,p) {
     // COFIRING_BIO_BOUNDARY_NODATA_CONTRACT_V4
+    // COFIRING_BIO_CONSTANT_ZERO_CONTRACT_V1: keep raw null/Bad boundaries;
+    // allow only a verified constant Bio counter throughout a full-Good interval.
     if(!item||item.key!==def.id||item.unit!==def.unit||item.fuel!==def.fuel||item.tag!==def.queryTag)fail('기간 TAG 식별 불일치: '+def.id);
     const numericKeys=['min','max','delta','usageTon','durationGoodSeconds','durationBadSeconds'];
     for(const k of numericKeys)if(!number(item[k]))fail('기간 숫자 누락: '+def.id+' '+k);
     const startApplied=item.startBoundaryFallbackApplied===true,endApplied=item.endBoundaryFallbackApplied===true;
-    if(startApplied&&endApplied)fail('기간 Bio 양쪽 경계를 동시에 복구할 수 없습니다: '+def.id);
+    const constantFallback=(def.fuel==='bio'&&startApplied&&endApplied&&item.usageBasis==='constant_bio_counter_full_good_both_nodata_fallback'&&item.startValue===null&&item.endValue===null&&noData(item.startQuality)&&noData(item.endQuality)&&number(item.startBoundaryFallbackValue)&&number(item.endBoundaryFallbackValue)&&item.min>=0&&item.min===item.max&&item.delta===0&&item.usageTon===0&&item.rangeSpread===0&&item.startBoundaryFallbackValue===item.min&&item.endBoundaryFallbackValue===item.min&&item.durationBadSeconds===0&&item.durationGoodSeconds>=0&&Math.abs(item.durationGoodSeconds-p.durationMinutes*60)<=2);
+    if(startApplied&&endApplied&&!constantFallback)fail('기간 Bio 양쪽 경계는 전체 Good 고정 누적계에서만 복구할 수 있습니다: '+def.id);
     const startFallback=(def.fuel==='bio'&&startApplied&&!endApplied&&item.usageBasis==='end_minus_period_min_start_nodata_fallback'&&!number(item.startValue)&&number(item.endValue)&&number(item.startBoundaryFallbackValue)&&item.startBoundaryFallbackValue>=0&&noData(item.startQuality)&&good(item.endQuality));
     const endFallback=(def.fuel==='bio'&&endApplied&&!startApplied&&item.usageBasis==='period_max_end_nodata_fallback_minus_start_boundary'&&number(item.startValue)&&!number(item.endValue)&&number(item.endBoundaryFallbackValue)&&item.endBoundaryFallbackValue>=0&&good(item.startQuality)&&noData(item.endQuality));
     const direct=number(item.startValue)&&number(item.endValue)&&!startApplied&&!endApplied;
-    if(startApplied&&!startFallback)fail('기간 시작 경계 fallback 메타데이터 불일치: '+def.id);
-    if(endApplied&&!endFallback)fail('기간 종료 경계 fallback 메타데이터 불일치: '+def.id);
-    if(!direct&&!startFallback&&!endFallback)fail('기간 경계 숫자 누락: '+def.id);
-    const effectiveStart=startFallback?item.startBoundaryFallbackValue:item.startValue;
-    const effectiveEnd=endFallback?item.endBoundaryFallbackValue:item.endValue;
+    if(startApplied&&!startFallback&&!constantFallback)fail('기간 시작 경계 fallback 메타데이터 불일치: '+def.id);
+    if(endApplied&&!endFallback&&!constantFallback)fail('기간 종료 경계 fallback 메타데이터 불일치: '+def.id);
+    if(!direct&&!startFallback&&!endFallback&&!constantFallback)fail('기간 경계 숫자 누락: '+def.id);
+    const effectiveStart=(startFallback||constantFallback)?item.startBoundaryFallbackValue:item.startValue;
+    const effectiveEnd=(endFallback||constantFallback)?item.endBoundaryFallbackValue:item.endValue;
     if(effectiveStart<0||effectiveEnd<0||item.min<0||item.max<0||item.usageTon<-0.001)fail('기간 누적값 음수: '+def.id);
     if(direct&&(!good(item.startQuality)||!good(item.endQuality)))fail('기간 경계 품질 불량: '+def.id);
     const st=Date.parse(item.startTime),et=Date.parse(item.endTime);
@@ -24336,7 +24339,7 @@ function createCofiringLiveContract() {
     if(item.durationGoodSeconds<0||item.durationBadSeconds<0||Math.abs(item.durationGoodSeconds+item.durationBadSeconds-expected)>2)fail('기간 품질 지속시간 불일치: '+def.id);
     if((startFallback||endFallback)&&item.durationBadSeconds>0.001)fail('기간 Bio 경계 fallback은 전체 Good 구간에서만 허용됩니다: '+def.id);
     if(item.boundaryValid!==true||item.durationCoverageValid!==true)fail('기간 Worker 경계 검증 실패: '+def.id);
-    return {...item,effectiveStartValue:effectiveStart,effectiveEndValue:effectiveEnd,startBoundaryRecovered:startFallback,endBoundaryRecovered:endFallback,dataComplete:item.durationBadSeconds<=0.001};
+    return {...item,effectiveStartValue:effectiveStart,effectiveEndValue:effectiveEnd,startBoundaryRecovered:(startFallback||constantFallback),endBoundaryRecovered:(endFallback||constantFallback),dataComplete:item.durationBadSeconds<=0.001};
   }
   function validateOrganicInventory(raw,p) {/* COFIRING_ORGANIC_START_BOUNDARY_2MIN_V1: Worker accepts the first valid inventory sample inside the first two minutes. *//* COFIRING_ORGANIC_LAST_ACTUAL_END_V1: allow the last actual inventory sample inside the selected period while retaining the existing legacy upper bound. */
     if(raw===null||raw===undefined)return null;

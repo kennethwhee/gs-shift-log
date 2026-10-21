@@ -1,0 +1,19 @@
+{
+  "revision": "COFIRING_BIO_ZERO_V1_TEST_INVERSE",
+  "previousNormalizedSha256": "64632eccbc4a5914c6c49e3ce0613f3b2dcaa42adfa362878a0ddedd207d71ab",
+  "productionNormalizedSha256": "325d208a714c0f041f89401b7d0ed22b70e8f22196188f4fb1f1355a70aa2042",
+  "previousWorkerSha256": "7b02eaa5c8289bad2c1fd06c9acc82336cfae5dd3f572f99a97115194fe73f25",
+  "productionWorkerSha256": "d7b24492078634d01fd12970c216e956ab24bdf25f2962606a27f6ce8a8f007c",
+  "rules": [
+    {
+      "from": "",
+      "to": "      # COFIRING_BIO_CONSTANT_BOTH_NODATA_FALLBACK_V1\n      # Keep the V4 single-boundary rules above unchanged. Recover two missing\n      # Bio boundaries only when every other queried cell is a valid response\n      # and full-Good interval statistics prove an exactly constant counter.\n      # Preserve original boundary values, qualities and timestamps in diagnostics.\n      $constantBioCounterBothNoDataFallbackApplied=$false\n      $startBoundaryExactNoData=($startBoundaryNoData -and ([string]($matrix.GetValue($rb+$r,$cb+0))).Trim() -ieq '#NODATA' -and $startQuality.Trim() -imatch '^No\\s+Data\\s*,\\s*Bad$')\n      $endBoundaryExactNoData=($endBoundaryNoData -and ([string]($matrix.GetValue($rb+$r,$cb+3))).Trim() -ieq '#NODATA' -and $endQuality.Trim() -imatch '^No\\s+Data\\s*,\\s*Bad$')\n      $constantBioQueryResponseValid=($null -ne $fastState -and $fastState.shapeValid -and $fastState.complete -and $fastState.pendingCells -eq 0 -and $fastState.errorCells -eq 0 -and $fastState.invalidCells -eq 2 -and $fastState.cells -eq ($rowsFast*$columnsFast) -and $fastState.valueCells -eq ($fastState.cells-2))\n      $constantBioFullGood=($durationCoverageValid -and $null -ne $durationGood -and $null -ne $durationBad -and $durationBad -eq 0 -and [Math]::Abs([double]$durationGood-$durationExpected) -le 2.0)\n      $constantBioRangeValid=($null -ne $minValue -and $null -ne $maxValue -and $null -ne $deltaValue -and $minValue -ge 0 -and $minValue -eq $maxValue -and $deltaValue -eq 0)\n      if ([string]$tag.fuel -eq 'bio' -and $startBoundaryExactNoData -and $endBoundaryExactNoData -and $constantBioQueryResponseValid -and $constantBioFullGood -and $constantBioRangeValid) {\n        $constantBioCounterBothNoDataFallbackApplied=$true\n        $startBoundaryFallbackApplied=$true\n        $startBoundaryFallbackValue=[double]$minValue\n        $endBoundaryFallbackApplied=$true\n        $endBoundaryFallbackValue=[double]$maxValue\n      }\n",
+      "count": 1
+    },
+    {
+      "from": "        usageTon=$usage;usageBasis=$(if($startBoundaryFallbackApplied){'end_minus_period_min_start_nodata_fallback'}elseif($endBoundaryFallbackApplied){'period_max_end_nodata_fallback_minus_start_boundary'}else{'end_minus_start_boundary'})\n",
+      "to": "        usageTon=$usage;usageBasis=$(if($constantBioCounterBothNoDataFallbackApplied){'constant_bio_counter_full_good_both_nodata_fallback'}elseif($startBoundaryFallbackApplied){'end_minus_period_min_start_nodata_fallback'}elseif($endBoundaryFallbackApplied){'period_max_end_nodata_fallback_minus_start_boundary'}else{'end_minus_start_boundary'})\n        constantBioCounterBothNoDataFallbackApplied=[bool]$constantBioCounterBothNoDataFallbackApplied\n",
+      "count": 1
+    }
+  ]
+}

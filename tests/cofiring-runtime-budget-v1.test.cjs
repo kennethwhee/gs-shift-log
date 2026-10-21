@@ -10,6 +10,7 @@ const {EventEmitter} = require('node:events');
 const {PassThrough} = require('node:stream');
 const {createCofiringPeriodCollector} = require('../local-tools/ois-agent/cofiring-dataparc-agent.js');
 const contract = require('../maintenance/cofiring-live-contract.js');
+const {restoreBioZero}=require('./helpers/cofiring-bio-zero-v1-preservation.cjs');
 
 const root = path.resolve(__dirname, '..');
 const controllerPath = path.join(root, 'local-tools/ois-agent/cofiring-period-v5/run-cofiring-period-v5.ps1');
@@ -79,9 +80,9 @@ test('the configured envelope covers the captured run and reserves room for inde
   assert.ok(outer > capturedRun.completedSeconds, 'The outer cap must not interrupt the captured completion');
   assert.ok(Number(remaining[1])*60 >= outer+cleanup+capturedRun.ownershipBeforeCancelSeconds+60,
     'Admission must cover the outer cap, cooperative cleanup, observed ownership lookup and delivery margin');
-  assert.equal(crypto.createHash('sha256').update(fs.readFileSync(workerPath)).digest('hex'),
+  assert.equal(crypto.createHash('sha256').update(Buffer.from('\uFEFF'+restoreBioZero(fs.readFileSync(workerPath,'utf8')).replace(/\n/g,'\r\n'))).digest('hex'),
     '7b02eaa5c8289bad2c1fd06c9acc82336cfae5dd3f572f99a97115194fe73f25',
-    'This budget correction must leave the reviewed worker and cleanup implementation byte-identical');
+    'After reversing the exact reviewed Bio aggregation delta, the budget correction retains the original worker and cleanup bytes');
 });
 
 test('a genuinely finished worker bypasses the timeout polling wait', ()=>{
