@@ -278,6 +278,36 @@ function Test-ControllerSignature($Signature) {
   try { return Test-ControllerProcessObject $process $Signature } finally { $process.Dispose() }
 }
 
+# COFIRING_CONTROLLER_BASELINE_OPTIONAL_PATH_V1
+# Baselines are pre-existing user processes, never cleanup targets. Some valid
+# Excel baselines do not expose Path. Always verify their pinned process identity;
+# compare Path only when the original snapshot supplied one. Owned-process and
+# termination checks continue to use the stricter Test-ControllerProcessObject.
+function Test-ControllerBaselineSignature($Signature) {
+  $process=$null
+  try {
+    if ($null -eq $Signature -or [int]$Signature.ProcessId -le 0 -or
+        [string]::IsNullOrWhiteSpace([string]$Signature.ProcessName) -or
+        [long]$Signature.StartTicks -le 0 -or $null -eq $Signature.SessionId) { return $false }
+    $process=Get-ControllerProcessById ([int]$Signature.ProcessId)
+    if ($null -eq $process) { return $false }
+    $handle=$process.Handle
+    $currentSession=$process.SessionId
+    if ($null -eq $handle -or [IntPtr]$handle -eq [IntPtr]::Zero -or $null -eq $currentSession) { return $false }
+    if ([int]$process.Id -ne [int]$Signature.ProcessId -or
+        -not [string]::Equals([string]$process.ProcessName, [string]$Signature.ProcessName, [StringComparison]::OrdinalIgnoreCase) -or
+        [long]$process.StartTime.ToUniversalTime().Ticks -ne [long]$Signature.StartTicks -or
+        [int]$currentSession -ne [int]$Signature.SessionId) { return $false }
+    if (-not [string]::IsNullOrWhiteSpace([string]$Signature.Path)) {
+      $currentPath=[string]$process.Path
+      if ([string]::IsNullOrWhiteSpace($currentPath) -or
+          -not [string]::Equals([IO.Path]::GetFullPath($currentPath), [IO.Path]::GetFullPath([string]$Signature.Path), [StringComparison]::OrdinalIgnoreCase)) { return $false }
+    }
+    return $true
+  } catch { return $false }
+  finally { if ($null -ne $process) { $process.Dispose() } }
+}
+
 function Get-ControllerCim([string]$Filter) {
   return @(Get-CimInstance -ClassName Win32_Process -Filter $Filter -OperationTimeoutSec 5 -ErrorAction Stop)
 }
@@ -831,7 +861,7 @@ try {
     try { Invoke-ControllerCleanup } finally { Set-ControllerTimingMark 'controller_cleanup_end' }
     Set-ControllerTimingMark 'baseline_verification_begin'
     foreach ($signature in @($baselineExcel)+@($baselineHosts)) {
-      if (-not (Test-ControllerSignature $signature)) { $cleanupErrors.Add('기존 사용자 프로세스가 조회 중 변경되거나 종료되었습니다. PID='+[string]$signature.ProcessId) }
+      if (-not (Test-ControllerBaselineSignature $signature)) { $cleanupErrors.Add('기존 사용자 프로세스가 조회 중 변경되거나 종료되었습니다. PID='+[string]$signature.ProcessId) }
     }
     Set-ControllerTimingMark 'baseline_verification_end'
     $script:processCleanupVerified=($cleanupErrors.Count -eq 0 -and $null -ne $workerSignature -and $null -ne $ownedExcel)

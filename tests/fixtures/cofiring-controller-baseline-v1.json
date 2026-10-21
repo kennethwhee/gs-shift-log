@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "source": "User-supplied 2026-10-22 diagnostic ownership.json; baseline identities only",
+  "baselineExcel": [
+    {
+      "ProcessId": 177848,
+      "ProcessName": "EXCEL",
+      "StartTicks": 639281975399692784,
+      "SessionId": 1,
+      "Path": ""
+    },
+    {
+      "ProcessId": 180548,
+      "ProcessName": "EXCEL",
+      "StartTicks": 639281975307771672,
+      "SessionId": 1,
+      "Path": ""
+    }
+  ]
+}
