@@ -241,9 +241,52 @@
   function tableEditHtml(){
     const fields=[['coal','Coal 사용량'],['bio','Bio 사용량'],['bioRatio','바이오 혼소율'],['organicRatio','유기성 및 축분 혼소율'],['totalRatio','종합 혼소율']];
     const comparisonPrefix='cfv56-edit-comparison-'+(++tableComparisonSequence);
-    return `<div class="cfv56-final-edit cfv56-table-editor" data-cfv56-final-edit hidden><p class="cfv56-table-edit-help">Coal 변경 시 혼소율 재계산 · Bio 변경 시 Coal 열량 보정 · 혼소율 변경 시 Coal 역산</p><div class="cfv56-edit-scroll"><table class="cfv56-edit-table"><thead><tr><th>호기</th><th>Coal (t)</th><th>Bio (t)</th><th>바이오 혼소율 (%)</th><th>유기성·축분 (%)</th><th>종합 혼소율 (%)</th></tr></thead><tbody>${UNITS.map((unit,i)=>`<tr><th>${i+1}호기</th>${fields.map(([key,label])=>{const id=comparisonPrefix+'-'+unit+'-'+key;return `<td><input type="number" min="0" max="${key==='coal'||key==='bio'?1000000:100}" step="0.01" inputmode="decimal" data-cfv56-table-unit="${unit}" data-cfv56-table-field="${key}" ${key==='bio'?`data-cfv56-final${i+1}`:''} aria-label="${i+1}호기 ${label}" aria-describedby="${id}"><div class="cfv56-edit-comparison" id="${id}" data-cfv56-edit-comparison data-cfv56-table-unit="${unit}" data-cfv56-table-key="${key}"><div class="cfv56-metric-base">원본 —</div><div class="cfv56-metric-delta is-zero">—</div></div></td>`;}).join('')}</tr>`).join('')}</tbody></table></div><div class="cfv56-table-edit-actions"><button type="button" data-cfv56-cancel-edit>수정 취소</button><button type="button" data-cfv56-preview-final>수정값 미리보기</button></div></div>`;
+    return `<div class="cfv56-final-edit cfv56-table-editor" data-cfv56-final-edit hidden><p class="cfv56-table-edit-help">Coal 변경 시 혼소율 재계산 · Bio 변경 시 Coal 열량 보정 · 혼소율 변경 시 Coal 역산</p><div class="cfv56-edit-scroll"><table class="cfv56-edit-table"><thead><tr><th>호기</th><th>Coal (t)</th><th>Bio (t)</th><th>바이오 혼소율 (%)</th><th>유기성·축분 (%)</th><th>종합 혼소율 (%)</th></tr></thead><tbody>${UNITS.map((unit,i)=>`<tr><th>${i+1}호기</th>${fields.map(([key,label])=>{const id=comparisonPrefix+'-'+unit+'-'+key;return `<td data-label="${label}"><input type="number" min="0" max="${key==='coal'||key==='bio'?1000000:100}" step="0.01" inputmode="decimal" data-cfv56-table-unit="${unit}" data-cfv56-table-field="${key}" ${key==='bio'?`data-cfv56-final${i+1}`:''} aria-label="${i+1}호기 ${label}" aria-describedby="${id}"><div class="cfv56-edit-comparison" id="${id}" data-cfv56-edit-comparison data-cfv56-table-unit="${unit}" data-cfv56-table-key="${key}"><div class="cfv56-metric-base">원본 —</div><div class="cfv56-metric-delta is-zero">—</div></div></td>`;}).join('')}</tr>`).join('')}</tbody></table></div><div class="cfv56-table-edit-actions"><button type="button" data-cfv56-cancel-edit>수정 취소</button><button type="button" data-cfv56-preview-final>수정값 미리보기</button></div></div>`;
   }
-  function modalHtml(){return `<div class="cfv56-adjust-modal cfv56-design-v15 cfv56-table-edit-v1" data-cfv56-adjust-modal hidden aria-hidden="true"><div class="cfv56-adjust-dialog" role="dialog" aria-modal="true" aria-label="혼소 조정"><header><div><span>CO-FIRING ADJUSTMENT</span><h3>혼소 조정</h3><p>Bio 이동과 최대혼소 조정 결과를 적용 전에 확인합니다.</p></div><div class="cfv56-header-actions"><button type="button" class="cfv56-calorific-button" data-cfv56-calorific title="발열량 확인 및 수정">발열량 설정</button><button type="button" data-cfv56-close aria-label="닫기">×</button></div></header><div class="cfv56-adjust-body"><div class="cfv56-adjust-top-grid"><section class="cfv56-top-card cfv56-top-card-period"><div class="cfv56-top-card-label">선택 기간 <span class="cfv56-inline-year" data-cfv56-year>2026년</span></div><strong data-cfv56-period>—</strong></section><section class="cfv56-top-card cfv56-top-card-cap"><div class="cfv56-cap-head"><div class="cfv56-top-card-label">호기당 Bio 최대량</div><p class="cfv56-cap-note" data-cfv56-cap>—</p></div><div class="cfv56-cap-group"><input data-cfv56-max type="number" min="0.01" max="2000" step="0.01"><span class="cfv56-unit">t/d</span><button type="button" data-cfv56-save-max>설정 저장</button></div></section></div><div class="cfv56-action-grid"><section class="cfv56-manual-card"><div class="cfv56-section-head"><div><h4>수동 이동</h4><p>호기 간 Bio 배분 조정</p></div></div><div class="cfv56-dir"><button type="button" class="is-selected" aria-pressed="true" data-cfv56-dir="1">1호기 → 2호기</button><button type="button" aria-pressed="false" data-cfv56-dir="2">2호기 → 1호기</button></div><label class="cfv56-transfer"><span class="cfv56-field-label">이동량</span><input data-cfv56-transfer type="number" min="0" step="0.01" placeholder="0.0"><span>t</span><button type="button" data-cfv56-preview-transfer>미리보기</button><button type="button" class="cfv56-transfer-cancel" data-cfv56-cancel-transfer>취소</button></label></section><section class="cfv56-auto cfv56-auto-card"><p class="cfv56-auto-copy-line">호기별 최대 혼소율 기준 · 선택기간 자동 환산</p><button type="button" data-cfv56-auto>최대혼소 조정</button></section></div><p class="cfv56-adjust-msg" data-cfv56-msg role="status" aria-live="polite" hidden></p><p class="cfv56-coal-review-notice" data-cfv56-coal-review-notice role="note" hidden><span aria-hidden="true">⚠</span> 최대혼소 조정 후 1·2호기 석탄 사용량을 확인해 주세요.</p><section class="cfv56-section cfv56-result-section"><div class="cfv56-final-head"><div><h4><span data-cfv56-result-title>현재 계산값</span><span class="cfv56-preview-badge" data-cfv56-preview-badge hidden>미리보기</span></h4><p>현재 계산된 원본 수치입니다.</p></div><div class="cfv56-result-unit">단위: t, % (%p = 퍼센트포인트)</div><button type="button" data-cfv56-edit>수정</button></div><div class="cfv56-final-scroll" data-cfv56-readonly><table><thead><tr><th>호기</th><th>Coal (t)</th><th>Bio (t)</th><th>바이오 혼소율</th><th>유기성 및 축분 혼소율</th><th>종합 혼소율</th></tr></thead><tbody data-cfv56-final></tbody></table></div><p class="cfv56-result-note" data-cfv56-result-note>조정 전 원본 수치입니다. 이동 또는 자동 조정으로 미리보기를 만드세요.</p>${tableEditHtml()}<p class="cfv56-formula">※ Bio 변경 시 Coal 보정량 = (변경 전 Bio − 변경 후 Bio) × Bio 발열량 ÷ Coal 발열량</p><p class="cfv56-formula">※ 혼소율은 전체 투입열량 기준입니다.</p></section></div><footer><button type="button" data-cfv56-reset>원복</button><span></span><button type="button" data-cfv56-cancel>취소</button><button type="button" class="primary" data-cfv56-apply>적용</button></footer></div></div>`;}
+  // COFIRING_ADJUSTMENT_PREVIEW_DESIGN_V1: one compact control deck and a clear comparison table.
+  let dialogSequence=0;
+  function zeroUsageHtml(result){
+    return UNITS.map((unit,index)=>{
+      const fuels=[['bio','Bio'],['coal','Coal'],['organic','유기성']].filter(([fuel])=>{
+        const value=result?.units?.[unit]?.[fuel];
+        return value?.quantity===0&&value.complete!==false&&!(fuel==='organic'&&result?.organicUsage?.provisionalZero===true);
+      });
+      return fuels.length?`<div class="cfv56-zero-row"><strong>${index+1}호기</strong><span>${fuels.map(([,label])=>`${label} 사용량 0톤 입니다.`).join(' · ')}</span></div>`:'';
+    }).join('');
+  }
+  function modalHtml(){
+    const prefix='cfv56-control-'+(++dialogSequence);
+    return `<div class="cfv56-adjust-modal cfv56-design-v15 cfv56-table-edit-v1 cfv56-preview-design-v1" data-cfv56-adjust-modal hidden aria-hidden="true">
+      <div class="cfv56-adjust-dialog" role="dialog" aria-modal="true" aria-label="혼소 조정">
+        <header><div><h3>혼소 조정</h3><p>조정 전후의 사용량과 혼소율을 확인하세요.</p></div><div class="cfv56-header-actions"><button type="button" class="cfv56-calorific-button" data-cfv56-calorific title="발열량 확인 및 수정">발열량 설정</button><button type="button" data-cfv56-close aria-label="닫기">×</button></div></header>
+        <div class="cfv56-adjust-body">
+          <section class="cfv56-period-inline cfv56-top-card-period"><span class="cfv56-period-label">선택 기간</span><span class="cfv56-inline-year" data-cfv56-year>2026년</span><strong data-cfv56-period>—</strong></section>
+          <div class="cfv56-control-deck">
+            <div class="cfv56-control-tabs" role="tablist" aria-label="조정 방법"><button type="button" id="${prefix}-auto-tab" role="tab" aria-selected="true" aria-controls="${prefix}-auto-panel" data-cfv56-tab="auto">최대혼소 조정</button><button type="button" id="${prefix}-manual-tab" role="tab" aria-selected="false" aria-controls="${prefix}-manual-panel" data-cfv56-tab="manual">수동 이동</button></div>
+            <section class="cfv56-control-panel" id="${prefix}-auto-panel" role="tabpanel" aria-labelledby="${prefix}-auto-tab" data-cfv56-panel="auto">
+              <section class="cfv56-top-card-cap"><div class="cfv56-top-card-label"><label for="${prefix}-max">호기당 Bio 최대량</label></div><div class="cfv56-cap-group"><input id="${prefix}-max" data-cfv56-max type="number" min="0.01" max="2000" step="0.01"><span class="cfv56-unit">t/d</span><button type="button" data-cfv56-save-max>설정 저장</button></div></section>
+              <section class="cfv56-auto cfv56-auto-card"><p class="cfv56-cap-note" data-cfv56-cap>—</p><p class="cfv56-auto-copy-line">호기별 최대 혼소율 기준 · 선택기간 자동 환산</p><button type="button" data-cfv56-auto>최대혼소 미리보기 <span aria-hidden="true">→</span></button></section>
+            </section>
+            <section class="cfv56-control-panel" id="${prefix}-manual-panel" role="tabpanel" aria-labelledby="${prefix}-manual-tab" data-cfv56-panel="manual" hidden>
+              <section class="cfv56-manual-card"><div class="cfv56-section-head"><div><h4>Bio 이동 방향</h4><p>호기 간 Bio 배분 조정</p></div></div><div class="cfv56-dir"><button type="button" class="is-selected" aria-pressed="true" data-cfv56-dir="1">1호기 → 2호기</button><button type="button" aria-pressed="false" data-cfv56-dir="2">2호기 → 1호기</button></div><label class="cfv56-transfer"><span class="cfv56-field-label">이동량</span><input data-cfv56-transfer aria-label="Bio 이동량" type="number" min="0" step="0.01" placeholder="0.0"><span>t</span><button type="button" data-cfv56-preview-transfer>미리보기</button><button type="button" class="cfv56-transfer-cancel" data-cfv56-cancel-transfer>초기화</button></label></section>
+            </section>
+          </div>
+          <p class="cfv56-adjust-msg" data-cfv56-msg role="status" aria-live="polite" hidden></p>
+          <section class="cfv56-section cfv56-result-section">
+            <div class="cfv56-final-head"><div><h4><span data-cfv56-result-title>현재 계산값</span><span class="cfv56-preview-badge" data-cfv56-preview-badge hidden>미리보기</span></h4><p>현재 계산된 원본 수치입니다.</p></div><button type="button" data-cfv56-edit aria-pressed="false">직접 수정</button></div>
+            <div class="cfv56-final-scroll" data-cfv56-readonly><table aria-label="호기별 혼소 조정 결과"><thead><tr><th scope="col">호기</th><th scope="col">Coal (t)</th><th scope="col">Bio (t)</th><th scope="col">바이오 혼소율</th><th scope="col">유기성 및 축분 혼소율</th><th scope="col">종합 혼소율</th></tr></thead><tbody data-cfv56-final></tbody></table></div>
+            ${tableEditHtml()}
+            <div class="cfv56-table-legend"><span><span class="cfv56-legend-up">↑ 증가</span><span class="cfv56-legend-down">↓ 감소</span><span>— 변동 없음</span></span><span>단위: t, % · %p = 퍼센트포인트</span></div>
+            <div class="cfv56-zero-notices" data-cfv56-zero-notices role="note" aria-label="원본 연료 사용량 0톤 안내" hidden></div>
+            <p class="cfv56-result-note" data-cfv56-result-note>조정 전 원본 수치입니다. 이동 또는 자동 조정으로 미리보기를 만드세요.</p>
+            <p class="cfv56-coal-review-notice" data-cfv56-coal-review-notice role="note" hidden><span aria-hidden="true">ⓘ</span> 최대혼소 조정 후 1·2호기 석탄 사용량을 확인해 주세요.</p>
+            <details class="cfv56-calculation"><summary>계산 기준</summary><p class="cfv56-formula">※ Bio 변경 시 Coal 보정량 = (변경 전 Bio − 변경 후 Bio) × Bio 발열량 ÷ Coal 발열량</p><p class="cfv56-formula">※ 혼소율은 전체 투입열량 기준입니다.</p></details>
+          </section>
+        </div>
+        <footer><button type="button" data-cfv56-reset>원본으로</button><span class="cfv56-footer-hint" data-cfv56-footer-hint>아직 적용되지 않았습니다.</span><button type="button" data-cfv56-cancel>취소</button><button type="button" class="primary" data-cfv56-apply>조정값 적용</button></footer>
+      </div>
+    </div>`;
+  }
   // COFIRING_ADJUSTMENT_MANUAL_AUTO_COMPACT_V8
   // COFIRING_ADJUSTMENT_AUTOCARD_ROLLBACK_V9
   function create(options){
@@ -251,6 +294,24 @@
     const wrap=root.document.createElement('div');wrap.innerHTML=modalHtml();const modal=wrap.firstElementChild;root.document.body.appendChild(modal);
     let serverRevision=0,direction=1,preview=null,manualPreviewActive=false,base=null,settings=null,spec=null,epoch=0,ready=false,busy=false,disposed=false,returnFocus=null,contextSignature='';
     const q=s=>modal.querySelector(s),msg=(text,bad=false)=>{const e=q('[data-cfv56-msg]');e.textContent=text||'';e.dataset.bad=bad?'1':'0';e.hidden=!text;};
+    // Tabs change the visible controls only; calculation drafts and previews are retained.
+    function selectAdjustmentTab(name,focus=false){
+      if(busy||!['auto','manual'].includes(name))return;
+      for(const tab of modal.querySelectorAll('[data-cfv56-tab]')){
+        const selected=tab.dataset.cfv56Tab===name;
+        tab.setAttribute('aria-selected',String(selected));
+        if(selected&&focus)tab.focus();
+      }
+      for(const panel of modal.querySelectorAll('[data-cfv56-panel]'))panel.hidden=panel.dataset.cfv56Panel!==name;
+    }
+    for(const tab of modal.querySelectorAll('[data-cfv56-tab]')){
+      tab.addEventListener('click',()=>{if(ready&&!busy)selectAdjustmentTab(tab.dataset.cfv56Tab);});
+      tab.addEventListener('keydown',event=>{
+        if(!ready||busy||!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+        event.preventDefault();
+        selectAdjustmentTab(event.key==='Home'?'auto':event.key==='End'?'manual':tab.dataset.cfv56Tab==='auto'?'manual':'auto',true);
+      });
+    }
     const signature=ctx=>JSON.stringify([ctx?.spec,ctx?.settings,ctx?.result?.units]);
     const currentContext=()=>{try{return options.getContext?.()?.result===base&&signature(options.getContext?.())===contextSignature;}catch(_){return false;}};
     let tableEditing=false,tableDraft=null,tableBefore=null,tableCustom=false;
@@ -370,7 +431,11 @@
       if(autoCopy)autoCopy.textContent=inactiveUnits.length===1?`${inactiveUnits[0]==='unit1'?'2호기':'1호기'} Bio만 조정 · ${inactiveNames} 0t 유지`:inactiveUnits.length===2?'Bio 미사용 · 조정할 사용량이 없습니다.':'호기별 최대 혼소율 기준 · 선택기간 자동 환산';
       q('[data-cfv56-apply]').disabled=!ready||busy||tableEditing||!preview?.ok;
       q('[data-cfv56-edit]').disabled=!ready||busy||tableEditing;
-      q('[data-cfv56-edit]').textContent=tableEditing?'수정 중':'수정';
+      q('[data-cfv56-edit]').textContent=tableEditing?'수정 중':'직접 수정';
+      q('[data-cfv56-edit]').setAttribute('aria-pressed',String(tableEditing));
+      const zeroNotices=q('[data-cfv56-zero-notices]'),zeroHtml=ready?zeroUsageHtml(base):'';
+      zeroNotices.innerHTML=zeroHtml;zeroNotices.hidden=!zeroHtml;
+      q('[data-cfv56-footer-hint]').textContent=tableEditing?'미리보기 후 적용해 주세요.':hasPreview?'아직 적용되지 않았습니다.':'조정 전 원본 수치입니다.';
       if(tableEditing){q('[data-cfv56-result-title]').textContent='수치 수정';q('[data-cfv56-result-note]').hidden=true;}
       for(const sel of ['[data-cfv56-close]','[data-cfv56-cancel]'])q(sel).disabled=busy;
       const calorificButton=q('[data-cfv56-calorific]');
@@ -412,7 +477,7 @@
       if(busy||disposed)return;const ctx=options.getContext?.();base=ctx?.result;settings=ctx?.settings;spec=ctx?.spec;
       if(!base||!settings||!spec){options.onMessage?.('먼저 기간 계산을 완료해 주세요.');return;}
       const token=++epoch;contextSignature=signature(ctx);preview=resolveStored(base,settings,spec);manualPreviewActive=false;ready=false;direction=1;
-      q('[data-cfv56-transfer]').value='';stopTableEdit();
+      q('[data-cfv56-transfer]').value='';stopTableEdit();selectAdjustmentTab('auto');
       for(const b of modal.querySelectorAll('[data-cfv56-dir]')){const selected=b.dataset.cfv56Dir==='1';b.classList.toggle('is-selected',selected);b.setAttribute('aria-pressed',String(selected));}
       q('[data-cfv56-period]').textContent=compactPeriod(spec);
       const yearNode=q('[data-cfv56-year]');
