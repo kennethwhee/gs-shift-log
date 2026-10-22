@@ -11,6 +11,8 @@ const slice = (start, end) => { const a=source.indexOf(start), b=source.indexOf(
 const feedback = slice('  /* BLOWER_QUERY_FEEDBACK_V1:', '  function updateOverviewRefreshProgress(');
 const refresh = slice('  async function refreshAllBlowers()', '  async function refreshFbheForUnified(');
 const permission = slice('  function hasAuthenticatedWriteAccess(', '  function isPublicMonitoringView(');
+const guard = slice('  function assertUnifiedRefreshWritable(', '  async function refreshAllBlowers(');
+const headers = slice('  function getAuthHeaders(', '  function hasAuthenticatedWriteAccess(');
 const send = slice('  async function sendApiRequest(', '  function buildAdaptiveRetryLimits(');
 const TAG='104ETH03AN602', NOW='2026-10-22T08:00:00Z';
 const asset={tagNumber:TAG,displayName:'Test Blower',enabled:true,lastReplacementAt:'2026-10-01T00:00:00Z',cycleStartState:'legacy',cycleRuntimeRevision:'fresh-r2',dataParcRuntimeBasis:null,hasUnverifiedDataParcHistory:false};
@@ -28,8 +30,7 @@ function harness(options={}) {
  const context=vm.createContext({state,elements,API_URL:'/api/blower-history',Date,Map,Set,Number,String,Math,Error,Object,
   window:{BlowerUnifiedRefresh:core,setInterval(fn){timers.set(++id,fn);return id;},clearInterval(id){timers.delete(id);},setTimeout,clearTimeout},
   performance:{now:()=>clock},document:{body:{classList:{add:x=>classes.add(x),remove:x=>classes.delete(x)}}},navigator:{},
-  isMobileMonitoringView:()=>Boolean(options.mobile),getSessionToken:()=> 'synthetic-session',
-  assertUnifiedRefreshWritable(){if(options.revoked)throw Object.assign(new Error('session changed'),{status:403});},
+  isMobileMonitoringView:()=>Boolean(options.mobile),getSessionToken:()=> options.token === undefined ? 'synthetic-session' : options.token,
   setBusy:b=>{state.busy=b;},updateOverviewRefreshProgress(p,t){state.unifiedRefreshProgressPct=p;state.unifiedRefreshProgressText=t;},
   setOverviewRefreshProcessed(n,total){state.unifiedRefreshProgressTarget=total;state.unifiedRefreshProgressPct=total?n/total*100:0;},
   renderUnifiedRefreshProgress(){},renderAssets(){},renderOverviewRefreshPanel(){},
@@ -38,7 +39,7 @@ function harness(options={}) {
   apiRequest:async r=>{calls.api.push(r);if(options.readError)throw options.readError;return options.snapshot??snapshot();},
   loadData:async()=>{calls.reload++;if(options.finalError)throw options.finalError;return state.data;}
  });
- vm.runInContext(permission+feedback+refresh,context);
+ vm.runInContext(permission+headers+feedback+guard+refresh,context);
  return {context,state,elements,calls,classes,timers,tick(ms){clock=ms;for(const fn of timers.values())fn();},run:()=>context.refreshAllBlowers()};
 }
 test('actual refresh keeps centered phase short through retry text and ignores a second click',async()=>{
@@ -125,4 +126,65 @@ test('SQLite planning conservatively flags unverified stored DataPARC history wi
   const original=await api.loadAssetStates(f.database,{});assert.equal(original.find(a=>a.tagNumber===TAG).hasUnverifiedDataParcHistory,undefined);
   assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM blower_history_events').get().n,1);
  }finally{f.sql.close();}
+});
+
+test('desktop query survives a narrow viewport; only its scoped requests keep desktop headers',async()=>{
+ const options={gate:deferred()},h=harness(options),pending=h.run();options.mobile=true;
+ assert.doesNotThrow(()=>h.context.assertUnifiedRefreshWritable());
+ assert.equal(h.context.getAuthHeaders()['X-GS-Client-Mode'],'mobile-monitoring');
+ assert.equal(h.context.getAuthHeaders({},true)['X-GS-Client-Mode'],'desktop');
+ options.gate.resolve();await pending;
+ assert.equal(h.calls.batch,1);assert.equal(h.elements.unifiedRefreshStatus.dataset.state,'complete');
+ assert.equal(h.calls.api[0].unifiedRefresh,true);assert.equal(h.state.unifiedRefreshClientMode,'');
+ assert.equal(h.context.getAuthHeaders({},true)['X-GS-Client-Mode'],'mobile-monitoring');
+});
+for(const kind of ['logout','different account','permission revoked'])test(`${kind} still stops an admitted query before planning or runtime requests`,async()=>{
+ const options={gate:deferred()},h=harness(options),pending=h.run();options.mobile=true;
+ if(kind==='permission revoked')h.state.data.permissions.canWrite=false;else options.token=kind==='logout'?'':'another-token';
+ assert.throws(()=>h.context.assertUnifiedRefreshWritable(),e=>e.status===403&&e.code==='WRITE_ACCESS_CHANGED');
+ options.gate.resolve();await pending;
+ assert.equal(h.calls.batch,0);assert.equal(h.calls.api.length,0);assert.equal(h.elements.unifiedRefreshStatus.dataset.state,'failed');
+ assert.match(h.elements.unifiedRefreshText.textContent,/로그인/);assert.equal(h.timers.size,0);assert.equal(h.state.unifiedRefreshClientMode,'');
+});
+test('view changed while waiting for the cross-tab lock cannot admit a new desktop query',async()=>{
+ const options={},h=harness(options);
+ h.context.navigator.locks={request:async(name,config,callback)=>{options.mobile=true;return callback({});}};
+ await h.run();assert.equal(h.calls.batch,0);assert.equal(h.calls.reload,1);assert.equal(h.timers.size,0);
+});
+test('actual scoped HTTP sender keeps desktop headers and checks auth again after reading the response',async()=>{
+ const options={gate:deferred()},h=harness(options),pending=h.run();options.mobile=true;
+ h.context.parseRetryAfterMs=()=>0;vm.runInContext(send,h.context);
+ const gate=deferred();let fetches=0;
+ h.context.fetch=async(url,opts)=>{fetches++;assert.equal(opts.headers['X-GS-Client-Mode'],'desktop');assert.equal(opts.headers.Authorization,'Bearer synthetic-session');return gate.promise;};
+ const request=h.context.sendApiRequest({url:'/api/blower-history?action=refresh_state',unifiedRefresh:true});
+ options.token='new-session';gate.resolve(new Response(JSON.stringify(snapshot()),{status:200}));
+ await assert.rejects(request,e=>e.code==='WRITE_ACCESS_CHANGED');assert.equal(fetches,1);
+ await assert.rejects(()=>h.context.sendApiRequest({unifiedRefresh:true}),e=>e.code==='WRITE_ACCESS_CHANGED');assert.equal(fetches,1);
+ options.gate.resolve();await pending;
+});
+test('Cloudflare problem JSON reveals 1102 and bounded safe detail without printing session tokens',async()=>{
+ const h=harness();h.context.parseRetryAfterMs=()=>0;vm.runInContext(send,h.context);
+ h.context.fetch=async()=>new Response(JSON.stringify({cloudflare_error:true,status:503,title:'Error 1102: Worker exceeded resource limits',detail:'CPU limit synthetic-session '+ 'x'.repeat(1000),error_code:1102,error_category:'worker',ray_id:'test-edge',retryable:false}),{status:503});
+ await assert.rejects(()=>h.context.sendApiRequest(),e=>{
+  assert.equal(e.status,503);assert.equal(e.cloudflareCode,'1102');assert.equal(e.code,'CLOUDFLARE_1102');assert.equal(e.retryable,false);assert.equal(e.cfRay,'test-edge');assert.equal(e.responseKind,'JSON');
+  assert.match(e.message,/1102/);assert.match(e.serverDetail,/CPU limit/);assert.doesNotMatch(e.serverDetail,/synthetic-session/);assert.ok(e.serverDetail.length<=600);return true;
+ });
+});
+test('Cloudflare diagnostic header works for an empty error body; empty is not mislabeled JSON',async()=>{
+ const h=harness();h.context.parseRetryAfterMs=()=>0;vm.runInContext(send,h.context);
+ h.context.fetch=async()=>new Response('',{status:503,headers:{'CF-Error-Type':'1102','CF-Ray':'header-edge'}});
+ await assert.rejects(()=>h.context.sendApiRequest(),e=>{assert.equal(e.cloudflareCode,'1102');assert.equal(e.cfRay,'header-edge');assert.equal(e.responseKind,'empty');return true;});
+});
+test('ordinary application errors retain their message/code and do not impersonate Cloudflare',async()=>{
+ const h=harness();h.context.parseRetryAfterMs=()=>0;vm.runInContext(send,h.context);
+ h.context.fetch=async()=>new Response(JSON.stringify({ok:false,message:'세션 만료',code:'AUTH_EXPIRED',error_code:1102,detail:'not a Cloudflare error'}),{status:401});
+ await assert.rejects(()=>h.context.sendApiRequest(),e=>{assert.equal(e.message,'세션 만료');assert.equal(e.code,'AUTH_EXPIRED');assert.equal(e.cloudflareCode,'');assert.equal(e.serverDetail,'');return true;});
+});
+test('non-retryable resource-limit errors stop read, log replay, and polling without repeated calls',async()=>{
+ for(const operation of ['read','logs','poll']){
+  let calls=0;const fail=async()=>{calls++;throw Object.assign(new Error('resource limit'),{status:503,code:'CLOUDFLARE_1102',retryable:false});};
+  const io={api:fail,assertWritable(){},progress(){}};const opts={sleep:async()=>{throw Error('must not retry');}};
+  await assert.rejects(()=>operation==='read'?realCore.readWithRetry(fail,io,'test',opts):operation==='logs'?realCore.refreshLogsForRuntime(io,opts):realCore.waitRequests([{id:'test-query',status:'pending'}],io,opts),e=>e.code==='CLOUDFLARE_1102');
+  assert.equal(calls,1);
+ }
 });

@@ -167,7 +167,7 @@
         pollCount += 1;
         retry = 0;
       } catch (e) {
-        if (![0,429,502,503,504].includes(Number(e?.status || 0)) || retry >= 4) throw e;
+        if (e?.retryable === false || ![0,429,502,503,504].includes(Number(e?.status || 0)) || retry >= 4) throw e;
         await sleep(Math.min(30000, Math.max(1000 * 2 ** retry++, Number(e.retryAfterMs) || 0))); continue;
       }
       const returned = payloads.flatMap(payload => Array.isArray(payload?.items) ? payload.items : []);
@@ -338,7 +338,7 @@
     return parts.join(' · ');
   }
   function transient(e) {
-    return [0,429,502,503,504].includes(Number(e?.status || 0)) &&
+    return e?.retryable !== false && [0,429,502,503,504].includes(Number(e?.status || 0)) &&
       !['INVALID_LOG_PAGE','BLOWER_LOG_PAGE_INVALID','WRITE_ACCESS_CHANGED'].includes(e?.code);
   }
   async function readWithRetry(read, io, label = '현황 다시 읽기', options = {}) {

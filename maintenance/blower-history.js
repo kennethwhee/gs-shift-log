@@ -64,6 +64,7 @@
     vibrationPreset: "cycle",
     unifiedRefreshBusy: false,
     unifiedRefreshToken: "",
+    unifiedRefreshClientMode: "",
     unifiedRefreshResults: [],
     unifiedRefreshProgressPct: 0,
     unifiedRefreshProgressText: "통합조회 대기",
@@ -295,12 +296,15 @@
     return String(user?.sessionToken || user?.session_token || "").trim();
   }
 
-  function getAuthHeaders(extra = {}) {
+  function getAuthHeaders(extra = {}, unifiedRefresh = false) {
     const token = getSessionToken();
 
     return {
       Accept: "application/json",
-      "X-GS-Client-Mode": isMobileMonitoringView() ? "mobile-monitoring" : "desktop",
+      // An explicitly started desktop query keeps its mode when DevTools or
+      // window resizing changes layout. Session/permission guards remain live.
+      "X-GS-Client-Mode": unifiedRefresh && state.unifiedRefreshBusy && state.unifiedRefreshClientMode === "desktop"
+        ? "desktop" : isMobileMonitoringView() ? "mobile-monitoring" : "desktop",
       ...extra,
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     };
@@ -425,6 +429,7 @@
   }
 
   async function sendApiRequest(options = {}) {
+    if (options.unifiedRefresh === true) assertUnifiedRefreshWritable();
     const method = options.method || "GET";
 
     if (method !== "GET" && !hasAuthenticatedWriteAccess()) {
@@ -449,7 +454,8 @@
         headers: getAuthHeaders(
           options.body
             ? { "Content-Type": "application/json; charset=utf-8" }
-            : {}
+            : {},
+          options.unifiedRefresh === true
         ),
         cache: "no-store",
         body: options.body ? JSON.stringify(options.body) : undefined,
@@ -468,6 +474,7 @@
       if (timeoutId !== null) window.clearTimeout(timeoutId);
     }
 
+    if (options.unifiedRefresh === true) assertUnifiedRefreshWritable();
     let result = {};
     let invalidJson = false;
 
@@ -481,14 +488,27 @@
     }
 
     if (!response.ok || result.ok === false) {
-      const error = new Error(result.message || `요청 실패 (HTTP ${response.status})`);
+      // Cloudflare RFC 9457 responses use title/detail/error_code, not message.
+      const cfProblem = result.cloudflare_error === true;
+      const safeText = value => {
+        const text = typeof value === "string" ? value : "";
+        const token = getSessionToken();
+        return (token ? text.replaceAll(token, "[인증정보 숨김]") : text).replace(/[\u0000-\u001f]/g, " ").slice(0, 600);
+      };
+      const headerCode = response.headers.get("CF-Error-Type") || "";
+      const cfCode = headerCode || (cfProblem ? String(result.error_code || "") : "") ||
+        (invalidJson ? text.match(/(?:error\s*code\s*:?|error\s*)\s*(1[0-9]{3})\b/i)?.[1] || "" : "");
+      const error = new Error(safeText(result.message) || (cfProblem ? safeText(result.title) : "") || `요청 실패 (HTTP ${response.status})`);
       error.status = response.status;
-      error.code = String(result.code || "HTTP_ERROR");
-      error.retryable = result.retryable === true || [429, 502, 503, 504].includes(response.status);
+      error.cloudflareCode = /^(?:1[0-9]{3}|5[0-9]{2})$/.test(cfCode) ? cfCode : "";
+      error.code = String(result.code || (error.cloudflareCode ? "CLOUDFLARE_" + error.cloudflareCode : "HTTP_ERROR"));
+      error.retryable = cfProblem && result.retryable === false ? false : result.retryable === true || [429, 502, 503, 504].includes(response.status);
       error.retryAfterMs = parseRetryAfterMs(response.headers.get("Retry-After"));
-      error.cfRay = String(response.headers.get("CF-Ray") || "");
-      error.responseKind = invalidJson ? (/^\s*</.test(text) ? "HTML" : "text") : "JSON";
-      error.cloudflareCode = invalidJson ? (text.match(/(?:error\s*code\s*:?|error\s*)\s*(1[0-9]{3})\b/i)?.[1] || "") : "";
+      if (!error.retryAfterMs && cfProblem && Number.isFinite(result.retry_after) && result.retry_after >= 0) error.retryAfterMs = Math.min(30000, result.retry_after * 1000);
+      error.cfRay = safeText(response.headers.get("CF-Ray") || (cfProblem ? result.ray_id || result.instance : ""));
+      error.responseKind = !text.trim() ? "empty" : invalidJson ? (/^\s*</.test(text) ? "HTML" : "text") : "JSON";
+      error.serverDetail = cfProblem ? safeText(result.detail) : "";
+      error.serverCategory = cfProblem ? safeText(result.error_category) : "";
       error.payload = result;
       throw error;
     }
@@ -1868,7 +1888,7 @@
     if (elements.unifiedRefreshDiagnostics) elements.unifiedRefreshDiagnostics.hidden = !details;
   }
   async function readUnifiedRefreshPlan(core, io) {
-    const snapshot = await core.readWithRetry(() => apiRequest({
+    const snapshot = await core.readWithRetry(() => io.api({
       url: API_URL + "?action=refresh_state", timeoutMs: 20000
     }), io, "조회 기준 확인");
     assertUnifiedRefreshWritable();
@@ -10659,7 +10679,7 @@
   }
 
   function assertUnifiedRefreshWritable() {
-    if (!state.unifiedRefreshBusy || isMobileMonitoringView() || !hasAuthenticatedWriteAccess() ||
+    if (!state.unifiedRefreshBusy || state.unifiedRefreshClientMode !== "desktop" || !hasAuthenticatedWriteAccess() ||
         !getSessionToken() || getSessionToken() !== state.unifiedRefreshToken) {
       const error = new Error("로그인 또는 조회 권한이 변경되어 최신화를 중단했습니다. 완료된 값은 유지합니다.");
       error.status = 403; error.code = "WRITE_ACCESS_CHANGED"; throw error;
@@ -10674,6 +10694,10 @@
     }
     const run = async () => {
       if (state.busy || state.unifiedRefreshBusy) return;
+      // Recheck admission after acquiring the cross-tab lock. Mobile/public
+      // views may read saved results but cannot start a desktop query.
+      if (isMobileMonitoringView() || !hasAuthenticatedWriteAccess()) { await loadData({ syncOperations: false }); return; }
+      state.unifiedRefreshClientMode = "desktop";
       state.unifiedRefreshBusy = true;
       state.unifiedRefreshToken = getSessionToken();
       state.unifiedRefreshResults = [];
@@ -10698,7 +10722,10 @@
         state.unifiedLogResume = null;
       }
       state.unifiedLogResumeOwner = state.unifiedRefreshToken;
-      const io = { api: apiRequest, assertWritable: assertUnifiedRefreshWritable, progress,
+      const io = { api: options => {
+          assertUnifiedRefreshWritable();
+          return apiRequest({ ...options, unifiedRefresh: true });
+        }, assertWritable: assertUnifiedRefreshWritable, progress,
         checkpoint: value => { state.unifiedLogResume = value; },
         reload: () => core.readWithRetry(() => loadData({ silent: true, syncOperations: false, strict: true, timeoutMs: 20000 }), io) };
       try {
@@ -10763,11 +10790,17 @@
         const detail = core?.errorLabel ? core.errorLabel(e) : (e.message || "연결 오류");
         updateOverviewRefreshProgress(state.unifiedRefreshProgressPct, `중단 · ${phase}`);
         renderUnifiedRefreshProgress(`통합조회 중단 · ${phase} · ${detail}${logNote ? ` · ${logNote}` : ""}`);
-        const summary = [502, 503, 504].includes(Number(e.status))
+        const summary = e.code === "WRITE_ACCESS_CHANGED" || ([401, 403].includes(Number(e.status)) && !e.cloudflareCode)
+          ? "로그인 상태 또는 조회 권한이 변경되어 중단됐습니다. 업무일지에서 로그인 상태를 확인해 주세요."
+          : e.cloudflareCode === "1102"
+          ? "서버 처리 한도를 초과해 조회가 중단됐습니다. 조회 상세의 오류 내용을 확인해 주세요."
+          : e.cloudflareCode
+          ? `서버에서 요청을 처리하지 못했습니다 (Cloudflare ${e.cloudflareCode}). 조회 상세를 확인해 주세요.`
+          : [502, 503, 504].includes(Number(e.status))
           ? `서버 응답 오류로 조회하지 못했습니다 (HTTP ${Number(e.status)}). 기존 조회 결과를 표시합니다.`
           : "조회가 완료되지 않았습니다. 기존 조회 결과를 표시합니다.";
         renderUnifiedRefreshOutcome("failed", summary,
-          `${phase} · ${detail}\n${logNote}${e.responseKind ? "\n응답 형식: " + e.responseKind : ""}${e.cloudflareCode ? "\nCloudflare 코드: " + e.cloudflareCode : ""}`);
+          `${phase} · ${detail}\n${logNote}${e.responseKind ? "\n응답 형식: " + e.responseKind : ""}${e.cloudflareCode ? "\nCloudflare 코드: " + e.cloudflareCode : ""}${e.serverCategory ? "\n서버 분류: " + e.serverCategory : ""}${e.serverDetail ? "\n서버 설명: " + e.serverDetail : ""}`);
         showToast(summary, "error");
         // The bounded read already exhausted retries. Keep the visible snapshot;
         // an extra full read here used to overwrite the useful failure notice.
@@ -10775,6 +10808,7 @@
         finishUnifiedRefreshFeedback();
         state.unifiedRefreshBusy = false;
         state.unifiedRefreshToken = "";
+        state.unifiedRefreshClientMode = "";
         elements.refreshButton.removeAttribute("aria-busy");
         setBusy(false);
         if (elements.unifiedRefreshStatus) elements.unifiedRefreshStatus.dataset.state = stopped ? "failed" : partial ? "partial" : "complete";
