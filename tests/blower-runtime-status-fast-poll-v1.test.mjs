@@ -64,7 +64,8 @@ test('one-click refresh performs one planning read and one final read-back', () 
     source.indexOf('async function refreshAllBlowers()'),
     source.indexOf('async function refreshFbheForUnified(')
   );
-  assert.equal((body.match(/await io\.reload\(\);/g) || []).length, 2);
+  assert.equal((body.match(/await io\.reload\(\);/g) || []).length, 1);
+  assert.match(body, /await readUnifiedRefreshPlan\(core, io\)/);
   assert.doesNotMatch(body, /every independent append[\s\S]{0,240}await io\.reload/);
 });
 

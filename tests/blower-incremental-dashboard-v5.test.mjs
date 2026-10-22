@@ -27,7 +27,7 @@ test('dashboard calls one browser batch instead of serial execute/reload per Blo
   const refresh = ui.slice(ui.indexOf('async function refreshAllBlowers()'), ui.indexOf('async function refreshFbheForUnified'));
   assert.match(refresh, /core\.executeDataParcBatch\(planned\.tasks, io\)/);
   assert.doesNotMatch(refresh, /for\s*\(const task of planned\.tasks\)[\s\S]*?core\.executeDataParc\(/);
-  assert.match(refresh, /await io\.reload\(\);[\s\S]*?일괄 조회 결과 반영/);
+  assert.match(refresh, /await readUnifiedRefreshPlan\(core, io\);[\s\S]*?일괄 조회 결과 반영/);
 });
 
 test('23 probes use one atomic create action before one immediate status batch', async () => {

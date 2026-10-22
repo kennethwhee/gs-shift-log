@@ -140,6 +140,8 @@
       "overviewRefreshPanel", "overviewLatestQueryAt", "overviewLatestQueryDetail",
       "refreshButton", "overviewRefreshPercent", "overviewRefreshProgressText", "overviewRefreshProgressTrack", "overviewRefreshProgressBar",
       "unifiedRefreshStatus", "unifiedRefreshText", "unifiedRefreshDetails", "unifiedRefreshSummary", "unifiedRefreshList",
+      "blowerQueryOverlay", "blowerQueryPhase", "blowerQueryElapsed",
+      "unifiedRefreshDiagnostics", "unifiedRefreshDiagnosticText",
       "historyRuntimeQueryButton",
       "dataparcRuntimeDialog",
       "dataparcRuntimeForm",
@@ -485,6 +487,8 @@
       error.retryable = result.retryable === true || [429, 502, 503, 504].includes(response.status);
       error.retryAfterMs = parseRetryAfterMs(response.headers.get("Retry-After"));
       error.cfRay = String(response.headers.get("CF-Ray") || "");
+      error.responseKind = invalidJson ? (/^\s*</.test(text) ? "HTML" : "text") : "JSON";
+      error.cloudflareCode = invalidJson ? (text.match(/(?:error\s*code\s*:?|error\s*)\s*(1[0-9]{3})\b/i)?.[1] || "") : "";
       error.payload = result;
       throw error;
     }
@@ -1821,13 +1825,81 @@
     };
   }
 
+  /* BLOWER_QUERY_FEEDBACK_V1: one stable viewport status, details kept out of layout. */
+  let unifiedFeedbackTimer = null;
+  let unifiedFeedbackStartedAt = 0;
+  function unifiedRefreshPhaseLabel(phase) {
+    if (phase === "업무일지") return "교체 이력을 확인하고 있습니다";
+    if (phase === "조회 계획") return "조회 기준을 확인하고 있습니다";
+    if (phase === "DataPARC 일괄 조회") return "운전시간을 조회하고 있습니다";
+    if (phase === "결과 확인") return "조회 결과를 확인하고 있습니다";
+    return "필요한 자료를 준비하고 있습니다";
+  }
+  function setUnifiedRefreshPhase(phase) {
+    state.unifiedRefreshPhase = phase;
+    const label = unifiedRefreshPhaseLabel(phase);
+    if (elements.blowerQueryPhase && elements.blowerQueryPhase.textContent !== label) elements.blowerQueryPhase.textContent = label;
+  }
+  function startUnifiedRefreshFeedback() {
+    if (unifiedFeedbackTimer !== null) window.clearInterval(unifiedFeedbackTimer);
+    unifiedFeedbackStartedAt = performance.now();
+    const tick = () => {
+      const seconds = Math.max(0, Math.floor((performance.now() - unifiedFeedbackStartedAt) / 1000));
+      if (elements.blowerQueryElapsed) elements.blowerQueryElapsed.textContent = `경과 ${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+    };
+    tick();
+    unifiedFeedbackTimer = window.setInterval(tick, 1000);
+    if (elements.blowerQueryOverlay) elements.blowerQueryOverlay.hidden = false;
+    document.body.classList.add("blower-query-active");
+    if (elements.unifiedRefreshDiagnostics) { elements.unifiedRefreshDiagnostics.hidden = true; elements.unifiedRefreshDiagnostics.open = false; }
+    if (elements.unifiedRefreshDiagnosticText) elements.unifiedRefreshDiagnosticText.textContent = "";
+    setUnifiedRefreshPhase("업무일지");
+  }
+  function finishUnifiedRefreshFeedback() {
+    if (unifiedFeedbackTimer !== null) window.clearInterval(unifiedFeedbackTimer);
+    unifiedFeedbackTimer = null;
+    if (elements.blowerQueryOverlay) elements.blowerQueryOverlay.hidden = true;
+    document.body.classList.remove("blower-query-active");
+  }
+  function renderUnifiedRefreshOutcome(status, message, details) {
+    if (elements.unifiedRefreshText) elements.unifiedRefreshText.textContent = message;
+    if (elements.unifiedRefreshStatus) { elements.unifiedRefreshStatus.hidden = false; elements.unifiedRefreshStatus.dataset.state = status; }
+    if (elements.unifiedRefreshDiagnosticText) elements.unifiedRefreshDiagnosticText.textContent = String(details || "");
+    if (elements.unifiedRefreshDiagnostics) elements.unifiedRefreshDiagnostics.hidden = !details;
+  }
+  async function readUnifiedRefreshPlan(core, io) {
+    const snapshot = await core.readWithRetry(() => apiRequest({
+      url: API_URL + "?action=refresh_state", timeoutMs: 20000
+    }), io, "조회 기준 확인");
+    assertUnifiedRefreshWritable();
+    if (!hasAuthenticatedWriteAccess(snapshot)) {
+      const error = new Error("로그인 또는 조회 권한이 변경되었습니다."); error.status = 403; throw error;
+    }
+    if (snapshot?.ok !== true || snapshot.version !== "blower-refresh-state-v1" ||
+        !Array.isArray(snapshot.assets) || !Number.isFinite(Date.parse(snapshot.generatedAt || "")) ||
+        snapshot.assets.some(asset => !asset || typeof asset.tagNumber !== "string" || typeof asset.hasUnverifiedDataParcHistory !== "boolean" || !Object.prototype.hasOwnProperty.call(asset, "dataParcRuntimeBasis")) ||
+        new Set(snapshot.assets.map(asset => asset.tagNumber)).size !== snapshot.assets.length) {
+      const error = new Error("최신 조회 기준을 확인할 수 없습니다. 새로고침 후 다시 조회해 주세요."); error.code = "INVALID_REFRESH_STATE"; throw error;
+    }
+    // No cached browser basis may replace an explicitly empty server basis.
+    const basis = new Map(snapshot.assets.map(asset => [asset.tagNumber, asset.dataParcRuntimeBasis]));
+    const blocked = snapshot.assets.filter(asset => asset.hasUnverifiedDataParcHistory);
+    const planned = core.plan(snapshot.assets.filter(asset => !asset.hasUnverifiedDataParcHistory),
+      new Date(snapshot.generatedAt), tag => basis.get(tag) || null);
+    planned.skipped.push(...blocked.map(asset => ({ tagNumber: asset.tagNumber,
+      displayName: asset.displayName || asset.tagNumber, status: "skipped",
+      message: "기존 조회값 보호 · 증분 이어조회 기준 확인 필요 · 전체 재조회하지 않음" })));
+    planned.targetCount += blocked.length;
+    return planned;
+  }
+
   function updateOverviewRefreshProgress(percent = state.unifiedRefreshProgressPct, text = state.unifiedRefreshProgressText) {
     const numeric = Number(percent);
     const safe = Number.isFinite(numeric) ? Math.max(0, Math.min(100, Math.floor(numeric))) : 0;
     state.unifiedRefreshProgressPct = safe;
     state.unifiedRefreshProgressText = String(text || (state.unifiedRefreshBusy ? "통합조회 중" : "통합조회 대기"));
     if (elements.overviewRefreshPercent) elements.overviewRefreshPercent.textContent = `${safe}%`;
-    if (elements.overviewRefreshProgressText) elements.overviewRefreshProgressText.textContent = state.unifiedRefreshProgressText;
+    if (elements.overviewRefreshProgressText) elements.overviewRefreshProgressText.textContent = state.unifiedRefreshBusy ? "조회 중" : state.unifiedRefreshProgressText;
     if (elements.overviewRefreshProgressTrack) {
       elements.overviewRefreshProgressTrack.setAttribute("aria-valuenow", String(safe));
       elements.overviewRefreshProgressTrack.setAttribute("aria-valuetext", `${safe}% · ${state.unifiedRefreshProgressText}`);
@@ -1836,10 +1908,10 @@
     if (elements.refreshButton) {
       elements.refreshButton.classList.toggle("is-spinning", state.unifiedRefreshBusy);
       elements.refreshButton.setAttribute("aria-label", state.unifiedRefreshBusy
-        ? `전체 Blower 통합조회 중 ${safe}%`
+        ? "전체 Blower 조회 중"
         : "전체 Blower 통합조회");
       elements.refreshButton.title = state.unifiedRefreshBusy
-        ? `통합조회 ${safe}% · ${state.unifiedRefreshProgressText}`
+        ? "Blower 조회 중"
         : "전체 Blower를 저장된 마지막 조회시각 이후부터 통합조회";
     }
   }
@@ -10574,8 +10646,8 @@
   /* BLOWER_UNIFIED_REFRESH_V1 */
   function renderUnifiedRefreshProgress(text, results = state.unifiedRefreshResults || []) {
     if (!elements.unifiedRefreshStatus) return;
-    elements.unifiedRefreshStatus.hidden = false;
-    elements.unifiedRefreshText.textContent = text;
+    elements.unifiedRefreshStatus.hidden = state.unifiedRefreshBusy;
+    elements.unifiedRefreshText.textContent = state.unifiedRefreshBusy ? "Blower 조회 중" : text;
     elements.unifiedRefreshDetails.hidden = results.length === 0;
     const complete = results.filter(x => x.status === "complete").length;
     const failed = results.filter(x => x.status === "failed").length;
@@ -10616,6 +10688,7 @@
       const core = window.BlowerUnifiedRefresh;
       let phase = "업무일지", stopped = false, partial = false, logNote = "";
       const progress = text => {
+        setUnifiedRefreshPhase(phase);
         renderUnifiedRefreshProgress(`${phase} · ${text}`);
         updateOverviewRefreshProgress(state.unifiedRefreshProgressPct, text);
       };
@@ -10629,6 +10702,7 @@
         checkpoint: value => { state.unifiedLogResume = value; },
         reload: () => core.readWithRetry(() => loadData({ silent: true, syncOperations: false, strict: true, timeoutMs: 20000 }), io) };
       try {
+        startUnifiedRefreshFeedback();
         if (!core) throw new Error("통합조회 모듈이 없습니다. Ctrl+F5 후 다시 확인해 주세요.");
         assertUnifiedRefreshWritable();
         progress("새로 등록·수정된 업무일지에서 V-Belt 교체 확인 중 · 기존 DataPARC 조회값 유지 · 확정 교체는 Cycle 0시간으로 반영 후 DataPARC 조회");
@@ -10640,8 +10714,8 @@
           ? `업무일지 신규·변경분 확인 · 확정 V-Belt 교체 자동반영 포함 · 감지 ${Number(logResult.totals.insertedCount || 0)}건 · 교체운전 ${Number(logResult.totals.appliedStateChanges || 0)}건`
           : `업무일지 확인 미완료 · ${logResult.warning} · 운전시간은 저장된 교체 기준`;
         phase = "조회 계획";
-        await io.reload();
-        const planned = core.plan(state.data?.assets || [], currentServerDate(), getLatestDataParcRuntimeBasis);
+        setUnifiedRefreshPhase(phase);
+        const planned = await readUnifiedRefreshPlan(core, io);
         state.unifiedRefreshResults.push(...planned.skipped);
         setOverviewRefreshProcessed(state.unifiedRefreshResults.length, planned.targetCount,
           planned.tasks.length ? `증분조회 시작 · ${state.unifiedRefreshResults.length}/${planned.targetCount}대 처리` : "새 조회 구간 확인 완료");
@@ -10667,6 +10741,8 @@
             `${state.unifiedRefreshResults.length}/${planned.targetCount}대 처리 · 일괄 조회 결과 반영`);
           renderUnifiedRefreshProgress(`${phase} · ${state.unifiedRefreshResults.length}/${planned.targetCount}대 처리`);
         }
+        phase = "결과 확인";
+        setUnifiedRefreshPhase(phase);
         // Read the committed append-only results exactly once.  The former
         // in-branch read was immediately followed by this identical full
         // payload read and added an avoidable render/API round trip.
@@ -10678,15 +10754,25 @@
         partial = partial || failures > 0;
         setOverviewRefreshProcessed(planned.targetCount, planned.targetCount, partial ? "부분 완료 · 결과 확인" : "통합조회 완료");
         renderUnifiedRefreshProgress(`${partial ? "부분 통합조회" : "통합조회 완료"} · ${completion} · ${logNote}${failures ? " · 미반영 설비는 결과 확인" : ""}`);
-        showToast(partial ? "부분 통합조회 · 업무일지 또는 미반영 설비의 결과를 확인해 주세요." : "전체 Blower 통합조회를 완료했습니다.");
+        renderUnifiedRefreshOutcome(partial ? "partial" : "complete",
+          partial ? "일부 조회가 완료되지 않았습니다. 상세 결과를 확인해 주세요." : "Blower 조회가 완료됐습니다.",
+          `${completion}\n${logNote}${failures ? "\n미반영 설비는 결과 목록을 확인해 주세요." : ""}`);
+        showToast(partial ? "일부 조회 미완료 · 상세 결과를 확인해 주세요." : "전체 Blower 통합조회를 완료했습니다.");
       } catch (e) {
         stopped = true;
         const detail = core?.errorLabel ? core.errorLabel(e) : (e.message || "연결 오류");
         updateOverviewRefreshProgress(state.unifiedRefreshProgressPct, `중단 · ${phase}`);
         renderUnifiedRefreshProgress(`통합조회 중단 · ${phase} · ${detail}${logNote ? ` · ${logNote}` : ""}`);
-        showToast(`${phase} · ${detail}`, "error");
-        await loadData({ silent: true, syncOperations: false, timeoutMs: 15000 }).catch(() => null);
+        const summary = [502, 503, 504].includes(Number(e.status))
+          ? `서버 응답 오류로 조회하지 못했습니다 (HTTP ${Number(e.status)}). 기존 조회 결과를 표시합니다.`
+          : "조회가 완료되지 않았습니다. 기존 조회 결과를 표시합니다.";
+        renderUnifiedRefreshOutcome("failed", summary,
+          `${phase} · ${detail}\n${logNote}${e.responseKind ? "\n응답 형식: " + e.responseKind : ""}${e.cloudflareCode ? "\nCloudflare 코드: " + e.cloudflareCode : ""}`);
+        showToast(summary, "error");
+        // The bounded read already exhausted retries. Keep the visible snapshot;
+        // an extra full read here used to overwrite the useful failure notice.
       } finally {
+        finishUnifiedRefreshFeedback();
         state.unifiedRefreshBusy = false;
         state.unifiedRefreshToken = "";
         elements.refreshButton.removeAttribute("aria-busy");

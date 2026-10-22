@@ -1762,7 +1762,7 @@ function fbheSealRunProvenance(asset, rows, now = new Date()) {
   return base;
 }
 
-async function loadAssetStates(database, settings) {
+async function loadAssetStates(database, settings, options = {}) {
   const assetResult = await database
     .prepare(`
       SELECT *
@@ -1855,7 +1855,13 @@ async function loadAssetStates(database, settings) {
       latestReference,
       now
     ), dataParcTag: latestSuccessfulDataParcTag(asset.tag_number, runtimeRows), dataParcRuntimeBasis: runtimeBasis,
-      ...(runRuntime ? { runRuntime } : {}) };
+      ...(runRuntime ? { runRuntime } : {}),
+      // A lightweight plan must not turn an unverified saved result into a
+      // fresh full-range query merely because event-list fallback was removed.
+      ...(options.planning ? { hasUnverifiedDataParcHistory: !runtimeBasis && runtimeRows.some(row =>
+        row.tag_number === asset.tag_number && row.event_type === "runtime_correction" &&
+        row.source_type === DATAPARC_RUNTIME_SYNC_SOURCE_TYPE &&
+        Date.parse(row.event_date) >= Date.parse(asset.last_replacement_at || "")) } : {}) };
   });
 }
 
@@ -1952,6 +1958,14 @@ function buildMissingSlotDetails(assetStates) {
   }
 
   return missingSlots;
+}
+
+// Planning only needs fresh cycle state, not 10,000 event rows or recovery UI.
+async function buildRefreshState(database, user) {
+  const settings = await loadSettings(database);
+  const assets = await loadAssetStates(database, settings, { planning: true });
+  return { ok: true, version: "blower-refresh-state-v1", user,
+    permissions: buildPermissions(user), assets, generatedAt: new Date().toISOString() };
 }
 
 async function buildFullData(database, user) {
@@ -4191,6 +4205,11 @@ async function handleGet(context, user) {
   const url = new URL(context.request.url);
   const action = normalizeText(url.searchParams.get("action")) || "data";
   const permissions = buildPermissions(user);
+
+  if (action === "refresh_state") {
+    if (!user) return jsonResponse({ ok: false, message: "로그인이 필요합니다.", permissions }, 401);
+    return jsonResponse(await buildRefreshState(database, user));
+  }
 
   if (action === "candidates" && !user) {
     return jsonResponse(
@@ -14746,6 +14765,7 @@ export async function onRequestPost(context) {
 
 /* Node 회귀 테스트에서 V13 복구와 Cycle 상태 경계를 실제 SQLite로 검증한다. */
 export const __blowerHistoryTest = {
+  buildRefreshState, handleGet,
   isFbheSealRunAsset, fbheSealRunProvenance, historyDeleteRestoreBoundary, historyDeleteRestoreBeforeSnapshot,
   ensureIncrementalLogSchema, loadIncrementalLogPage, storeIncrementalLogReceipts,
   latestLogWindow, loadLatestLogPage, latestLogsStep, scanShiftLogs, syncOperationChanges,

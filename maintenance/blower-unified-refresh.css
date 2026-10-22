@@ -54,3 +54,19 @@
  .asset-card[data-run-view] .cycle-primary-metric > strong { font-size:clamp(12px,3.3vw,18px) !important; white-space:normal; line-height:1.15; overflow:visible; word-break:keep-all; }
  .asset-card[data-run-view] .cycle-primary-metric > strong::after { content:none !important; }
 }
+
+/* BLOWER_QUERY_FEEDBACK_V1 — fixed viewport card; long diagnostics never resize the action. */
+.blower-query-overlay { position:fixed; inset:0; z-index:2000; display:grid; place-items:center; padding:16px; box-sizing:border-box; background:rgba(245,248,253,.78); pointer-events:none; }
+.blower-query-overlay[hidden] { display:none !important; }
+.blower-query-card { display:grid; justify-items:center; gap:10px; box-sizing:border-box; width:min(320px,100%); min-height:202px; padding:24px 20px; border:1px solid #cdddf7; border-radius:16px; background:#fff; color:#203149; box-shadow:0 12px 36px rgba(30,64,120,.16); text-align:center; word-break:keep-all; }
+.blower-query-card > strong { font-size:16px; font-weight:850; line-height:1.45; }
+.blower-query-card > p { margin:0; min-height:20px; font-size:13px; line-height:1.45; color:#586b85; }
+.blower-query-spinner { box-sizing:border-box; width:38px; height:38px; margin-bottom:4px; border:4px solid #dce8fc; border-top-color:#1d4ed8; border-radius:50%; animation:blower-query-spin .9s linear infinite; }
+.blower-query-elapsed { padding:5px 10px; border-radius:7px; background:#eef4ff; color:#1d4ed8; font-size:12px; font-weight:800; font-variant-numeric:tabular-nums; }
+.blower-query-active #unifiedRefreshStatus { display:none !important; }
+.blower-query-active .overview-refresh-progress { visibility:hidden; }
+.overview-refresh-action { flex:0 0 340px; width:340px; min-width:0; max-width:100%; }
+.overview-refresh-progress-head > span { min-width:0; }
+#unifiedRefreshDiagnosticText { white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; font-weight:400; max-height:160px; overflow:auto; }
+@keyframes blower-query-spin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion:reduce) { .blower-query-spinner { animation:none; } }

@@ -10,10 +10,10 @@
   <link rel="stylesheet" href="blower-history-mobile-dialog-close-v1.css?v=20260903-v1">
   <link rel="stylesheet" href="/maintenance/seal-pot-ois-shadow.css?v=20260901-v2">
   <script src="shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
-  <link rel="stylesheet" href="blower-unified-refresh.css?v=20260911-incremental-dashboard-fast-v5">
+  <link rel="stylesheet" href="blower-unified-refresh.css?v=20261022-centered-query-v1">
   <script src="blower-refresh-timing.js?v=20260915-fast-timing-v12" defer></script>
   <script src="blower-unified-refresh.js?v=20260924-pending-run-v6" defer></script>
-    <script src="blower-history.js?v=20260924-pending-run-v6" defer></script>
+    <script src="blower-history.js?v=20261022-centered-query-v1" defer></script>
   <script src="/maintenance/seal-pot-ois-shadow.js?v=20260909-unified-refresh-v1" defer></script>
   <link rel="stylesheet" href="/maintenance/blower-schedule-v1.css?v=20260916-compact-ui-v1">
   <script src="/maintenance/blower-schedule-v1.js?v=20260916-v1" defer></script>
@@ -21,6 +21,14 @@
   <link rel="stylesheet" href="/maintenance/blower-readable-compact-v1.css?v=20260927-v2">
 </head>
 <body>
+  <section class="blower-query-overlay" id="blowerQueryOverlay" role="status" aria-live="polite" aria-atomic="true" hidden>
+    <div class="blower-query-card">
+      <span class="blower-query-spinner" aria-hidden="true"></span>
+      <strong>Blower 조회 중</strong>
+      <p id="blowerQueryPhase">필요한 자료를 준비하고 있습니다</p>
+      <span class="blower-query-elapsed" id="blowerQueryElapsed" aria-hidden="true">경과 00:00</span>
+    </div>
+  </section>
   <div class="page-shell">
     <header class="page-header">
       <div>
@@ -39,6 +47,7 @@
     <section class="notice-bar" id="authNotice" role="status" aria-live="polite" hidden></section>
     <section class="unified-refresh-status" id="unifiedRefreshStatus" aria-label="전체 통합조회 결과" hidden>
       <p id="unifiedRefreshText" role="status" aria-live="polite"></p>
+      <details id="unifiedRefreshDiagnostics" hidden><summary>조회 상세</summary><p id="unifiedRefreshDiagnosticText"></p></details>
       <details id="unifiedRefreshDetails" hidden><summary id="unifiedRefreshSummary">통합조회 결과</summary><div id="unifiedRefreshList"></div></details>
     </section>
     <section class="blower-schedule-panel blower-schedule-compact" id="blowerSchedulePanel" aria-label="BCO1 자동조회 설정" hidden>
