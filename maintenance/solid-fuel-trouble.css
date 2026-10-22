@@ -2354,3 +2354,98 @@ body.solid-fuel-readonly #companyModal{
   }
 }
 /* SOLID_FUEL_UNLOAD_TONNAGE_SUMMARY_STYLE_R14_END */
+/* SOLID_FUEL_EMERGENCY_CONTACTS_V1 */
+#contactManageBtn.contact-directory-button{gap:5px;border-color:#91c9be;background:#edf8f5;color:#086f5e;font-weight:900}
+#contactManageBtn.contact-directory-button:hover{background:#dff3ed}
+#contactManageBtn span{font-size:14px;line-height:1}
+#contactModal .contact-manager-card{display:flex;flex-direction:column;width:min(900px,100%);max-height:92vh;max-height:calc(100dvh - 32px);overflow:hidden;border-radius:14px}
+#contactModal .modal-head{flex:none;padding:17px 20px;border-bottom:1px solid #dbe6ee;background:#f7fbfc}
+#contactModal .modal-head>div{min-width:0}
+#contactModal .modal-head h2{display:flex;align-items:center;gap:9px;margin:3px 0 0;color:#173b5d;font-size:21px;letter-spacing:-.035em}
+#contactModal .modal-head>div>span{color:#50857c;font-size:9px;letter-spacing:.12em}
+#contactModal .modal-head p{margin:6px 0 0;color:#667d90;font-size:11px;line-height:1.5}
+#contactModal #contactCount{display:inline-flex;align-items:center;justify-content:center;min-width:25px;height:23px;padding:0 7px;border:1px solid #bddfd6;border-radius:7px;background:#ebf7f2;color:#16735f;font-size:12px;font-weight:850;letter-spacing:0}
+#contactModal .contact-manager{min-height:0;padding:15px 20px 16px;overflow:auto;overscroll-behavior:contain}
+#contactModal .contact-toolbar{display:flex;align-items:center;gap:7px}
+#contactModal .contact-search{display:block;flex:1;min-width:0;margin:0}
+#contactModal input{box-sizing:border-box;width:100%;min-width:0;height:36px;padding:0 10px;border:1px solid #c8d9e5;border-radius:7px;background:#fff;color:#213e53;font-size:12px;line-height:1.2}
+#contactModal input:focus{outline:2px solid #49a997;outline-offset:1px;border-color:#399e89}
+#contactModal .contact-toolbar>.btn{flex:none;min-height:36px;padding:0 12px;font-size:11px}
+#contactModal .contact-status{margin:12px 1px 8px;color:#6b8194;font-size:11px;line-height:1.5}
+#contactModal .contact-status.is-error,#contactModal .contact-form-status.is-error{color:#a33e35}
+#contactModal .contact-table-wrap{overflow:hidden;border:1px solid #d5e2eb;border-radius:9px;background:#fff}
+#contactModal .contact-table{width:100%;min-width:0;table-layout:fixed;border-collapse:collapse;text-align:left}
+#contactModal .contact-table th{padding:10px 13px;border-bottom:1px solid #dbe6ee;background:#f1f6f9;color:#547087;font-size:10px;font-weight:850;text-align:left}
+#contactModal .contact-table th:nth-child(1){width:25%}
+#contactModal .contact-table th:nth-child(2){width:17%}
+#contactModal .contact-table th:nth-child(3){width:35%}
+#contactModal .contact-table th:nth-child(4){width:23%}
+#contactModal .contact-table td{padding:10px 13px;border-bottom:1px solid #e3edf2;color:#344f63;font-size:12px;line-height:1.4;overflow-wrap:anywhere}
+#contactModal .contact-table tr:last-child td{border-bottom:0}
+#contactModal .contact-company strong{color:#24465e;font-size:12px;font-weight:850}
+#contactModal .contact-driver{font-weight:700}
+#contactModal .contact-number{font-variant-numeric:tabular-nums}
+#contactModal .contact-phone{display:inline-flex;align-items:center;gap:6px;max-width:100%;min-height:32px;padding:5px 8px;border:1px solid #cce3dc;border-radius:7px;background:#f2faf6;color:#086c54;font-size:13px;font-weight:850;text-decoration:none;overflow-wrap:anywhere}
+#contactModal .contact-phone:hover{border-color:#65ad97;background:#e5f6ed}
+#contactModal .contact-phone:focus-visible,#contactManageBtn:focus-visible{outline:2px solid #278a75;outline-offset:2px}
+#contactModal .contact-phone>span{font-size:13px;font-weight:400}
+#contactModal .contact-phone.is-invalid{border-color:#dbe3e9;background:#f8fafb;color:#718393}
+#contactModal .contact-actions{white-space:nowrap}
+#contactModal .contact-actions .btn{min-height:29px;padding:0 9px;font-size:10px}
+#contactModal .contact-actions .btn+.btn{margin-left:5px}
+#contactModal .contact-empty{padding:34px 15px!important;color:#7890a1!important;text-align:center!important;font-size:12px!important;line-height:1.7!important}
+#contactModal .contact-editor{margin:12px 0 0;padding:13px;border:1px solid #b9dbd1;border-radius:9px;background:#f4faf7}
+#contactModal .contact-editor>strong{display:block;margin-bottom:10px;color:#1f6857;font-size:12px;font-weight:850}
+#contactModal .contact-editor-grid{display:grid;grid-template-columns:1fr 1fr 1.35fr;gap:10px}
+#contactModal .contact-editor-grid label{display:block;min-width:0;margin:0}
+#contactModal .contact-editor-grid label>span{display:block;margin-bottom:5px;color:#526d7d;font-size:10px;font-weight:800}
+#contactModal .contact-editor-grid em{margin-left:3px;color:#718f88;font-size:9px;font-style:normal;font-weight:700}
+#contactModal .contact-form-status{margin:9px 0 0;color:#507061;font-size:11px;line-height:1.6}
+#contactModal .contact-editor-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:11px}
+#contactModal .contact-editor-actions .btn{min-height:32px;min-width:57px;font-size:11px}
+#contactModal .contact-footer{margin-top:13px;padding:0}
+#contactModal .contact-footer .btn{min-height:33px;min-width:65px}
+#contactModal .contact-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(max-width:760px){
+  #contactManageBtn.contact-directory-button{display:inline-flex!important;min-height:34px;padding:0 10px;font-size:11px}
+  #contactManageBtn[hidden]{display:none!important}
+  #contactModal{display:flex;align-items:flex-end;padding:7px}
+  #contactModal[hidden]{display:none!important}
+  #contactModal .contact-manager-card{width:100%;max-height:94vh;max-height:calc(100dvh - 14px);border-radius:13px 13px 8px 8px}
+  #contactModal .modal-head{padding:14px}
+  #contactModal .modal-head h2{font-size:20px}
+  #contactModal .modal-head p{max-width:250px;font-size:11px}
+  #contactModal .contact-manager{padding:12px 12px 14px}
+  #contactModal .contact-toolbar{display:grid;grid-template-columns:1fr auto;gap:7px}
+  #contactModal .contact-search{grid-column:1/-1}
+  #contactModal .contact-toolbar>.btn{min-height:36px;font-size:12px}
+  #contactModal #contactRefresh{justify-self:start}
+  #contactModal #contactNew{justify-self:end}
+  #contactModal input{height:41px;font-size:16px}
+  #contactModal .contact-status{font-size:11px}
+  #contactModal .contact-table-wrap{overflow:visible;border:0;background:transparent}
+  #contactModal .contact-table,#contactModal .contact-table tbody{display:block;width:100%;min-width:0}
+  #contactModal .contact-table thead{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0,0,0,0)}
+  #contactModal .contact-table tbody{display:grid;gap:8px}
+  #contactModal .contact-table tr{display:grid;grid-template-columns:minmax(0,1fr) auto;min-width:0;padding:12px;border:1px solid #d5e3e9;border-radius:9px;background:#fff}
+  #contactModal .contact-table td{display:block;min-width:0;padding:0;border:0;font-size:13px}
+  #contactModal .contact-company{grid-column:1;grid-row:1}
+  #contactModal .contact-company strong{font-size:14px}
+  #contactModal .contact-driver{grid-column:1;grid-row:2;margin-top:4px;color:#6c8293;font-size:12px}
+  #contactModal .contact-driver::before{content:"기사 · ";font-weight:500}
+  #contactModal .contact-number{grid-column:1;grid-row:3;margin-top:9px}
+  #contactModal .contact-phone{min-height:37px;padding:6px 9px;font-size:15px}
+  #contactModal .contact-actions{grid-column:2;grid-row:1/4;display:flex!important;align-items:flex-start;justify-content:flex-end;gap:4px;padding-left:8px!important}
+  #contactModal .contact-actions .btn{min-height:31px;padding:0 7px;font-size:10px}
+  #contactModal .contact-actions .btn+.btn{margin-left:0}
+  #contactModal .contact-empty{grid-column:1/-1;padding:22px 6px!important}
+  #contactModal .contact-editor{padding:12px;margin-top:10px}
+  #contactModal .contact-editor-grid{grid-template-columns:1fr 1fr;gap:10px 8px}
+  #contactModal .contact-editor-grid label:last-child{grid-column:1/-1}
+  #contactModal .contact-editor-grid label>span{font-size:11px}
+  #contactModal .contact-editor-actions .btn{min-height:36px;min-width:62px;font-size:12px}
+}
+@media(max-width:370px){
+  #contactModal .contact-table tr{grid-template-columns:minmax(0,1fr)}
+  #contactModal .contact-actions{grid-column:1;grid-row:4;margin-top:9px;justify-content:flex-start;padding-left:0!important}
+}

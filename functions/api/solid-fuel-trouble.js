@@ -320,6 +320,14 @@ async function initialize(db){
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`),
+      db.prepare(`CREATE TABLE IF NOT EXISTS solid_fuel_emergency_contacts(
+        id TEXT PRIMARY KEY,company_name TEXT NOT NULL,driver_name TEXT NOT NULL,phone_number TEXT NOT NULL,
+        version INTEGER NOT NULL DEFAULT 1,
+        created_by_id TEXT NOT NULL,created_by_name TEXT NOT NULL,updated_by_id TEXT NOT NULL,
+        updated_by_name TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,deleted_at TEXT,
+        deleted_by_id TEXT NOT NULL DEFAULT '',deleted_by_name TEXT NOT NULL DEFAULT ''
+      )`),
+      db.prepare(`CREATE INDEX IF NOT EXISTS idx_sfc_company ON solid_fuel_emergency_contacts(company_name COLLATE NOCASE)`),
       db.prepare(`CREATE TABLE IF NOT EXISTS solid_fuel_photo_repair_state(
         repair_key TEXT PRIMARY KEY,
         completed_at TEXT NOT NULL,
@@ -625,6 +633,48 @@ async function receiptSummaryPeriod(db,startLocal,endLocal){
     manure:Number(row?.manure_tons||0),
     counts:{organic:Number(row?.organic_count||0),manure:Number(row?.manure_count||0)}
   };
+}
+
+// SOLID_FUEL_EMERGENCY_CONTACTS_V1: separate directory; never rewrites unloading history.
+function contactFields(body){
+  const companyName=body?.companyName,driverName=body?.driverName,phoneNumber=body?.phoneNumber;
+  if(typeof companyName!=="string"||typeof driverName!=="string"||typeof phoneNumber!=="string"){
+    return {error:"업체명·기사명·전화번호를 모두 입력해 주세요."};
+  }
+  if(/[\u0000-\u001f\u007f]/.test(companyName+driverName+phoneNumber))return {error:"연락처에 줄바꿈이나 제어 문자를 사용할 수 없습니다."};
+  const company=companyName.trim(),driver=driverName.trim(),phone=phoneNumber.trim();
+  if(!company||company.length>80)return {error:"업체명은 1~80자로 입력해 주세요."};
+  if(!driver||driver.length>80)return {error:"기사명은 1~80자로 입력해 주세요."};
+  if(!phone||phone.length>40||!/^\+?[0-9 ()-]+$/.test(phone))return {error:"전화번호는 숫자와 공백·하이픈·괄호, 맨 앞의 +만 사용할 수 있습니다."};
+  const digits=phone.replace(/\D/g,"");
+  if(digits.length<7||digits.length>15)return {error:"전화번호는 숫자 7~15자리로 입력해 주세요."};
+  return {companyName:company,driverName:driver,phoneNumber:phone};
+}
+function contactVersion(value){
+  if(typeof value!=="number"&&(typeof value!=="string"||!/^\d+$/.test(value)))return null;
+  const version=Number(value);
+  return Number.isSafeInteger(version)&&version>=1?version:null;
+}
+function contactIdentity(value){
+  const id=text(value);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)?id:null;
+}
+function contactObj(row){
+  return {id:row.id,companyName:row.company_name,driverName:row.driver_name,phoneNumber:row.phone_number,
+    version:Number(row.version),createdAt:row.created_at,updatedAt:row.updated_at,
+    createdByName:row.created_by_name,updatedByName:row.updated_by_name};
+}
+async function listContacts(db){
+  const rows=await db.prepare(`SELECT * FROM solid_fuel_emergency_contacts WHERE deleted_at IS NULL ORDER BY company_name COLLATE NOCASE,driver_name COLLATE NOCASE,created_at,id`).all();
+  return (rows.results||[]).map(contactObj);
+}
+async function findContact(db,id){
+  return db.prepare(`SELECT * FROM solid_fuel_emergency_contacts WHERE id=? AND deleted_at IS NULL LIMIT 1`).bind(id).first();
+}
+async function contactWriteConflict(db,id){
+  const current=await findContact(db,id);
+  return current?json({ok:false,message:"다른 사용자가 연락처를 변경했습니다. 새로고침 후 다시 확인해 주세요."},409)
+    :json({ok:false,message:"연락처를 찾을 수 없습니다. 이미 삭제되었을 수 있습니다."},404);
 }
 
 async function companyDirectory(db){
@@ -998,6 +1048,12 @@ export async function onRequestGet(context){
     const url=new URL(context.request.url),photoId=text(url.searchParams.get("photoId")),receiptDate=text(url.searchParams.get("receiptDate")),
       receiptStart=text(url.searchParams.get("receiptStart")),receiptEnd=text(url.searchParams.get("receiptEnd"));
     const a=await auth(context,{optional:true}); if(a.error) return a.error;
+    if(text(url.searchParams.get("entity")).toLowerCase()==="contact"){
+      if(!a.user)return json({ok:false,message:"로그인이 필요합니다."},401);
+      await initialize(context.env.DB);
+      const [contacts,companies]=await Promise.all([listContacts(context.env.DB),activeCompanies(context.env.DB)]);
+      return json({ok:true,entity:"contact",contacts,companies,permissions:{canManageContacts:true},user:a.user});
+    }
     if(receiptStart||receiptEnd){
       if(!a.user)return json({ok:false,message:"로그인이 필요합니다."},401);
       const startMs=receiptLocalMinute(receiptStart),endMs=receiptLocalMinute(receiptEnd);
@@ -1164,6 +1220,16 @@ export async function onRequestPost(context){
     }
     const b=await context.request.json(),entity=text(b.entity||"trouble").toLowerCase();
 
+    if(entity==="contact"){
+      const fields=contactFields(b);
+      if(fields.error)return json({ok:false,message:fields.error},400);
+      const id=crypto.randomUUID(),now=new Date().toISOString();
+      await context.env.DB.prepare(`INSERT INTO solid_fuel_emergency_contacts(
+        id,company_name,driver_name,phone_number,version,created_by_id,created_by_name,updated_by_id,updated_by_name,created_at,updated_at
+      ) VALUES(?,?,?,?,1,?,?,?,?,?,?)`).bind(id,fields.companyName,fields.driverName,fields.phoneNumber,user.employeeNo,user.name,user.employeeNo,user.name,now,now).run();
+      return json({ok:true,entity:"contact",contact:contactObj(await findContact(context.env.DB,id))},201);
+    }
+
     if(entity==="company"){
       const companyName=cleanCompany(b.companyName);
       if(!companyName) return json({ok:false,message:"추가할 업체명을 입력해 주세요."},400);
@@ -1324,6 +1390,18 @@ export async function onRequestPut(context){
       u=a.user,
       now=new Date().toISOString();
 
+    if(entity==="contact"){
+      const id=contactIdentity(b.id),version=contactVersion(b.version),fields=contactFields(b);
+      if(!id||version===null)return json({ok:false,message:"수정할 연락처 ID와 버전을 확인해 주세요."},400);
+      if(fields.error)return json({ok:false,message:fields.error},400);
+      const result=await context.env.DB.prepare(`UPDATE solid_fuel_emergency_contacts
+        SET company_name=?,driver_name=?,phone_number=?,version=version+1,updated_by_id=?,updated_by_name=?,updated_at=?
+        WHERE id=? AND version=? AND deleted_at IS NULL
+      `).bind(fields.companyName,fields.driverName,fields.phoneNumber,u.employeeNo,u.name,now,id,version).run();
+      if(Number(result?.meta?.changes||0)!==1)return await contactWriteConflict(context.env.DB,id);
+      return json({ok:true,entity:"contact",contact:contactObj(await findContact(context.env.DB,id))});
+    }
+
     if(entity==="company"){
       const companyName=cleanCompany(b.companyName),
         isActive=b.isActive===true||b.isActive===1||b.isActive==="1";
@@ -1445,6 +1523,17 @@ export async function onRequestPut(context){
 export async function onRequestDelete(context){
   try{
     const a=await auth(context); if(a.error) return a.error; await initialize(context.env.DB); const url=new URL(context.request.url),photoId=text(url.searchParams.get("photoId"));
+    if(text(url.searchParams.get("entity")).toLowerCase()==="contact"){
+      const id=contactIdentity(url.searchParams.get("id")),version=contactVersion(url.searchParams.get("version"));
+      if(!id||version===null)return json({ok:false,message:"삭제할 연락처 ID와 버전을 확인해 주세요."},400);
+      const now=new Date().toISOString();
+      const result=await context.env.DB.prepare(`UPDATE solid_fuel_emergency_contacts
+        SET deleted_at=?,deleted_by_id=?,deleted_by_name=?,updated_by_id=?,updated_by_name=?,updated_at=?,version=version+1
+        WHERE id=? AND version=? AND deleted_at IS NULL
+      `).bind(now,a.user.employeeNo,a.user.name,a.user.employeeNo,a.user.name,now,id,version).run();
+      if(Number(result?.meta?.changes||0)!==1)return await contactWriteConflict(context.env.DB,id);
+      return json({ok:true,entity:"contact",deletedId:id});
+    }
     if(photoId){
       const p=await context.env.DB.prepare(`SELECT * FROM solid_fuel_trouble_photos WHERE id=? LIMIT 1`).bind(photoId).first();
       if(!p) return json({ok:false,message:"삭제할 샘플 사진을 찾을 수 없습니다."},404);

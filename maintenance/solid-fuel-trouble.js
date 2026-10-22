@@ -6,9 +6,10 @@
   const MOBILE_READ_ONLY_QUERY="(max-width: 760px)";
   const SILO_OPTIONS=[["","선택 안 함"],["#A","Storage #A"],["#B","Storage #B"],["Day","Day Silo"]];
   const state={troubles:[],unloads:[],companies:[],filterCompanies:[],companyDirectory:[],user:null,permissions:{canCreate:false,canEdit:false,canDelete:false,canUploadPhoto:false,canManageUnloading:false,canManageCompanies:false},loading:false,saving:false,mode:"month",tab:"trouble",photoScale:1};
+  const contactsState={rows:[],companies:[],loading:false,saving:false,loaded:false,failed:false,canManage:false,editingId:"",version:0,conflict:false,opener:null};
   const $=id=>document.getElementById(id);
   const e={
-    refresh:$("refreshBtn"),createRecord:$("createRecordBtn"),companyManage:$("companyManageBtn"),
+    refresh:$("refreshBtn"),contactManage:$("contactManageBtn"),createRecord:$("createRecordBtn"),companyManage:$("companyManageBtn"),
     mode:$("queryMode"),form:$("filterForm"),monthBox:$("monthFilterBox"),rangeBox:$("rangeFilterBox"),month:$("filterMonth"),from:$("filterFrom"),to:$("filterTo"),company:$("filterCompany"),vehicle:$("filterVehicle"),search:$("filterSearch"),sort:$("filterSort"),reset:$("resetBtn"),
     troubleKpi:$("troubleKpi"),unloadKpi:$("unloadKpi"),averageKpi:$("averageKpi"),averageUnit:$("averageKpiUnit"),abnormalKpi:$("abnormalKpi"),maxKpi:$("maxKpi"),maxUnit:$("maxKpiUnit"),
     companyStats:$("companyStats"),siloStats:$("siloStats"),analyticsStatus:$("analyticsStatus"),
@@ -18,6 +19,7 @@
     tModal:$("troubleModal"),tTitle:$("troubleEditorTitle"),tClose:$("troubleClose"),tCancel:$("troubleCancel"),tForm:$("troubleForm"),tId:$("troubleId"),tVersion:$("troubleVersion"),tDate:$("troubleDate"),tCompany:$("troubleCompany"),tVehicle:$("troubleVehicle"),tEquipment:$("troubleEquipment"),tNote:$("troubleNote"),tFiles:$("troubleFiles"),existing:$("existingPhotos"),tStatus:$("troubleEditorStatus"),tSave:$("troubleSave"),
     uModal:$("unloadModal"),uTitle:$("unloadEditorTitle"),uClose:$("unloadClose"),uCancel:$("unloadCancel"),uForm:$("unloadForm"),uId:$("unloadId"),uVersion:$("unloadVersion"),uDate:$("unloadDate"),uFuelType:$("unloadFuelType"),uReceiptTons:$("unloadReceiptTons"),uArrival:$("unloadArrival"),uDeparture:$("unloadDeparture"),uDuration:$("unloadDurationPreview"),uCompany:$("unloadCompany"),uVehicle:$("unloadVehicle"),uSilo:$("unloadSilo"),uNote:$("unloadNote"),uStatus:$("unloadEditorStatus"),uSave:$("unloadSave"),
     companyModal:$("companyModal"),companyClose:$("companyClose"),companyCancel:$("companyCancel"),companyAddForm:$("companyAddForm"),companyNameInput:$("companyNameInput"),companyAddButton:$("companyAddButton"),companyManagerList:$("companyManagerList"),companyManagerStatus:$("companyManagerStatus"),
+    cModal:$("contactModal"),cClose:$("contactClose"),cDone:$("contactDone"),cRefresh:$("contactRefresh"),cSearch:$("contactSearch"),cNew:$("contactNew"),cCount:$("contactCount"),cStatus:$("contactStatus"),cList:$("contactList"),cForm:$("contactForm"),cEditorTitle:$("contactEditorTitle"),cCompany:$("contactCompany"),cCompanyList:$("contactCompanyOptions"),cDriver:$("contactDriver"),cPhone:$("contactPhone"),cFormStatus:$("contactFormStatus"),cSave:$("contactSave"),cCancel:$("contactCancel"),
     photoModal:$("photoModal"),photo:$("photoImage"),photoClose:$("photoClose"),photoStage:$("photoStage"),zoomOut:$("zoomOut"),zoomIn:$("zoomIn"),zoomFit:$("zoomFit"),zoomRange:$("zoomRange"),zoomText:$("zoomText")
   };
   function current(){try{return JSON.parse(localStorage.getItem(AUTH)||"null")}catch{return null}}
@@ -106,6 +108,8 @@
     document.body.classList.toggle("solid-fuel-no-row-actions",!rowActions);
     e.createRecord.hidden=!canCreateRecord();
     e.companyManage.hidden=!canManageCompanies();
+    e.contactManage.hidden=anonymous;
+    if(anonymous){contactsState.rows=[];contactsState.loaded=false;contactsState.failed=false;contactsState.canManage=false;if(!e.cModal.hidden&&!contactsState.saving)closeContacts()}
     e.rSave.hidden=!canCreateRecord();
     e.tSave.hidden=!canEditTrouble();
     e.uSave.hidden=!canEditUnloading();
@@ -116,12 +120,13 @@
     if(troublePhotoField)troublePhotoField.hidden=!canUploadPhoto();
     if(readOnly){
       [e.rModal,e.tModal,e.uModal,e.companyModal].forEach(modal=>{if(modal)modal.hidden=true});
-      if(e.photoModal?.hidden)document.body.style.overflow=""
+      if(e.photoModal?.hidden&&e.cModal?.hidden)document.body.style.overflow=""
     }
   }
   function setBusy(){
     const b=state.loading||state.saving;
     if(e.refresh)e.refresh.disabled=b;
+    if(e.contactManage)e.contactManage.disabled=state.saving;
     if(e.createRecord)e.createRecord.disabled=b||!canCreateRecord();
     if(e.companyManage)e.companyManage.disabled=b||!canManageCompanies();
     if(e.rSave)e.rSave.disabled=b||!canCreateRecord();
@@ -341,7 +346,7 @@
   }
   function closeRecord(){
     e.rModal.hidden=true;
-    if(e.photoModal.hidden&&e.tModal.hidden&&e.uModal.hidden&&e.companyModal.hidden)document.body.style.overflow="";
+    if(e.photoModal.hidden&&e.tModal.hidden&&e.uModal.hidden&&e.companyModal.hidden&&e.cModal.hidden)document.body.style.overflow="";
     setEditorStatus(e.rStatus,"",false)
   }
   async function saveRecord(ev){
@@ -392,7 +397,7 @@
 
   function existingPhotos(x){const p=Array.isArray(x?.photos)?x.photos:[];e.existing.replaceChildren();e.existing.hidden=!p.length;p.forEach(v=>{const d=document.createElement("div");d.className="existing-photo";const deleteControl=!v.legacy&&canUploadPhoto()?`<button class="photo-delete" type="button" data-action="delete-photo" data-photo-id="${esc(v.id)}">삭제</button>`:`<span>${v.legacy?"원본":""}</span>`;d.innerHTML=`<button class="thumb" style="width:100%;height:90px;border:0;border-radius:0" type="button" data-action="photo" data-url="${esc(v.url)}"><img src="${esc(v.url)}" alt="샘플 사진"></button><div class="existing-meta"><span>${esc(v.name||"샘플 사진")}</span>${deleteControl}</div>`;e.existing.append(d)})}
   function openTrouble(x=null){if(!canEditTrouble())return;e.tTitle.textContent="Trouble 수정";e.tId.value=x?.id||"";e.tVersion.value=x?.version||"";e.tDate.value=x?.occurrenceDate||today();companyLists();ensureOption(e.tCompany,x?.companyName||"");e.tCompany.value=x?.companyName||"";e.tVehicle.value=x?.vehicleNo||"";e.tEquipment.value=x?.equipment||"";e.tNote.value=x?.note||"";e.tFiles.value="";e.tFiles.disabled=!canUploadPhoto();existingPhotos(x);setEditorStatus(e.tStatus,"",false);e.tModal.hidden=false;document.body.style.overflow="hidden";setTimeout(()=>e.tDate.focus(),0)}
-  function closeTrouble(){e.tModal.hidden=true;if(e.photoModal.hidden&&e.uModal.hidden&&e.rModal.hidden&&e.companyModal.hidden)document.body.style.overflow="";setEditorStatus(e.tStatus,"",false)}
+  function closeTrouble(){e.tModal.hidden=true;if(e.photoModal.hidden&&e.uModal.hidden&&e.rModal.hidden&&e.companyModal.hidden&&e.cModal.hidden)document.body.style.overflow="";setEditorStatus(e.tStatus,"",false)}
   async function upload(id,files){if(!canUploadPhoto())return;const a=[...(files||[])];if(!a.length)return;const f=new FormData();f.set("recordId",id);a.forEach(x=>f.append("files",x));await api(API,{method:"POST",headers:headers(),body:f})}
   async function saveTrouble(ev){ev.preventDefault();if(state.saving||!canEditTrouble())return;const id=e.tId.value.trim(),editing=!!id,p={entity:"trouble",occurrenceDate:e.tDate.value,companyName:e.tCompany.value.trim(),vehicleNo:e.tVehicle.value.trim(),equipment:e.tEquipment.value.trim(),note:e.tNote.value.trim()};if(editing){p.id=id;p.version=Number(e.tVersion.value||0)}state.saving=true;setBusy();setEditorStatus(e.tStatus,editing?"수정 내용을 저장하는 중입니다.":"Trouble 기록을 저장하는 중입니다.");try{const r=await api(API,{method:editing?"PUT":"POST",headers:headers({"Content-Type":"application/json"}),body:JSON.stringify(p)});const saved=editing?id:(r.recordId||r.id);if(canUploadPhoto()&&e.tFiles.files.length){setEditorStatus(e.tStatus,"기록 저장 완료 · 샘플 사진 업로드 중...");await upload(saved,e.tFiles.files)}closeTrouble();await load()}catch(err){setEditorStatus(e.tStatus,err.message||"저장 실패");if(err.status===409)await load()}finally{state.saving=false;setBusy()}}
 
@@ -415,7 +420,7 @@
     updateUnloadDuration();setEditorStatus(e.uStatus,"",false);
     e.uModal.hidden=false;document.body.style.overflow="hidden";setTimeout(()=>e.uDate.focus(),0)
   }
-  function closeUnload(){e.uModal.hidden=true;if(e.photoModal.hidden&&e.tModal.hidden&&e.rModal.hidden&&e.companyModal.hidden)document.body.style.overflow="";setEditorStatus(e.uStatus,"",false)}
+  function closeUnload(){e.uModal.hidden=true;if(e.photoModal.hidden&&e.tModal.hidden&&e.rModal.hidden&&e.companyModal.hidden&&e.cModal.hidden)document.body.style.overflow="";setEditorStatus(e.uStatus,"",false)}
   async function saveUnload(ev){
     ev.preventDefault();
     if(state.saving||!canEditUnloading())return;
@@ -486,7 +491,7 @@
 
   function closeCompanyManager(){
     e.companyModal.hidden=true;
-    if(e.photoModal.hidden&&e.tModal.hidden&&e.uModal.hidden&&e.rModal.hidden)document.body.style.overflow=""
+    if(e.photoModal.hidden&&e.tModal.hidden&&e.uModal.hidden&&e.rModal.hidden&&e.cModal.hidden)document.body.style.overflow=""
   }
 
   async function addCompany(ev){
@@ -524,15 +529,174 @@
     }
   }
 
+  /* SOLID_FUEL_CONTACT_PURE_HELPERS_START */
+  function contactDial(value){
+    const source=String(value??"");
+    if(/[\x00-\x1f\x7f]/.test(source))return "";
+    const raw=source.trim();
+    if(raw.length>40||!/^[+]?[0-9 ()-]+$/.test(raw))return "";
+    const digits=raw.replace(/[^0-9]/g,"");
+    return digits.length>=7&&digits.length<=15?(raw.startsWith("+")?"+":"")+digits:""
+  }
+  function contactMatches(row,search){
+    const needle=String(search??"").trim().toLocaleLowerCase("ko");
+    if(!needle)return true;
+    const text=[row.companyName,row.driverName,row.phoneNumber].map(v=>String(v??"").toLocaleLowerCase("ko")).join(" ");
+    if(text.includes(needle))return true;
+    const digits=needle.replace(/[^0-9]/g,"");
+    return /^[+0-9 ()-]+$/.test(needle)&&digits.length>0&&String(row.phoneNumber??"").replace(/[^0-9]/g,"").includes(digits)
+  }
+  /* SOLID_FUEL_CONTACT_PURE_HELPERS_END */
+
+  function contactNotice(message,error=false){
+    setText(e.cStatus,message);e.cStatus.classList.toggle("is-error",error)
+  }
+  function contactFormNotice(message,error=false){
+    setEditorStatus(e.cFormStatus,message,!!message);e.cFormStatus.classList.toggle("is-error",error)
+  }
+  function setContactBusy(){
+    const saving=contactsState.saving,blocked=saving||contactsState.loading;
+    [e.cClose,e.cDone,e.cCancel].forEach(button=>{button.disabled=saving});
+    e.cRefresh.disabled=blocked;e.cNew.disabled=blocked||!contactsState.canManage;
+    e.cSave.disabled=blocked||!contactsState.canManage||contactsState.conflict;
+    [e.cCompany,e.cDriver,e.cPhone].forEach(input=>{input.disabled=saving});
+    e.cList.querySelectorAll("[data-contact-action]").forEach(button=>{button.disabled=blocked||!contactsState.canManage});
+    e.cForm.setAttribute("aria-busy",String(saving));e.cList.setAttribute("aria-busy",String(contactsState.loading))
+  }
+  function renderContacts(){
+    const rows=contactsState.rows.filter(row=>contactMatches(row,e.cSearch.value));
+    setText(e.cCount,contactsState.rows.length);
+    e.cCompanyList.replaceChildren();
+    const companies=[...new Set([...contactsState.companies,...contactsState.rows.map(row=>row.companyName)].filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),"ko"));
+    companies.forEach(name=>{const choice=document.createElement("option");choice.value=String(name);e.cCompanyList.append(choice)});
+    if(contactsState.loading&&!contactsState.loaded){
+      e.cList.innerHTML='<tr><td class="contact-empty" colspan="4">연락처를 불러오는 중입니다.</td></tr>'
+    }else if(contactsState.failed){
+      e.cList.innerHTML='<tr><td class="contact-empty" colspan="4">연락처를 불러오지 못했습니다. 새로고침으로 다시 시도해 주세요.</td></tr>'
+    }else if(!rows.length){
+      e.cList.innerHTML=`<tr><td class="contact-empty" colspan="4">${contactsState.rows.length?"검색 결과가 없습니다.":"아직 등록된 연락처가 없습니다. 위의 연락처 등록 버튼으로 추가해 주세요."}</td></tr>`
+    }else{
+      e.cList.innerHTML=rows.map(row=>{
+        const dial=contactDial(row.phoneNumber);
+        const phone=dial?`<a class="contact-phone" href="tel:${dial}" aria-label="${esc(row.driverName)} ${esc(row.phoneNumber)} 전화 걸기"><span aria-hidden="true">☎</span> ${esc(row.phoneNumber)}</a>`:`<span class="contact-phone is-invalid">${esc(row.phoneNumber)}</span>`;
+        return `<tr><td class="contact-company" data-label="업체"><strong>${esc(row.companyName)}</strong></td><td class="contact-driver" data-label="기사">${esc(row.driverName)}</td><td class="contact-number" data-label="전화번호">${phone}</td><td class="contact-actions" data-label="관리">${contactsState.canManage?`<button class="btn ghost" type="button" data-contact-action="edit" data-contact-id="${esc(row.id)}" aria-label="${esc(row.driverName)} 연락처 수정">수정</button><button class="btn danger" type="button" data-contact-action="delete" data-contact-id="${esc(row.id)}" aria-label="${esc(row.driverName)} 연락처 삭제">삭제</button>`:"-"}</td></tr>`
+      }).join("")
+    }
+    if(!contactsState.loading&&!contactsState.failed)contactNotice(e.cSearch.value.trim()?`${rows.length}명 검색 · 전체 ${contactsState.rows.length}명`:`총 ${contactsState.rows.length}명의 연락처`);
+    e.cNew.hidden=!contactsState.canManage;setContactBusy()
+  }
+  async function loadContacts(){
+    if(contactsState.loading||contactsState.saving)return false;
+    contactsState.loading=true;contactsState.failed=false;
+    contactNotice("연락처 조회 중…");renderContacts();
+    try{
+      const url=new URL(API,location.origin);url.searchParams.set("entity","contact");
+      const response=await api(url,{headers:headers()});
+      contactsState.rows=(Array.isArray(response.contacts)?response.contacts:[]).filter(row=>row&&typeof row==="object").sort((a,b)=>String(a.companyName).localeCompare(String(b.companyName),"ko")||String(a.driverName).localeCompare(String(b.driverName),"ko"));
+      contactsState.companies=Array.isArray(response.companies)?response.companies:[];
+      contactsState.canManage=response.permissions?.canManageContacts===true;contactsState.loaded=true;
+      return true
+    }catch(err){
+      contactsState.failed=true;contactsState.rows=[];contactsState.canManage=false;
+      contactNotice(err.message||"연락처 조회에 실패했습니다.",true);
+      return false
+    }finally{
+      contactsState.loading=false;renderContacts()
+    }
+  }
+  function openContacts(){
+    if(!state.user||state.saving)return;
+    contactsState.opener=document.activeElement;
+    e.cModal.hidden=false;document.body.style.overflow="hidden";
+    setTimeout(()=>{if(!e.cModal.hidden)e.cSearch.focus()},0);
+    loadContacts()
+  }
+  function closeContacts(){
+    if(contactsState.saving)return;
+    e.cModal.hidden=true;e.cForm.hidden=true;contactsState.editingId="";contactsState.conflict=false;
+    e.cForm.reset();contactFormNotice("");
+    if([e.rModal,e.tModal,e.uModal,e.companyModal,e.photoModal].every(modal=>modal.hidden))document.body.style.overflow="";
+    if(contactsState.opener?.isConnected&&!contactsState.opener.hidden)contactsState.opener.focus()
+  }
+  function startContactEditor(row=null){
+    if(contactsState.saving||!contactsState.canManage)return;
+    contactsState.editingId=row?.id||"";contactsState.version=Number(row?.version||0);contactsState.conflict=false;
+    e.cEditorTitle.textContent=row?"연락처 수정":"연락처 등록";
+    e.cCompany.value=row?.companyName||"";e.cDriver.value=row?.driverName||"";e.cPhone.value=row?.phoneNumber||"";
+    contactFormNotice("");e.cForm.hidden=false;setContactBusy();e.cCompany.focus()
+  }
+  function cancelContactEditor(){
+    if(contactsState.saving)return;
+    e.cForm.hidden=true;e.cForm.reset();contactsState.editingId="";contactsState.conflict=false;contactFormNotice("");e.cNew.focus()
+  }
+  async function saveContact(ev){
+    ev.preventDefault();
+    if(contactsState.saving||contactsState.loading||!contactsState.canManage||contactsState.conflict)return;
+    const company=e.cCompany.value.trim(),driver=e.cDriver.value.trim(),phone=e.cPhone.value.trim();
+    if(!company||company.length>80||/[\x00-\x1f\x7f]/.test(company)){contactFormNotice("업체명을 80자 이내로 입력해 주세요.",true);return e.cCompany.focus()}
+    if(!driver||driver.length>80||/[\x00-\x1f\x7f]/.test(driver)){contactFormNotice("기사명을 80자 이내로 입력해 주세요.",true);return e.cDriver.focus()}
+    if(!contactDial(phone)){contactFormNotice("전화번호를 확인해 주세요. 숫자 7~15자리와 +, 공백, 괄호, -만 사용할 수 있습니다.",true);return e.cPhone.focus()}
+    const editing=!!contactsState.editingId,payload={entity:"contact",companyName:company,driverName:driver,phoneNumber:phone};
+    if(editing){payload.id=contactsState.editingId;payload.version=contactsState.version}
+    contactsState.saving=true;setContactBusy();contactFormNotice("연락처를 저장하고 있습니다.");
+    let saved=false,conflict=false;
+    try{
+      await api(API,{method:editing?"PUT":"POST",headers:headers({"Content-Type":"application/json"}),body:JSON.stringify(payload)});
+      saved=true;e.cForm.hidden=true;e.cForm.reset();contactsState.editingId="";contactFormNotice("")
+    }catch(err){
+      conflict=err.status===409;
+      contactsState.conflict=conflict;
+      contactFormNotice(conflict?"다른 사용자가 변경한 연락처입니다. 입력 내용은 유지했어요. 목록의 수정 버튼을 눌러 최신 내용을 확인해 주세요.":(err.message||"연락처를 저장하지 못했습니다."),true)
+    }finally{contactsState.saving=false;setContactBusy()}
+    if(saved||conflict){await loadContacts();if(saved&&!contactsState.failed){contactNotice("연락처를 저장했습니다.");e.cNew.focus()}}
+  }
+  async function deleteContact(row){
+    if(!row||contactsState.saving||contactsState.loading||!contactsState.canManage)return;
+    if(!confirm(`${row.companyName} · ${row.driverName} 연락처를 삭제할까요?`))return;
+    contactsState.saving=true;setContactBusy();contactNotice("연락처를 삭제하고 있습니다.");
+    let removed=false,conflict=false;
+    try{
+      const url=new URL(API,location.origin);url.searchParams.set("entity","contact");url.searchParams.set("id",row.id);url.searchParams.set("version",String(row.version));
+      await api(url,{method:"DELETE",headers:headers()});removed=true;
+      if(contactsState.editingId===row.id){e.cForm.hidden=true;contactsState.editingId="";e.cForm.reset();contactFormNotice("")}
+    }catch(err){conflict=err.status===409;contactNotice(err.message||"연락처를 삭제하지 못했습니다.",true)}
+    finally{contactsState.saving=false;setContactBusy()}
+    if(removed||conflict){await loadContacts();if(!contactsState.failed)contactNotice(removed?"연락처를 삭제했습니다.":"연락처가 변경되어 목록을 새로 불러왔습니다. 확인 후 다시 시도해 주세요.",conflict)}
+  }
+  function bindContacts(){
+    e.contactManage.addEventListener("click",openContacts);
+    e.cClose.addEventListener("click",closeContacts);e.cDone.addEventListener("click",closeContacts);
+    e.cNew.addEventListener("click",()=>startContactEditor());e.cCancel.addEventListener("click",cancelContactEditor);
+    e.cRefresh.addEventListener("click",loadContacts);e.cSearch.addEventListener("input",renderContacts);
+    e.cForm.addEventListener("submit",saveContact);
+    e.cList.addEventListener("click",ev=>{
+      const button=ev.target.closest("[data-contact-action]");
+      if(!button)return;
+      const row=contactsState.rows.find(item=>item.id===button.dataset.contactId);
+      if(button.dataset.contactAction==="edit")startContactEditor(row);
+      else if(button.dataset.contactAction==="delete")deleteContact(row)
+    });
+    e.cModal.addEventListener("click",ev=>{if(ev.target===e.cModal)closeContacts()});
+    e.cModal.addEventListener("keydown",ev=>{
+      if(ev.key!=="Tab")return;
+      const controls=[...e.cModal.querySelectorAll('button:not([disabled]),input:not([disabled]),a[href],[tabindex="0"]')].filter(el=>!el.closest("[hidden]")&&el.getClientRects().length);
+      if(!controls.length){ev.preventDefault();return}
+      const first=controls[0],last=controls[controls.length-1];
+      if(ev.shiftKey&&document.activeElement===first){ev.preventDefault();last.focus()}
+      else if(!ev.shiftKey&&document.activeElement===last){ev.preventDefault();first.focus()}
+    })
+  }
+
   async function delRecord(entity,x){if(!x||!canDeleteRecord())return;if(!confirm(`${entity==="unloading"?"하역시간":"Trouble"} 기록을 삭제할까요?`))return;try{const u=new URL(API,location.origin);u.searchParams.set("id",x.id);u.searchParams.set("entity",entity);await api(u,{method:"DELETE",headers:headers()});if(entity==="unloading")notifyReceiptChanged(x.unloadingDate);await load()}catch(err){alert(err.message||"삭제 실패")}}
   async function delPhoto(id){if(!id||!canUploadPhoto()||!confirm("이 샘플 사진을 삭제할까요?"))return;try{const u=new URL(API,location.origin);u.searchParams.set("photoId",id);await api(u,{method:"DELETE",headers:headers()});const rid=e.tId.value.trim();await load();const x=troubleById(rid);if(x){e.tVersion.value=x.version;existingPhotos(x)}}catch(err){setEditorStatus(e.tStatus,err.message||"사진 삭제 실패")}}
 
   function applyZoom(scale){const s=Math.min(4,Math.max(.25,Number(scale)||1));state.photoScale=s;e.zoomRange.value=String(Math.round(s*100));setText(e.zoomText,`${Math.round(s*100)}%`);if(e.photo.naturalWidth)e.photo.style.width=`${Math.max(1,Math.round(e.photo.naturalWidth*s))}px`}
   function fitPhoto(){if(!e.photo.naturalWidth||!e.photoStage.clientWidth)return;const sx=(e.photoStage.clientWidth-36)/e.photo.naturalWidth,sy=(e.photoStage.clientHeight-36)/e.photo.naturalHeight;applyZoom(Math.min(sx,sy))}
   function showPhoto(src){if(!src)return;e.photoModal.hidden=false;document.body.style.overflow="hidden";e.photo.onload=()=>{fitPhoto();e.photoStage.scrollTo(0,0)};e.photo.src=src}
-  function closePhoto(){e.photoModal.hidden=true;e.photo.removeAttribute("src");e.photo.style.removeProperty("width");if(e.tModal.hidden&&e.uModal.hidden&&e.rModal.hidden&&e.companyModal.hidden)document.body.style.overflow=""}
+  function closePhoto(){e.photoModal.hidden=true;e.photo.removeAttribute("src");e.photo.style.removeProperty("width");if(e.tModal.hidden&&e.uModal.hidden&&e.rModal.hidden&&e.companyModal.hidden&&e.cModal.hidden)document.body.style.overflow=""}
 
   function bind(){
+    bindContacts();
     e.refresh.addEventListener("click",load);
     e.createRecord.addEventListener("click",openRecord);
     e.companyManage.addEventListener("click",openCompanyManager);
@@ -610,6 +774,7 @@
 
     document.addEventListener("keydown",ev=>{
       if(ev.key!=="Escape")return;
+      if(!e.cModal.hidden){ev.preventDefault();return closeContacts()}
       if(!e.photoModal.hidden)return closePhoto();
       if(!e.rModal.hidden)return closeRecord();
       if(!e.tModal.hidden)return closeTrouble();

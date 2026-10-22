@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>고형연료 관리 | GS Shift Log</title>
-  <link rel="stylesheet" href="/maintenance/solid-fuel-trouble.css?v=20260924-unload-tonnage-summary-r14">
+  <link rel="stylesheet" href="/maintenance/solid-fuel-trouble.css?v=20261022-emergency-contacts-v1">
   <link rel="stylesheet" href="/maintenance/solid-fuel-native-redesign-v21.css?v=20260919-silo-table-v24">
   <link rel="stylesheet" href="/maintenance/solid-fuel-silo-row-align-v2.css?v=20260920-silo-row-align-v2">
   <link rel="stylesheet" href="/maintenance/solid-fuel-silo-cell-align-v3.css?v=20260920-silo-cell-align-v3">
@@ -137,6 +137,7 @@
         <button class="btn ghost" id="refreshBtn" type="button">새로고침</button>
         <button class="btn primary" id="createRecordBtn" type="button" hidden>+ 기록 등록</button>
         <button class="btn ghost" id="companyManageBtn" type="button" hidden>업체 관리</button>
+        <button class="btn contact-directory-button" id="contactManageBtn" type="button" aria-haspopup="dialog" aria-controls="contactModal" hidden><span aria-hidden="true">☎</span> 비상연락망</button>
       </div>
     </header>
 
@@ -576,6 +577,45 @@
     </section>
   </div>
 
+  <!-- SOLID_FUEL_EMERGENCY_CONTACTS_V1 -->
+  <div class="modal contact-modal" id="contactModal" hidden>
+    <section class="modal-card contact-manager-card" role="dialog" aria-modal="true" aria-labelledby="contactManagerTitle" aria-describedby="contactManagerGuide">
+      <header class="modal-head">
+        <div>
+          <span>SOLID FUEL · CONTACTS</span>
+          <h2 id="contactManagerTitle">비상연락망 <small id="contactCount">0</small></h2>
+          <p id="contactManagerGuide">업체·기사 연락처를 확인하고 전화번호를 눌러 전화하세요.</p>
+        </div>
+        <button class="icon-btn" id="contactClose" type="button" aria-label="비상연락망 닫기">×</button>
+      </header>
+      <div class="contact-manager">
+        <div class="contact-toolbar">
+          <label class="contact-search"><span class="contact-sr-only">업체·기사·전화번호 검색</span><input id="contactSearch" type="search" placeholder="업체 · 기사 · 전화번호 검색" autocomplete="off"></label>
+          <button class="btn ghost" id="contactRefresh" type="button">새로고침</button>
+          <button class="btn primary" id="contactNew" type="button" hidden>+ 연락처 등록</button>
+        </div>
+        <form id="contactForm" class="contact-editor" hidden>
+          <strong id="contactEditorTitle">연락처 등록</strong>
+          <div class="contact-editor-grid">
+            <label><span>업체명 <em>필수</em></span><input id="contactCompany" list="contactCompanyOptions" maxlength="80" required autocomplete="organization" placeholder="업체 선택 또는 입력"><datalist id="contactCompanyOptions"></datalist></label>
+            <label><span>기사명 <em>필수</em></span><input id="contactDriver" maxlength="80" required autocomplete="off" placeholder="기사 성함"></label>
+            <label><span>전화번호 <em>필수</em></span><input id="contactPhone" type="tel" inputmode="tel" maxlength="40" required autocomplete="off" placeholder="010-0000-0000"></label>
+          </div>
+          <p id="contactFormStatus" class="contact-form-status" role="status" aria-live="polite" hidden></p>
+          <div class="contact-editor-actions"><button class="btn ghost" id="contactCancel" type="button">취소</button><button class="btn primary" id="contactSave" type="submit">저장</button></div>
+        </form>
+        <p id="contactStatus" class="contact-status" role="status" aria-live="polite">조회 대기</p>
+        <div class="contact-table-wrap">
+          <table class="contact-table">
+            <thead><tr><th scope="col">업체</th><th scope="col">기사</th><th scope="col">전화번호</th><th scope="col">관리</th></tr></thead>
+            <tbody id="contactList"><tr><td class="contact-empty" colspan="4">연락처를 불러오는 중입니다.</td></tr></tbody>
+          </table>
+        </div>
+        <footer class="modal-foot contact-footer"><button class="btn ghost" id="contactDone" type="button">닫기</button></footer>
+      </div>
+    </section>
+  </div>
+
   <div class="modal photo-modal" id="photoModal" hidden>
     <section class="photo-viewer">
       <header class="photo-toolbar">
@@ -597,7 +637,7 @@
   </div>
 
   <script src="/maintenance/shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
-  <script src="/maintenance/solid-fuel-trouble.js?v=20260925-solid-fuel-stable-v1" defer></script>
+  <script src="/maintenance/solid-fuel-trouble.js?v=20261022-emergency-contacts-v1" defer></script>
   <script src="/maintenance/solid-fuel-native-redesign-v21.js?v=20260925-solid-fuel-stable-v1" defer></script>
 </body>
 </html>
