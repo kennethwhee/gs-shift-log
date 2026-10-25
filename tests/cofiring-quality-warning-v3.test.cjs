@@ -93,7 +93,7 @@ test('UI integration remains read-only, preserves summary cards and busts only w
     assert.match(ui,/communicationWarning\?\.render/);
     assert.match(ui,/data-cfv-communication-warning/);}
   assert.match(index,/cofiring-communication-warning-v2\.js\?v=20261026-quality-v3/);
-  assert.match(index,/cofiring-communication-warning-v2\.css\?v=20261026-quality-v3/);
+  assert.match(index,/cofiring-communication-warning-v2\.css\?v=20261026-(?:quality-v3|oct23-v4)/);
   assert.match(css,/data-tone="info"/);
   assert.doesNotMatch(index,/cofiring-communication-warning-v2\.(?:js|css)\?v=20261026-auto-v2/);
 });

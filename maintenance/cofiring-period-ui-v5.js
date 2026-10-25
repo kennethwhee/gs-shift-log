@@ -139,7 +139,7 @@
         </div>
       </div>
 
-      <section class="cfv-inventory-correction" data-cfv-inventory-correction aria-label="통신 오류 재고 보완" hidden></section>
+      <details class="cfv-inventory-optional" data-cfv-inventory-optional hidden><summary>유기성 재고 확인 상세 · 필요 시 펼치기</summary><section class="cfv-inventory-correction" data-cfv-inventory-correction aria-label="미확인 재고 상세 및 보완" hidden></section></details>
 
       <section class="cfv-results-dark" aria-label="혼소율 계산 결과">
       <div class="cfv-communication-warning" data-cfv-communication-warning role="status" aria-live="polite" hidden></div>
@@ -310,7 +310,7 @@
     const cards=[];
     for(const [i,unit] of UNITS.entries()){
       const u=result?.units?.[unit],manualComplete=!!(u?.organic?.complete&&u?.manure?.complete),bioReady=coalBioRatio(u)!==null,provisional=result.organicUsage?.provisionalZero===true||result.organicUsage?.provisional===true;
-      cards.push(`<article class="cfv52-card" data-cfv52-unit="${unit}"><header><div class="cfv52-unit-title"><span class="cfv52-unit-number" aria-hidden="true">0${i+1}</span><div><strong>${i+1}호기</strong></div></div><span class="cfv52-card-status${manualComplete&&bioReady&&!provisional?'':' is-waiting'}">${result.organicUsage?.provisional?'추정 재고 · 임시 계산':provisional?'유기성 0t 임시 표시':manualComplete&&bioReady?'계산 완료':bioReady?'종합 계산 대기':u?.coal?.complete&&u?.bio?.complete?'사용량 확인 · 재고 보완 필요':'조회값 확인'}</span></header><div class="cfv52-metrics">
+      cards.push(`<article class="cfv52-card" data-cfv52-unit="${unit}"><header><div class="cfv52-unit-title"><span class="cfv52-unit-number" aria-hidden="true">0${i+1}</span><div><strong>${i+1}호기</strong></div></div><span class="cfv52-card-status${manualComplete&&bioReady&&!provisional?'':' is-waiting'}">${result.organicUsage?.provisional?'추정 재고 · 임시 계산':provisional?'유기성 0t 임시 표시':manualComplete&&bioReady?'계산 완료':bioReady&&result?.organicUsage?.code==='ORGANIC_BOUNDARY_CORRECTION_REQUIRED'?'Coal·Bio 완료 · 유기성 미확인':bioReady?'종합 계산 대기':u?.coal?.complete&&u?.bio?.complete?'사용량 확인 · 재고 보완 필요':'조회값 확인'}</span></header><div class="cfv52-metrics">
         ${summaryMetric('바이오 혼소율',coalBioRatio(u),{ratio:true})}
         ${summaryMetric('유기성 · 축분 혼소율',u?.fuelRatios?.organicGroup,{ratio:true})}
         ${summaryMetric('종합 혼소율',u?.fuelRatios?.total,{ratio:true,emphasis:true})}
@@ -323,7 +323,7 @@
     </div></article>`);
     host.innerHTML=cards.join('');
     restoreEditor();
-    if(note)note.textContent=result?.warnings?.length?'자료 확인 필요':'계산 완료';
+    if(note)note.textContent=result?.organicUsage?.code==='ORGANIC_BOUNDARY_CORRECTION_REQUIRED'&&result?.organicUsage?.ok!==true?'Coal·Bio 완료 · 유기성 재고 미확인':result?.warnings?.length?'자료 확인 필요':'계산 완료';
   }
 
   // COFIRING_ADJUSTED_COMPARISON_CARDS_V4
@@ -753,7 +753,8 @@
         }
       }
       if(!total.ok){
-        organicUsageSource(total.message+(reference?' · 이전 저장 사용량은 계산에서 제외':''),reference?'error':'');
+        const missingBoundary=total.code==='ORGANIC_BOUNDARY_CORRECTION_REQUIRED';
+        organicUsageSource(total.message+(reference?' · 이전 저장 사용량은 계산에서 제외':''),reference?(missingBoundary?'working':'error'):'');
         const save=container.querySelector('[data-cfv5-manual-save]');if(save)save.disabled=true;
         return total;
       }
@@ -781,8 +782,9 @@
         return true;
       }
       if(organicUsageState?.ok!==true){
-        prepLabel('유기성 자료 확인 필요','error');
-        setStatus(container,organicUsageState?.message||'유기성 원본 재고 확인이 필요합니다.','error');
+        const missingBoundary=organicUsageState?.code==='ORGANIC_BOUNDARY_CORRECTION_REQUIRED';
+        prepLabel(missingBoundary?'Coal·Bio 완료 · 유기성 재고 미확인':'유기성 자료 확인 필요',missingBoundary?'working':'error');
+        setStatus(container,missingBoundary?'Coal·Bio 시작·종료 누적값은 계산됐습니다. 유기성(Storage B) 종료 재고가 없어 유기성 사용량과 종합혼소율은 확정할 수 없습니다. 기존 계측 결과는 보존됩니다.':organicUsageState?.message||'유기성 원본 재고 확인이 필요합니다.',missingBoundary?'working':'error');
         return true;
       }
       return false;
@@ -870,7 +872,7 @@
       else if(restoringSaved)parts.push('저장 결과 확인 중');
       else if(item?.submitting||active){parts.push(item?.submitting?'조회 요청 중':active.status==='pending'?'회사 PC 대기 중':liveRequestPresentation(state).progressLabel||'조회 중');tone='working';}
       else if(item?.error||failure){parts.push(hasResult?'조회 실패 · 이전 결과 표시':'조회 실패 · 상세 확인');tone='error';}
-      else if(hasResult&&organicUsageState?.ok!==true){parts.push('유기성 자료 확인 필요');tone='error';}
+      else if(hasResult&&organicUsageState?.ok!==true){const missingBoundary=organicUsageState?.code==='ORGANIC_BOUNDARY_CORRECTION_REQUIRED';parts.push(missingBoundary?'Coal·Bio 계산 완료 · 유기성 재고 미확인':'유기성 자료 확인 필요');tone=missingBoundary?'working':'error';}
       else if(hasResult&&organicUsageState?.provisional){parts.push('추정 재고 · 임시 계산');tone='working';}
       else if(hasResult&&organicUsageState?.provisionalZero){parts.push('계산 완료 · 유기성 0t 임시 표시');tone='working';}
       else if(container.querySelector('[data-cfv5-status]')?.dataset.tone==='error'){parts.push('확인 필요 · 상세 확인');tone='error';}
@@ -964,7 +966,7 @@
       // COFIRING_ADJUSTED_COMPARISON_STATE_V4
       container.__cfvAdjustedComparisonState = adjusted
         ? { active: true, base: lastResult || null, adjusted: result || null }
-        : { active: false, base: result || lastResult || null, adjusted: null };displayResult=result;const manualValues=readManual(container);/* CFV6 DETAIL RESULT BRIDGE R2 */container.__cfv6DetailPayload={result,manualValues};if(root.CustomEvent)container.dispatchEvent(new root.CustomEvent('cfv6-detail-result',{detail:container.__cfv6DetailPayload}));renderMain(container,result);renderOrganic(container,result,manualValues);renderSummary(container,result,manualValues,deadlineInputError);cfvSummaryLayoutMaybeReveal(result,adjusted);renderWarnings(container,result);communicationWarning?.render?.(container.querySelector('[data-cfv-communication-warning]'),reference,organicUsageState);scheduleDeadlineRefresh();adjustmentActive=!!adjusted;const b=container.querySelector('[data-cfv56-adjust]');if(b){b.disabled=!lastResult||mobile||organicUsageState?.provisional===true;b.classList.toggle('is-active',adjustmentActive);b.textContent=adjustmentActive?'혼소조정 적용 중':'혼소 조정';}const activeResetButton=container.querySelector('[data-cfv56-active-reset]');if(activeResetButton){activeResetButton.hidden=!adjustmentActive;activeResetButton.disabled=!adjustmentActive||mobile;activeResetButton.setAttribute('aria-hidden',String(!adjustmentActive));}const note=container.querySelector('[data-cfv52-summary-note]');if(note&&adjusted)note.textContent='혼소 조정 적용';}
+        : { active: false, base: result || lastResult || null, adjusted: null };displayResult=result;const manualValues=readManual(container);/* CFV6 DETAIL RESULT BRIDGE R2 */container.__cfv6DetailPayload={result,manualValues};if(root.CustomEvent)container.dispatchEvent(new root.CustomEvent('cfv6-detail-result',{detail:container.__cfv6DetailPayload}));renderMain(container,result);renderOrganic(container,result,manualValues);renderSummary(container,result,manualValues,deadlineInputError);cfvSummaryLayoutMaybeReveal(result,adjusted);renderWarnings(container,result);communicationWarning?.render?.(container.querySelector('[data-cfv-communication-warning]'),reference,organicUsageState);scheduleDeadlineRefresh();adjustmentActive=!!adjusted;const b=container.querySelector('[data-cfv56-adjust]');if(b){b.disabled=!lastResult||mobile||organicUsageState?.ok!==true||organicUsageState?.provisional===true||organicUsageState?.provisionalZero===true;b.classList.toggle('is-active',adjustmentActive);b.textContent=adjustmentActive?'혼소조정 적용 중':'혼소 조정';}const activeResetButton=container.querySelector('[data-cfv56-active-reset]');if(activeResetButton){activeResetButton.hidden=!adjustmentActive;activeResetButton.disabled=!adjustmentActive||mobile;activeResetButton.setAttribute('aria-hidden',String(!adjustmentActive));}const note=container.querySelector('[data-cfv52-summary-note]');if(note&&adjusted)note.textContent='혼소 조정 적용';}
     // COFIRING_ADJUSTED_COMPARISON_RESTORE_FLASH_FIX_V6_R3_R4
     function cfvSummaryLayoutPending(active){
       if(mobile)return;
@@ -976,6 +978,11 @@
       // COFIRING_ADJUSTED_COMPARISON_RESTORE_FINAL_METRICS_V6_R3_R7
       if(adjusted)return true;
       if(!result?.units)return false;
+      // A missing organic boundary must never blank out independently verified
+      // Coal/Bio cards. Overall ratios remain unavailable, not zero or guessed.
+      if(organicUsageState?.code==='ORGANIC_BOUNDARY_CORRECTION_REQUIRED'&&organicUsageState?.ok!==true){
+        return UNITS.every(unit=>{const u=result.units?.[unit];return u?.coal?.complete===true&&u?.bio?.complete===true&&coalBioRatio(u)!==null;});
+      }
       return UNITS.every(unit=>{
         const u=result.units?.[unit];
         const ratios=u?.fuelRatios||{};
@@ -990,7 +997,7 @@
       if(mobile)return;
       if(cfvSummaryLayoutFinalReady(result,adjusted))cfvSummaryLayoutPending(false);
     }
-    function adjustmentContext(){if(organicUsageState?.provisional)throw new Error('추정 재고 임시 계산에서는 혼소 조정을 저장할 수 없습니다. 재고 확인 후 진행해 주세요.');return {result:lastResult,settings:readSettings(container),spec:currentSpec()};}
+    function adjustmentContext(){if(organicUsageState?.ok!==true)throw new Error('유기성 재고가 확인되지 않아 혼소 조정은 적용·저장할 수 없습니다. Coal·Bio 사용량은 표시합니다.');if(organicUsageState?.provisional)throw new Error('추정 재고 임시 계산에서는 혼소 조정을 저장할 수 없습니다. 재고 확인 후 진행해 주세요.');if(organicUsageState?.provisionalZero)throw new Error('유기성 사용량 0t 임시 표시 상태에서는 혼소 조정을 저장할 수 없습니다. 입고량·재고수지 확인 후 진행해 주세요.');return {result:lastResult,settings:readSettings(container),spec:currentSpec()};}
     function notifyPeriodAdjustmentChanged(){
       try{
         const changedSpec=currentSpec();
@@ -1441,14 +1448,14 @@
       try{
         updateOrganicInventoryUsage();lastResult=analyze();if(!lastResult)return null;deadlineInputError='';
         let shown=lastResult,adjusted=false;
-        if(adjuster){try{const stored=adjuster.resolve(lastResult,readSettings(container),currentSpec());if(stored?.ok){shown=stored.result;adjusted=true;}}catch(_){}}
+        if(adjuster&&organicUsageState?.ok===true){try{const stored=adjuster.resolve(lastResult,readSettings(container),currentSpec());if(stored?.ok){shown=stored.result;adjusted=true;}}catch(_){}}
         renderDisplay(shown,{adjusted});
         renderedRequestId=live?.state()?.item?.saved?.id||null;
         const refreshing=!!live?.state()?.item?.active;prepLabel(refreshing?'저장값 재계산':'계산 완료',refreshing?'working':'ready');
         setStatus(container,refreshing?'저장된 결과와 현재 입력값으로 재계산했습니다. 최신 DataPARC 조회는 진행 중입니다.':adjusted?'선택 기간 혼소율 계산과 저장된 혼소 조정을 적용했습니다.':lastResult.warnings?.length?'혼소율을 계산했습니다. 자료 품질 경고는 [자료 확인 내용]에서 확인해 주세요. 빈칸 축분은 0t로 계산됩니다.':'선택 기간 혼소율 계산이 완료되었습니다. 빈칸 축분은 0t로 계산됩니다.','success');
         paintOrganicCalculationState();
         // Refresh only the persisted adjustment; never issue another DataPARC query.
-        void adjustmentSync?.refresh();
+        void adjustmentSync?.refresh(); // even partial inventory must preserve the shared sync lifecycle; application remains suspended
         finishClickTiming();return shown;
       }catch(e){deadlineInputError=e.message||'계산 입력값을 확인해 주세요.';clearDeadlineRefresh();renderSummary(container,displayResult||lastResult,currentManualFromFields(),deadlineInputError);clickTiming?.fail(clickToken,'계산 오류');setStatus(container,deadlineInputError,'error');return null;}
     }
@@ -1574,12 +1581,13 @@
         identity:String(authHeaders().Authorization||authHeaders().authorization||''),
         suspended:disposed||settingsDirty||manualTouched||!!usageEditSnapshot}),
       onResult:(result,state)=>{
+        if(organicUsageState?.ok!==true||organicUsageState?.provisional===true||organicUsageState?.provisionalZero===true)return; // never apply adjusted total to unconfirmed organic data
         renderDisplay(result,state);
         if(paintOrganicCalculationState())return;
         setStatus(container,state.adjusted?'공용 혼소조정값을 반영했습니다. 오전회의와 같은 기간의 저장값을 사용합니다.':'공용 혼소조정 원복 상태를 반영했습니다. 원본 계산값을 표시합니다.','success');
       },
-      onDeferred:()=>setStatus(container,'편집 중인 입력값을 보호하기 위해 혼소조정 동기화를 보류했습니다. 입력값 저장·원복 후 다시 확인합니다.',''),
-      onError:e=>setStatus(container,'공용 혼소조정 조회 실패 · 현재 표시값 유지: '+(e?.message||'다시 조회해 주세요.'),'error')
+      onDeferred:()=>{if(organicUsageState?.ok!==true||organicUsageState?.provisional===true||organicUsageState?.provisionalZero===true)return;setStatus(container,'편집 중인 입력값을 보호하기 위해 혼소조정 동기화를 보류했습니다. 입력값 저장·원복 후 다시 확인합니다.','');},
+      onError:e=>{if(organicUsageState?.ok!==true||organicUsageState?.provisional===true||organicUsageState?.provisionalZero===true)return;setStatus(container,'공용 혼소조정 조회 실패 · 현재 표시값 유지: '+(e?.message||'다시 조회해 주세요.'),'error');}
     })||null;
     const adjustButton=container.querySelector('[data-cfv56-adjust]');if(adjustButton){adjustButton.disabled=true;adjustButton.addEventListener('click',()=>{try{Promise.resolve(adjuster?.open()).catch(e=>setStatus(container,e.message,'error'));}catch(e){setStatus(container,e.message,'error');}});}
     // COFIRING_ACTIVE_ADJUSTMENT_REVERT_V1

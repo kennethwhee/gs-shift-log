@@ -74,7 +74,11 @@
     }
     function render(){
       if(!host)return;const result=resolution(),missing=result?.missing||[],state=store.state();
-      host.hidden=!reference||!missing.length||!!(result?.ok&&result.autoEstimates?.length);if(host.hidden){host.innerHTML='';return;}
+      host.hidden=!reference||!missing.length||!!(result?.ok&&result.autoEstimates?.length);
+      // Operator correction is optional and collapsed; data uncertainty remains visible
+      // in the summary banner. Never turn missing measurements into 0t.
+      const wrapper=host.closest?.('[data-cfv-inventory-optional]');if(wrapper)wrapper.hidden=host.hidden;
+      if(host.hidden){host.innerHTML='';return;}
       const context=JSON.stringify([contextKey,missing,state.entries,state.history,state.historyTruncated,state.loaded,state.loading,state.saving,state.error,state.evidence]);if(context===lastRender)return;lastRender=context;
       host.innerHTML=`<div class="cfv-inventory-heading"><strong>통신 오류 재고 보완</strong><button type="button" data-cfv-inventory-reload ${state.loading||state.saving?'disabled':''}>최신 기록 다시 확인</button></div><p>정상 Coal·Bio 사용량은 그대로 표시합니다. 확인되지 않은 재고만 보완하며, 같은 시각의 재고는 전날 종료와 다음 날 시작에 함께 사용합니다.</p><p class="cfv-inventory-caution">입고·하역 기록은 외부 반입 근거입니다. 입고가 없어도 Storage → Day Silo 이송은 있을 수 있습니다. 하역 전후 재고와 운전기록으로 경계 시각의 재고를 확인하세요. 추정값은 임시 계산에만 사용하며, 사용량 저장·마감은 확정 후 가능합니다.</p>${state.error?`<p role="alert">${esc(state.error)}</p>`:state.loading?'<p role="status">저장된 보완 이력 확인 중</p>':''}${missing.map((item,index)=>{
         const entry=state.entries.find(row=>key(row)===key(item)),draft=drafts.get(key(item))||{tons:entry?.tons??'',method:entry?.method||'estimated',reason:entry?.reason||'',evidence:entry?.evidence||[]};
