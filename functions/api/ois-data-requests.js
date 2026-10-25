@@ -24306,12 +24306,41 @@ function createCofiringLiveContract() {
   }
   function periodKey(spec) { const p=period(spec,Number.MAX_SAFE_INTEGER); return [p.startLocal,p.endLocal,p.stepUnit,p.stepValue].join('|'); }
   function periodEnvelope(spec) { const p=period(spec); return {kind:'cofiring_period_request',schemaVersion:1,startLocal:p.startLocal,endLocal:p.endLocal,stepUnit:p.stepUnit,stepValue:p.stepValue,key:periodKey(p)}; }
+  // COFIRING_TOTALIZER_STATE_CONTRACT_V1: requested as-of time and raw source
+  // time are different facts. Never manufacture a boundary timestamp or stats.
+  function validateTotalizerStatePair(item,def,p) {
+    const basis=item.usageBasis==='end_minus_start_totalizer_asof';
+    const hasRead=item.startBoundaryRead!==undefined&&item.startBoundaryRead!==null||item.endBoundaryRead!==undefined&&item.endBoundaryRead!==null;
+    if(!basis&&!hasRead&&item.constantNoInteriorSamples!==true)return null;
+    if(!basis||!item.startBoundaryRead||!item.endBoundaryRead)fail('누적계 State 양쪽 시점 근거가 필요합니다: '+def.id);
+    if(item.startBoundaryFallbackApplied!==false||item.endBoundaryFallbackApplied!==false||item.constantBioCounterBothNoDataFallbackApplied===true||item.startBoundaryRecovered===true||item.endBoundaryRecovered===true)fail('누적계 State와 통계 대체값을 혼합할 수 없습니다: '+def.id);
+    const rawGood=q=>typeof q==='string'&&/^(?:raw\s*,\s*good|good\s*,\s*raw)$/i.test(q.trim());
+    const read=(side,target)=>{
+      const r=item[side+'BoundaryRead'],value=item[side+'Value'],quality=item[side+'Quality'],time=item[side+'Time'];
+      if(!r||typeof r!=='object'||Array.isArray(r)||r.schemaVersion!==1||r.sourceFunction!=='fnAtTimeArray'||!['State','Exact'].includes(r.method))fail('누적계 State 조회 방식이 다릅니다: '+def.id+' '+side);
+      if(!number(value)||value<0||!number(r.value)||r.value!==value||!rawGood(quality)||r.quality!==quality)fail('누적계 State 원본 값·품질이 다릅니다: '+def.id+' '+side);
+      const asOf=typeof r.asOfTime==='string'?Date.parse(r.asOfTime):NaN;
+      const source=typeof r.sourceTime==='string'?Date.parse(r.sourceTime):NaN;
+      const actual=typeof time==='string'?Date.parse(time):NaN;
+      if(!Number.isFinite(asOf)||asOf!==target||!Number.isFinite(source)||source!==actual||source>target||r.method==='Exact'&&source!==target)fail('누적계 State 요청·원본 시각이 다릅니다: '+def.id+' '+side);
+      return {schemaVersion:1,sourceFunction:'fnAtTimeArray',method:r.method,asOfTime:r.asOfTime,sourceTime:r.sourceTime,value:r.value,quality:r.quality};
+    };
+    const start=read('start',p.startMs),end=read('end',p.endMs);
+    if(Date.parse(end.sourceTime)<Date.parse(start.sourceTime)||Date.parse(end.sourceTime)===Date.parse(start.sourceTime)&&end.value!==start.value||Date.parse(end.sourceTime)<=p.startMs&&Date.parse(start.sourceTime)!==Date.parse(end.sourceTime))fail('누적계 State 원본 순서 또는 동일 시각 값이 모순됩니다: '+def.id);
+    const emptyStats=item.min===null&&item.max===null&&item.delta===null;
+    const constantNoInterior=emptyStats&&item.constantNoInteriorSamples===true&&start.method==='State'&&end.method==='State'&&Date.parse(start.sourceTime)===Date.parse(end.sourceTime)&&start.value===end.value&&item.usageTon===0&&item.rangeSpread===null&&item.durationBadSeconds===0&&number(item.durationGoodSeconds)&&item.durationGoodSeconds>=0&&Math.abs(item.durationGoodSeconds-p.durationMinutes*60)<=2;
+    if(item.constantNoInteriorSamples===true&&!constantNoInterior)fail('누적계 State 무변화·구간 통계 없음 근거가 다릅니다: '+def.id);
+    if(emptyStats&&!constantNoInterior)fail('누적계 State 구간 통계가 없습니다: '+def.id);
+    return {start,end,constantNoInteriorSamples:constantNoInterior};
+  }
+
   function validatePeriodSummaryItem(item,def,p) {
     // COFIRING_BIO_BOUNDARY_NODATA_CONTRACT_V4
     // COFIRING_BIO_CONSTANT_ZERO_CONTRACT_V1: keep raw null/Bad boundaries;
     // allow only a verified constant Bio counter throughout a full-Good interval.
     if(!item||item.key!==def.id||item.unit!==def.unit||item.fuel!==def.fuel||item.tag!==def.queryTag)fail('기간 TAG 식별 불일치: '+def.id);
-    const numericKeys=['min','max','delta','usageTon','durationGoodSeconds','durationBadSeconds'];
+    const state=validateTotalizerStatePair(item,def,p);
+    const numericKeys=state?.constantNoInteriorSamples?['usageTon','durationGoodSeconds','durationBadSeconds']:['min','max','delta','usageTon','durationGoodSeconds','durationBadSeconds'];
     for(const k of numericKeys)if(!number(item[k]))fail('기간 숫자 누락: '+def.id+' '+k);
     const startApplied=item.startBoundaryFallbackApplied===true,endApplied=item.endBoundaryFallbackApplied===true;
     const constantFallback=(def.fuel==='bio'&&startApplied&&endApplied&&item.usageBasis==='constant_bio_counter_full_good_both_nodata_fallback'&&item.startValue===null&&item.endValue===null&&noData(item.startQuality)&&noData(item.endQuality)&&number(item.startBoundaryFallbackValue)&&number(item.endBoundaryFallbackValue)&&item.min>=0&&item.min===item.max&&item.delta===0&&item.usageTon===0&&item.rangeSpread===0&&item.startBoundaryFallbackValue===item.min&&item.endBoundaryFallbackValue===item.min&&item.durationBadSeconds===0&&item.durationGoodSeconds>=0&&Math.abs(item.durationGoodSeconds-p.durationMinutes*60)<=2);
@@ -24327,19 +24356,19 @@ function createCofiringLiveContract() {
     if(effectiveStart<0||effectiveEnd<0||item.min<0||item.max<0||item.usageTon<-0.001)fail('기간 누적값 음수: '+def.id);
     if(direct&&(!good(item.startQuality)||!good(item.endQuality)))fail('기간 경계 품질 불량: '+def.id);
     const st=Date.parse(item.startTime),et=Date.parse(item.endTime);
-    if(!Number.isFinite(st)||st<p.startMs||st>=p.startMs+60000||!Number.isFinite(et)||et<p.endMs||et>=p.endMs+60000)fail('기간 경계 반환시각 불일치: '+def.id);
+    if(!state&&(!Number.isFinite(st)||st<p.startMs||st>=p.startMs+60000||!Number.isFinite(et)||et<p.endMs||et>=p.endMs+60000))fail('기간 경계 반환시각 불일치: '+def.id);
     const usage=effectiveEnd-effectiveStart,spread=item.max-item.min;
     if(usage<-0.001||Math.abs(usage-item.usageTon)>0.001)fail('기간 사용량/경계값 불일치: '+def.id);
-    if(spread<-0.001||Math.abs(spread-item.delta)>0.001)fail('기간 Delta/MinMax 불일치: '+def.id);
+    if(!state?.constantNoInteriorSamples&&(spread<-0.001||Math.abs(spread-item.delta)>0.001))fail('기간 Delta/MinMax 불일치: '+def.id);
     if(number(item.rangeSpread)&&Math.abs(spread-item.rangeSpread)>0.001)fail('기간 RangeSpread/MinMax 불일치: '+def.id);
     if(startFallback&&Math.abs(item.startBoundaryFallbackValue-item.min)>0.001)fail('기간 시작 경계 fallback/Min 불일치: '+def.id);
     if(endFallback&&Math.abs(item.endBoundaryFallbackValue-item.max)>0.001)fail('기간 종료 경계 fallback/Max 불일치: '+def.id);
-    if(item.min+0.001<effectiveStart||item.max-0.001>effectiveEnd)fail('기간 Min/Max가 누적 경계와 모순됩니다: '+def.id);
+    if(!state?.constantNoInteriorSamples&&(item.min+0.001<effectiveStart||item.max-0.001>effectiveEnd))fail('기간 Min/Max가 누적 경계와 모순됩니다: '+def.id);
     const expected=p.durationMinutes*60;
     if(item.durationGoodSeconds<0||item.durationBadSeconds<0||Math.abs(item.durationGoodSeconds+item.durationBadSeconds-expected)>2)fail('기간 품질 지속시간 불일치: '+def.id);
     if((startFallback||endFallback)&&item.durationBadSeconds>0.001)fail('기간 Bio 경계 fallback은 전체 Good 구간에서만 허용됩니다: '+def.id);
     if(item.boundaryValid!==true||item.durationCoverageValid!==true)fail('기간 Worker 경계 검증 실패: '+def.id);
-    return {...item,effectiveStartValue:effectiveStart,effectiveEndValue:effectiveEnd,startBoundaryRecovered:(startFallback||constantFallback),endBoundaryRecovered:(endFallback||constantFallback),dataComplete:item.durationBadSeconds<=0.001};
+    return {...item,...(state?{startBoundaryRead:state.start,endBoundaryRead:state.end,totalizerStateVerified:true,constantNoInteriorSamples:state.constantNoInteriorSamples}:{totalizerStateVerified:false}),effectiveStartValue:effectiveStart,effectiveEndValue:effectiveEnd,startBoundaryRecovered:(startFallback||constantFallback),endBoundaryRecovered:(endFallback||constantFallback),dataComplete:item.durationBadSeconds<=0.001};
   }
   function validateOrganicInventory(raw,p) {/* COFIRING_ORGANIC_START_BOUNDARY_2MIN_V1: Worker accepts the first valid inventory sample inside the first two minutes. *//* COFIRING_ORGANIC_LAST_ACTUAL_END_V1: allow the last actual inventory sample inside the selected period while retaining the existing legacy upper bound. */
     if(raw===null||raw===undefined)return null;

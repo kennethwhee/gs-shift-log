@@ -372,7 +372,71 @@
     };
   }
 
+  // COFIRING_TOTALIZER_STATE_CORE_V1_BEGIN
+  // State applies only after the shared validator certifies the paired read.
+  // Keep the historian's actual source timestamp separate from the as-of time.
+  function periodTotalizerStateCounter(definition, item, period) {
+    const requested=!!item&&(item.usageBasis==='end_minus_start_totalizer_asof'||item.totalizerStateVerified===true||item.startBoundaryRead!=null||item.endBoundaryRead!=null||item.constantNoInteriorSamples===true);
+    if(!requested)return null;
+    const issues=[];
+    const finite=function(value){return typeof value==='number'&&Number.isFinite(value);};
+    const rawGood=function(value){return typeof value==='string'&&/^(?:raw\s*,\s*good|good\s*,\s*raw)$/i.test(value.trim());};
+    const startValue=finite(item.startValue)?item.startValue:null,endValue=finite(item.endValue)?item.endValue:null;
+    const min=finite(item.min)?item.min:null,max=finite(item.max)?item.max:null,delta=finite(item.delta)?item.delta:null;
+    const usage=finite(item.usageTon)?item.usageTon:null;
+    const goodSeconds=finite(item.durationGoodSeconds)?item.durationGoodSeconds:null,badSeconds=finite(item.durationBadSeconds)?item.durationBadSeconds:null;
+    const expected=period&&finite(period.durationMinutes)?period.durationMinutes*60:null;
+    if(!definition||item.key!==definition.id||item.unit!==definition.unit||item.fuel!==definition.fuel||item.tag!==definition.queryTag)issues.push('summary_identity_mismatch');
+    if(item.totalizerStateVerified!==true||item.usageBasis!=='end_minus_start_totalizer_asof')issues.push('totalizer_state_not_validated');
+    if(item.startBoundaryFallbackApplied!==false||item.endBoundaryFallbackApplied!==false||item.startBoundaryRecovered===true||item.endBoundaryRecovered===true||item.constantBioCounterBothNoDataFallbackApplied===true)issues.push('totalizer_state_fallback_conflict');
+    if(startValue===null||endValue===null||usage===null)issues.push('summary_number_missing');
+    if(startValue!==null&&startValue<0||endValue!==null&&endValue<0)issues.push('negative_counter');
+    if(!finite(item.effectiveStartValue)||!finite(item.effectiveEndValue)||item.effectiveStartValue!==startValue||item.effectiveEndValue!==endValue)issues.push('totalizer_state_effective_mismatch');
+    function validRead(side,target) {
+      const read=item[side+'BoundaryRead'],value=item[side+'Value'],quality=item[side+'Quality'];
+      if(!read||typeof read!=='object'||Array.isArray(read)||read.schemaVersion!==1||read.sourceFunction!=='fnAtTimeArray'||!['State','Exact'].includes(read.method)||!finite(target)||!finite(value)||value<0||read.value!==value||read.quality!==quality||!rawGood(quality))return false;
+      const source=typeof read.sourceTime==='string'?Date.parse(read.sourceTime):NaN;
+      const original=typeof item[side+'Time']==='string'?Date.parse(item[side+'Time']):NaN;
+      const asOf=typeof read.asOfTime==='string'?Date.parse(read.asOfTime):NaN;
+      return Number.isFinite(source)&&Number.isFinite(original)&&source===original&&asOf===target&&(read.method==='Exact'?source===target:source<=target);
+    }
+    const startValid=validRead('start',period&&period.startMs),endValid=validRead('end',period&&period.endMs);
+    if(!startValid)issues.push('start_state_read_invalid');
+    if(!endValid)issues.push('end_state_read_invalid');
+    if(startValid&&endValid){
+      const first=Date.parse(item.startBoundaryRead.sourceTime),last=Date.parse(item.endBoundaryRead.sourceTime);
+      if(last<first||last===first&&startValue!==endValue)issues.push('totalizer_state_source_conflict');
+      // If the end observation already existed at the start boundary, it also
+      // proves that a different earlier start observation was not the latest.
+      if(last<=period.startMs&&first!==last)issues.push('totalizer_state_source_conflict');
+    }
+    const durationValid=expected!==null&&expected>0&&goodSeconds!==null&&badSeconds!==null&&goodSeconds>=0&&badSeconds>=0&&Math.abs(goodSeconds+badSeconds-expected)<=2;
+    if(!durationValid||item.durationCoverageValid!==true)issues.push('duration_coverage_invalid');
+    if(item.boundaryValid!==true)issues.push('summary_boundary_invalid');
+    const startRead=item.startBoundaryRead,endRead=item.endBoundaryRead;
+    const constantNoInterior=item.constantNoInteriorSamples===true&&startValid&&endValid&&startRead.method==='State'&&endRead.method==='State'&&Date.parse(startRead.sourceTime)===Date.parse(endRead.sourceTime)&&startValue===endValue&&item.min===null&&item.max===null&&item.delta===null&&item.rangeSpread===null&&usage===0&&durationValid&&badSeconds===0&&Math.abs(goodSeconds-expected)<=2;
+    if(item.constantNoInteriorSamples===true&&!constantNoInterior)issues.push('constant_no_interior_invalid');
+    if(!constantNoInterior){
+      if(min===null||max===null||delta===null)issues.push('summary_number_missing');
+      if(min!==null&&min<0||max!==null&&max<0)issues.push('negative_counter');
+      if(min!==null&&max!==null&&delta!==null){
+        const spread=max-min;
+        if(spread<-.001||Math.abs(spread-delta)>.001)issues.push('summary_delta_mismatch');
+        if(item.rangeSpread!==null&&item.rangeSpread!==undefined&&(!finite(item.rangeSpread)||Math.abs(spread-item.rangeSpread)>.001))issues.push('summary_range_mismatch');
+        if(startValue!==null&&min+.001<startValue||endValue!==null&&max-.001>endValue)issues.push('summary_bounds_mismatch');
+      }
+    }
+    const derived=startValue===null||endValue===null?null:endValue-startValue;
+    if(derived!==null&&(derived<-.001||usage===null||Math.abs(derived-usage)>.001))issues.push('summary_usage_mismatch');
+    const complete=issues.length===0;
+    const qualityGapSeconds=badSeconds===null?0:Math.max(0,badSeconds);
+    return {id:definition&&definition.id||item.key,quantity:complete?Math.max(0,derived):null,referenceQuantity:complete?Math.max(0,derived):null,complete,missingSamples:complete?0:1,observedSamples:complete?2:0,qualityVerified:complete&&qualityGapSeconds<=.001,qualityGapSeconds,issues:Array.from(new Set(issues)),summary:item,startBoundaryRecovered:false,endBoundaryRecovered:false,constantCounterRecovered:false,totalizerStateCounter:complete,constantNoInteriorSamples:complete&&constantNoInterior};
+  }
+  // COFIRING_TOTALIZER_STATE_CORE_V1_END
+
   function periodSummaryCounter(definition, item, period) {
+    const totalizerState=periodTotalizerStateCounter(definition,item,period);
+    if(totalizerState)return totalizerState;
     // COFIRING_BIO_BOUNDARY_NODATA_CORE_V4
     // COFIRING_BIO_CONSTANT_ZERO_CORE_V1: require both canonical recovery flags
     // and exact zero/constant evidence; never reinterpret missing values as zero.
