@@ -8,3 +8,8 @@
 .cofiring-period-v5 .cfv17-organic-math:not([open])>*:not(summary){display:none!important;}
 .cofiring-period-v5 .cfv17-organic-math>p{line-height:1.55;overflow-wrap:anywhere;}
 .cofiring-period-v5 .cfv17-brief{font-size:11px;color:#5c7181;}
+
+/* V8: make the unverified organic quantity distinct from measured Coal/Bio. */
+.cofiring-period-v5 .cfv18-hypothesis-organic{background:#fff8ef!important;border-color:#ebd0a5!important;}
+.cofiring-period-v5 .cfv18-hypothesis-organic .cfv10-fuel-value{color:#9c5c09!important;}
+.cofiring-period-v5 .cfv18-assumption-label{font-style:normal;font-size:10px;font-weight:700;color:#a46111;}

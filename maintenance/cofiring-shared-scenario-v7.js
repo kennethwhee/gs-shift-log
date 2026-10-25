@@ -7,6 +7,11 @@
 (function(root){
  'use strict';
  const B='organicStorageSiloB',SEAM='2026-10-24T00:00';
+ // This exact, already operator-reviewed 19.143t is a *fixed historical WHAT-IF*,
+ // not a dynamic DataPARC observation, correction, or certified stock. It must
+ // not be generalized to other timestamps or survive different source identity.
+ const OCT24_ACCEPTED_HYPOTHESIS=Object.freeze({tons:19.143,
+   sourceStartBadTons:66.506,sourceStartAt:'2026-10-23T23:10:18+09:00'});
  const dates={prev:{startLocal:'2026-10-23T00:00',endLocal:SEAM},next:{startLocal:SEAM,endLocal:'2026-10-25T00:00'}};
  const definitions=[['organicDaySilo','GSPOGE.ABB_DCS.104SDF01CW001XQ01/PLOT'],
    ['organicStorageSiloA','GSPOGE.ABB_DCS.003SDF01CW001XQ01/PLOT'],
@@ -48,13 +53,37 @@
    const t=Date.parse(s[which+'Time']||''),bound=Date.parse(local+':00+09:00');
    return Number.isFinite(t)&&Number.isFinite(bound)&&Math.abs(t-bound)<=300000;
  }
+ function fixedWhatIf24(reference,b){
+   // The adjacent 23rd report can be unavailable (e.g., read-only GET does not
+   // deliver a complete saved result). The operator explicitly accepted the
+   // 19.143t historical scenario. Permit it ONLY for this same Bad source row,
+   // with a matching tag, timestamp and old Bad numeric - never treat as Good.
+   if(reference?.startLocal!==dates.next.startLocal||reference?.endLocal!==dates.next.endLocal||
+     b?.tag!==definitions[2][1]||qualityGood(b?.startQuality)||
+     !/bad/i.test(String(b?.startQuality||''))||!isTons(b?.startValue)||
+     Math.abs(b.startValue-OCT24_ACCEPTED_HYPOTHESIS.sourceStartBadTons)>0.25||
+     typeof b?.startTime!=='string')return null;
+   const t=Date.parse(b.startTime),expected=Date.parse(OCT24_ACCEPTED_HYPOTHESIS.sourceStartAt);
+   if(!Number.isFinite(t)||Math.abs(t-expected)>60000)return null;
+   return OCT24_ACCEPTED_HYPOTHESIS.tons;
+ }
  function scenario(reference,receipt,spec,adjacentReference=null){
    const role=side(reference,spec);if(!role||!isTons(receipt))return null;
    const prior=role==='prev'?reference:adjacentReference;
-   if(role==='next'&&side(prior,{...dates.prev,stepUnit:'minute',stepValue:1})!=='prev')return null;
-   const assumption=observedMin23(prior),map=samples(reference);
-   if(assumption===null||!map)return null;
-   const b=map.get(B);if(role==='prev'){
+   const map=samples(reference);if(!map)return null;
+   const b=map.get(B);let assumption=null,assumptionSource='23일 DataPARC 원본 기간 최솟값';
+   if(role==='prev')assumption=observedMin23(reference);
+   else if(prior!==null&&prior!==undefined){
+     // A provided peer is authoritative for cross-checking the historical
+     // assumption; never quietly override a conflicting/invalid saved peer.
+     if(side(prior,{...dates.prev,stepUnit:'minute',stepValue:1})!=='prev')return null;
+     assumption=observedMin23(prior);
+   }else{
+     assumption=fixedWhatIf24(reference,b);
+     assumptionSource='23일 관측 최솟값 19.143t을 적용한 고정 가정(인접자료 재조회 미완료)';
+   }
+   if(assumption===null)return null;
+   if(role==='prev'){
       if(qualityGood(b.endQuality)||b.endValue!==null)return null;
    }else if(qualityGood(b.startQuality)||!endpointValid(b,'end',dates.next.endLocal))return null;
    let start=0,end=0;
@@ -74,7 +103,9 @@
    const total=Math.round((start+receipt-end)*1e6)/1e6;
    if(!Number.isFinite(total)||total<0||total>1e6)return null;
    return Object.freeze({kind:'cross-day-shared-what-if-v7',verified:false,provisional:true,
-     assumptionBoundaryLocal:SEAM,assumedStorageBTons:assumption,assumption:'10/23 DataPARC 기간 최솟값을 10/24 00:00 재고로 가정',
+     assumptionBoundaryLocal:SEAM,assumedStorageBTons:assumption,
+     assumption:'10/23 DataPARC 기간 최솟값 19.143t을 10/24 00:00 재고로 가정',
+     assumptionSource,peerConfirmedForPreview:role==='prev'||!!prior,
      role,receipt,startTotal:start,endTotal:end,total,unitTons:total/2,
      receiptNeedsReview:role==='next',source:'DataPARC 기간 통계 + 해당일 입고기록 · 미검증 가정'});
  }
