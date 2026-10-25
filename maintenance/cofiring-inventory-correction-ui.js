@@ -2,6 +2,7 @@
   'use strict';
   const model=root.CofiringInventoryCorrection||(typeof require==='function'?require('./cofiring-inventory-correction.js'):null);
   const shared=root.CofiringSharedMidnightV6||(typeof require==='function'?require('./cofiring-shared-midnight-v6.js'):null);
+  const whatIf=root.CofiringSharedScenarioV7||(typeof require==='function'?require('./cofiring-shared-scenario-v7.js'):null);
   const API='/api/cofiring-inventory-corrections';
   const clone=value=>JSON.parse(JSON.stringify(value));
   const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -129,7 +130,17 @@
       if(force){for(const boundary of [...new Set((resolution()?.missing||[]).map(item=>item.boundaryLocal))])await store.evidence(boundary,{force:true});}
       return loaded;
     }
-    function usage(receipt,options){return model.usage(reference,receipt,spec,entries(),{...(options||{}),enableAutoEstimate:true,adjacentReference:peerReference});}
+    function usage(receipt,options){
+      const total=model.usage(reference,receipt,spec,entries(),{...(options||{}),enableAutoEstimate:true,adjacentReference:peerReference});
+      // A scenario is presentation-only. Never change the official model
+      // success, correction revision, or source values used by save/close.
+      const scenario=whatIf?.scenario(reference,receipt,spec,peerReference)||null;
+      if(scenario)return {...total,scenario};
+      if(whatIf?.side(reference,spec)==='next'&&total?.provisional){
+        return {...total,sharedScenarioPending:true}; // never show old per-day B estimate as a certified usage
+      }
+      return total;
+    }
     function dispose(){disposed=true;peerGeneration++;peerReference=null;peerPending=null;store.dispose();if(host)host.innerHTML='';}
     return {setContext,refresh,usage,state:store.state,dispose};
   }

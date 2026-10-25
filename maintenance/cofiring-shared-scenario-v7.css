@@ -1,0 +1,10 @@
+/* V7: shared midnight assumption stays visually distinct from measured quantities. */
+.cofiring-period-v5 .cfv17-hypothesis-card{border-color:#e7b77b!important;}
+.cofiring-period-v5 .cfv17-hypothesis-card .cfv52-card-status{color:#9c5f1e!important;}
+.cofiring-period-v5 .cfv17-hypothesis-card .cfv52-metric-emphasis{background:#fff6e9!important;}
+.cofiring-period-v5 .cfv17-hypothesis-card .cfv10-fuel-organic .cfv10-fuel-scenario{color:#a46111;}
+.cofiring-period-v5 .cfv17-organic-math{display:block;margin-top:3px;font-size:11px;color:#455e72;}
+.cofiring-period-v5 .cfv17-organic-math>summary{cursor:pointer;color:#567086;font-size:11px;list-style:revert;}
+.cofiring-period-v5 .cfv17-organic-math:not([open])>*:not(summary){display:none!important;}
+.cofiring-period-v5 .cfv17-organic-math>p{line-height:1.55;overflow-wrap:anywhere;}
+.cofiring-period-v5 .cfv17-brief{font-size:11px;color:#5c7181;}
