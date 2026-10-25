@@ -224,8 +224,8 @@
       ${ready?`<details class="cfv10-target-details" data-cfv10-target-details${open?' open':''}><summary>계산 근거</summary><div class="cfv10-target-detail-body"><p data-cfv8-target-basis>자료 ${escapeHtml(basis)} → 마감 ${escapeHtml(deadline)} · ${num(reference.remainingHours,2)}시간 기준</p><dl><div><dt>조회 Bio 평균</dt><dd><b data-cfv6-current-bio>${num(reference.currentBioTonPerHour)} t/h</b></dd></div><div><dt>추가 Bio 필요량</dt><dd data-cfv6-target-delta>${num(reference.additionalBioTon)} t</dd></div><div><dt>Coal 유지 가정</dt><dd><b data-cfv6-target-coal>${num(reference.coalTonPerHour)} t/h</b></dd></div><div><dt>유기성 유지 가정</dt><dd><b>${num(reference.organicTonPerHour)} t/h</b></dd></div><div><dt>축분 유지 가정</dt><dd><b>${num(reference.manureTonPerHour)} t/h</b></dd></div><div><dt>Bio 계측 투입 환산</dt><dd><b data-cfv8-target-measured>${num(reference.targetMeasuredBioTonPerHour)} t/h</b></dd></div></dl><p class="cfv8-target-note" data-cfv8-target-note>자료 이후 ${num(reference.lagHours*60,1)}분 경과 · 현재 구간을 다시 [계산하기]로 조회하면 최신 자료로 갱신합니다.</p></div></details>`:''}
     </section>`;
   }
-  function fuelUsageMarkup(unit){
-    return `<section class="cfv10-fuels" aria-label="연료 실사용량"><div class="cfv10-fuels-head"><strong>연료 실사용량</strong><span>누적 · 보정 적용</span></div><div class="cfv52-fuel-grid cfv10-fuel-grid">${FUEL_KEYS.map(f=>{const value=unit?.[f]?.quantity,ready=typeof value==='number'&&Number.isFinite(value);return `<div class="cfv10-fuel cfv10-fuel-${f}${ready?'':' is-unavailable'}" data-cfv10-fuel="${f}"><span class="cfv10-fuel-label">${FUEL_LABEL[f]}</span><strong class="cfv10-fuel-value">${ready?num(value):'—'}${ready?' <small>t</small>':''}</strong></div>`;}).join('')}</div></section>`;
+  function fuelUsageMarkup(unit,scenario=null){
+    return `<section class="cfv10-fuels" aria-label="연료 실사용량"><div class="cfv10-fuels-head"><strong>연료 실사용량</strong><span>누적 · 보정 적용</span></div><div class="cfv52-fuel-grid cfv10-fuel-grid">${FUEL_KEYS.map(f=>{const value=unit?.[f]?.quantity,ready=typeof value==='number'&&Number.isFinite(value);return `<div class="cfv10-fuel cfv10-fuel-${f}${ready?'':' is-unavailable'}" data-cfv10-fuel="${f}"><span class="cfv10-fuel-label">${FUEL_LABEL[f]}</span><strong class="cfv10-fuel-value">${ready?num(value):'—'}${ready?' <small>t</small>':''}</strong>${!ready&&f==='organic'&&scenario?.verified===false&&Number.isFinite(scenario?.unitTons)?'<span class="cfv10-fuel-scenario" title="Storage B의 기간 최솟값을 종료 재고로 가정한 참고 계산입니다. 실제 00:00 재고가 아닙니다.">가정 ≈'+num(scenario.unitTons,2)+'t</span>':''}</div>`;}).join('')}</div></section>`;
   }
   function rowsPlaceholder(count,cols){return Array.from({length:count},(_,i)=>`<tr><th>${i<2?i+1+'호기':'계'}</th>${Array.from({length:cols-1},()=>'<td>—</td>').join('')}</tr>`).join('');}
   function manualRowsPlaceholder(){return `<tr data-cfv5-manual-row="unit1"><th>1호기</th>${Array.from({length:14},()=>'<td>—</td>').join('')}</tr><tr data-cfv5-manual-row="unit2"><th>2호기</th>${Array.from({length:14},()=>'<td>—</td>').join('')}</tr><tr data-cfv5-manual-row="sum"><th>계</th>${Array.from({length:14},()=>'<td>—</td>').join('')}</tr>`;}
@@ -314,7 +314,7 @@
         ${summaryMetric('바이오 혼소율',coalBioRatio(u),{ratio:true})}
         ${summaryMetric('유기성 · 축분 혼소율',u?.fuelRatios?.organicGroup,{ratio:true})}
         ${summaryMetric('종합 혼소율',u?.fuelRatios?.total,{ratio:true,emphasis:true})}
-      </div>${fuelUsageMarkup(u)}${targetReferenceMarkup(targetError?{status:'invalid_input',ready:false,message:targetError,targetPercent}:deadlineTargetApi?{...deadlineTargetApi.forUnit(u,result.period,{targetPercent}),ratioPercent:coalBioRatio(u)}:{targetPercent},{unit,open:host.querySelector?.('[data-cfv52-unit="'+unit+'"]')?.querySelector?.('[data-cfv10-target-details]')?.open===true})}</article>`);
+      </div>${fuelUsageMarkup(u,result.organicUsage?.scenario)}${targetReferenceMarkup(targetError?{status:'invalid_input',ready:false,message:targetError,targetPercent}:deadlineTargetApi?{...deadlineTargetApi.forUnit(u,result.period,{targetPercent}),ratioPercent:coalBioRatio(u)}:{targetPercent},{unit,open:host.querySelector?.('[data-cfv52-unit="'+unit+'"]')?.querySelector?.('[data-cfv10-target-details]')?.open===true})}</article>`);
     }
     cards.push(`<article class="cfv52-card cfv52-card-total"><header><strong>1·2호기 종합 혼소율</strong><span>열량 가중 기준</span></header><div class="cfv52-total-ratios">
       ${summaryMetric('바이오 혼소율',combinedCoalBio(result).ratio,{ratio:true})}
@@ -738,6 +738,11 @@
       const today=defaultCalculationDate();
       const allowProvisionalZero=daily&&spec?.startLocal===today+'T00:00'&&spec?.endLocal?.slice(0,10)===today;
       const total=inventoryCorrections?inventoryCorrections.usage(receipt,{allowProvisionalZero}):core.organicInventoryUsage(reference,receipt,spec,{allowProvisionalZero});
+      // A labelled what-if amount is allowed for operator orientation. This
+      // never satisfies "ok", updates manual inputs, or unlocks save/close.
+      if(total?.code==='ORGANIC_BOUNDARY_CORRECTION_REQUIRED'){
+        total.scenario=root.CofiringOrganicScenarioV5?.scenario?.(reference,receipt,spec)||null;
+      }
       organicUsageState=total;
       let autoChanged=false;
       for(const unit of UNITS){
@@ -754,7 +759,10 @@
       }
       if(!total.ok){
         const missingBoundary=total.code==='ORGANIC_BOUNDARY_CORRECTION_REQUIRED';
-        organicUsageSource(total.message+(reference?' · 이전 저장 사용량은 계산에서 제외':''),reference?(missingBoundary?'working':'error'):'');
+        const hypothesis=total.scenario;
+        organicUsageSource(hypothesis
+          ?'가정 계산: 유기성 총 ≈'+num(hypothesis.total,2)+'t · 호기당 ≈'+num(hypothesis.unitTons,2)+'t · Storage B 기간 최솟값을 종료 재고로 가정(확정 사용량 아님 · 저장 불가)'
+          :total.message+(reference?' · 이전 저장 사용량은 계산에서 제외':''),reference?(missingBoundary?'working':'error'):'');
         const save=container.querySelector('[data-cfv5-manual-save]');if(save)save.disabled=true;
         return total;
       }

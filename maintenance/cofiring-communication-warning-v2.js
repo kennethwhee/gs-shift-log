@@ -106,7 +106,19 @@
     const entries=notices(reference,organicUsage),lines=entries.map(entry=>entry.text);
     host.hidden=lines.length===0;
     if(host.dataset)host.dataset.tone=entries.some(x=>x.level==='warning')?'warning':'info';
-    host.textContent=lines.length?(entries.some(x=>x.level==='warning')?'⚠ ':'ℹ ')+lines.join(' / '):'';
+    // A long list of per-counter quality details is available in the separate
+    // "자료 확인 내용" fold, but must not flood the primary calculation header.
+    // Only the *display* is shortened; notices(), warnings and raw report stay intact.
+    const missing=Array.isArray(organicUsage?.missing)?organicUsage.missing:[];
+    const stock=organicUsage?.code==='ORGANIC_BOUNDARY_CORRECTION_REQUIRED'
+      ?missing.find(x=>x?.silo==='organicStorageSiloB'&&x?.side==='end'):null;
+    if(stock){
+      host.textContent='⚠ 1·2호기 유기성(Storage B) · '+dateLabel(stock.boundaryLocal)+' 종료 재고 미확인 · 재확인 필요';
+      host.title=lines.join(' / ');
+    }else{
+      host.textContent=lines.length?(entries.some(x=>x.level==='warning')?'⚠ ':'ℹ ')+lines.join(' / '):'';
+      host.title='';
+    }
     return lines;
   }
   const api=Object.freeze({dateLabel,verifiedRecovery,notices,messages,render});

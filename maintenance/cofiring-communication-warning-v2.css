@@ -33,3 +33,7 @@
 .cofiring-period-v5 details.cfv-inventory-optional>summary{font-size:12px;color:#567086;font-weight:650;cursor:pointer;line-height:1.4;}
 .cofiring-period-v5 details.cfv-inventory-optional[open]{background:#fff;border-color:#d1dbe5;}
 .cofiring-period-v5 details.cfv-inventory-optional[open]>.cfv-inventory-correction{margin-top:9px;}
+
+/* Reference-only organic scenario; actual quantity above remains unverified. */
+.cofiring-period-v5 .cfv10-fuel-scenario{display:block;margin-top:2px;font-size:10px;line-height:1.2;color:#a56500;font-weight:650;white-space:nowrap;}
+.cofiring-period-v5 .cfv10-fuel.is-unavailable:has(.cfv10-fuel-scenario){border-color:#f2cb91;}
