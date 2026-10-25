@@ -8,7 +8,7 @@
 
   // Calculation basis: supplied SILO drawings and corrected workbooks, 2026-10-20.
   // Values are a geometric/section-capacity conversion, not a live sensor feed.
-  var VERSION = '8.0.0-20261020';
+  var VERSION = '9.0.0-20261026-excel-parity';
   function input(key, label, unit, defaultValue, options) {
     return Object.assign({ key: key, label: label, unit: unit, defaultValue: defaultValue,
       step: 'any', required: true }, options || {});
@@ -27,19 +27,20 @@
   var MODELS = [
     {
       id: 'limestone', name: 'Limestone Silo', label: 'Limestone Silo', kind: 'inventory', drawingBased: true,
-      description: '공칭 내경의 원통 체적과 도면 하부 용량으로 재고를 환산합니다.',
-      basis: '공칭 내경 5,500 mm + 도면 하부 표기 60.9 m³. 도면 19,655 mm 치수 상단 기준으로 아래로 잰 Sounding입니다. 수평 재료면 가정.',
-      range: { min: 0, max: 19655, unit: 'mm', basis: '도면 19,655 mm 치수 상단 기준 Sounding' },
+      description: '첨부 Limestone 계산시트 C26과 같은 V2 비례식 + V3 방식으로 Sounding 재고를 환산합니다.',
+      basis: '첨부 엑셀: Net 474.3 m³, V1 17 m³, V2 403 m³/17,001 mm, V3 54.3 m³. V2 시작 Sounding 2,654 mm~하단 19,655 mm에서만 계산합니다. V4+V5 6.6 m³는 기본 재고에서 제외.',
+      range: { min: 2654, max: 19655, unit: 'mm', basis: '엑셀 V2 구간 (Sounding 2,654~19,655 mm)' },
       inputs: mmInputs(1.12, '도면 19,655 mm 치수 상단 기준면'), example: { sounding: 9980, density: 1.12, offset: 0 },
       warnings: [datumWarning,
-        '원통은 공칭 내경과 높이로 계산하며 하부 60.9 m³는 도면 표기 용량입니다. 라이너·내부 구조물의 추가 치환체적과 실제 재료면 형상은 별도 보정하지 않습니다.',
-        'Sounding 0 mm는 수평 재료면 가정의 기하 계산 상단이며 실제 운전 만적재 기준이 아닙니다. 하부 구간의 높이별 재고는 계산하지 않습니다.',
-        '하부 6.6 m³ 제외 재고는 환산 재고에서 V4+V5 6.6 m³의 중량을 제외한 값이며, 도면 Net 474.3 m³와 별개입니다.',
-        'Gross 528.3 m³ · Net 474.3 m³ · 운전중량 531.2 t는 도면 참고값입니다. 재고 비례 보정이나 추가 적재 가능량 계산에 사용하지 않습니다.',
-        '기준면은 조립도 19,655 mm 치수 상단입니다. 상세도의 원통 19,645 mm와 상부 10 mm 표기가 있어 지붕 하면으로 단정하지 않습니다.'],
+"엑셀 C26 재현: (474.3 − 17 − 403 × (Sounding − 2,654) / 17,001) × 입력 밀도. Sounding은 센서높이차를 반영한 도면 기준 mm입니다.",
+"상부 V1 구간(Sounding 0~2,654 mm 미만)은 엑셀에 높이별 V1 계산식이 없어 계산 보류합니다. 기존 원통 면적 공식으로 임의 외삽하지 않습니다.",
+"V3 54.3 m³를 전량 포함한 엑셀 환산값입니다. 하부 재료면/호퍼 배출 구간 변화를 실시간 측정한 중량이 아닙니다.",
+"기본값은 V4+V5 6.6 m³를 제외한 C26이며, V4+V5를 포함한 엑셀 F26 값은 별도 참고로만 표시합니다.",
+"Gross 528.3 m³, Net 474.3 m³, 설계 운전중량 531.2 t는 참고값입니다. DCS 지시량 또는 실측 중량을 대신하지 않습니다."
+],
       source: 'GSPC-103-ER-GAD-M-521_3_DETAIL_DWG_-_LIMESTONE_SILO.pdf / PDF 1쪽(조립·용량), 3쪽(19,645 + 10 mm 기준면 상세)',
       references: { grossVolumeM3: 528.3, netVolumeM3: 474.3, designDensity: 1.12, operatingMassTon: 531.2 },
-      geometry: { top: 0, bottom: 19655, radius: 2.75, hopperVolume: 60.9, excludedVolume: 6.6 }
+      geometry: { top: 2654, bottom: 19655, radius: 2.75, hopperVolume: 54.3, excludedVolume: 6.6 }
     },
     {
       id: 'coal-day', name: 'Coal Day Silo', label: 'Coal Day Silo', kind: 'inventory', drawingBased: true,
@@ -75,17 +76,18 @@
     },
     {
       id: 'fly-ash', name: 'Fly Ash Silo', label: 'Fly Ash Silo', kind: 'inventory', drawingBased: true,
-      description: '도면 계산 프로파일의 공칭 내경과 높이, 하부 표기 용량으로 재고를 환산합니다.',
-      basis: '공칭 내경 13,000 mm · 원통 14,640 mm + 도면 하부 표기 36 m³. PDF 28쪽 프로파일의 Sounding 600–15,240 mm 구간, 수평 재료면 가정.',
+      description: '첨부 Fly Ash 계산시트 C32와 동일하게 원통부 재료높이만 중량으로 환산합니다.',
+      basis: '첨부 엑셀: 원통 직경 13 m, 높이=(15,240 − 적용 Sounding)/1,000 m, 기본 비중량 0.7 t/m³. 기본 재고에는 하부 36 m³를 더하지 않습니다. Sounding 유효 범위 600~15,240 mm.',
       range: { min: 600, max: 15240, unit: 'mm', basis: 'PDF 28쪽 계산 프로파일 기준 Sounding' },
-      inputs: mmInputs(0.8, 'PDF 28쪽 계산 프로파일의 Sounding 0 기준면'), example: { sounding: 850, density: 0.8, offset: 0 },
+      inputs: mmInputs(0.7, 'PDF 28쪽 계산 프로파일의 Sounding 0 기준면'), example: { sounding: 11240, density: 0.7, offset: 0 },
       warnings: [datumWarning,
-        '재고 환산 기본 밀도는 도면 설계값 0.8 t/m³입니다. 실제 벌크밀도는 현장값으로 변경하세요. 이전 기본값 0.65 t/m³는 이 도면의 설계 밀도가 아닙니다.',
-        '원통은 공칭 내경과 높이로 계산하며 하부 36 m³는 도면 표기 용량입니다. 라이너·내부 구조물의 추가 치환체적과 실제 재료면 형상은 별도 보정하지 않습니다.',
-        'PDF 28쪽의 600 + 14,640 + 800 = 16,040 mm 계산 프로파일을 채택했습니다. PDF 10–12쪽 GA의 상부 610 mm 표기와 차이가 있으므로 현장 센서 기준을 확인하세요.',
-        '도면 121 m³는 재료 원뿔 체적 표기이며 지붕 빈 공간으로 차감하지 않습니다. 계산 프로파일의 원통 구간 밖은 재고를 계산하지 않습니다.',
-        'Net는 PDF 28쪽 1,816 m³와 PDF 8쪽 1,742 m³가 다릅니다. Gross 2,000 m³와 함께 도면 참고값으로만 두며 재고 보정이나 추가 적재 가능량 계산에 사용하지 않습니다.',
-        '구조계산용 최대 체적 1,762 m³ 및 밀도 1.445 t/m³는 구조 검토 조건입니다. 재고 환산 밀도로 자동 적용하지 않습니다.'],
+"엑셀 C32 재현: (3.141592 / 4) × 13² × ((15,240 − 적용 Sounding) / 1,000) × 입력 밀도. 엑셀의 높이 4 m는 적용 Sounding 11,240 mm에 해당합니다.",
+"첨부 시트는 하부 36 m³를 C32에 포함하지 않습니다. 하부를 포함한 중량은 별도 참고(가정)로 표시하며 실제 하부 재고를 확정하지 않습니다.",
+"기본 벌크밀도 0.7 t/m³는 첨부 엑셀 기준입니다. 도면 설계밀도 0.8 t/m³와 다릅니다. 실제 물성 확인 후 변경하세요.",
+"Sounding은 지붕 기준점에서 재료면까지의 빈 거리이며, 원통부 재료높이와 방향이 반대입니다. 설치 센서의 기준 높이차를 반드시 확인하세요.",
+"PDF 28쪽 계산 프로파일 상부 600 mm와 일반배치 도면의 610 mm 표기 차이가 있습니다. 원통 구간 밖은 계산하지 않습니다.",
+"도면 Gross 2,000 m³, Net 1,816/1,742 m³, 구조계산 MAX 1,762 m³ 및 구조용 밀도 1.445 t/m³는 운전 재고 계산에 적용하지 않습니다."
+],
       source: 'D5.1.3.14 GSPC-103-ET-CAL-M-505 Rev.F STRENGTH CALCULATION - FLY ASH SILO.pdf / PDF 8쪽(설계·구조 조건), 10–12쪽(GA), 28쪽(계산 프로파일)',
       references: { grossVolumeM3: 2000, netVolumeM3: 1816, designDensity: 0.8, alternateNetVolumeM3: 1742, structuralMaxVolumeM3: 1762, structuralDensity: 1.445 },
       geometry: { top: 600, bottom: 15240, radius: 6.5, hopperVolume: 36 }
@@ -181,6 +183,9 @@
       return typeof values[key] !== 'number' || Number.isFinite(values[key]);
     });
     if (!finite) return result(model, 'invalid', '계산 가능한 숫자 범위를 벗어났습니다. 입력값을 확인하세요.');
+// GS_SILO_EXCEL_PARITY_V9: the two worksheet-based models report explicit source boundaries.
+if (model.id === 'limestone') return result(model, 'ok', '엑셀 C26 수식을 기준으로 환산했습니다. V2 비례식과 V3 전체를 적용하며 V4·V5는 제외합니다. 현장 기준점·밀도·실제 재료면은 별도 확인하세요.', values);
+if (model.id === 'fly-ash') return result(model, 'ok', '엑셀 C32와 같이 원통 높이만 계산했습니다. 하부 36 m³는 기본 재고에서 제외합니다. 센서 기준점과 현장 밀도를 확인하세요.', values);
     return result(model, 'ok', model.directSounding ? '도면의 명목 치수와 입력 밀도로 계산했습니다. 내부 구조물의 체적은 공제하지 않았습니다.'
       : model.drawingBased ? '공칭 내경의 원통 체적과 도면 하부 용량을 수평 재료면 가정으로 환산했습니다. 실제 센서높이차·밀도·라이너와 재료면 형상은 별도 확인하세요.'
       : model.provisional ? '잠정 환산값입니다. 원도면을 확인하세요.' : '입력한 기준으로 계산했습니다.', values);
@@ -229,7 +234,53 @@
         return result(model, 'unsupported', rangeMessage,
           { effectiveSounding: d, soundingUnit: 'mm', supportedMin: geometry.top, supportedMax: geometry.bottom });
       }
-      var cylinderVolume = Math.PI * geometry.radius * geometry.radius * (geometry.bottom - d) / 1000;
+      // GS_SILO_EXCEL_PARITY_V9_ENGINE_BEGIN
+if (model.id === 'limestone') {
+  // Worksheet: C25 = Sounding - 2654, C26 = (474.3 - 17 - 403 * C25/17001)*density.
+  // This is exactly V2 remaining + V3, excluding V4+V5 (6.6m3).
+  var limestoneV2 = 403 * (19655 - d) / 17001;
+  var limestoneMassVolume = limestoneV2 + 54.3;
+  return checkedSuccess(model, {
+    primaryLabel: '엑셀 C26 · Sounding 환산 재고',
+    massTon: limestoneMassVolume * p.density,
+    volumeM3: limestoneMassVolume,
+    cylinderVolumeM3: limestoneV2,
+    hopperVolumeM3: 54.3,
+    excludedVolumeM3: 6.6,
+    excludedMassTon: 6.6 * p.density,
+    drawingTotalTon: (limestoneMassVolume + 6.6) * p.density,
+    drawingTotalVolumeM3: limestoneMassVolume + 6.6,
+    usableTon: limestoneMassVolume * p.density,
+    effectiveSounding: d, soundingUnit: 'mm',
+    supportedMin: geometry.top, supportedMax: geometry.bottom,
+    remainingCylinderHeightM: (19655 - d) / 1000,
+    cylinderFillRatio: (19655 - d) / 17001,
+    density: p.density
+  });
+}
+if (model.id === 'fly-ash') {
+  // Worksheet C32 = 3.141592/4 * 13^2 * height(m) * density.
+  // Its height is the cylinder material height, not an empty-distance sounding.
+  var flyCylinderHeightM = (15240 - d) / 1000;
+  var flyCylinderVolume = 3.141592 / 4 * 13 * 13 * flyCylinderHeightM;
+  return checkedSuccess(model, {
+    primaryLabel: '엑셀 C32 · Sounding 환산 재고',
+    massTon: flyCylinderVolume * p.density,
+    volumeM3: flyCylinderVolume,
+    cylinderVolumeM3: flyCylinderVolume,
+    hopperVolumeM3: 0,
+    excludedVolumeM3: 36,
+    referenceMassTon: (flyCylinderVolume + 36) * p.density,
+    referenceTotalVolumeM3: flyCylinderVolume + 36,
+    effectiveSounding: d, soundingUnit: 'mm',
+    supportedMin: geometry.top, supportedMax: geometry.bottom,
+    remainingCylinderHeightM: flyCylinderHeightM,
+    cylinderFillRatio: (15240 - d) / (15240 - 600),
+    density: p.density
+  });
+}
+// GS_SILO_EXCEL_PARITY_V9_ENGINE_END
+var cylinderVolume = Math.PI * geometry.radius * geometry.radius * (geometry.bottom - d) / 1000;
       var hopperVolume = geometry.hopperVolume || 0;
       var volume = cylinderVolume + hopperVolume;
       var answer = { primaryLabel: model.directSounding ? '도면 기준 재고' : model.drawingBased ? '도면 기준 환산 재고' : model.provisional ? '총 재고 (잠정)' : '총 재고', massTon: volume * p.density,

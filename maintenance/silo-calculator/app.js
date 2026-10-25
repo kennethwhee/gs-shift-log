@@ -22,10 +22,10 @@
   var numberFormat = new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 3 });
   var massFormat = new Intl.NumberFormat('ko-KR', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
   var formulas = {
-    limestone: 'd = 측정 Sounding − 센서높이차 (mm)\n영점 = 도면 19,655 mm 치수 상단 기준\nV원통 = π × 2.75² × (19,655 − d) ÷ 1,000 (m³)\nV하부 = V3 + V4 + V5 = 54.3 + 4.5 + 2.1 = 60.9 m³\n환산 재고 = (V원통 + V하부) × 입력 밀도 (t)\n하부 6.6 m³ 제외 재고 = (V원통 + V하부 − 6.6) × 입력 밀도\n0 ≤ d ≤ 19,655 mm, 수평 재료면 가정.\n공칭 내경과 하부 표기용적을 사용하며 라이너 등 내부물은 별도 공제하지 않습니다.\n도면 Net 474.3 m³ = V1 + V2 + V3이며 현재 재고를 이 값으로 제한하지 않습니다.',
+    limestone: 'd = 측정 Sounding − 센서높이차 (mm)\n유효 범위: 2,654 ≤ d ≤ 19,655 mm (엑셀 V2 구간)\n엑셀 C25 = d − 2,654 (mm)\nV2 잔여 용적 = 403 × (19,655 − d) ÷ 17,001 (m³)\n엑셀 C26 = (V2 잔여 용적 + V3 54.3) × 입력 밀도 (t)\n엑셀 F26 = (V2 잔여 용적 + V3 54.3 + V4 4.5 + V5 2.1) × 입력 밀도\n상부 V1 구간(2,654 mm 미만)은 자동 산정하지 않습니다.\n해당 값은 수평 재료면·하부 V3 포함을 가정한 Sounding 환산값이며 DCS 실제 중량 지시가 아닙니다.',
     'coal-day': 'd = 측정 Sounding − 센서높이차 (mm)\n영점 = 조립도 11,300 mm 치수 상단 기준\nV원통 = π × 3.25² × (11,300 − d) ÷ 1,000 (m³)\nV하부 = V3 + V4 = 74.8 + 27.2 = 102 m³\n환산 재고 = (V원통 + V하부) × 입력 밀도 (t)\n0 ≤ d ≤ 11,300 mm, 수평 재료면 가정.\n상부 V1의 경사 재료면 용적을 원통 높이에 비례 배분하지 않습니다.\n공칭 내경과 하부 표기용적을 사용하며 라이너 등 내부물은 별도 공제하지 않습니다.\n도면 Net 388 m³ / Gross 476 m³는 참고 용량입니다.',
     'bio-day': 'd = 중앙 평탄 지붕 기준면(0 mm)에서 아래로 잰 Sounding\n바닥판 상면 = 12,050 mm, 원통 공칭 내경 = 8 m\nV = π × 4² × (12,050 − d) ÷ 1,000 (m³)\n도면 기준 재고 = V × 벌크밀도 (t)\n수평 재료면을 가정하며, 400 ≤ d ≤ 12,050 mm에 적용합니다.\n상부 경사 지붕 구간(d < 400 mm)은 이 계산의 산정 범위 밖입니다.',
-    'fly-ash': 'd = 측정 Sounding − 센서높이차 (mm)\n영점 = 재료 적재 프로파일의 중앙 지붕 정점 기준\nV원통 = π × 6.5² × (15,240 − d) ÷ 1,000 (m³)\nV하부 = LL 아래 표기용적 36 m³\n환산 재고 = (V원통 + V하부) × 입력 밀도 (t)\n600 ≤ d ≤ 15,240 mm, 수평 재료면 가정.\n기본밀도 0.8 t/m³는 본체 설계값이며 현장값으로 변경할 수 있습니다.\nPDF 28쪽 프로파일 기준. 일반배치의 지붕 610 mm와 10 mm 차이가 있습니다.\nGross 2,000 m³, Net 1,816/1,742 m³, 구조계산 MAX 1,762 m³는 서로 다른 참고값입니다.\nGross 차이를 추가 투입 가능량으로 환산하지 않습니다.',
+    'fly-ash': 'd = 측정 Sounding − 센서높이차 (mm)\n유효 범위: 600 ≤ d ≤ 15,240 mm (도면 프로파일)\n엑셀 높이(m) = (15,240 − d) ÷ 1,000\n엑셀 C32 = (3.141592 ÷ 4) × 13² × 엑셀 높이(m) × 입력 밀도 (t)\n엑셀 예시: 높이 4 m ↔ Sounding 11,240 mm, 밀도 0.7 → 371.650 t\n하부 36 m³는 엑셀 C32에 포함되지 않음. 포함 시 중량은 별도 참고값.\n도면 설계밀도는 0.8 t/m³이며 엑셀 기본값 0.7과 다릅니다.\n측정 기준점의 실제 위치, 재료면 형상, 벌크밀도는 현장에서 확인하세요.',
     sludge: '입력 길이(mm)를 1,000으로 나누어 m로 변환합니다.\nd = Sounding (m), r = 반지름 (m)\nHc = 원통 높이, Hk = 원뿔 높이\n원통 구간 (0 ≤ d ≤ Hc):\n  V = πr²(Hc − d) + πr²Hk ÷ 3\n원뿔 구간 (Hc < d ≤ Hc + Hk):\n  h = Hc + Hk − d\n  V = πr²h³ ÷ (3Hk²)\n총재고 = V × 벌크밀도 (t)\n시간당 평균 환산 = 총재고 ÷ 기준시간 (t/h)',
     'bio-storage': 'S = 측정 Sounding(mm) ÷ 1,000\nR = 바닥 기준 Sounding 시작점 높이(mm) ÷ 1,000\nT = tan(안식각)\nLT Level = R − S (m)\n중앙 정점 A = LT Level + 4.6T\n벽면 높이 H = LT Level − 3.4T\nV원뿔 = π × 8² × (8T) ÷ 3\nV원통 = π × 8² × (H − 0.61)\nV구조물 = π × 1.1² × 1.09\nNet 재고 = (V원뿔 + V원통 − V구조물) × 벌크밀도\n적용: A ≤ 20.895 m, 0.61 ≤ H ≤ 17 m, A − 1.1T ≥ 1.7 m\n저레벨 아래 잔량 ≈ π × (8² − 1.1²) × 0.61 × 벌크밀도 (t)\n지원 하한 밖은 계산 보류이며, 공실을 뜻하지 않습니다.'
   };
@@ -94,8 +94,8 @@
     if (!references) return;
     byId('drawingReferenceTitle').textContent = selectedModel.label + ' · 도면 참고값';
     byId('drawingReferenceHint').textContent = selectedModel.id === 'fly-ash'
-      ? '같은 자료 안에서 Net 표기가 다릅니다. 프로파일(PDF 28쪽)과 설계조건(PDF 8쪽)을 구분해 표시합니다. 구조검토 밀도 1.445 t/m³는 재고 환산에 사용하지 않습니다. Gross 차이는 추가 투입 가능량이 아닙니다.'
-      : selectedModel.id === 'limestone' ? 'Net 474.3 m³는 V1+V2+V3의 합입니다. 하부 6.6 m³ 제외 재고와 별개이며, 현재 재고를 Net에 맞추어 보정하지 않습니다.'
+      ? '엑셀 C32는 원통부 체적만 계산하며 하부 36 m³를 포함하지 않습니다. 도면 Net 값(1,816/1,742 m³)은 서로 다르고 재고나 가용 용량 보정에 사용하지 않습니다. 구조용 밀도 1.445 t/m³도 적용하지 않습니다.'
+      : selectedModel.id === 'limestone' ? '엑셀 C26은 V2 잔여분+V3만 포함한 계산값입니다. V4+V5(6.6 m³)를 포함한 F26은 별도 표시합니다. Net 474.3 m³는 재고 상한이 아닙니다.'
       : '도면의 추정 용량은 별도 참고값입니다. 재고를 이 값에 맞추어 비례 보정하거나 운전 허용 투입량으로 사용하지 않습니다.';
     [
       ['Gross (도면 표기)', references.grossVolumeM3, 'm³'],
@@ -224,7 +224,7 @@
     byId('siloBottomLabel').setAttribute('y', bottom + 24);
     byId('siloBottomLabel').textContent = bio ? '바닥판 상면 · 12,050 mm' : sludge ? '공실 기준 · ' + format(result.emptySoundingMm) + ' mm' : '원통 하단 · ' + format(geometry.bottom) + ' mm';
     if (hopper) byId('siloBottomLabel').textContent = '하부 표기용적 · ' + format(result.hopperVolumeM3) + ' m³';
-    if (ash) byId('siloBottomLabel').textContent = 'LL 아래 표기용적 · 36 m³';
+    if (ash) byId('siloBottomLabel').textContent = '기본 재고 제외 · 하부 36 m³';
     byId('siloDistance').setAttribute('d', 'M84 ' + datum + 'h-12M78 ' + datum + 'V' + surface + 'M84 ' + surface + 'h-12');
     // Keep a short Sounding label below the roof caption near the full end.
     var distanceLabelY = (datum + surface) / 2;
@@ -291,7 +291,7 @@
     var state = result.drawingBased && isOk ? 'drawing' : result.provisional && isOk ? 'provisional' : result.status;
     var labels = { ok: '계산 완료', drawing: '도면 기준 계산', provisional: '잠정 환산', missing: '입력 대기', invalid: '입력 확인', unsupported: '범위 밖', unverified: '계산 보류' };
     var titles = { missing: '입력값을 확인하세요', invalid: '입력을 다시 확인하세요', unsupported: '지원 범위를 벗어났습니다', unverified: '도면 확인 후 계산할 수 있습니다' };
-    byId('resultStatus').textContent = labels[state] || '입력 확인';
+    byId('resultStatus').textContent = isOk && (selectedModel.id === 'limestone' || selectedModel.id === 'fly-ash') ? '엑셀 기준 계산' : (labels[state] || '입력 확인');
     byId('resultStatus').className = 'status-pill is-' + state;
     byId('resultEmpty').hidden = isOk;
     byId('resultNumbers').hidden = !isOk;
@@ -319,7 +319,9 @@
     if (!isOk) return;
     byId('primaryLabel').textContent = result.primaryLabel;
     byId('massValue').textContent = massFormat.format(result.massTon);
-    if (selectedModel.id === 'limestone') addKey('하부 6.6 m³ 제외 재고', result.usableTon, 't', '도면 Net 용량과 별개');
+    // GS_SILO_EXCEL_PARITY_V9_APP
+if (selectedModel.id === 'limestone') addKey('하부 V4·V5 포함 시 (엑셀 F26)', result.drawingTotalTon, 't', '현재 실측 환산 C26과 구분된 참고값');
+if (selectedModel.id === 'fly-ash') addKey('하부 36 m³ 포함 시 (가정)', result.referenceMassTon, 't', '엑셀 C32에는 포함되지 않는 별도 참고값');
     if (selectedModel.id === 'sludge') addKey('시간당 평균 환산', result.rateTonPerHour, 't/h', format(result.hours) + '시간에 모두 사용하는 경우');
     if (selectedModel.id === 'bio-storage') {
       addKey('LT 위치 재료 높이', result.levelM * 1000, 'mm', '바닥 기준 · 벽에서 3,400 mm 안쪽');
@@ -328,6 +330,15 @@
     addDetail(selectedModel.drawingBased ? '도면 치수 환산 용적' : selectedModel.id === 'bio-storage' ? 'Net 용적' : '재고 환산 용적', result.volumeM3, 'm³');
     addDetail('적용 벌크밀도', result.density, 't/m³');
     addDetail(selectedModel.id === 'sludge' || selectedModel.id === 'bio-storage' ? '측정 Sounding' : '도면 기준 Sounding', result.effectiveSounding, result.soundingUnit);
+if (selectedModel.id === 'limestone') {
+  addDetail('엑셀 V2 잔여 용적', result.cylinderVolumeM3, 'm³');
+  addDetail('엑셀 V3 포함 용적', result.hopperVolumeM3, 'm³');
+  addDetail('기본 재고에서 제외한 V4+V5', result.excludedVolumeM3, 'm³');
+}
+if (selectedModel.id === 'fly-ash') {
+  addDetail('엑셀 대응 원통부 재료높이', result.remainingCylinderHeightM, 'm');
+  addDetail('엑셀 기본 재고에서 제외한 하부', result.excludedVolumeM3, 'm³');
+}
     if (selectedModel.id === 'sludge') {
       addDetail('원통부 남은 높이', result.remainingCylinderHeightM * 1000, 'mm');
       addDetail('원뿔부 남은 높이', result.remainingConeHeightM * 1000, 'mm');
@@ -386,7 +397,7 @@
     byId('inputGuidance').replaceChildren();
     controls = {};
     byId('modelDescription').textContent = selectedModel.description;
-    byId('modelKind').textContent = selectedModel.drawingBased ? '도면 치수 기준' : selectedModel.provisional ? '원도면 미확인 · 잠정 환산' : selectedModel.id === 'bio-storage' ? 'Sounding → Net 재고' : selectedModel.kind === 'unverified' ? '계산 보류' : '측정값 → 재고 환산';
+    byId('modelKind').textContent = (selectedModel.id === 'limestone' || selectedModel.id === 'fly-ash') ? '첨부 엑셀 기준' : selectedModel.drawingBased ? '도면 치수 기준' : selectedModel.provisional ? '원도면 미확인 · 잠정 환산' : selectedModel.id === 'bio-storage' ? 'Sounding → Net 재고' : selectedModel.kind === 'unverified' ? '계산 보류' : '측정값 → 재고 환산';
     byId('modelKind').className = 'kind-badge' + (selectedModel.provisional ? ' is-provisional' : selectedModel.kind === 'unverified' ? ' is-unverified' : '');
     byId('formActions').hidden = selectedModel.inputs.length === 0;
     byId('inputCaption').textContent = selectedModel.drawingBased ? '도면 기준 Sounding' : '밀도·측정 기준 확인';
