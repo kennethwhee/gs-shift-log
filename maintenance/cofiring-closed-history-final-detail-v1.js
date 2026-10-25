@@ -167,12 +167,12 @@
       </section>`;
   }
 
-  function fuelCompare(original,final){
+  function fuelCompare(original,final,inventoryCorrected=false){
     return `
       <div class="cfh-final-fuel-table" role="table" aria-label="연료 실사용량 비교">
         <div class="cfh-final-fuel-head" role="row">
           <strong role="columnheader">연료 실사용량 (t)</strong>
-          <span role="columnheader">원본</span>
+          <span role="columnheader">${inventoryCorrected?'재고 보완 계산':'원본'}</span>
           <span aria-hidden="true"></span>
           <span role="columnheader">혼소조정 후</span>
           <span role="columnheader">증감</span>
@@ -204,7 +204,7 @@
       </div>`;
   }
 
-  function compareUnit(index,original,final){
+  function compareUnit(index,original,final,inventoryCorrected=false){
     const totalBefore=number(original?.totalRatio);
     const totalAfter=number(final?.totalRatio);
     const bioBefore=number(original?.bioRatio);
@@ -213,7 +213,7 @@
       <section class="cfh-final-unit-block">
         <header><strong><span>0${index}</span> ${index}호기</strong><em>● 마감 완료</em></header>
         <div class="cfh-final-compare-cards">
-          ${ratioCard(original,'원본 (계산값)','is-original')}
+          ${ratioCard(original,inventoryCorrected?'재고 보완 계산 (조정 전)':'원본 (계산값)','is-original')}
           <div class="cfh-final-big-arrow" aria-hidden="true">→</div>
           <section class="cfh-final-ratio-card is-adjusted">
             <span class="cfh-final-ratio-tag">혼소조정 후 (최종 마감)</span>
@@ -228,17 +228,17 @@
             </dl>
           </section>
         </div>
-        ${fuelCompare(original,final)}
+        ${fuelCompare(original,final,inventoryCorrected)}
       </section>`;
   }
 
-  function singleUnit(index,final){
+  function singleUnit(index,final,inventoryCorrected=false){
     return `
       <section class="cfh-final-unit-block is-single">
         <header><strong><span>0${index}</span> ${index}호기</strong><em>● 마감 완료</em></header>
         <div class="cfh-final-single-grid">
           <section class="cfh-final-ratio-card is-final">
-            <span class="cfh-final-ratio-tag">최종 마감 (원본과 동일)</span>
+            <span class="cfh-final-ratio-tag">${inventoryCorrected?'최종 마감 (재고 보완 적용)':'최종 마감 (원본과 동일)'}</span>
             <div class="cfh-final-ratio-main"><span>종합 혼소율</span><strong>${fmtPct(final.totalRatio)}</strong></div>
             <dl>
               <div><dt>바이오 혼소율</dt><dd>${fmtPct(final.bioRatio)}</dd></div>
@@ -289,6 +289,34 @@
       </section>`;
   }
 
+  function inventoryCorrections(snapshot){
+    return snapshot?.inventoryCorrectionVersion===1&&Array.isArray(snapshot.organicCorrections)
+      ?snapshot.organicCorrections.filter(entry=>entry&&typeof entry==='object'):[];
+  }
+
+  function inventoryCorrectionMarkup(snapshot){
+    const entries=inventoryCorrections(snapshot);if(!entries.length)return '';
+    const labels={organicDaySilo:'Day Silo',organicStorageSiloA:'Storage Silo A',organicStorageSiloB:'Storage Silo B'};
+    return `<section class="cfh-final-info-card"><h3>마감 당시 재고 보완 근거</h3>
+      <p>아래 값과 근거는 마감 당시 저장한 이력입니다. 원본 DataPARC 계측값·품질은 변경하지 않았습니다. 이후 수정된 보완값은 이 마감 내역에 소급 적용하지 않습니다.</p>
+      ${entries.map(entry=>{
+        const evidence=Array.isArray(entry.evidence)?entry.evidence:[];
+        const snapshots=Array.isArray(entry.evidenceSnapshots)?entry.evidenceSnapshots:[];
+        return `<section><h4>${esc(labels[entry.silo]||entry.silo)} · ${esc(String(entry.boundaryLocal||'').replace('T',' '))}</h4>
+          <dl class="cfh-final-meta-list">
+            <div><dt>보완 재고</dt><dd>${fmtScalar(entry.tons)} t · ${entry.method==='confirmed'?'확정값':entry.method==='estimated'?'추정값':'구분 확인 필요'}</dd></div>
+            <div><dt>보완 이력</dt><dd>v${esc(entry.revision)} · ${esc(entry.updatedByName||entry.updatedById||'—')}</dd></div>
+            <div><dt>확인 저장 시각</dt><dd>${localDateTime(entry.updatedAt)}</dd></div>
+            <div class="is-wide"><dt>확인 근거</dt><dd>${esc(entry.reason||'—')}</dd></div>
+            <div class="is-wide"><dt>입고·하역 참조</dt><dd>${evidence.length?evidence.map(ref=>`${esc(ref.id)} · v${esc(ref.version)}`).join('<br>'):'연결 기록 없음 · 위 확인 근거 참조'}</dd></div>
+          </dl>
+          ${snapshots.length?`<details><summary>마감에 보존된 입고·하역 기록 ${snapshots.length}건</summary><p>외부 반입 근거이며 Silo 간 이송량이나 자정 전후 배분량을 뜻하지 않습니다.</p>
+            <div class="cfh-final-settings-wrap"><table><thead><tr><th>기록·버전</th><th>입차</th><th>하역 완료</th><th>업체·차량</th><th>입고량(t)</th><th>경로·비고</th></tr></thead><tbody>
+              ${snapshots.map(row=>`<tr><td>${esc(row.id)} · v${esc(row.version)}</td><td>${esc(row.arrivalLocal||row.arrivalTime||'시각 미기록')}</td><td>${esc(row.departureLocal||row.departureTime||'시각 미기록')}</td><td>${esc(row.companyName||'—')} · ${esc(row.vehicleNo||'—')}</td><td>${fmtScalar(row.receiptTons)}</td><td>${esc(row.siloRoute||'경로 미기록')}<br>${esc(row.note||'')}</td></tr>`).join('')}
+            </tbody></table></div></details>`:''}</section>`;
+      }).join('')}</section>`;
+  }
+
   function metaMarkup(item,snapshot){
     const adjustment=item?.effectiveAdjustment||snapshot?.result?.adjustment||{};
     return `
@@ -300,6 +328,7 @@
           <div><dt>Revision</dt><dd>${esc(item?.revision??'—')}</dd></div>
           <div><dt>스냅샷 생성</dt><dd>${localDateTime(snapshot?.capturedAt)}</dd></div>
           <div><dt>혼소조정</dt><dd>${adjustment?.applied===true?'적용 · '+esc(adjustment.mode||'조정'):'미적용'}</dd></div>
+          ${inventoryCorrections(snapshot).length?'<div><dt>재고 근거</dt><dd>마감 당시 재고 보완 이력 · 마감 기준 탭 참조</dd></div>':''}
           <div class="is-wide"><dt>DataPARC 요청</dt><dd>${esc(item?.sourceRequestId||snapshot?.sourceRequestId||'—')}</dd></div>
         </dl>
       </section>`;
@@ -325,12 +354,15 @@
     const original=originalResult?resultView(originalResult):null;
     const nav=dateButtons(item?.targetDate||'');
     const comparisonReady=adjusted&&original;
+    const corrections=inventoryCorrections(snapshot),inventoryCorrected=corrections.length>0;
+    const correctionLabel=corrections.every(entry=>entry.method==='confirmed')?'확정 재고 보완 적용':'재고 보완 이력 확인 필요';
+    const correctionNotice=inventoryCorrected?`<div class="cfh-final-notice"><strong>${correctionLabel}</strong><span>확인되지 않은 재고 경계에 보완값을 적용한 마감입니다. 마감 기준 탭에서 당시 값·작성자·근거를 확인할 수 있습니다.</span></div>`:'';
 
-    const notice=adjusted
+    const notice=correctionNotice+(adjusted
       ? comparisonReady
         ? ''
         : `<div class="cfh-final-notice is-warning"><strong>혼소조정은 적용되어 있습니다.</strong><span>이전 저장분의 원본 비교값을 복원하지 못해 최종 마감값만 표시합니다.</span></div>`
-      : `<div class="cfh-final-notice"><strong>이 날짜는 혼소조정을 적용하지 않았습니다.</strong><span>최종 마감값은 원본 계산값과 동일합니다.</span></div>`;
+      : inventoryCorrected?'':`<div class="cfh-final-notice"><strong>이 날짜는 혼소조정을 적용하지 않았습니다.</strong><span>최종 마감값은 원본 계산값과 동일합니다.</span></div>`);
 
     return `
       <div class="cfh-final-heading">
@@ -353,7 +385,7 @@
       ${notice}
 
       <nav class="cfh-final-tabs" role="tablist" aria-label="마감 데이터 상세 탭">
-        <button type="button" class="is-active" data-cfh-final-tab="compare" role="tab" aria-selected="true">${adjusted?'원본값 ↔ 혼소조정 비교':'최종 마감값'}</button>
+        <button type="button" class="is-active" data-cfh-final-tab="compare" role="tab" aria-selected="true">${adjusted?(inventoryCorrected?'재고 보완 계산 ↔ 혼소조정 비교':'원본값 ↔ 혼소조정 비교'):'최종 마감값'}</button>
         <button type="button" data-cfh-final-tab="basis" role="tab" aria-selected="false">마감 기준</button>
         <button type="button" data-cfh-final-tab="meta" role="tab" aria-selected="false">저장 정보</button>
       </nav>
@@ -361,19 +393,20 @@
       <div class="cfh-final-tab-panel is-active" data-cfh-final-panel="compare">
         ${combinedStrip(original?.combined||null,final.combined,comparisonReady)}
         ${comparisonReady
-          ? compareUnit(1,original.unit1,final.unit1)+compareUnit(2,original.unit2,final.unit2)
-          : singleUnit(1,final.unit1)+singleUnit(2,final.unit2)}
+          ? compareUnit(1,original.unit1,final.unit1,inventoryCorrected)+compareUnit(2,original.unit2,final.unit2,inventoryCorrected)
+          : singleUnit(1,final.unit1,inventoryCorrected)+singleUnit(2,final.unit2,inventoryCorrected)}
       </div>
 
       <div class="cfh-final-tab-panel" data-cfh-final-panel="basis" hidden>
         ${settingsMarkup(snapshot?.settings||{})}
+        ${inventoryCorrectionMarkup(snapshot)}
       </div>
 
       <div class="cfh-final-tab-panel" data-cfh-final-panel="meta" hidden>
         ${metaMarkup(item,snapshot)}
       </div>
 
-      <div class="cfh-final-remark"><strong>비고</strong><span>특이사항이 없습니다.</span></div>`;
+      <div class="cfh-final-remark"><strong>비고</strong><span>${inventoryCorrected?correctionLabel+' · 원본 계측 품질과 구분하여 저장했습니다.':'특이사항이 없습니다.'}</span></div>`;
   }
 
   function ensureDrawer(){

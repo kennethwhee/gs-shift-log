@@ -1,5 +1,6 @@
 import { validateClosedSnapshot, validDate, readClosedOrganicInventory } from '../_shared/cofiring-closed-validation.js';
 import adjustment from '../../maintenance/cofiring-period-adjustment-v56.js';
+import {listCorrections,snapshotEvidence,correctionWriteGuard} from '../_shared/cofiring-inventory-correction-store.js';
 
 const json=(body,status=200)=>new Response(JSON.stringify(body),{
   status,
@@ -384,22 +385,31 @@ export async function onRequestPost(context){
       WHERE id=? AND request_type='cofiring_period' AND status='complete' LIMIT 1`).bind(sourceRequestId).first();
     if(!source||source.target_date!==targetDate)return json({ok:false,message:'서버에서 완료된 DataPARC 조회 결과를 확인할 수 없습니다.'},409);
     let canonical;
-    try{canonical=validateClosedSnapshot({...body,targetDate,sourceRequestId},source);}
+    try{
+      const storedReport=JSON.parse(source.result_json)?.report;
+      const needsCorrections=body.snapshot?.manual?.inputMode!=='manual'&&!(storedReport?.organicInventoryReady===true&&storedReport.organicInventory);
+      // Valid complete raw inventory retains its established close path. A
+      // separate correction store outage cannot invalidate good source data.
+      const corrections=needsCorrections?await listCorrections(db,targetDate+'T00:00',new Date(Date.parse(targetDate+'T00:00:00Z')+86400000).toISOString().slice(0,10)+'T00:00'):[];
+      canonical=validateClosedSnapshot({...body,targetDate,sourceRequestId},source,Date.now(),corrections);
+      for(const entry of canonical.snapshot.organicCorrections||[])await snapshotEvidence(db,entry);
+    }
     catch(error){return json({ok:false,code:'CALCULATION_MISMATCH',message:error.message},400);}
     const snapshotText=JSON.stringify(canonical.snapshot),summaryText=JSON.stringify(canonical.summary),now=new Date().toISOString();
     if(new TextEncoder().encode(snapshotText).length>MAX_BODY_BYTES)return json({ok:false,message:'마감 스냅샷 크기가 너무 큽니다.'},413);
+    const correctionGuard=correctionWriteGuard(canonical.snapshot.organicCorrections||[]);
     let written;
     if(existing){
       written=await db.prepare(`UPDATE cofiring_closed_snapshots SET revision=revision+1,source_request_id=?,
         summary_json=?,snapshot_json=?,saved_by_id=?,saved_by_name=?,updated_at=?
-        WHERE target_date=? AND revision=? AND snapshot_json=? AND updated_at=? RETURNING *`)
+        WHERE target_date=? AND revision=? AND snapshot_json=? AND updated_at=?${correctionGuard.sql} RETURNING *`)
         .bind(sourceRequestId,summaryText,snapshotText,a.user.employeeNo,a.user.name,now,
-          targetDate,body.expectedRevision,existing.snapshot_json,existing.updated_at).all();
+          targetDate,body.expectedRevision,existing.snapshot_json,existing.updated_at,...correctionGuard.args).all();
     }else{
       written=await db.prepare(`INSERT INTO cofiring_closed_snapshots
         (target_date,revision,source_request_id,summary_json,snapshot_json,saved_by_id,saved_by_name,created_at,updated_at)
-        VALUES (?,1,?,?,?,?,?,?,?) ON CONFLICT(target_date) DO NOTHING RETURNING *`)
-        .bind(targetDate,sourceRequestId,summaryText,snapshotText,a.user.employeeNo,a.user.name,now,now).all();
+        SELECT ?,1,?,?,?,?,?,?,? WHERE 1=1${correctionGuard.sql} ON CONFLICT(target_date) DO NOTHING RETURNING *`)
+        .bind(targetDate,sourceRequestId,summaryText,snapshotText,a.user.employeeNo,a.user.name,now,now,...correctionGuard.args).all();
     }
     const saved=written.results?.[0];if(!saved)return conflict(db,targetDate);
     return json({ok:true,item:await publicRow(saved),message:existing?'마감 데이터를 갱신했습니다.':'마감 데이터를 저장했습니다.'});

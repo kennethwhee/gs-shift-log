@@ -3,6 +3,7 @@
   // SOLID_FUEL_RECEIPT_LINK_V1
   const core=root.CofiringCore||(typeof require==='function'?require('./cofiring-core.js'):null);
   const liveApi=root.CofiringLive;
+  const inventoryCorrectionApi=root.CofiringInventoryCorrectionUI;
   const settingsApi=root.CofiringCalculationSettingsStorage;
   const manualApi=root.CofiringPeriodManualStorage;
   const adjustmentApi=root.CofiringPeriodAdjustmentV56||(typeof require==='function'?require('./cofiring-period-adjustment-v56.js'):null);
@@ -21,7 +22,7 @@
   function coalBioRatio(unit){const direct=unit?.fuelRatios?.bio??unit?.ratios?.bio;if(typeof direct==='number'&&Number.isFinite(direct))return direct;const total=coalBioHeat(unit),bio=unit?.heats?.bio;return total!==null&&total>0&&typeof bio==='number'&&Number.isFinite(bio)?bio/total*100:null;}
   function combinedCoalBio(result){const total=result?.combined?.heats?.total,direct=result?.combined?.fuelRatios?.bio??result?.combined?.ratios?.bio,bio=result?.combined?.heats?.bio;const heat=typeof total==='number'&&Number.isFinite(total)?total:null;const ratio=typeof direct==='number'&&Number.isFinite(direct)?direct:heat!==null&&heat>0&&typeof bio==='number'&&Number.isFinite(bio)?bio/heat*100:null;return {heat,ratio};}
   function cachedReference(state,spec){
-    const item=state?.item,report=item?.result?.report,base=report?.reference,reference=base?{...base,organicInventoryReady:report?.organicInventoryReady===true,organicInventory:report?.organicInventory||null}:null;
+    const item=state?.item,report=item?.result?.report,base=report?.reference,reference=base?{...base,organicInventoryReady:report?.organicInventoryReady===true,organicInventory:report?.organicInventory||null,organicInventorySamples:report?.organicInventorySamples||null}:null;
     if(!state?.authenticated||!state.canQuery||!item?.saved||!reference||item.active||item.loading||item.submitting||item.error)return null;
     if(item.result.requestId!==item.saved.id||reference.kind!=='cofiring_period_summary_v1')return null;
     for(const key of ['startLocal','endLocal','stepUnit','stepValue'])if(state.period?.[key]!==spec?.[key]||reference[key]!==spec?.[key])return null;
@@ -136,6 +137,8 @@
           ${UNITS.map((unit,i)=>`<fieldset class="cfv52-manual-unit"><legend><span class="cfv52-unit-dot" aria-hidden="true"></span>${i+1}호기</legend><label><span>유기성</span><div class="cfv13-manual-input-unit">${manualInput(unit,'organic',null,false)}<small>ton</small></div></label><label><span>축분</span><div class="cfv13-manual-input-unit">${manualInput(unit,'manure',null,false)}<small>ton</small></div></label></fieldset>`).join('')}
         </div>
       </div>
+
+      <section class="cfv-inventory-correction" data-cfv-inventory-correction aria-label="통신 오류 재고 보완" hidden></section>
 
       <section class="cfv-results-dark" aria-label="혼소율 계산 결과">
       <div class="cfv52-summary-head">
@@ -304,8 +307,8 @@
     if(!result){host.innerHTML=summaryPlaceholder(targetPercent);restoreEditor();if(note)note.textContent='DataPARC 조회 전';return;}
     const cards=[];
     for(const [i,unit] of UNITS.entries()){
-      const u=result?.units?.[unit],manualComplete=!!(u?.organic?.complete&&u?.manure?.complete),bioReady=coalBioRatio(u)!==null,provisional=result.organicUsage?.provisionalZero===true;
-      cards.push(`<article class="cfv52-card" data-cfv52-unit="${unit}"><header><div class="cfv52-unit-title"><span class="cfv52-unit-number" aria-hidden="true">0${i+1}</span><div><strong>${i+1}호기</strong></div></div><span class="cfv52-card-status${manualComplete&&bioReady&&!provisional?'':' is-waiting'}">${provisional?'유기성 0t 임시 표시':manualComplete&&bioReady?'계산 완료':bioReady?'종합 계산 대기':'조회값 확인'}</span></header><div class="cfv52-metrics">
+      const u=result?.units?.[unit],manualComplete=!!(u?.organic?.complete&&u?.manure?.complete),bioReady=coalBioRatio(u)!==null,provisional=result.organicUsage?.provisionalZero===true||result.organicUsage?.provisional===true;
+      cards.push(`<article class="cfv52-card" data-cfv52-unit="${unit}"><header><div class="cfv52-unit-title"><span class="cfv52-unit-number" aria-hidden="true">0${i+1}</span><div><strong>${i+1}호기</strong></div></div><span class="cfv52-card-status${manualComplete&&bioReady&&!provisional?'':' is-waiting'}">${result.organicUsage?.provisional?'추정 재고 · 임시 계산':provisional?'유기성 0t 임시 표시':manualComplete&&bioReady?'계산 완료':bioReady?'종합 계산 대기':u?.coal?.complete&&u?.bio?.complete?'사용량 확인 · 재고 보완 필요':'조회값 확인'}</span></header><div class="cfv52-metrics">
         ${summaryMetric('바이오 혼소율',coalBioRatio(u),{ratio:true})}
         ${summaryMetric('유기성 · 축분 혼소율',u?.fuelRatios?.organicGroup,{ratio:true})}
         ${summaryMetric('종합 혼소율',u?.fuelRatios?.total,{ratio:true,emphasis:true})}
@@ -514,11 +517,12 @@
     const morningOrganicTouched=new Set(),morningOrganicAuto=new Map();
     const settings=settingsApi?.create({getHeaders:authHeaders,canEdit:()=>!isMobile(),onChange:()=>paintSettings()})||null;
     const manual=manualApi?.create({getHeaders:authHeaders,canEdit:()=>!isMobile(),onChange:()=>paintManual()})||null;
-    const live=liveApi?.createPeriod({getHeaders:authHeaders,canQuery:()=>!isMobile()&&selectedDayAvailability().ready,isVisible:()=>visible(),onChange:s=>paintLive(s),onTiming:event=>{if(!clickToken||!clickIsCurrent())return;if(event.name==='request_accepted')clickTiming?.acceptRequest(clickToken,event.requestId);clickTiming?.mark(clickToken,event.name,event.requestId);},onResult:r=>{if(!sameSelectedPeriod(r?.report?.reference)||!selectedDayAvailability().ready)return;reference={...r.report.reference,organicInventoryReady:r.report.organicInventoryReady===true,organicInventory:r.report.organicInventory||null};updateOrganicInventoryUsage();if(storesReady())calculate();}})||null;
+    const live=liveApi?.createPeriod({getHeaders:authHeaders,canQuery:()=>!isMobile()&&selectedDayAvailability().ready,isVisible:()=>visible(),onChange:s=>paintLive(s),onTiming:event=>{if(!clickToken||!clickIsCurrent())return;if(event.name==='request_accepted')clickTiming?.acceptRequest(clickToken,event.requestId);clickTiming?.mark(clickToken,event.name,event.requestId);},onResult:r=>{if(!sameSelectedPeriod(r?.report?.reference)||!selectedDayAvailability().ready)return;reference={...r.report.reference,organicInventoryReady:r.report.organicInventoryReady===true,organicInventory:r.report.organicInventory||null,organicInventorySamples:r.report.organicInventorySamples||null};updateOrganicInventoryUsage();if(storesReady())calculate();}})||null;
     clickTiming=root.CofiringClickTimingV1?.create({isCurrent:()=>clickIsCurrent(),onChange:s=>paintClickTiming(s)});
     function clickIsCurrent(){try{return !!clickContext&&!disposed&&visible()&&clickContext.epoch===selectionEpoch&&clickContext.spec===JSON.stringify(currentSpec())&&clickContext.auth===String(authHeaders().Authorization||authHeaders().authorization||'');}catch(_){return false;}}
     // SOLID_FUEL_RECEIPT_LINK_V1
     let receiptSyncGeneration=0,receiptSyncState={status:'idle',signature:'',value:null},organicUsageState=null;
+    const inventoryCorrections=inventoryCorrectionApi?.create({host:container.querySelector('[data-cfv-inventory-correction]'),getHeaders:authHeaders,canEdit:()=>!mobile,onChange:()=>{if(disposed)return;if(reference&&storesReady())calculate();else updateOrganicInventoryUsage();}})||null;
     function receiptSource(text,tone=''){const el=container.querySelector('[data-cfv14-receipt-source]');if(el){el.textContent=text;el.dataset.tone=tone;}}
     function resetReceiptAuto(){for(const input of container.querySelectorAll('[data-cfv5-receipt]')){delete input.dataset.cfv14Auto;input.readOnly=false;input.removeAttribute('aria-readonly');}}
     function setReceiptAutoValues(receipts){for(const fuel of ['organic','manure']){const input=container.querySelector(`[data-cfv5-receipt="${fuel}"]`);if(!input)continue;const value=receipts?.[fuel];if(typeof value!=='number'||!Number.isFinite(value)||value<0)throw new Error('입고량 응답을 확인해 주세요.');input.value=tonInput2(value);input.dataset.cfv14Auto='1';input.readOnly=true;input.setAttribute('aria-readonly','true');}}
@@ -573,6 +577,7 @@
       };
 
       const row=(key,label)=>{
+        const boundaryTime=side=>{const boundary=inventory?.boundaries?.[side]?.[key];return boundary?.source==='operator'?(boundary.boundaryLocal.replace('T',' ')+' · '+(boundary.correction?.method==='estimated'?'추정':'확정')+' 보완'):fmtTime(byKey.get(key)?.[side+'Time']);};
         const sample=
           byKey.get(key)||{};
 
@@ -596,9 +601,7 @@
               '</strong>'+
               '<small>'+
                 escapeHtml(
-                  fmtTime(
-                    sample.startTime
-                  )
+                  boundaryTime('start')
                 )+
               '</small>'+
             '</span>'+
@@ -609,9 +612,7 @@
               '</strong>'+
               '<small>'+
                 escapeHtml(
-                  fmtTime(
-                    sample.endTime
-                  )
+                  boundaryTime('end')
                 )+
               '</small>'+
             '</span>'+
@@ -706,6 +707,7 @@
       let spec=null;try{spec=currentSpec();}catch(_){}
       const state=manual?.state();
       const direct=container.dataset.cfvUsageInputMode==='manual';
+      inventoryCorrections?.setContext(spec,direct?null:reference);
       const blocked=mobile||!state?.canEdit||!state.loaded||state.loading||state.saving;
       paintUsageEditor(blocked);
       if(direct){
@@ -733,7 +735,7 @@
       // COFIRING_ORGANIC_PROVISIONAL_CURRENT_DAY_V1: only today's incomplete daily balance may display a provisional zero.
       const today=defaultCalculationDate();
       const allowProvisionalZero=daily&&spec?.startLocal===today+'T00:00'&&spec?.endLocal?.slice(0,10)===today;
-      const total=core.organicInventoryUsage(reference,receipt,spec,{allowProvisionalZero});
+      const total=inventoryCorrections?inventoryCorrections.usage(receipt,{allowProvisionalZero}):core.organicInventoryUsage(reference,receipt,spec,{allowProvisionalZero});
       organicUsageState=total;
       let autoChanged=false;
       for(const unit of UNITS){
@@ -755,16 +757,22 @@
       }
       if(autoChanged)manualDirty=true;
       const label=container.querySelector('[data-cfv5-manual-state]');
-      if((autoChanged||total.provisionalZero)&&label&&!manual?.state()?.saving)label.textContent=total.provisionalZero?'유기성 0t 임시 표시 · 저장 불가':'유기성 50:50 자동배분 · 미저장';
+      if((autoChanged||total.provisionalZero||total.provisional)&&label&&!manual?.state()?.saving)label.textContent=total.provisional?'추정 재고 임시 계산 · 저장·마감 불가':total.provisionalZero?'유기성 0t 임시 표시 · 저장 불가':'유기성 50:50 자동배분 · 미저장';
       const save=container.querySelector('[data-cfv5-manual-save]');
-      if(save)save.disabled=blocked||total.provisionalZero===true;
+      if(save)save.disabled=blocked||total.provisionalZero===true||total.provisional===true;
       const {startTotal,endTotal,usage}=total;
       const {unit1,unit2,ok:allocationOk}=total.allocation;
       organicUsageSource('유기성 총 '+num(usage,3)+'t · 1호기 '+num(unit1,4)+'t / 2호기 '+num(unit2,4)+'t · 50:50 자동배분','ready');
-      renderOrganicBoundaryDetail(reference.organicInventory,usage,startTotal,receipt,endTotal,unit1,unit2,allocationOk,total);
+      renderOrganicBoundaryDetail(total.inventory||reference.organicInventory,usage,startTotal,receipt,endTotal,unit1,unit2,allocationOk,total);
+      if(total.corrections?.length){const detail=container.querySelector('[data-cfv15-organic-usage]');if(detail){detail.dataset.tone=total.provisional?'working':'ready';detail.innerHTML='<strong>'+(total.provisional?'추정 재고 임시 계산 · 저장·마감 불가':'확정 재고 보완 적용')+'</strong><span> · 원본 품질은 보완값과 구분해 유지됩니다.</span>'+detail.innerHTML;}}
       return total;
     }
     function paintOrganicCalculationState(){
+      if(organicUsageState?.provisional){
+        prepLabel('추정 재고 · 임시 계산','working');
+        setStatus(container,'추정 재고로 계산한 임시 결과입니다. 근거를 확인해 확정값으로 보완하기 전에는 사용량 저장·마감할 수 없습니다.','working');
+        return true;
+      }
       if(organicUsageState?.provisionalZero){
         prepLabel('계산 완료 · 유기성 0t 임시 표시','working');
         setStatus(container,organicUsageState.message,'working');
@@ -785,6 +793,7 @@
         }
         const total=updateOrganicInventoryUsage();
         if(!total?.ok)throw new Error(total?.message||'유기성 자동사용량을 확인한 뒤 저장해 주세요.');
+        if(total.provisional)throw new Error('추정 재고를 사용한 임시 계산은 저장·마감할 수 없습니다. 근거를 확인하고 확정값으로 보완해 주세요.');
         if(total.provisionalZero)throw new Error(total.message+' 임시 표시값은 저장·마감할 수 없습니다. 입고량과 재고수지를 확인한 뒤 다시 계산해 주세요.');
 
         values.unit1.organic=total.allocation.unit1;
@@ -860,6 +869,7 @@
       else if(item?.submitting||active){parts.push(item?.submitting?'조회 요청 중':active.status==='pending'?'회사 PC 대기 중':liveRequestPresentation(state).progressLabel||'조회 중');tone='working';}
       else if(item?.error||failure){parts.push(hasResult?'조회 실패 · 이전 결과 표시':'조회 실패 · 상세 확인');tone='error';}
       else if(hasResult&&organicUsageState?.ok!==true){parts.push('유기성 자료 확인 필요');tone='error';}
+      else if(hasResult&&organicUsageState?.provisional){parts.push('추정 재고 · 임시 계산');tone='working';}
       else if(hasResult&&organicUsageState?.provisionalZero){parts.push('계산 완료 · 유기성 0t 임시 표시');tone='working';}
       else if(container.querySelector('[data-cfv5-status]')?.dataset.tone==='error'){parts.push('확인 필요 · 상세 확인');tone='error';}
       else if(hasResult){parts.push(displayResult.warnings?.length?'계산 완료 · 자료 확인 필요':'계산 완료');tone='success';}
@@ -952,7 +962,7 @@
       // COFIRING_ADJUSTED_COMPARISON_STATE_V4
       container.__cfvAdjustedComparisonState = adjusted
         ? { active: true, base: lastResult || null, adjusted: result || null }
-        : { active: false, base: result || lastResult || null, adjusted: null };displayResult=result;const manualValues=readManual(container);/* CFV6 DETAIL RESULT BRIDGE R2 */container.__cfv6DetailPayload={result,manualValues};if(root.CustomEvent)container.dispatchEvent(new root.CustomEvent('cfv6-detail-result',{detail:container.__cfv6DetailPayload}));renderMain(container,result);renderOrganic(container,result,manualValues);renderSummary(container,result,manualValues,deadlineInputError);cfvSummaryLayoutMaybeReveal(result,adjusted);renderWarnings(container,result);scheduleDeadlineRefresh();adjustmentActive=!!adjusted;const b=container.querySelector('[data-cfv56-adjust]');if(b){b.disabled=!lastResult||mobile;b.classList.toggle('is-active',adjustmentActive);b.textContent=adjustmentActive?'혼소조정 적용 중':'혼소 조정';}const activeResetButton=container.querySelector('[data-cfv56-active-reset]');if(activeResetButton){activeResetButton.hidden=!adjustmentActive;activeResetButton.disabled=!adjustmentActive||mobile;activeResetButton.setAttribute('aria-hidden',String(!adjustmentActive));}const note=container.querySelector('[data-cfv52-summary-note]');if(note&&adjusted)note.textContent='혼소 조정 적용';}
+        : { active: false, base: result || lastResult || null, adjusted: null };displayResult=result;const manualValues=readManual(container);/* CFV6 DETAIL RESULT BRIDGE R2 */container.__cfv6DetailPayload={result,manualValues};if(root.CustomEvent)container.dispatchEvent(new root.CustomEvent('cfv6-detail-result',{detail:container.__cfv6DetailPayload}));renderMain(container,result);renderOrganic(container,result,manualValues);renderSummary(container,result,manualValues,deadlineInputError);cfvSummaryLayoutMaybeReveal(result,adjusted);renderWarnings(container,result);scheduleDeadlineRefresh();adjustmentActive=!!adjusted;const b=container.querySelector('[data-cfv56-adjust]');if(b){b.disabled=!lastResult||mobile||organicUsageState?.provisional===true;b.classList.toggle('is-active',adjustmentActive);b.textContent=adjustmentActive?'혼소조정 적용 중':'혼소 조정';}const activeResetButton=container.querySelector('[data-cfv56-active-reset]');if(activeResetButton){activeResetButton.hidden=!adjustmentActive;activeResetButton.disabled=!adjustmentActive||mobile;activeResetButton.setAttribute('aria-hidden',String(!adjustmentActive));}const note=container.querySelector('[data-cfv52-summary-note]');if(note&&adjusted)note.textContent='혼소 조정 적용';}
     // COFIRING_ADJUSTED_COMPARISON_RESTORE_FLASH_FIX_V6_R3_R4
     function cfvSummaryLayoutPending(active){
       if(mobile)return;
@@ -978,7 +988,7 @@
       if(mobile)return;
       if(cfvSummaryLayoutFinalReady(result,adjusted))cfvSummaryLayoutPending(false);
     }
-    function adjustmentContext(){return {result:lastResult,settings:readSettings(container),spec:currentSpec()};}
+    function adjustmentContext(){if(organicUsageState?.provisional)throw new Error('추정 재고 임시 계산에서는 혼소 조정을 저장할 수 없습니다. 재고 확인 후 진행해 주세요.');return {result:lastResult,settings:readSettings(container),spec:currentSpec()};}
     function notifyPeriodAdjustmentChanged(){
       try{
         const changedSpec=currentSpec();
@@ -1398,7 +1408,7 @@
       queryButton.textContent=presentation.buttonText;
       if(requery)requery.disabled=mobile||!s?.canQuery||!item?.saved||hardBusy||!!active;
       const qualityGapSaved=!!(item?.saved&&reference?.summaries?.some?.(x=>x?.dataComplete===false));
-      const stateText=!s?.authenticated?'로그인 필요':item?.error?item.error:item?.submitting?'요청 등록 중':active?.status==='pending'?'Agent 대기':active?.status==='processing'?presentation.progressLabel:failureMessage?(item?.saved&&reference?'재조회 실패 · 저장값 유지':'조회 실패'):item?.saved&&reference?(!organicUsageState?.ok?'유기성 자료 확인 필요':organicUsageState.provisionalZero?'유기성 0t 임시 표시':qualityGapSaved?'경계값 계산 · 품질 공백':'계산 완료'):item?.saved?'결과 확인 중':'저장결과 없음';
+      const stateText=!s?.authenticated?'로그인 필요':item?.error?item.error:item?.submitting?'요청 등록 중':active?.status==='pending'?'Agent 대기':active?.status==='processing'?presentation.progressLabel:failureMessage?(item?.saved&&reference?'재조회 실패 · 저장값 유지':'조회 실패'):item?.saved&&reference?(!organicUsageState?.ok?'유기성 자료 확인 필요':organicUsageState.provisional?'추정 재고 · 임시 계산':organicUsageState.provisionalZero?'유기성 0t 임시 표시':qualityGapSaved?'경계값 계산 · 품질 공백':'계산 완료'):item?.saved?'결과 확인 중':'저장결과 없음';
       if(state)state.textContent=stateText;
       if(clickTiming&&clickToken&&clickIsCurrent()){
         clickTiming.phase(clickToken,item?.submitting?'요청 등록 중':active?.status==='pending'?'회사 PC 대기':active?.status==='processing'?(presentation.progressLabel||'조회 중'):item?.loading?'결과 확인 중':'화면 반영 중');
@@ -1420,11 +1430,11 @@
       else if(active?.status==='pending')setStatus(container,'회사 PC Agent 대기 중입니다. 아직 계산 전입니다.','working');
       else if(active?.status==='processing')setStatus(container,presentation.progressMessage,'working');
       else if(failureMessage){prepLabel(item?.saved&&reference?'재조회 실패 · 저장값 유지':'조회 실패','error');setStatus(container,`${failureMessage} ${item?.saved&&reference?'이전 저장 결과를 표시합니다. 새 조회는 [재조회]를 눌러주세요.':'[계산하기]를 누르면 새 조회를 요청합니다.'}`,'error');}
-      else if(item?.saved&&reference&&(!organicUsageState?.ok||organicUsageState.provisionalZero))paintOrganicCalculationState();
+      else if(item?.saved&&reference&&(!organicUsageState?.ok||organicUsageState.provisionalZero||organicUsageState.provisional))paintOrganicCalculationState();
       else if(item?.saved&&reference)setStatus(container,qualityGapSaved?'DataPARC 중간 품질 공백이 있어도 시작·종료 누적 경계가 정상인 사용량은 표시합니다. [자료 확인 내용]에서 품질 공백 시간을 확인해 주세요.':lastResult?.warnings?.length?'저장값으로 혼소율을 계산했습니다. 빈칸 축분은 0t로 계산하며 자료 품질 경고는 [자료 확인 내용]에서 확인해 주세요.':'저장된 DataPARC 결과를 불러와 혼소율 계산까지 완료했습니다. 빈칸 축분은 0t로 계산됩니다.','success');
       else if(!item?.saved)setStatus(container,'저장된 결과가 없습니다. [계산하기]를 누르면 현재 표시 기간으로 조회합니다.','');
     }
-    function analyze(){if(!reference)return null;const p=periodSpec(container),setting=readSettings(container),mv=manualForCalculation(readManual(container)),calorifics={unit1:{},unit2:{}},coefficients={unit1:{},unit2:{}};for(const u of UNITS){mv[u].organic=organicUsageState?.ok?organicUsageState.allocation[u]:null;for(const fuel of FUEL_KEYS){calorifics[u][fuel]=setting[u][fuel].calorific;coefficients[u][fuel]=setting[u][fuel].coefficient;}}const result=core.analyzePeriodSummary(reference,{startLocal:p.startLocal,endLocal:p.endLocal,calorifics,coefficients,organic:{start:p.start,end:p.end,unit1:mv.unit1.organic,unit2:mv.unit2.organic},manure:{start:p.start,end:p.end,unit1:mv.unit1.manure,unit2:mv.unit2.manure}});result.organicUsage=organicUsageState;if(!organicUsageState?.ok||organicUsageState.provisionalZero)result.warnings.push(organicUsageState?.message||'유기성 재고 확인 필요');return result;}
+    function analyze(){if(!reference)return null;const p=periodSpec(container),setting=readSettings(container),mv=manualForCalculation(readManual(container)),calorifics={unit1:{},unit2:{}},coefficients={unit1:{},unit2:{}};for(const u of UNITS){mv[u].organic=organicUsageState?.ok?organicUsageState.allocation[u]:null;for(const fuel of FUEL_KEYS){calorifics[u][fuel]=setting[u][fuel].calorific;coefficients[u][fuel]=setting[u][fuel].coefficient;}}const result=core.analyzePeriodSummary(reference,{startLocal:p.startLocal,endLocal:p.endLocal,calorifics,coefficients,organic:{start:p.start,end:p.end,unit1:mv.unit1.organic,unit2:mv.unit2.organic},manure:{start:p.start,end:p.end,unit1:mv.unit1.manure,unit2:mv.unit2.manure}});result.organicUsage=organicUsageState;if(!organicUsageState?.ok||organicUsageState.provisionalZero||organicUsageState.provisional)result.warnings.push(organicUsageState?.provisional?'추정 재고 임시 계산 · 저장·마감 불가':organicUsageState?.message||'유기성 재고 확인 필요');return result;}
     function calculate(){
       try{
         updateOrganicInventoryUsage();lastResult=analyze();if(!lastResult)return null;deadlineInputError='';
@@ -1520,14 +1530,15 @@
       refreshDailyForClick();if(showDayUnavailable()){cfvSummaryLayoutPending(false);return;}
       const epoch=selectionEpoch,spec=currentSpec(),authKey=String(authHeaders().Authorization||authHeaders().authorization||''),signature=JSON.stringify(spec),stillSelected=()=>!disposed&&epoch===selectionEpoch&&visible()&&JSON.stringify(currentSpec())===signature&&String(authHeaders().Authorization||authHeaders().authorization||'')===authKey;
       token=startClickTiming(live.state().item?.active?'resume_existing':'calculate');live.select(spec);const cached=cachedReference(live.state(),spec);
-      if(cached?.organicInventory&&!live.state().item?.active&&selectedStoreKey===storeKey()&&storesReady()){
+      if(cached&&!live.state().item?.active&&selectedStoreKey===storeKey()&&storesReady()){
         reference=cached;
+        inventoryCorrections?.setContext(spec,reference);await inventoryCorrections?.refresh({force:true});if(!stillSelected())return;
         const receiptSignature=JSON.stringify({startLocal:spec.startLocal,endLocal:spec.endLocal});
         if(queryMode(container)==='daily'&&container.dataset.cfvUsageInputMode!=='manual'&&receiptSyncState.status!=='loading'&&(receiptSyncState.status!=='ready'||receiptSyncState.signature!==receiptSignature)){
           await syncReceiptTotals();if(!stillSelected())return;
         }
         updateOrganicInventoryUsage();const result=calculate();
-        if(result&&organicUsageState?.ok&&!organicUsageState.provisionalZero)setStatus(container,'저장된 DataPARC 결과와 현재 입력값으로 즉시 재계산했습니다. 최신 데이터 조회는 [재조회]를 사용하세요.','success');
+        if(result&&organicUsageState?.ok&&!organicUsageState.provisionalZero&&!organicUsageState.provisional)setStatus(container,'저장된 DataPARC 결과와 현재 입력값으로 즉시 재계산했습니다. 최신 데이터 조회는 [재조회]를 사용하세요.','success');
         return;
       }
       setStatus(container,'저장된 기간 결과를 먼저 확인하고 있습니다.','working');
@@ -1596,12 +1607,12 @@
         }
       });
     }
-    const observer=root.MutationObserver?new root.MutationObserver(()=>{if(visible()){if(showDayUnavailable()){cfvSummaryLayoutPending(false);return;}if(selectedStoreKey!==storeKey())void periodChanged();else{void adjustmentSync?.refresh({force:true});if(displayResult)renderSummary(container,displayResult,currentManualFromFields(),deadlineInputError);void syncReceiptTotals();scheduleDeadlineRefresh();scheduleFastPrep(0);}}else{cfvSummaryLayoutPending(false);restoringSaved=false;clearDayBoundary();clearDeadlineRefresh();clickTiming?.cancel('화면 닫힘');fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}live?.pause();}}):null;const view=container.closest?.('[data-efficiency-view]'),modal=root.document?.getElementById?.('efficiencyTeamModal');for(const node of [view,modal])if(node&&observer)observer.observe(node,{attributes:true,attributeFilter:['hidden','aria-hidden']});
-    const receiptMessageHandler=event=>{if(event.origin!==root.location?.origin||event.data?.type!=='solid-fuel:receipt-changed')return;if(queryMode(container)==='daily')void syncReceiptTotals();};
+    const observer=root.MutationObserver?new root.MutationObserver(()=>{if(visible()){if(showDayUnavailable()){cfvSummaryLayoutPending(false);return;}if(selectedStoreKey!==storeKey())void periodChanged();else{void adjustmentSync?.refresh({force:true});void inventoryCorrections?.refresh({force:true});if(displayResult)renderSummary(container,displayResult,currentManualFromFields(),deadlineInputError);void syncReceiptTotals();scheduleDeadlineRefresh();scheduleFastPrep(0);}}else{cfvSummaryLayoutPending(false);restoringSaved=false;clearDayBoundary();clearDeadlineRefresh();clickTiming?.cancel('화면 닫힘');fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}live?.pause();}}):null;const view=container.closest?.('[data-efficiency-view]'),modal=root.document?.getElementById?.('efficiencyTeamModal');for(const node of [view,modal])if(node&&observer)observer.observe(node,{attributes:true,attributeFilter:['hidden','aria-hidden']});
+    const receiptMessageHandler=event=>{if(event.origin!==root.location?.origin||event.data?.type!=='solid-fuel:receipt-changed')return;if(queryMode(container)==='daily')void syncReceiptTotals();void inventoryCorrections?.refresh({force:true});};
     root.addEventListener?.('message',receiptMessageHandler);
     statusRefreshers.set(container,refreshStatusLine);
     updateRange(container);writeSettings(container,settings?.defaults?.()||{unit1:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}},unit2:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}}});const initialManual=manualApi?.blank?.()||{unit1:{organic:null,manure:null},unit2:{organic:null,manure:null}};renderMain(container,null);renderOrganic(container,null,initialManual);renderSummary(container,null,initialManual);bindManualInputs();bindMorningMeetingOrganicObserver();selectStores().catch(e=>setStatus(container,e.message,'error'));scheduleFastPrep(0);
-    return {calculate,periodChanged,settings,manual,live,getResult:()=>lastResult,getDisplayResult:()=>displayResult,getSnapshotInputs:()=>{const values=readManual(container);validateOrganicAllocationBeforeSave(values);return {settings:readSettings(container),manual:values,sourceRequestId:renderedRequestId};},getSpec:currentSpec,dispose(){adjustmentSync?.dispose?.();statusRefreshers.delete(container);root.removeEventListener?.('message',receiptMessageHandler);receiptSyncGeneration++;clearInputRecalc();clearDayBoundary();clearDeadlineRefresh();clickTiming?.dispose();paintQueryOverlay({status:"idle"});queryOverlay?.remove?.();disposed=true;fastPrepGeneration++;if(fastPrepTimer)root.clearTimeout?.(fastPrepTimer);observer?.disconnect();morningCardObserver?.disconnect();if(morningCardBindTimer!==null)root.clearTimeout?.(morningCardBindTimer);adjuster?.dispose?.();settings?.dispose();manual?.dispose();live?.dispose();}};
+    return {calculate,periodChanged,settings,manual,live,getResult:()=>lastResult,getDisplayResult:()=>displayResult,getSnapshotInputs:()=>{const values=readManual(container);validateOrganicAllocationBeforeSave(values);return {settings:readSettings(container),manual:values,sourceRequestId:renderedRequestId,organicCorrections:organicUsageState?.corrections||[]};},getSpec:currentSpec,dispose(){inventoryCorrections?.dispose();adjustmentSync?.dispose?.();statusRefreshers.delete(container);root.removeEventListener?.('message',receiptMessageHandler);receiptSyncGeneration++;clearInputRecalc();clearDayBoundary();clearDeadlineRefresh();clickTiming?.dispose();paintQueryOverlay({status:"idle"});queryOverlay?.remove?.();disposed=true;fastPrepGeneration++;if(fastPrepTimer)root.clearTimeout?.(fastPrepTimer);observer?.disconnect();morningCardObserver?.disconnect();if(morningCardBindTimer!==null)root.clearTimeout?.(morningCardBindTimer);adjuster?.dispose?.();settings?.dispose();manual?.dispose();live?.dispose();}};
   }
   root.CofiringPeriodV5={mount,periodSpec,dailySpec,dailySelectionSpec,dayAvailability,defaultCalculationDate,queryMode,customSpec,currentDaySpec,selectedAvailability,targetReferenceMarkup,fuelUsageMarkup,markup,readSettings,readManual,manualForCalculation,coalBioHeat,coalBioRatio,combinedCoalBio,cachedReference,liveRequestPresentation};if(typeof module==='object'&&module.exports)module.exports=root.CofiringPeriodV5;
   if(root.document){const init=()=>{const container=root.document.querySelector('[data-cofiring-draft-root]');if(container)root.__cofiringPeriodV5Controller=mount(container);};if(root.document.readyState==='loading')root.document.addEventListener('DOMContentLoaded',init,{once:true});else init();}

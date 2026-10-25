@@ -116,6 +116,9 @@
     if(!result||!spec){
       throw new Error('계산 완료된 결과가 없습니다.');
     }
+    if(result.organicUsage?.provisional===true){
+      throw new Error('추정 재고로 계산한 임시 결과입니다. 재고를 확인값으로 보완한 뒤 마감해 주세요.');
+    }
 
     const expectedEnd=shiftDate(date,1)+'T00:00';
 
@@ -179,6 +182,7 @@
         result:clone(result),
         settings:clone(inputs.settings),
         manual:clone(inputs.manual),
+        organicCorrections:clone(inputs.organicCorrections||[]),
         summary:clone(summary),
         capturedAt:new Date().toISOString()
       }

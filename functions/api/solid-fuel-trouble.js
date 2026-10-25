@@ -1048,6 +1048,15 @@ export async function onRequestGet(context){
     const url=new URL(context.request.url),photoId=text(url.searchParams.get("photoId")),receiptDate=text(url.searchParams.get("receiptDate")),
       receiptStart=text(url.searchParams.get("receiptStart")),receiptEnd=text(url.searchParams.get("receiptEnd"));
     const a=await auth(context,{optional:true}); if(a.error) return a.error;
+    if(url.searchParams.has('inventoryBoundary')){
+      if(!a.user)return json({ok:false,message:'로그인이 필요합니다.'},401);
+      const boundaryLocal=text(url.searchParams.get('inventoryBoundary'));
+      if(receiptLocalMinute(boundaryLocal)===null)return json({ok:false,message:'재고 경계 일시를 확인해 주세요.'},400);
+      // Evidence reads do not initialize seeds or repair unrelated photographs.
+      // Receipt completion dates and recorded routes are preserved as entered.
+      const {inventoryEvidence}=await import('../_shared/cofiring-inventory-correction-store.js');
+      return json({ok:true,...await inventoryEvidence(context.env.DB,boundaryLocal)});
+    }
     if(text(url.searchParams.get("entity")).toLowerCase()==="contact"){
       if(!a.user)return json({ok:false,message:"로그인이 필요합니다."},401);
       await initialize(context.env.DB);

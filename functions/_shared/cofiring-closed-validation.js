@@ -1,12 +1,23 @@
 import core from '../../maintenance/cofiring-core.js';
 import contract from '../../maintenance/cofiring-live-contract.js';
 import adjustment from '../../maintenance/cofiring-period-adjustment-v56.js';
+import inventoryCorrection from '../../maintenance/cofiring-inventory-correction.js';
 
 const UNITS = ['unit1', 'unit2'];
 const FUELS = ['coal', 'bio', 'organic', 'manure'];
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const finite = value => typeof value === 'number' && Number.isFinite(value);
 const fail = message => { throw new Error(message); };
+function correctionIdentities(entries){
+  if(!Array.isArray(entries)||entries.length>6)return null;
+  const seen=new Set(),result=[];
+  for(const entry of entries){
+    if(!object(entry)||!inventoryCorrection.definitions.some(def=>def.key===entry.silo)||inventoryCorrection.localMinute(entry.boundaryLocal)===null||!Number.isSafeInteger(entry.revision)||entry.revision<1)return null;
+    const key=inventoryCorrection.boundaryKey(entry.silo,entry.boundaryLocal);if(seen.has(key))return null;
+    seen.add(key);result.push([key,entry.revision]);
+  }
+  return result.sort((a,b)=>a[0].localeCompare(b[0]));
+}
 
 export function validDate(value) {
   if (typeof value !== 'string' || !/^20\d{2}-\d{2}-\d{2}$/.test(value)) return false;
@@ -24,6 +35,14 @@ export function readClosedOrganicInventory(snapshot, targetDate, sourceRequestId
     const spec = core.periodRange(day.start.slice(0, 16), day.end.slice(0, 16), 'minute', 1);
     if (Date.now() < Date.parse(day.queryEnd) ||
         ['startLocal', 'endLocal', 'stepUnit', 'stepValue'].some(key => snapshot.period?.[key] !== spec[key])) return null;
+    if(snapshot.inventoryCorrectionVersion===1){
+      if(snapshot.manual?.inputMode==='manual'||!snapshot.organicCorrectionSource||!snapshot.correctedOrganicInventory)return null;
+      const corrected=inventoryCorrection.usage(snapshot.organicCorrectionSource,snapshot.manual?.receipts?.organic,spec,snapshot.organicCorrections);
+      if(!corrected.ok||corrected.provisional||!corrected.corrections.length||corrected.basis!=='operator-corrected-inventory-balance-v1'||
+        JSON.stringify(corrected.inventory)!==JSON.stringify(snapshot.correctedOrganicInventory)||
+        snapshot.organicUsage?.basis!==corrected.basis||['startTotal','endTotal','receipt','usage'].some(key=>!finite(snapshot.organicUsage?.[key])||Math.abs(snapshot.organicUsage[key]-corrected[key])>0.000001))return null;
+      return corrected.inventory;
+    }
     const canonical = contract.validateOrganicInventory(inventory, contract.period(spec, Number.MAX_SAFE_INTEGER));
     if (!canonical) return null;
     if (snapshot.manual?.inputMode !== 'manual') {
@@ -39,7 +58,7 @@ export function readClosedOrganicInventory(snapshot, targetDate, sourceRequestId
   }
 }
 
-export function validateClosedSnapshot(body, source, now = Date.now()) {
+export function validateClosedSnapshot(body, source, now = Date.now(), canonicalCorrections = []) {
   const snapshot = body.snapshot;
   if (!object(snapshot) || snapshot.schemaVersion !== 1 || snapshot.targetDate !== body.targetDate ||
       snapshot.sourceRequestId !== body.sourceRequestId || !validDate(body.targetDate)) {
@@ -86,10 +105,19 @@ export function validateClosedSnapshot(body, source, now = Date.now()) {
   const inputMode=snapshot.manual?.inputMode;
   if(inputMode!==undefined&&!['auto','manual'].includes(inputMode))fail('사용량 입력 방식을 확인해 주세요.');
   if(inputMode==='manual')manual.inputMode='manual';
+  const inventoryReference={...saved.report.reference,organicInventoryReady:saved.report.organicInventoryReady,
+    organicInventory:saved.report.organicInventory??null,organicInventorySamples:saved.report.organicInventorySamples};
   const organicUsage=inputMode==='manual'
     ?core.organicManualUsage(manual,spec)
-    :core.organicInventoryUsage(saved.report.reference,manual.receipts.organic,spec);
+    :inventoryCorrection.usage(inventoryReference,manual.receipts.organic,spec,canonicalCorrections);
   if(!organicUsage.ok)fail(organicUsage.message+' 마감하지 않았습니다.');
+  if(organicUsage.provisional===true)fail('추정 재고로 계산한 임시 결과는 마감할 수 없습니다. 확인값과 근거를 저장해 주세요.');
+  const usedCorrections=organicUsage.corrections||[],shownCorrections=correctionIdentities(snapshot.organicCorrections??[]);
+  if(shownCorrections===null||JSON.stringify(shownCorrections)!==JSON.stringify(correctionIdentities(usedCorrections)))fail('재고 보완 이력이 계산 후 변경되었습니다. 최신 값을 다시 불러와 계산해 주세요.');
+  const correctionSnapshot=usedCorrections.length?{inventoryCorrectionVersion:1,organicCorrections:usedCorrections,
+    correctedOrganicInventory:organicUsage.inventory,organicCorrectionSource:{startLocal:spec.startLocal,endLocal:spec.endLocal,
+      organicInventoryReady:saved.report.organicInventoryReady===true,organicInventory:saved.report.organicInventory??null,
+      organicInventorySamples:saved.report.organicInventorySamples}}:{};
   for(const unit of UNITS){
     if(!finite(manual[unit].organic)||Math.abs(manual[unit].organic-organicUsage.allocation[unit])>0.000001){
       fail('유기성 사용량이 서버의 시작재고 + 입고량 - 종료재고 계산값과 다릅니다. 다시 계산해 주세요.');
@@ -183,6 +211,7 @@ export function validateClosedSnapshot(body, source, now = Date.now()) {
     schemaVersion: 1, validationVersion: 6, saveId: crypto.randomUUID(),
     targetDate: body.targetDate, period: spec, sourceRequestId: body.sourceRequestId,
     settings, manual, organicUsage, organicInventory: saved.report.reference.organicInventory ?? null,
+    ...correctionSnapshot,
     manualBlankPolicy: inputMode==='manual'?'organic-explicit-manure-blank-zero':'organic-inventory-required-manure-blank-zero',
     ...(shown.adjustment?.applied===true?{originalResult}:{}), result, summary, capturedAt: new Date(now).toISOString()
   } };

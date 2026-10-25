@@ -164,6 +164,7 @@
     organic.organicSiloTotal = number(snapshot.organicUsage?.endTotal);
     const inventory = Object.hasOwn(item, 'organicInventory') ? item.organicInventory : snapshot.organicInventory;
     const stockKeys = ['organicDaySilo', 'organicStorageSiloA', 'organicStorageSiloB'];
+    let inventoryCorrected=false;
     if (inventory?.startLocal === period.startLocal && inventory?.endLocal === period.endLocal &&
         stockKeys.every(key => number(inventory.end?.[key]) !== null)) {
       const total = stockKeys.reduce((sum, key) => sum + inventory.end[key], 0);
@@ -171,12 +172,14 @@
           (organic.organicSiloTotal === null || Math.abs(total - organic.organicSiloTotal) <= 0.000001)) {
         for (const key of stockKeys) organic[key] = inventory.end[key];
         organic.organicSiloTotal = total;
+        inventoryCorrected=inventory.basis==='operator_corrected_period_boundary';
       }
     }
     return { targetDate: date, revision: item.revision, updatedAt: String(item.updatedAt || ''),
       source: 'cofiring-closed-history', period: {startLocal: period.startLocal, endLocal: period.endLocal},
       adjustmentApplied: effective.adjustmentApplied, adjustmentSource: effective.adjustmentSource,
       receiptInputMode: snapshot.manual?.inputMode === 'manual' ? 'manual' : 'auto',
+      ...(inventoryCorrected?{inventoryCorrected:true}:{}),
       unitOne: unit(summary?.unit1), unitTwo: unit(summary?.unit2), combined: ratios(summary?.combined),
       organic, receiptCountNote: '마감자료에는 입고 건수가 저장되어 있지 않습니다.' };
   }
@@ -540,8 +543,8 @@
     }
     const data = saved?.organic || emptyOrganic();
     const card = byId(PREFIX + 'SludgeCard');
-    if (card) { card.dataset.source = 'cofiring-closed-history'; card.title = '선택일의 혼소율 마감자료 · 재고는 마감 계산의 종료값'; }
-    setText(byId(PREFIX + 'SludgeDate'), date ? date + ' · 마감자료' : '-');
+    if (card) { card.dataset.source = 'cofiring-closed-history'; card.title = saved?.inventoryCorrected?'선택일의 혼소율 마감자료 · 재고는 마감 당시 확인 보완값 포함 · 원본 계측값과 구분':'선택일의 혼소율 마감자료 · 재고는 마감 계산의 종료값'; }
+    setText(byId(PREFIX + 'SludgeDate'), date ? date + (saved?.inventoryCorrected?' · 마감자료 · 확인 보완':' · 마감자료') : '-');
     for (const [key, id] of Object.entries(ORGANIC_IDS)) {
       const value = data[key], element = byId(id);
       setText(element, value === null ? '-' : value.toLocaleString('ko-KR', {
@@ -556,9 +559,9 @@
     if (badge) {
       const status = entry.status;
       setText(badge, !date || isBlocked(date) ? '조회 대기' : status === 'loading' ? '조회 중' : status === 'error' ? '조회 실패' :
-        status === 'complete' ? '마감값' : status === 'missing' ? '마감자료 없음' : '조회 대기');
+        status === 'complete' ? (saved?.inventoryCorrected?'마감값 · 확인 보완':'마감값') : status === 'missing' ? '마감자료 없음' : '조회 대기');
       badge.className = 'efficiency-morning-meeting-auto-card__badge' + (['complete','loading','error'].includes(status) ? ' is-' + status : '');
-      badge.title = entry.error || (saved ? '혼소율 메뉴의 저장된 마감값입니다. 입고 건수는 별도 입고기록 기준입니다.' : '혼소율 메뉴에서 해당 날짜를 계산하고 마감 저장해 주세요.');
+      badge.title = entry.error || (saved ? (saved.inventoryCorrected?'마감 당시 확인한 재고 보완값을 포함합니다. 당시 근거는 혼소율 마감 상세에서 확인하세요. ':'')+'혼소율 메뉴의 저장된 마감값입니다. 입고 건수는 별도 입고기록 기준입니다.' : '혼소율 메뉴에서 해당 날짜를 계산하고 마감 저장해 주세요.');
     }
     const button = byId(PREFIX + 'SludgeRefreshButton');
     if (button) {
