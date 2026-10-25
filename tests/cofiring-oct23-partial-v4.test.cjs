@@ -32,7 +32,8 @@ test('2026-10-23 actual sample: Delta is absent, therefore no credible midnight 
 test('real UI releases only complete Coal and Bio counters while aggregate remains gated',()=>{
  const ui=fs.readFileSync(path.join(base,'cofiring-period-ui-v5.js'),'utf8');
  assert.match(ui,/organicUsageState\?\.code==='ORGANIC_BOUNDARY_CORRECTION_REQUIRED'.*?organicUsageState\?\.ok!==true/s);
- assert.match(ui,/u\?\.coal\?\.complete===true&&u\?\.bio\?\.complete===true&&coalBioRatio\(u\)!==null/);
+ assert.match(ui,/if\(organicUsageState\?\.code==='ORGANIC_BOUNDARY_CORRECTION_REQUIRED'&&organicUsageState\?\.ok!==true\)\s*\{\s*return true;/);
+ assert.match(ui,/cfvSummaryLayoutMaybeReveal\(result,adjusted\)/,'release occurs only after the summary is rendered');
  assert.match(ui,/Coal·Bio 완료 · 유기성 미확인/);
  assert.match(ui,/종합혼소율은 확정할 수 없습니다/);
  assert.match(ui,/b\.disabled=!lastResult\|\|mobile\|\|organicUsageState\?\.ok!==true/);
@@ -55,7 +56,7 @@ test('operator editor is optional and hidden by default but still usable when ma
  assert.match(editor,/if\(wrapper\)wrapper\.hidden=host\.hidden/);
  assert.match(editor,/function usage\(receipt,options\)/);
  assert.match(html,/cofiring-inventory-correction-ui\.js\?v=20261026-oct23-v4/);
- assert.match(html,/partialResult=20261026-v4/);
+ assert.match(html,/partialResult=20261026-v4-r4/);
 });
 test('calculation input and original persisted report are not changed by this patch',()=>{
  const ui=fs.readFileSync(path.join(base,'cofiring-period-ui-v5.js'),'utf8');
@@ -66,4 +67,64 @@ test('calculation input and original persisted report are not changed by this pa
  const modelSource=fs.readFileSync(path.join(base,'cofiring-inventory-correction.js'),'utf8');
  assert.match(modelSource,/!finite\(delta\)/,'no filling a missing Delta');
  assert.match(modelSource,/const auto=options.enableAutoEstimate===true\?estimateBoundary/,'only guarded approximation');
+});
+
+// Regression from the 2026-10-26 screenshot: the status and summary were
+// already produced, while the centered loading pane remained indefinitely.
+// Execute the production release functions, not a copied imitation.
+function readUiFunction(source,name){
+ const mark='    function '+name+'(';
+ const begin=source.indexOf(mark);
+ assert.ok(begin>=0,name+' found');
+ const open=source.indexOf('{',begin);
+ let depth=0;
+ for(let i=open;i<source.length;i++){
+   if(source[i]==='{')depth++;
+   else if(source[i]==='}'&&--depth===0)return source.slice(begin,i+1);
+ }
+ throw Error(name+' closing brace missing');
+}
+test('October 23 rendered partial result releases centered spinner without confirming organic quantities',()=>{
+ const source=fs.readFileSync(path.join(base,'cofiring-period-ui-v5.js'),'utf8');
+ const names=['cfvSummaryLayoutPending','cfvSummaryLayoutFinalReady','cfvSummaryLayoutMaybeReveal'];
+ const originals=names.map(name=>readUiFunction(source,name)).join('\n');
+ function scenario({organic,result,adjusted=false,initialPending=true,mobile=false}){
+   const classes=new Set(initialPending?['cfv-summary-final-layout-pending']:[]);
+   const panel={hidden:!initialPending};
+   const container={classList:{toggle:(name,on)=>on?classes.add(name):classes.delete(name),contains:name=>classes.has(name)}};
+   const context={mobile,container,organicUsageState:organic,UNITS:['unit1','unit2'],
+     updateSummaryLoading:()=>{panel.hidden=!classes.has('cfv-summary-final-layout-pending');},
+     coalBioRatio:u=>u?.coal?.complete===true&&u?.bio?.complete===true?25:null,
+     Number};
+   vm.runInNewContext(originals+'\nthis.ready=cfvSummaryLayoutFinalReady;this.reveal=cfvSummaryLayoutMaybeReveal;',context);
+   context.reveal(result,adjusted);
+   return {visible:!classes.has('cfv-summary-final-layout-pending'),panelHidden:panel.hidden,
+     actuallyReady:context.ready(result,adjusted)};
+ }
+ const good={coal:{complete:true,quantity:42},bio:{complete:true,quantity:11.6953125},organic:{quantity:null},manure:{quantity:0},fuelRatios:{organicGroup:null,total:null}};
+ const degraded={...good,bio:{complete:false,quantity:null}};
+ const unresolved={code:'ORGANIC_BOUNDARY_CORRECTION_REQUIRED',ok:false};
+ const result={units:{unit1:good,unit2:degraded}};
+ assert.deepEqual(scenario({organic:unresolved,result}),{visible:true,panelHidden:true,actuallyReady:true},
+   'the already-rendered result must end loading even when one fuel value is unavailable');
+ assert.deepEqual(scenario({organic:unresolved,result:{units:{unit1:good,unit2:good}}}),
+   {visible:true,panelHidden:true,actuallyReady:true});
+ assert.equal(scenario({organic:unresolved,result:null}).visible,false,
+   'no result received: real loading must remain');
+ assert.equal(scenario({organic:{code:'OTHER',ok:true},result}).visible,false,
+   'unrelated incomplete valid-result guard must not be bypassed');
+ const complete={coal:{complete:true,quantity:42},bio:{complete:true,quantity:4},
+   organic:{quantity:12},manure:{quantity:0},fuelRatios:{organicGroup:3,total:5}};
+ assert.equal(scenario({organic:{ok:true},result:{units:{unit1:complete,unit2:complete}}}).visible,true,
+   'fully verified daily result remains normal');
+ assert.equal(scenario({organic:{ok:true},result,adjusted:true}).visible,true,
+   'saved-adjustment release remains possible');
+ assert.equal(scenario({organic:unresolved,result,mobile:true}).visible,false,
+   'existing mobile layout behavior remains unchanged');
+ assert.match(source,/summaryMetric\('바이오 혼소율',coalBioRatio\(u\)/,
+   'unavailable Bio remains guarded by the normal card renderer');
+ assert.match(source,/if\(adjuster&&organicUsageState\?\.ok===true\)/,
+   'unconfirmed inventory cannot apply stored adjustment');
+ assert.match(source,/if\(organicUsageState\?\.ok!==true\)throw new Error/,
+   'unconfirmed inventory still cannot be saved through adjustment context');
 });

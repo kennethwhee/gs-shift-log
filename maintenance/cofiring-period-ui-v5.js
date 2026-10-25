@@ -978,10 +978,13 @@
       // COFIRING_ADJUSTED_COMPARISON_RESTORE_FINAL_METRICS_V6_R3_R7
       if(adjusted)return true;
       if(!result?.units)return false;
-      // A missing organic boundary must never blank out independently verified
-      // Coal/Bio cards. Overall ratios remain unavailable, not zero or guessed.
+      // V4 R4: the result has already been rendered at this point. Never keep
+      // a calculation spinner on top of partial, source-validated fuel cards
+      // just because the organic Storage B midnight boundary is unavailable.
+      // renderSummaryOriginal() independently renders unavailable figures as —.
+      // The verified-inventory requirement for adjustment/save/close is unchanged.
       if(organicUsageState?.code==='ORGANIC_BOUNDARY_CORRECTION_REQUIRED'&&organicUsageState?.ok!==true){
-        return UNITS.every(unit=>{const u=result.units?.[unit];return u?.coal?.complete===true&&u?.bio?.complete===true&&coalBioRatio(u)!==null;});
+        return true;
       }
       return UNITS.every(unit=>{
         const u=result.units?.[unit];
