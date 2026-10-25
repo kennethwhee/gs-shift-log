@@ -1,6 +1,7 @@
 (function(root){
   'use strict';
   const model=root.CofiringInventoryCorrection||(typeof require==='function'?require('./cofiring-inventory-correction.js'):null);
+  const shared=root.CofiringSharedMidnightV6||(typeof require==='function'?require('./cofiring-shared-midnight-v6.js'):null);
   const API='/api/cofiring-inventory-corrections';
   const clone=value=>JSON.parse(JSON.stringify(value));
   const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -61,16 +62,42 @@
   }
   function create(options={}){
     const host=options.host;let reference=null,spec=null,disposed=false,scheduled=false,lastRender='',drafts=new Map(),openBoundaries=new Set(),contextKey='';
+    let peerReference=null,peerState='idle',peerPending=null,peerGeneration=0;
     const store=createStore({...options,onChange:()=>{render();if(!scheduled){scheduled=true;Promise.resolve().then(()=>{scheduled=false;if(!disposed)options.onChange?.();});}}});
     const entries=()=>{const s=store.state();return s.loaded&&!s.loading?s.entries:[];};
-    const resolution=()=>reference&&spec?model.resolve(reference,entries(),spec,{enableAutoEstimate:true}):null;
+    const resolution=()=>reference&&spec?model.resolve(reference,entries(),spec,{enableAutoEstimate:true,adjacentReference:peerReference}):null;
+    function maybeReadPeer({force=false}={}){
+      if(disposed||!reference||!spec||!shared?.plan?.(spec,reference))return Promise.resolve(false);
+      if(peerPending)return peerPending;
+      if(!force&&peerState!=='idle')return Promise.resolve(peerState==='ready');
+      const epoch=peerGeneration,selectedRef=reference,selectedKey=contextKey,
+        selectedAuth=String(options.getHeaders?.().Authorization||options.getHeaders?.().authorization||'');
+      const isCurrent=()=>!disposed&&epoch===peerGeneration&&reference===selectedRef&&contextKey===selectedKey&&
+        selectedAuth===String(options.getHeaders?.().Authorization||options.getHeaders?.().authorization||'');
+      peerState='loading';
+      const task=(async()=>{
+        try{
+          const result=await shared.read({reference:selectedRef,spec,headers:options.getHeaders?.()||{},fetcher:options.fetch||root.fetch?.bind(root)});
+          if(!isCurrent())return false;
+          peerReference=result?.adjacentReference||null;
+          peerState=peerReference?'ready':'unavailable';
+          if(peerReference)options.onChange?.();
+          return !!peerReference;
+        }catch(_){if(isCurrent())peerState='unavailable';return false;}
+        finally{if(isCurrent())peerPending=null;}
+      })();peerPending=task;return task;
+    }
     function setContext(nextSpec,nextReference){
       const auth=String(options.getHeaders?.().Authorization||options.getHeaders?.().authorization||''),nextKey=JSON.stringify([nextSpec?.startLocal,nextSpec?.endLocal,auth]);
-      if(nextKey!==contextKey){contextKey=nextKey;drafts=new Map();openBoundaries=new Set();lastRender='';}
-      const changed=reference!==nextReference;spec=nextSpec;reference=nextReference;store.select(spec);
+      const keyChanged=nextKey!==contextKey;
+      if(keyChanged){contextKey=nextKey;drafts=new Map();openBoundaries=new Set();lastRender='';}
+      const changed=reference!==nextReference;
+      if(changed||keyChanged){peerGeneration++;peerReference=null;peerState='idle';peerPending=null;}
+      spec=nextSpec;reference=nextReference;store.select(spec);
       const missing=reference&&spec?model.resolve(reference,[],spec,{enableAutoEstimate:true}).missing||[]:[];
       if(changed||nextKey!==lastRender)render();
       const state=store.state();if(missing.length&&!state.loaded&&!state.loading&&!state.error&&state.authenticated)void store.load();
+      if(missing.some(item=>item.silo==='organicStorageSiloB'))void maybeReadPeer();
     }
     function render(){
       if(!host)return;const result=resolution(),missing=result?.missing||[],state=store.state();
@@ -97,9 +124,13 @@
       }
       host.querySelector('[data-cfv-inventory-reload]')?.addEventListener('click',()=>{void refresh({force:true});});
     }
-    async function refresh({force=false}={}){if(!reference||!(resolution()?.missing||[]).length)return true;const loaded=await store.load({force});if(force){for(const boundary of [...new Set((resolution()?.missing||[]).map(item=>item.boundaryLocal))])await store.evidence(boundary,{force:true});}return loaded;}
-    function usage(receipt,options){return model.usage(reference,receipt,spec,entries(),{...(options||{}),enableAutoEstimate:true});}
-    function dispose(){disposed=true;store.dispose();if(host)host.innerHTML='';}
+    async function refresh({force=false}={}){if(!reference||!(resolution()?.missing||[]).length)return true;
+      const [loaded]=await Promise.all([store.load({force}),maybeReadPeer({force})]);
+      if(force){for(const boundary of [...new Set((resolution()?.missing||[]).map(item=>item.boundaryLocal))])await store.evidence(boundary,{force:true});}
+      return loaded;
+    }
+    function usage(receipt,options){return model.usage(reference,receipt,spec,entries(),{...(options||{}),enableAutoEstimate:true,adjacentReference:peerReference});}
+    function dispose(){disposed=true;peerGeneration++;peerReference=null;peerPending=null;store.dispose();if(host)host.innerHTML='';}
     return {setContext,refresh,usage,state:store.state,dispose};
   }
   root.CofiringInventoryCorrectionUI={create,createStore,parseTons,evidenceMarkup,historyMarkup};

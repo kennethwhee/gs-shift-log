@@ -71,6 +71,40 @@
     return {value:estimate,basis:'dataparc-period-delta-v2',sourceTime:rawTime,
       min,max,delta,durationBadSeconds:sample.durationBadSeconds};
   }
+  // Same physical silo at the same midnight: previous-day END = next-day START.
+  // Cross-day evidence is read-only, NEVER a confirmed DataPARC measurement.
+  // The adjacent report is independently revalidated by resolve() without
+  // passing this option further; its own recovered boundary must have passed
+  // the original statistics or source validation to become a candidate.
+  function peerBoundary(reference,p,silo,side,adjacentReference){
+    if(!object(adjacentReference)||p.durationMinutes!==1440||p.startLocal.slice(11)!=='00:00'||p.endLocal.slice(11)!=='00:00'||
+       p.stepUnit!=='minute'||p.stepValue!==1)return null;
+    const boundaryLocal=p[side+'Local'];
+    const adjacentStart=side==='end'?p.endLocal:new Date(p.startMs-86400000+32400000).toISOString().slice(0,16);
+    const adjacentEnd=side==='end'?new Date(p.endMs+86400000+32400000).toISOString().slice(0,16):p.startLocal;
+    if(adjacentReference.startLocal!==adjacentStart||adjacentReference.endLocal!==adjacentEnd||
+       adjacentReference.stepUnit!=='minute'||adjacentReference.stepValue!==1||
+       adjacentReference.kind!=='cofiring_period_summary_v1'||adjacentReference.schemaVersion!==1)return null;
+    const peerSide=side==='end'?'start':'end';
+    const expected=adjacentReference[peerSide+'Local'];
+    if(expected!==boundaryLocal)return null;
+    const peer=resolve(adjacentReference,[],adjacentReference,{enableAutoEstimate:true});
+    if(!peer.ok)return null;
+    let value=null,basis='',quality='';
+    const auto=peer.autoEstimates?.find(row=>row.silo===silo&&row.side===peerSide&&row.boundaryLocal===boundaryLocal);
+    if(auto&&tons(auto.tons)){
+      value=auto.tons;basis='adjacent-period-dataparc-estimate-v6';quality='estimated';
+    }else if(!peer.provisional&&peer.inventory?.basis==='dataparc_period_boundary'){
+      const matching=peer.inventory.samples?.find(item=>item.key===silo);
+      const stamp=matching?.[peerSide+'Time'],instant=typeof stamp==='string'?Date.parse(stamp):NaN;
+      const boundaryMs=localMinute(boundaryLocal);
+      if(contract.good(matching?.[peerSide+'Quality'])&&Number.isFinite(instant)&&
+         instant>=boundaryMs&&instant<boundaryMs+60000&&tons(peer.inventory[peerSide]?.[silo])){
+        value=peer.inventory[peerSide][silo];basis='adjacent-period-good-source-v6';quality='good';
+      }
+    }
+    return tons(value)?{tons:value,basis,quality,boundaryLocal,peerStart:adjacentStart,peerEnd:adjacentEnd}:null;
+  }
   function resolve(reference,corrections=[],spec=reference,options={}){
     if(!core||!contract)return fail('INVENTORY_CORRECTION_UNAVAILABLE','재고 보완 모듈을 불러오지 못했습니다. 화면을 새로고침해 주세요.');
     if(!object(reference)||!object(spec)||reference.startLocal!==spec.startLocal||reference.endLocal!==spec.endLocal||
@@ -118,13 +152,24 @@
         missing.push({silo:def.key,label:def.label,side,boundaryLocal,value:raw.value,quality:raw.quality,returnedTime:raw.returnedTime,reason:raw.reason,correction:entry?clone(entry):null});
         if(!entry){
           const auto=options.enableAutoEstimate===true?estimateBoundary(sample,side,sides[side==='start'?'end':'start'],p):null;
-          if(auto){
-            target[def.key]=auto.value;
-            const estimate={silo:def.key,label:def.label,side,boundaryLocal,tons:auto.value,
-              basis:auto.basis,sourceTime:auto.sourceTime,min:auto.min,max:auto.max,delta:auto.delta,
-              durationBadSeconds:auto.durationBadSeconds};
+          // A peer may provide the same midnight from a different daily
+          // statistic. Never silently prefer one source when they disagree.
+          const peer=options.enableAutoEstimate===true&&def.key==='organicStorageSiloB'&&
+            options.adjacentReference?peerBoundary(reference,p,def.key,side,options.adjacentReference):null;
+          if(auto&&peer&&Math.abs(auto.value-peer.tons)>0.001){
+            return {...fail('ORGANIC_SHARED_BOUNDARY_CONFLICT','같은 시각 Storage B 재고 추정값이 두 날짜에서 다릅니다. 원본을 재확인해 주세요.',missing),
+              provisional:true,autoEstimates,conflict:{silo:def.key,boundaryLocal,current: auto.value,adjacent:peer.tons}};
+          }
+          if(auto||peer){
+            const value=peer?peer.tons:auto.value;
+            target[def.key]=value;
+            const estimate={silo:def.key,label:def.label,side,boundaryLocal,tons:value,
+              basis:peer?peer.basis:auto.basis,sourceTime:peer?null:auto.sourceTime,
+              min:auto?.min??null,max:auto?.max??null,delta:auto?.delta??null,
+              durationBadSeconds:sample.durationBadSeconds,
+              ...(peer?{sharedBoundary:true,peerStart:peer.peerStart,peerEnd:peer.peerEnd}: {})};
             autoEstimates.push(estimate);
-            boundaries[side][def.key]={source:'dataparc-estimate',value:auto.value,boundaryLocal,estimate};
+            boundaries[side][def.key]={source:peer?'adjacent-dataparc-estimate':'dataparc-estimate',value,boundaryLocal,estimate};
             continue;
           }
           incomplete=true;target[def.key]=null;continue;
@@ -161,7 +206,7 @@
     const quantity=Math.max(0,rawUsage),half=Math.round(quantity/2*10000)/10000;
     return {...base,ok:true,usage:quantity,allocation:{unit1:half,unit2:half,total:half*2,diff:quantity-half*2,ok:true,mode:'equal-50-50'},
       ...(provisionalZero?{code:'ORGANIC_BALANCE_NEGATIVE',message:'원본 사용량 '+rawUsage.toFixed(2)+' t · 0.00 t 임시 표시 · 입고량·재고수지 확인 필요.'}:
-        provisional?{message:'추정 재고로 계산한 임시 결과입니다. 확인값을 저장한 뒤 사용량 저장·마감할 수 있습니다.'}:{message:'확인한 재고 보완값으로 계산했습니다. 원본 DataPARC 품질은 변경하지 않습니다.'})};
+        provisional?{message:'추정 재고로 계산한 임시 결과입니다. 동일 시각의 인접 날짜 근거를 확인했더라도 확정값은 아닙니다. 확인 재고를 저장하기 전에는 마감할 수 없습니다.'}:{message:'확인한 재고 보완값으로 계산했습니다. 원본 DataPARC 품질은 변경하지 않습니다.'})};
   }
   const api=Object.freeze({definitions,localMinute,boundaryKey,validCorrection,estimateBoundary,resolve,usage});
   root.CofiringInventoryCorrection=api;

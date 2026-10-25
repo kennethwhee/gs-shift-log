@@ -28,7 +28,7 @@ test('10/23 compact main banner names only one true blocker, while preserving al
  assert.ok(raw.length>=3,'raw diagnostic notices are retained');
  const returned=moduleNotice.render(h,input,missing());
  assert.deepEqual(returned.map(x=>x),raw.map(x=>x.text),'API returns all original diagnostics');
- assert.match(h.textContent,/Storage B.*10월 24일 00:00.*재고 미확인/);
+ assert.match(h.textContent,/Storage B.*10월 24일 00:00.*원본 재고 계측 오류/);
  assert.doesNotMatch(h.textContent,/25\.2초|35\.3초| \/ /);
  assert.ok(h.textContent.length<100,'single short line');
  assert.ok(h.title.includes('1호기 Coal'),'original diagnostics are accessible in tooltip');
@@ -74,5 +74,5 @@ test('production UI shows clearly labelled scenario but never inserts it into ca
  assert.match(ui,/if\(organicUsageState\?\.ok!==true\)throw new Error/);
  assert.match(ui,/b\.disabled=!lastResult\|\|mobile\|\|organicUsageState\?\.ok!==true/);
  assert.match(index,/cofiring-organic-scenario-v5\.js\?v=20261026-v5/);
- assert.match(index,/cofiring-communication-warning-v2\.js\?v=20261026-quality-v3&amp;compact=20261026-v5/);
+ assert.match(index,/cofiring-communication-warning-v2\.js\?v=20261026-quality-v3&amp;compact=20261026-v5&amp;shared=20261026-v6/);
 });

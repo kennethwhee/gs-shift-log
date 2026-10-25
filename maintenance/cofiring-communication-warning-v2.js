@@ -110,10 +110,14 @@
     // "자료 확인 내용" fold, but must not flood the primary calculation header.
     // Only the *display* is shortened; notices(), warnings and raw report stay intact.
     const missing=Array.isArray(organicUsage?.missing)?organicUsage.missing:[];
-    const stock=organicUsage?.code==='ORGANIC_BOUNDARY_CORRECTION_REQUIRED'
-      ?missing.find(x=>x?.silo==='organicStorageSiloB'&&x?.side==='end'):null;
-    if(stock){
-      host.textContent='⚠ 1·2호기 유기성(Storage B) · '+dateLabel(stock.boundaryLocal)+' 종료 재고 미확인 · 재확인 필요';
+    const stock=missing.find(x=>x?.silo==='organicStorageSiloB'&&
+      ['start','end'].includes(x?.side)&&typeof x.boundaryLocal==='string'&&x.boundaryLocal.endsWith('T00:00'));
+    // Preserve the original V3 detailed-warning contract for external clients.
+    const compact=stock&&(organicUsage?.code==='ORGANIC_BOUNDARY_CORRECTION_REQUIRED'||
+      organicUsage?.code==='ORGANIC_SHARED_BOUNDARY_CONFLICT'||organicUsage?.provisional===true||
+      (Array.isArray(organicUsage?.corrections)&&organicUsage.corrections.some(x=>x.silo==='organicStorageSiloB'&&x.boundaryLocal===stock.boundaryLocal)));
+    if(compact){
+      host.textContent='⚠ 1·2호기 유기성(Storage B) · '+dateLabel(stock.boundaryLocal)+' 원본 재고 계측 오류 · 재확인 필요';
       host.title=lines.join(' / ');
     }else{
       host.textContent=lines.length?(entries.some(x=>x.level==='warning')?'⚠ ':'ℹ ')+lines.join(' / '):'';
