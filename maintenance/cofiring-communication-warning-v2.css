@@ -18,3 +18,11 @@
 @media (max-width: 720px) {
   .cofiring-period-v5 [data-cfv-communication-warning] { font-size: 11px; padding: 7px 9px; }
 }
+
+/* Verified DataPARC boundary recovery is informational, not a communication fault. */
+.cofiring-period-v5 [data-cfv-communication-warning][data-tone="info"] {
+  border-color: #d9e6f2;
+  background: #f5f9fc;
+  color: #4b667e;
+  font-weight: 500;
+}

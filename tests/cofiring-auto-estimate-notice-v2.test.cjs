@@ -77,7 +77,7 @@ test('banner appears in the real summary source without changing fuel cards, and
  const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
  assert.ok(ui.indexOf('data-cfv-communication-warning')<ui.indexOf('<div class="cfv52-summary-head">'));
  assert.match(ui,/communicationWarning\?\.render/);
- assert.match(html,/cofiring-communication-warning-v2\.js\?v=20261026-auto-v2/);
- assert.match(html,/cofiring-communication-warning-v2\.css\?v=20261026-auto-v2/);
+ assert.match(html,/cofiring-communication-warning-v2\.js\?v=20261026-(?:auto-v2|quality-v3)/);
+ assert.match(html,/cofiring-communication-warning-v2\.css\?v=20261026-(?:auto-v2|quality-v3)/);
  assert.match(html,/cofiring-inventory-correction\.js\?v=20261026-auto-v2/);
 });
