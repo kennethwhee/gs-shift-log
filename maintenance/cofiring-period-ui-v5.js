@@ -4,6 +4,7 @@
   const core=root.CofiringCore||(typeof require==='function'?require('./cofiring-core.js'):null);
   const liveApi=root.CofiringLive;
   const inventoryCorrectionApi=root.CofiringInventoryCorrectionUI;
+  const communicationWarning=root.CofiringCommunicationWarningV2;
   const settingsApi=root.CofiringCalculationSettingsStorage;
   const manualApi=root.CofiringPeriodManualStorage;
   const adjustmentApi=root.CofiringPeriodAdjustmentV56||(typeof require==='function'?require('./cofiring-period-adjustment-v56.js'):null);
@@ -141,6 +142,7 @@
       <section class="cfv-inventory-correction" data-cfv-inventory-correction aria-label="통신 오류 재고 보완" hidden></section>
 
       <section class="cfv-results-dark" aria-label="혼소율 계산 결과">
+      <div class="cfv-communication-warning" data-cfv-communication-warning role="status" aria-live="polite" hidden></div>
       <div class="cfv52-summary-head">
         <div class="cfv52-summary-title"><strong>주요 계산값</strong><span class="cfv6-summary-caption">선택기간 · 보정계수 적용</span></div>
         <div class="cfv56-summary-actions"><span data-cfv-results-time></span><span data-cfv52-summary-note>DataPARC 조회 전</span><button type="button" data-cfv56-adjust disabled>혼소 조정</button><button type="button" data-cfv56-active-reset hidden title="적용 중인 혼소 조정을 취소하고 원본값으로 되돌립니다.">원복</button></div>
@@ -764,7 +766,7 @@
       const {unit1,unit2,ok:allocationOk}=total.allocation;
       organicUsageSource('유기성 총 '+num(usage,3)+'t · 1호기 '+num(unit1,4)+'t / 2호기 '+num(unit2,4)+'t · 50:50 자동배분','ready');
       renderOrganicBoundaryDetail(total.inventory||reference.organicInventory,usage,startTotal,receipt,endTotal,unit1,unit2,allocationOk,total);
-      if(total.corrections?.length){const detail=container.querySelector('[data-cfv15-organic-usage]');if(detail){detail.dataset.tone=total.provisional?'working':'ready';detail.innerHTML='<strong>'+(total.provisional?'추정 재고 임시 계산 · 저장·마감 불가':'확정 재고 보완 적용')+'</strong><span> · 원본 품질은 보완값과 구분해 유지됩니다.</span>'+detail.innerHTML;}}
+      if(total.corrections?.length||total.autoEstimates?.length){const detail=container.querySelector('[data-cfv15-organic-usage]');if(detail){detail.dataset.tone=total.provisional?'working':'ready';detail.innerHTML='<strong>'+(total.provisional?'추정 재고 임시 계산 · 저장·마감 불가':'확정 재고 보완 적용')+'</strong><span> · 원본 품질은 보완값과 구분해 유지됩니다.</span>'+detail.innerHTML;}}
       return total;
     }
     function paintOrganicCalculationState(){
@@ -962,7 +964,7 @@
       // COFIRING_ADJUSTED_COMPARISON_STATE_V4
       container.__cfvAdjustedComparisonState = adjusted
         ? { active: true, base: lastResult || null, adjusted: result || null }
-        : { active: false, base: result || lastResult || null, adjusted: null };displayResult=result;const manualValues=readManual(container);/* CFV6 DETAIL RESULT BRIDGE R2 */container.__cfv6DetailPayload={result,manualValues};if(root.CustomEvent)container.dispatchEvent(new root.CustomEvent('cfv6-detail-result',{detail:container.__cfv6DetailPayload}));renderMain(container,result);renderOrganic(container,result,manualValues);renderSummary(container,result,manualValues,deadlineInputError);cfvSummaryLayoutMaybeReveal(result,adjusted);renderWarnings(container,result);scheduleDeadlineRefresh();adjustmentActive=!!adjusted;const b=container.querySelector('[data-cfv56-adjust]');if(b){b.disabled=!lastResult||mobile||organicUsageState?.provisional===true;b.classList.toggle('is-active',adjustmentActive);b.textContent=adjustmentActive?'혼소조정 적용 중':'혼소 조정';}const activeResetButton=container.querySelector('[data-cfv56-active-reset]');if(activeResetButton){activeResetButton.hidden=!adjustmentActive;activeResetButton.disabled=!adjustmentActive||mobile;activeResetButton.setAttribute('aria-hidden',String(!adjustmentActive));}const note=container.querySelector('[data-cfv52-summary-note]');if(note&&adjusted)note.textContent='혼소 조정 적용';}
+        : { active: false, base: result || lastResult || null, adjusted: null };displayResult=result;const manualValues=readManual(container);/* CFV6 DETAIL RESULT BRIDGE R2 */container.__cfv6DetailPayload={result,manualValues};if(root.CustomEvent)container.dispatchEvent(new root.CustomEvent('cfv6-detail-result',{detail:container.__cfv6DetailPayload}));renderMain(container,result);renderOrganic(container,result,manualValues);renderSummary(container,result,manualValues,deadlineInputError);cfvSummaryLayoutMaybeReveal(result,adjusted);renderWarnings(container,result);communicationWarning?.render?.(container.querySelector('[data-cfv-communication-warning]'),reference,organicUsageState);scheduleDeadlineRefresh();adjustmentActive=!!adjusted;const b=container.querySelector('[data-cfv56-adjust]');if(b){b.disabled=!lastResult||mobile||organicUsageState?.provisional===true;b.classList.toggle('is-active',adjustmentActive);b.textContent=adjustmentActive?'혼소조정 적용 중':'혼소 조정';}const activeResetButton=container.querySelector('[data-cfv56-active-reset]');if(activeResetButton){activeResetButton.hidden=!adjustmentActive;activeResetButton.disabled=!adjustmentActive||mobile;activeResetButton.setAttribute('aria-hidden',String(!adjustmentActive));}const note=container.querySelector('[data-cfv52-summary-note]');if(note&&adjusted)note.textContent='혼소 조정 적용';}
     // COFIRING_ADJUSTED_COMPARISON_RESTORE_FLASH_FIX_V6_R3_R4
     function cfvSummaryLayoutPending(active){
       if(mobile)return;
@@ -1455,7 +1457,7 @@
       clearInputRecalc();restoringSaved=false;usageEditSnapshot=null;pendingDailyDraft=draft;try{if(queryMode(container)==='daily')captureDailySelection(container,capturedAt);}catch(_){}
       selectionEpoch++;receiptSyncGeneration++;receiptSyncState={status:'idle',signature:'',value:null};organicUsageState=null;deadlineInputError='';clearDayBoundary();clearDeadlineRefresh();live?.pause();selectedStoreKey='';resetReceiptAuto();writeManual(container,manualApi.blank());
       clickTiming?.cancel('기간 변경');if(clickTiming)paintClickTiming(clickTiming.state());renderedRequestId=null;
-      fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}reference=null;lastResult=null;displayResult=null;adjustmentActive=false;updateOrganicInventoryUsage();renderMain(container,null);renderOrganic(container,null,currentManualFromFields());renderSummary(container,null,currentManualFromFields());updateRange(container);renderWarnings(container,null);const ab=container.querySelector('[data-cfv56-adjust]');if(ab){ab.disabled=true;ab.classList.remove('is-active');ab.textContent='혼소 조정';}const arb=container.querySelector('[data-cfv56-active-reset]');if(arb){arb.hidden=true;arb.disabled=true;arb.setAttribute('aria-hidden','true');}
+      fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}reference=null;lastResult=null;displayResult=null;adjustmentActive=false;updateOrganicInventoryUsage();renderMain(container,null);renderOrganic(container,null,currentManualFromFields());renderSummary(container,null,currentManualFromFields());updateRange(container);renderWarnings(container,null);communicationWarning?.render?.(container.querySelector('[data-cfv-communication-warning]'),null,null);const ab=container.querySelector('[data-cfv56-adjust]');if(ab){ab.disabled=true;ab.classList.remove('is-active');ab.textContent='혼소 조정';}const arb=container.querySelector('[data-cfv56-active-reset]');if(arb){arb.hidden=true;arb.disabled=true;arb.setAttribute('aria-hidden','true');}
       try{const a=selectedDayAvailability();if(a.period)live?.select(currentSpec());if(showDayUnavailable()){cfvSummaryLayoutPending(false);return;}if(deferReads)return;const pending=selectStores();setStatus(container,queryMode(container)==='daily'?'오늘은 00:00부터 현재까지 누적, 지난 날짜는 00:00부터 다음 날 00:01까지 계산합니다. [계산하기]를 눌러주세요.':'조회 기간이 변경되었습니다. [계산하기]를 누르면 표시한 기간으로 계산합니다.','');scheduleFastPrep(0);await pending;}catch(e){setStatus(container,e.message,'error');}
     }
     function refreshDailyForClick(){
