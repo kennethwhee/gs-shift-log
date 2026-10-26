@@ -7,6 +7,7 @@
 if(root.CofiringProvisionalV13Installed)return;
 root.CofiringProvisionalV13Installed=true;
 const GS_V17_CONTEXT_BINDING = true; // V17 guard marker
+const GS_V20_COMPLETED_SOURCE_WHILE_REFRESHING = true; // V20 guard marker
 const API='/api/cofiring-provisional-v12';
 const MEETING_ID='efficiencyMorningMeetingAutoCofiringCard';
 const APPROVED=new Set(['2026-10-23','2026-10-24']);
@@ -80,13 +81,28 @@ function projectionContext(){
  if(!raw)throw Error('계산 카드의 가정값과 원본 계산 연결이 확인되지 않았습니다. 일별 [계산하기]를 다시 실행해 주세요.');
  const live=c.ctrl.live?.state?.(),item=live?.item,saved=item?.saved;
  if(!item)throw Error('DataPARC 조회 상태를 불러오지 못했습니다. [계산하기]로 저장된 결과를 확인해 주세요.');
- if(item.active||item.loading||item.submitting)throw Error('DataPARC 조회가 진행 중입니다. 완료된 뒤 가정 기록을 다시 확인합니다.');
- if(saved&&saved.status!=='complete')throw Error('DataPARC 원본이 아직 완료 상태가 아닙니다.');
+ // A newer DataPARC request may be running while the exact old daily result
+ // remains complete and visible. Never treat background refreshing of that
+ // newer request as loss of the independently persisted old source evidence.
+ // The API will REVALIDATE the completed original and all displayed numbers.
  const currentId=item.result?.requestId;
- if(saved?.id&&currentId&&saved.id!==currentId)throw Error('화면 계산과 DataPARC 원본 조회 ID가 다릅니다. [계산하기]를 다시 눌러 주세요.');
- // Older live states sometimes contain a verified completed report without
- // its saved metadata. The POST endpoint independently requires a completed,
- // exact-date source in the database and recomputes all figures before write.
+ if(saved){
+  if(saved.status!=='complete'||saved.requestType&&saved.requestType!=='cofiring_period'||saved.targetDate&&saved.targetDate!==c.date)
+    throw Error('완료된 DataPARC 원본의 저장 상태 또는 날짜를 다시 확인해 주세요.');
+  if(typeof saved.id!=='string'||!/^[a-f0-9-]{30,48}$/i.test(saved.id))
+    throw Error('저장된 DataPARC 원본 ID가 유효하지 않습니다.');
+  if(currentId&&currentId!==saved.id)
+    throw Error('화면 계산과 완료된 DataPARC 원본 조회 ID가 다릅니다. [계산하기]를 다시 눌러 주세요.');
+  if((item.active||item.loading||item.submitting)&&!currentId)
+    throw Error('최신 조회 중에는 화면의 완료 원본 ID가 필요합니다. 원본 조회 완료 후 다시 확인합니다.');
+  // A completed result is only valid for the exact currently selected period.
+  if(live.period&&['startLocal','endLocal','stepUnit','stepValue'].some(key=>live.period[key]!==c.spec[key]))
+    throw Error('화면의 조회 기간과 저장된 원본의 조회 기간이 다릅니다. [계산하기]를 다시 실행해 주세요.');
+ }else if(item.active||item.loading||item.submitting){
+  throw Error('완료된 DataPARC 원본이 아직 없습니다. 현재 조회가 끝나면 가정 저장을 다시 확인합니다.');
+ }
+ // Legacy cached results without saved metadata remain read-only candidates:
+ // the server independently requires a matching completed saved source ID.
  const id=saved?.id||currentId;
  if(typeof id!=='string'||!/^[a-f0-9-]{30,48}$/i.test(id))throw Error('DataPARC 원본 요청 ID를 확인하지 못했습니다. 저장된 결과를 다시 불러와 주세요.');
  return {...c,raw,projected,scenario,saved:{id}};
