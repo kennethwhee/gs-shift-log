@@ -1,132 +1,250 @@
-/* Separate, labelled provisional snapshot UI. Does not change official close or original measurements. */
+/* V13: automatic, separately-audited provisional values in existing calculation,
+   closed-data and morning-meeting surfaces. No new save/query widgets.
+   Official close records, measured DataPARC and Excel remain untouched. */
 (function(root){
 'use strict';
-if(root.CofiringProvisionalV12Installed)return;
-root.CofiringProvisionalV12Installed=true;
+if(root.CofiringProvisionalV13Installed)return;
+root.CofiringProvisionalV13Installed=true;
 const API='/api/cofiring-provisional-v12';
-const ID='data-gs-v12-provisional';
-const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const q=n=>typeof n==='number'&&Number.isFinite(n)?n.toLocaleString('ko-KR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
-const pc=n=>typeof n==='number'&&Number.isFinite(n)?n.toFixed(2)+'%':'—';
-const day=x=>/^20\d{2}-\d{2}-\d{2}$/.test(String(x||''));
-const token=()=>String((root.getShiftLogAuthHeaders?.()||{}).Authorization||'');
+const MEETING_ID='efficiencyMorningMeetingAutoCofiringCard';
+const APPROVED=new Set(['2026-10-23','2026-10-24']);
+const UNITS=['unit1','unit2'];
+const FUELS=['coal','bio','organic','manure'];
+const RATIO_KEYS=['bio','organicGroup','total'];
+const FIELD_IDS={
+  unit1:{coal:'efficiencyMorningMeetingCofiringUnit1CoalUsage',bio:'efficiencyMorningMeetingCofiringUnit1BioUsage',organic:'efficiencyMorningMeetingCofiringUnit1OrganicInput',
+    ratios:{bio:'efficiencyMorningMeetingCofiringUnit1BioRatio',organicGroup:'efficiencyMorningMeetingCofiringUnit1OrganicRatio',total:'efficiencyMorningMeetingCofiringUnit1TotalRatio'}},
+  unit2:{coal:'efficiencyMorningMeetingCofiringUnit2CoalUsage',bio:'efficiencyMorningMeetingCofiringUnit2BioUsage',organic:'efficiencyMorningMeetingCofiringUnit2OrganicInput',
+    ratios:{bio:'efficiencyMorningMeetingCofiringUnit2BioRatio',organicGroup:'efficiencyMorningMeetingCofiringUnit2OrganicRatio',total:'efficiencyMorningMeetingCofiringUnit2TotalRatio'}}
+};
+const finite=x=>typeof x==='number'&&Number.isFinite(x)&&x>=0;
+const near=(a,b,tol=0.001)=>finite(a)&&finite(b)&&Math.abs(a-b)<=tol;
+const fmt=n=>finite(n)?n.toLocaleString('ko-KR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
+const fmtPct=n=>finite(n)?n.toFixed(2)+'%':'—';
+const validDate=s=>typeof s==='string'&&/^20\d{2}-\d{2}-\d{2}$/.test(s);
+const getToken=()=>{try{const h=root.getShiftLogAuthHeaders?.()||{};return String(h.Authorization||h.authorization||'')}catch{return ''}};
 const headers=()=>({...root.getShiftLogAuthHeaders?.(),Accept:'application/json'});
-let latestSummary=null,savedKey='',saving=false,morningLoaded='',morningRequest=0;
+const dateAllowed=d=>APPROVED.has(d);
+const state={saveKey:'',saveBusy:false,failKey:'',failUntil:0,morningDate:'',morningItem:null,morningPending:'',morningCheckAt:0,historyCheckAt:0,historyItems:null,historyPending:false,historyKey:'',tickTimer:null};
 async function request(suffix='',opts={}){
- const res=await root.fetch(API+suffix,{cache:'no-store',credentials:'same-origin',...opts,headers:{...headers(),...(opts.headers||{})}});
- let data;try{data=await res.json()}catch{throw Error('가정 계산 서버 응답을 확인하지 못했습니다.')}if(!res.ok||data?.ok!==true)throw Error(data?.message||'가정 계산 조회에 실패했습니다.');return data;
+ const r=await root.fetch(API+suffix,{credentials:'same-origin',cache:'no-store',...opts,headers:{...headers(),...(opts.headers||{})}});
+ let data;try{data=await r.json()}catch{throw Error('가정 계산 기록의 서버 응답을 확인하지 못했습니다.')}
+ if(!r.ok||data?.ok!==true)throw Error(data?.message||'가정 계산 자료 조회에 실패했습니다.');
+ return data;
 }
-function specNow(){const shell=root.document?.querySelector('.cofiring-period-v5');const ctrl=root.__cofiringPeriodV5Controller;
+function validItem(item,date){
+ if(!dateAllowed(date))return false;
+ if(!item||item.targetDate!==date||item.recordKind!=='hypothesis'||item.verificationStatus!=='unverified'||item.officialClose!==false)return false;
+ if(item.assumption?.silo!=='organicStorageSiloB'||item.assumption?.boundaryLocal!=='2026-10-24T00:00'||!near(item.assumption?.tons,19.143,0.00001))return false;
+ return UNITS.every(u=>FUELS.every(f=>finite(item.summary?.[u]?.[f]))&&
+ ['bioRatio','organicGroupRatio','totalRatio'].every(k=>finite(item.summary?.[u]?.[k])))&&finite(item.summary?.combined?.totalRatio);
+}
+function calcContext(){
+ const shell=root.document?.querySelector('.cofiring-period-v5');const ctrl=root.__cofiringPeriodV5Controller;
  const spec=ctrl?.getSpec?.(),date=shell?.querySelector('[data-cfv7-date]')?.value,mode=shell?.querySelector('[data-cfv8-mode]')?.value;
- return {shell,ctrl,spec,date,mode};}
-function currentProjection(){const {shell,ctrl,spec,date,mode}=specNow(),scenarioApi=root.CofiringSharedScenarioV7;
- if(!shell||mode!=='daily'||!day(date)||!spec||spec.startLocal!==date+'T00:00'||!scenarioApi)return null;
- const raw=ctrl?.getResult?.(),projection=raw&&scenarioApi.project?.(raw);
- const scenario=projection?.hypothesisDisplay;
- if(!scenarioApi.isScenario?.(scenario))return null;
- const saved=ctrl?.live?.state?.()?.item?.saved;
- if(!saved||saved.status!=='complete'||ctrl.live.state().item.active)return null;
- return {shell,ctrl,spec,date,raw,result:projection,scenario,saved};
+ return {shell,ctrl,spec,date,mode};
 }
-function buildPayload(){const t=currentProjection();if(!t)throw Error('가정 계산이 완료된 일별 자료를 확인해 주세요.');
- const module=root.CofiringPeriodV5,settings=module.readSettings(t.shell),manual=module.readManual(t.shell);
+function projectionContext(){
+ const c=calcContext(),scenarioApi=root.CofiringSharedScenarioV7;
+ if(!c.shell||!c.ctrl||!dateAllowed(c.date)||c.mode!=='daily'||!c.spec||c.spec.startLocal!==c.date+'T00:00'||!scenarioApi)return null;
+ const raw=c.ctrl.getResult?.();if(!raw)return null;
+ const projected=scenarioApi.project?.(raw),scenario=projected?.hypothesisDisplay;
+ if(!scenarioApi.isScenario?.(scenario)||!near(scenario.assumedStorageBTons,19.143,0.00001))return null;
+ const live=c.ctrl.live?.state?.()?.item,saved=live?.saved;
+ if(!saved||saved.status!=='complete'||live.active||live.loading||live.submitting)return null;
+ return {...c,raw,projected,scenario,saved};
+}
+function buildPayload(){
+ const c=projectionContext();if(!c)throw Error('가정 계산이 완료된 일별 자료를 확인해 주세요.');
+ const module=root.CofiringPeriodV5,settings=module?.readSettings?.(c.shell),manual=module?.readManual?.(c.shell);
+ if(!settings||!manual)throw Error('가정 계산 발열량과 연료 사용량 자료를 기다리고 있습니다.');
  const preview={units:{},combined:{}};
- for(const u of ['unit1','unit2']){
-   const src=t.result.units[u];preview.units[u]={ratios:{}};
-   for(const fuel of ['coal','bio','organic','manure'])preview.units[u][fuel]=src?.[fuel]?.quantity;
-   for(const key of ['bio','organicGroup','total'])preview.units[u].ratios[key]=src?.fuelRatios?.[key];
+ for(const u of UNITS){const src=c.projected.units?.[u];preview.units[u]={ratios:{}};
+  for(const fuel of FUELS)preview.units[u][fuel]=src?.[fuel]?.quantity;
+  for(const k of RATIO_KEYS)preview.units[u].ratios[k]=src?.fuelRatios?.[k];
  }
- for(const key of ['bio','organicGroup','total'])preview.combined[key]=t.result?.combined?.fuelRatios?.[key];
- return {targetDate:t.date,sourceRequestId:String(t.saved.id),receiptTons:t.scenario.receipt,unitTons:t.scenario.unitTons,
-  settings,manure:{unit1:manual?.unit1?.manure??0,unit2:manual?.unit2?.manure??0},preview,
-  acknowledgeUnverified:true};
+ for(const k of RATIO_KEYS)preview.combined[k]=c.projected?.combined?.fuelRatios?.[k];
+ const data={targetDate:c.date,sourceRequestId:String(c.saved.id),receiptTons:c.scenario.receipt,unitTons:c.scenario.unitTons,
+  settings,manure:{unit1:manual.unit1?.manure??0,unit2:manual.unit2?.manure??0},preview,acknowledgeUnverified:true};
+ if(!finite(data.receiptTons)||!finite(data.unitTons)||!UNITS.every(u=>FUELS.every(f=>finite(preview.units[u][f]))&&RATIO_KEYS.every(k=>finite(preview.units[u].ratios[k])))||!RATIO_KEYS.every(k=>finite(preview.combined[k])))throw Error('가정값 및 원본 계산값 검증을 완료하지 못했습니다.');
+ return data;
 }
-const style=`
-.gs-v12-badge{display:inline-block;font-size:11px;line-height:1.5;padding:2px 7px;border-radius:7px;background:#fff0df;color:#9b5400;font-weight:700;border:1px solid #ecc48b}
-.gs-v12-button{border:1px solid #c3833e;color:#8f5005;background:#fff9ee;border-radius:7px;padding:7px 11px;font-weight:700;font-size:12px;cursor:pointer}
-.gs-v12-button:disabled{opacity:.55;cursor:not-allowed}
-.gs-v12-status{font-size:12px;color:#715327}
-.gs-v12-banner{margin-top:6px;color:#81520a;font-size:11px}
-.gs-v12-panel{border:1px solid #e7c69a;background:#fffaf1;border-radius:9px;margin:10px 0;padding:10px;font-size:12px}
-.gs-v12-panel strong{font-size:12px}.gs-v12-panel p{margin:5px 0;color:#5f564a}
-.gs-v12-panel table{width:100%;border-collapse:collapse;font-size:12px}.gs-v12-panel th,.gs-v12-panel td{padding:5px;border-bottom:1px solid #ecd7b8;text-align:left}
-.gs-v12-panel details{margin:8px 0}.gs-v12-panel summary{cursor:pointer;color:#895e20;font-weight:650}
-.gs-v12-rows{display:flex;gap:10px;flex-wrap:wrap}.gs-v12-rows>span{flex:1;min-width:105px}
-.gs-v12-panel [data-gs-v12-warning]{color:#944500}
+function sameSaved(item,data){
+ if(!validItem(item,data.targetDate)||item.sourceRequestId!==data.sourceRequestId||!near(item.summary?.unit1?.organic,data.unitTons,0.0001)||!near(item.summary?.unit2?.organic,data.unitTons,0.0001))return false;
+ for(const u of UNITS){for(const f of FUELS)if(!near(item.summary[u][f],data.preview.units[u][f],0.0001))return false;
+  if(!near(item.summary[u].totalRatio,data.preview.units[u].ratios.total,0.0001))return false;
+ }
+ return near(item.summary.combined.totalRatio,data.preview.combined.total,0.0001);
+}
+function inlineUpdateEvent(date){
+ if(typeof root.CustomEvent==='function')root.dispatchEvent?.(new root.CustomEvent('cofiring:provisional-inline-updated',{detail:{targetDate:date}}));
+}
+async function autoSave(){
+ if(state.saveBusy)return;
+ let data;try{data=buildPayload()}catch{return}
+ const auth=getToken();if(!auth)return;
+ const key=JSON.stringify([auth,data.targetDate,data.sourceRequestId,data.receiptTons,data.unitTons,data.preview.combined.total]);
+ if(state.saveKey===key||state.failKey===key&&Date.now()<state.failUntil)return;
+ state.saveBusy=true;
+ try{
+  const before=await request('?targetDate='+encodeURIComponent(data.targetDate));
+  if(getToken()!==auth||calcContext().date!==data.targetDate)return;
+  if(sameSaved(before.item,data)){state.saveKey=key;inlineUpdateEvent(data.targetDate);return;}
+  if(!root.crypto?.randomUUID)throw Error('안전한 기록 ID를 만들 수 없습니다.');
+  const response=await request('',{method:'POST',headers:{'Content-Type':'application/json','X-ShiftLog-Client':'desktop'},
+    body:JSON.stringify({...data,expectedRevision:before.item?.revision||0,requestId:root.crypto.randomUUID()})});
+  if(getToken()!==auth)return;
+  if(!validItem(response.item,data.targetDate))throw Error('저장된 가정 계산의 구분 정보를 확인하지 못했습니다.');
+  state.saveKey=key;state.morningCheckAt=0;state.historyCheckAt=0;inlineUpdateEvent(data.targetDate);
+ }catch(e){
+  state.failKey=key;state.failUntil=Date.now()+60000;
+  // Never pretend an unsaved provisional projection was officially stored.
+  root.console?.warn?.('미확정 가정 계산 자동 기록 실패 (원본 계산/공식 마감 보존):',e?.message||e);
+ }finally{state.saveBusy=false;}
+}
+function clearLegacyExtras(){
+ const doc=root.document;if(!doc)return;
+ // V12 used three extraneous surfaces. V13 deliberately shows no such widgets.
+ for(const s of ['[data-gs-v12-morning]','[data-gs-v12-history]','[data-gs-v12-save]','[data-gs-v12-save-status]']){
+  doc.querySelectorAll(s).forEach(el=>el.remove());
+ }
+}
+function setText(el,value){if(el&&el.textContent!==value)el.textContent=value;}
+function clearMorning(){
+ const doc=root.document;if(!doc)return;
+ const card=doc.getElementById(MEETING_ID);if(!card)return;
+ card.classList.remove('gs-v13-morning-hypothesis');delete card.dataset.gsV13ProvisionalDate;
+ card.querySelector('[data-gs-v13-note]')?.remove();
+ for(const field of card.querySelectorAll('[data-gs-v13-field]')){
+  // Clear only data this module wrote; never overwrite a newer official repaint.
+  if(field.textContent===field.dataset.gsV13Written)setText(field,'-');
+  field.classList.remove('gs-v13-cell');field.parentElement?.classList.remove('gs-v13-cell-box');
+  delete field.dataset.gsV13Written;delete field.dataset.gsV13Field;
+ }
+ state.morningItem=null;
+}
+function morningDate(){try{return root.morningMeetingClosedCofiring?.targetDate?.()||''}catch{return ''}}
+function morningBlocked(date){try{return root.morningMeetingClosedCofiring?.isBlocked?.(date)===true}catch{return true}}
+function hasOfficialMorning(date){try{return !!root.morningMeetingClosedCofiring?.peek?.(date)}catch{return true}}
+function applyMorning(item,date){
+ const doc=root.document,card=doc?.getElementById(MEETING_ID);if(!card||!validItem(item,date)||morningDate()!==date||hasOfficialMorning(date)||morningBlocked(date))return false;
+ if(card.dataset.gsV13ProvisionalDate&&card.dataset.gsV13ProvisionalDate!==date)clearMorning();
+ card.dataset.gsV13ProvisionalDate=date;card.classList.add('gs-v13-morning-hypothesis');
+ for(const u of UNITS){const values=item.summary[u],ids=FIELD_IDS[u];
+  for(const f of ['coal','bio','organic']){
+   const el=doc.getElementById(ids[f]);if(!el||!card.contains(el))continue;
+   const label=(f==='organic'?'≈':'')+fmt(values[f])+' t/d';setText(el,label);
+   el.dataset.gsV13Written=label;el.dataset.gsV13Field=f;
+   if(f==='organic'){el.classList.add('gs-v13-cell');el.parentElement?.classList.add('gs-v13-cell-box')}
+  }
+  for(const key of ['bio','organicGroup','total']){
+   const el=doc.getElementById(ids.ratios[key]);if(!el||!card.contains(el))continue;
+   const value=values[key==='organicGroup'?'organicGroupRatio':key==='total'?'totalRatio':'bioRatio'];const label=fmtPct(value);
+   setText(el,label);el.dataset.gsV13Written=label;el.dataset.gsV13Field=key;
+   // All three heat ratios depend on the assumed organic quantity.
+   el.classList.add('gs-v13-cell');el.parentElement?.classList.add('gs-v13-cell-box');
+  }
+ }
+ let marker=card.querySelector('[data-gs-v13-note]');if(!marker){marker=doc.createElement('span');marker.dataset.gsV13Note='';marker.className='gs-v13-note';
+  const header=card.querySelector('.efficiency-morning-meeting-auto-card__header')||card.querySelector('h3')||card;
+  header.append(marker);
+ }
+ setText(marker,'유기성 추정 계산 · 미확정');marker.title='Storage B 2026-10-24 00:00 재고 19.143t 가정. 공식 마감 계측값이 아닙니다.';
+ state.morningItem=item;return true;
+}
+async function refreshMorning({force=false}={}){
+ const date=morningDate(),auth=getToken(),card=root.document?.getElementById(MEETING_ID);
+ if(!card)return;
+ if(state.morningDate!==date){clearMorning();state.morningDate=date;state.morningCheckAt=0}
+ if(!dateAllowed(date)||!auth||morningBlocked(date)||hasOfficialMorning(date)){if(card.dataset.gsV13ProvisionalDate)clearMorning();return;}
+ if(state.morningItem&&validItem(state.morningItem,date))applyMorning(state.morningItem,date);
+ if(!force&&Date.now()-state.morningCheckAt<60000)return;
+ if(state.morningPending===auth+'|'+date)return;
+ const key=auth+'|'+date;state.morningPending=key;state.morningCheckAt=Date.now();
+ try{const {item}=await request('?targetDate='+encodeURIComponent(date));
+  if(state.morningPending!==key||auth!==getToken()||morningDate()!==date||hasOfficialMorning(date)||morningBlocked(date))return;
+  if(validItem(item,date))applyMorning(item,date);else if(card.dataset.gsV13ProvisionalDate)clearMorning();
+ }catch(e){root.console?.warn?.('오전회의 가정 자료 조회 대기:',e.message)}
+ finally{if(state.morningPending===key)state.morningPending=''}
+}
+function officialDates(table){return new Set([...table.querySelectorAll('tbody tr')].filter(r=>!r.hasAttribute('data-gs-v13-row')).map(r=>(r.cells?.[0]?.textContent||'').match(/20\d\d-\d\d-\d\d/)?.[0]).filter(Boolean))}
+function addCell(row,text){const el=root.document.createElement('td');el.textContent=text;row.append(el);return el}
+function decorateHistory(body,items){
+ const panel=body?.closest('.cfv12-history-panel');if(!body||!panel||panel.hidden)return;
+ let table=body.querySelector('table');const filtered=(items||[]).filter(item=>dateAllowed(item?.targetDate)&&validItem(item,item.targetDate));
+ const existing=table?officialDates(table):new Set();
+ // Remove only obsolete provisional rows; never delete or recolor official rows.
+ body.querySelectorAll('[data-gs-v13-row]').forEach(row=>{const d=row.dataset.gsV13Row;
+  if(existing.has(d)||!filtered.some(item=>item.targetDate===d))row.remove();
+ });
+ const displayed=new Set([...body.querySelectorAll('[data-gs-v13-row]')].map(n=>n.dataset.gsV13Row));
+ const missing=filtered.filter(x=>!existing.has(x.targetDate)&&!displayed.has(x.targetDate));if(!missing.length)return;
+ if(!table){
+  body.textContent='';table=root.document.createElement('table');table.className='cfv12-history-table gs-v13-inline-history-table';
+  const thead=root.document.createElement('thead'),head=root.document.createElement('tr');
+  ['날짜','1호기 Bio 혼소율','2호기 Bio 혼소율','종합 혼소율','상태','저장 시각',''].forEach(x=>{const th=root.document.createElement('th');th.textContent=x;head.append(th)});
+  thead.append(head);table.append(thead,root.document.createElement('tbody'));body.append(table);
+ }
+ const tbody=table.querySelector('tbody')||table.appendChild(root.document.createElement('tbody'));
+ for(const item of missing.sort((a,b)=>b.targetDate.localeCompare(a.targetDate))){
+  const row=root.document.createElement('tr');row.dataset.gsV13Row=item.targetDate;row.className='gs-v13-history-hypothesis';
+  addCell(row,item.targetDate+' · 유기성 (가정)');addCell(row,fmtPct(item.summary.unit1.bioRatio));addCell(row,fmtPct(item.summary.unit2.bioRatio));
+  addCell(row,fmtPct(item.summary.combined.totalRatio));addCell(row,'가정 계산 · 미확정');
+  addCell(row,'참고 기록');addCell(row,'');
+  row.title='유기성 Storage B 00:00 재고 가정 포함 · 실측 마감값이 아닙니다.';tbody.append(row);
+ }
+}
+async function refreshHistory({force=false}={}){
+ const panel=root.document?.querySelector('.cfv12-history-panel');const body=panel?.querySelector('[data-cfv12-body]');
+ if(!body||panel.hidden||!getToken())return;
+ const key=getToken();if(state.historyItems)decorateHistory(body,state.historyItems);
+ if(state.historyPending||!force&&Date.now()-state.historyCheckAt<60000)return;
+ state.historyPending=true;state.historyCheckAt=Date.now();state.historyKey=key;
+ try{const {items}=await request('?limit=180');if(key!==getToken()||panel.hidden)return;
+  state.historyItems=Array.isArray(items)?items:[];decorateHistory(body,state.historyItems);
+ }catch(e){root.console?.warn?.('마감 데이터 가정값 조회 대기:',e.message)}
+ finally{state.historyPending=false}
+}
+const css=`
+.gs-v13-morning-hypothesis .gs-v13-cell-box{background:#fff7db!important;border-radius:6px;box-shadow:inset 0 0 0 1px #f0dd9d}
+.gs-v13-morning-hypothesis .gs-v13-cell{color:#8c5a07!important;font-weight:700!important}
+.gs-v13-note{display:inline-block;margin-left:6px;padding:2px 6px;background:#fff7db;border:1px solid #eedba5;border-radius:5px;color:#885902;font-size:10px;font-weight:650;line-height:1.4}
+.gs-v13-inline-history-table{width:100%;border-collapse:collapse}
+.gs-v13-history-hypothesis{background:#fff9e5!important;color:#805408}
+.gs-v13-history-hypothesis td{border-bottom:1px solid #f0e1b9;padding:8px 9px;font-size:12px}
+.gs-v13-history-hypothesis td:nth-child(5){font-weight:700}
 `;
-function paintStatus(el,msg){if(el&&el.textContent!==msg)el.textContent=msg;}
-async function save(){if(saving)return;const bar=root.document.querySelector('[data-gs-v12-save-status]');const button=root.document.querySelector('[data-gs-v12-save]');
- let data;try{data=buildPayload()}catch(e){paintStatus(bar,e.message);return;}
- const question=`${data.targetDate}의 가정 계산값을 ‘미확정 자료’로 별도 저장합니다.\n실제 계측값/확정 마감이 아니며 오전회의와 마감 데이터에도 ‘가정’으로 표시됩니다. 계속할까요?`;
- if(!root.confirm?.(question))return;
- saving=true;if(button)button.disabled=true;paintStatus(bar,'가정 계산 기록 저장 중…');const expectedDate=data.targetDate,expectedAuth=token();
- try{const before=await request('?targetDate='+encodeURIComponent(expectedDate));
-  if(token()!==expectedAuth||specNow().date!==expectedDate)throw Error('로그인 상태 또는 선택 날짜가 변경됐습니다.');
-  const result=await request('',{method:'POST',headers:{'Content-Type':'application/json','X-ShiftLog-Client':'desktop'},body:JSON.stringify({...data,expectedRevision:before.item?.revision||0,requestId:root.crypto?.randomUUID?.()})});
-  if(token()!==expectedAuth)return;
-  paintStatus(bar,`가정 계산 기록 v${result.item?.revision||1} 저장 완료 · 미확정 · 공식 마감 아님`);latestSummary=result.item;savedKey=expectedDate;
-  root.dispatchEvent?.(new root.CustomEvent('cofiring:provisional-saved',{detail:{targetDate:expectedDate}}));
- }catch(e){paintStatus(bar,e.message)}finally{saving=false;if(button)button.disabled=!currentProjection();}
+function mountCss(){const doc=root.document;if(!doc||doc.getElementById('gs-v13-inline-style'))return;
+ const node=doc.createElement('style');node.id='gs-v13-inline-style';node.textContent=css;doc.head?.append(node)}
+let scheduled=null;
+function tick(){clearLegacyExtras();
+ // Auto-persist ONLY the server-revalidated hypothesis; no confirmed close writes.
+ if(root.document?.querySelector('.cofiring-period-v5'))void autoSave();
+ const date=morningDate();if(!dateAllowed(date)){if(state.morningDate!==date){clearMorning();state.morningDate=date}}else void refreshMorning();
+ const panel=root.document?.querySelector('.cfv12-history-panel');if(panel&&!panel.hidden)void refreshHistory();
 }
-function mountCalc(){const {shell,date}=specNow();if(!shell)return;
- const toolbar=shell.querySelector('.cfv12-toolbar');if(!toolbar)return;
- let button=toolbar.querySelector('[data-gs-v12-save]');
- if(!button){button=root.document.createElement('button');button.type='button';button.className='gs-v12-button';button.dataset.gsV12Save='';button.textContent='가정 계산 저장';
- toolbar.append(button);button.addEventListener('click',()=>void save());
- const status=root.document.createElement('div');status.dataset.gsV12SaveStatus='';status.className='gs-v12-status';toolbar.after(status);
- }
- const ready=!!currentProjection();button.hidden=!ready;button.disabled=!ready||saving;
- if(savedKey!==date){savedKey=date||'';paintStatus(shell.querySelector('[data-gs-v12-save-status]'),ready?'가정 계산 · 미확정 별도 저장 가능 (공식 마감 제외)':'');}
+function schedule(){if(scheduled!==null)return;scheduled=root.setTimeout?.(()=>{scheduled=null;tick()},90)??null}
+function clickCapture(event){const target=event.target?.closest?.('button');if(!target)return;
+ const text=String(target.textContent||'').replace(/\s+/g,' ').trim();
+ if(text==='마감 데이터'||target.hasAttribute('data-cfv12-refresh'))root.setTimeout?.(()=>void refreshHistory({force:true}),350);
+ if(text.includes('오전회의자료')||text==='전체자료'||text==='새로 조회')root.setTimeout?.(()=>void refreshMorning({force:true}),350);
 }
-function compactItem(item){const u=item?.summary||{},a=item?.assumption||{};
- return `<div class="gs-v12-rows"><span>1호기: 유기성(가정) ≈${q(u.unit1?.organic)}t · 종합 ${pc(u.unit1?.totalRatio)}</span><span>2호기: 유기성(가정) ≈${q(u.unit2?.organic)}t · 종합 ${pc(u.unit2?.totalRatio)}</span></div><p>Storage B ${esc(q(a.tons))}t 가정 · ${esc(a.boundaryLocal||'')} · 미확정</p>`;
+function boot(){if(!root.document)return;mountCss();clearLegacyExtras();root.document.addEventListener('click',clickCapture,true);
+ if(root.MutationObserver){const mo=new root.MutationObserver(mutations=>{
+  if(mutations.some(m=>[...m.addedNodes].some(n=>n.nodeType===1)||m.type==='attributes'&&['hidden','value'].includes(m.attributeName)))schedule();
+  // Native card writes are normally text-only mutations; apply inline values again without network.
+  if(mutations.some(m=>m.type==='characterData'||m.type==='childList')){
+   const d=morningDate();if(state.morningItem&&d===state.morningDate)root.setTimeout?.(()=>applyMorning(state.morningItem,d),40);
+  }
+ });mo.observe(root.document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['hidden','value'],characterData:true});}
+ root.addEventListener?.('cofiring:provisional-inline-updated',event=>{
+  if(event.detail?.targetDate===morningDate())void refreshMorning({force:true});
+  state.historyCheckAt=0;void refreshHistory({force:true});
+ });
+ root.addEventListener?.('cofiring:closed-history-changed',()=>{clearMorning();state.morningCheckAt=0;state.historyCheckAt=0;schedule()});
+ // Bounded polling handles silently updated date selections and completed async reports.
+ root.setInterval?.(()=>{if(!root.document.hidden)tick()},2500);schedule();
 }
-function monthTable(items){return `<strong>가정 계산 별도 저장 이력</strong> <span class="gs-v12-badge">확정 마감 아님</span>
- <p>원본 DataPARC 마감 기록과 분리 보관됩니다. 공식 마감표에는 포함되지 않습니다.</p>
- ${items.length?`<table><thead><tr><th>날짜</th><th>가정 유기성(호기당)</th><th>종합 혼소율</th><th>상태</th><th>저장</th></tr></thead><tbody>${items.map(x=>`<tr><td>${esc(x.targetDate)}</td><td>≈${q(x.summary?.unit1?.organic)}t</td><td>${pc(x.summary?.combined?.totalRatio)}</td><td><span class="gs-v12-badge">가정·미확정</span></td><td>${esc(x.savedByName)}</td></tr>`).join('')}</tbody></table>`:'<p>저장된 가정 계산 자료가 없습니다.</p>'}`;}
-let historyLoadedAt=0;
-async function loadHistory(){const panel=root.document.querySelector('.cfv12-history-panel');const host=panel?.querySelector('[data-gs-v12-history]');if(!host||panel.hidden)return;
- const auth=token();paintStatus(host,'가정 계산 기록 조회 중…');
- try{const items=(await request('?limit=180')).items||[];if(auth!==token()||!host.isConnected||panel.hidden)return;host.innerHTML=monthTable(items);historyLoadedAt=Date.now();}
- catch(e){if(auth===token()&&host.isConnected)paintStatus(host,e.message)}
-}
-function mountHistory(){const panel=root.document.querySelector('.cfv12-history-panel');if(!panel)return;
- let host=panel.querySelector('[data-gs-v12-history]');if(!host){host=root.document.createElement('section');host.dataset.gsV12History='';host.className='gs-v12-panel';
- panel.querySelector('.cfv12-history-head')?.after(host);const b=root.document.createElement('button');b.type='button';b.className='gs-v12-button';b.textContent='가정 기록 새로고침';b.addEventListener('click',()=>void loadHistory());host.before(b);
- }
- if(!panel.hidden&&Date.now()-historyLoadedAt>45000){historyLoadedAt=Date.now();void loadHistory();}
-}
-function morningDate(){const morning=root.morningMeetingClosedCofiring;try{return morning?.targetDate?.()||''}catch{return ''}}
-function mountMorning(){const card=root.document.getElementById('efficiencyMorningMeetingAutoCofiringCard');if(!card)return;
- let box=card.querySelector('[data-gs-v12-morning]');if(box)return;
- box=root.document.createElement('section');box.className='gs-v12-panel';box.dataset.gsV12Morning='';box.innerHTML='<strong>가정 계산 별도 기록</strong> <span class="gs-v12-badge">미확정</span><div data-gs-v12-morning-body>저장된 가정 계산값은 실측 마감자료와 구분해 조회합니다.</div>';
- const button=root.document.createElement('button');button.type='button';button.className='gs-v12-button';button.textContent='가정자료 조회';button.addEventListener('click',()=>void loadMorning());box.append(button);card.append(box);
-}
-async function loadMorning(){const box=root.document.querySelector('[data-gs-v12-morning]'),body=box?.querySelector('[data-gs-v12-morning-body]');if(!body)return;
- const date=morningDate(),seq=++morningRequest,auth=token(),original=root.morningMeetingClosedCofiring;
- if(!day(date)||original?.isBlocked?.(date)){paintStatus(body,'선택일이 없거나 초기화 중입니다.');return;}
- if(original?.peek?.(date)){paintStatus(body,'확정 마감자료가 존재합니다. 가정 계산은 공식 값에 덮어쓰지 않습니다.');return;}
- paintStatus(body,`${date} 가정 기록 확인 중…`);
- try{const {item}=await request('?targetDate='+encodeURIComponent(date));if(seq!==morningRequest||auth!==token()||morningDate()!==date||!body.isConnected)return;
-  if(original?.peek?.(date)){paintStatus(body,'확정 마감자료가 우선 적용됩니다.');return;}
-  if(!item){paintStatus(body,`${date} 저장된 가정 계산 기록 없음`);return;}
-  body.innerHTML=`<p><strong>${esc(date)} · 가정 계산 · 미확정</strong> (공식 마감자료 아님)</p>${compactItem(item)}<p>Coal·Bio 원본 사용량: 1호기 ${q(item.summary?.unit1?.coal)}/${q(item.summary?.unit1?.bio)}t · 2호기 ${q(item.summary?.unit2?.coal)}/${q(item.summary?.unit2?.bio)}t</p>`;
-  morningLoaded=date;
- }catch(e){if(seq===morningRequest&&auth===token())paintStatus(body,e.message)}
-}
-// Capture explicit operator choices, not passive date changes, to preserve Morning Meeting D1 snapshots.
-function clickHook(event){const button=event.target.closest?.('button');if(!button)return;
- const label=String(button.textContent||'').replace(/\s+/g,' ').trim();
- if(label==='마감 데이터'||label==='새로고침'&&button.hasAttribute('data-cfv12-refresh')){root.setTimeout(()=>{historyLoadedAt=0;mountHistory();},30);}
- if(label.includes('오전회의자료')||label==='전체자료'||label==='새로 조회'){root.setTimeout(()=>{mountMorning();void loadMorning();},200);}
-}
-let timer=null;function schedule(){if(timer!==null)return;timer=root.setTimeout(()=>{timer=null;mountCalc();mountHistory();mountMorning();},60)}
-function boot(){if(!root.document)return;
- if(!root.document.getElementById('gs-v12-style')){const css=root.document.createElement('style');css.id='gs-v12-style';css.textContent=style;root.document.head.append(css);}
- root.document.addEventListener('click',clickHook,true);schedule();
- const observer=new root.MutationObserver(()=>schedule());observer.observe(root.document.body,{childList:true,subtree:true});
- root.addEventListener('cofiring:provisional-saved',()=>{historyLoadedAt=0;void loadHistory();if(morningLoaded===morningDate())void loadMorning();});
-}
-if(root.document){if(root.document.readyState==='loading')root.document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();}
-root.CofiringProvisionalV12={buildPayload,request};
+if(root.document){if(root.document.readyState==='loading')root.document.addEventListener('DOMContentLoaded',boot,{once:true});else boot()}
+root.CofiringProvisionalV12={buildPayload,request,validItem,sameSaved,applyMorning,decorateHistory,autoSave};
 })(typeof globalThis==='object'?globalThis:this);

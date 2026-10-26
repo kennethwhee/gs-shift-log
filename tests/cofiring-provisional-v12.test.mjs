@@ -94,7 +94,12 @@ test('client cannot silently save changed usage, forged receipt, fake Good sourc
  d.db.prepare('UPDATE ois_data_requests SET result_json=REPLACE(result_json,\'"Bad"\',\'"Good"\') WHERE target_date=?').run('2026-10-24');
  const good=await call(d,'POST',prepare('2026-10-24',0,102));assert.equal(good.status,409);
 });
-test('new front-end only uses separate API and keeps official close guarded',()=>{
- assert.match(UI,/가정 계산 저장/);assert.match(UI,/cfv12-history-panel/);assert.match(UI,/efficiencyMorningMeetingAutoCofiringCard/);
- assert.match(UI,/가정자료 조회/);assert.match(UI,/공식 마감/);assert.doesNotMatch(UI,/\/api\/cofiring-closed-history/);
+test('V13 auto-syncs verified provisional values inline, without V12 save/query widgets or official-close write',()=>{
+ assert.match(UI,/async function autoSave/);assert.match(UI,/const API='\/api\/cofiring-provisional-v12'/);
+ assert.match(UI,/cfv12-history-panel/);assert.match(UI,/efficiencyMorningMeetingAutoCofiringCard/);
+ assert.match(UI,/가정 계산 · 미확정/);
+ assert.doesNotMatch(UI,/textContent='가정 계산 저장'/);
+ assert.doesNotMatch(UI,/textContent='가정자료 조회'/);
+ assert.doesNotMatch(UI,/\/api\/cofiring-closed-history/);
+ assert.match(UI,/hasOfficialMorning\(date\)/);
 });
