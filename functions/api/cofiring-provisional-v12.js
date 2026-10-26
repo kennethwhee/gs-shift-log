@@ -2,6 +2,7 @@
 import core from '../../maintenance/cofiring-core.js';
 import contract from '../../maintenance/cofiring-live-contract.js';
 import scenarioApi from '../../maintenance/cofiring-shared-scenario-v7.js';
+import {validateProvisionalAdjustment} from '../_shared/cofiring-provisional-adjust-v14.mjs';
 import {ensureCorrectionTable,latestCorrection} from '../_shared/cofiring-inventory-correction-store.js';
 
 const TABLE='cofiring_provisional_snapshots_v12';
@@ -36,7 +37,7 @@ function decode(row,includeFull=false){
  if(!row)return null;let saved;try{saved=JSON.parse(row.record_json)}catch{return null}
  if(saved?.recordKind!=='hypothesis'||saved.verificationStatus!=='unverified'||saved.officialClose===true||saved.targetDate!==row.target_date)return null;
  return {targetDate:row.target_date,revision:Number(row.revision),recordKind:'hypothesis',verificationStatus:'unverified',officialClose:false,
-  sourceRequestId:row.source_request_id,summary:saved.summary,assumption:saved.assumption,
+  sourceRequestId:row.source_request_id,summary:saved.summary,assumption:saved.assumption,adjustment:saved.adjustment||null,
   savedByName:row.saved_by_name,savedAt:row.created_at,
   ...(includeFull?{record:saved}:{})};
 }
@@ -109,6 +110,12 @@ async function derive(db,body){
   organic:{start:src.spec.startLocal,end:src.spec.endLocal,unit1:candidate.unitTons,unit2:candidate.unitTons},
   manure:{start:src.spec.startLocal,end:src.spec.endLocal,...manure}})}catch{fail('원본 DataPARC 계산을 재현하지 못했습니다.','RECALC_FAILED')}
  if(!UNITS.every(u=>calculated.units[u]?.coal?.complete&&calculated.units[u]?.bio?.complete))fail('정상 Coal·Bio 원본값을 확인하지 못했습니다.','FUEL_SOURCE_INVALID');
+ // Official measured fuel and close records remain untouched. Recalculate the
+ // optional user-consented adjustment from the saved DataPARC WHAT-IF source.
+ if(body.adjustment!==undefined){
+  if(body.confirmProvisionalAdjustment!==true)fail('가정 연료 계산에 대한 운전원 확인이 필요합니다.','ADJUSTMENT_ACK_REQUIRED');
+  calculated=validateProvisionalAdjustment(calculated,body.settings,body.adjustment);
+ }
  validatePreview(body.preview,calculated);
  const summary=core.summaryFromResult(calculated);
  const record={schemaVersion:12,recordKind:'hypothesis',verificationStatus:'unverified',officialClose:false,canOfficialClose:false,
@@ -117,7 +124,7 @@ async function derive(db,body){
   assumption:{silo:'organicStorageSiloB',boundaryLocal:'2026-10-24T00:00',tons:candidate.assumedStorageBTons,
    basis:'2026-10-23 DataPARC 기간 최솟값을 00:00 종료/시작 재고로 가정',source:'display-only, not certified'},
   scenario:{role:candidate.role,total:candidate.total,perUnit:candidate.unitTons,startTotal:candidate.startTotal,endTotal:candidate.endTotal},
-  settings:body.settings,manure,summary,saveNote:'가정 계산·미확정. 원본값과 별도 저장. 공식 마감 아님.'};
+  settings:body.settings,manure,summary,adjustment:body.adjustment||null,saveNote:'가정 계산·미확정. 원본값과 별도 저장. 공식 마감 아님.'};
  return {record,sourceRaw:src.raw,receipt:r};
 }
 export async function onRequestGet(ctx){
@@ -136,7 +143,7 @@ export async function onRequestPost(ctx){
   if(!/^application\/json(?:\s*;|$)/i.test(req.headers.get('Content-Type')||''))return reject('JSON 요청만 허용됩니다.','TYPE',415);
   const raw=await req.text();if(new TextEncoder().encode(raw).length>30000)return reject('저장 요청이 너무 큽니다.','SIZE',413);
   let body;try{body=JSON.parse(raw)}catch{return reject('저장 형식이 올바르지 않습니다.','JSON')}
-  if(!object(body)||Object.keys(body).some(k=>!['targetDate','sourceRequestId','receiptTons','unitTons','settings','manure','preview','acknowledgeUnverified','expectedRevision','requestId'].includes(k))||
+  if(!object(body)||Object.keys(body).some(k=>!['targetDate','sourceRequestId','receiptTons','unitTons','settings','manure','preview','adjustment','confirmProvisionalAdjustment','acknowledgeUnverified','expectedRevision','requestId'].includes(k))||
     !Number.isSafeInteger(body.expectedRevision)||body.expectedRevision<0||typeof body.requestId!=='string'||!/^[a-f0-9-]{30,48}$/i.test(body.requestId))return reject('저장 요청의 버전 또는 ID가 올바르지 않습니다.','REQUEST');
   const db=ctx.env.DB;await schema(db);
   const bodyHash=await SHA(JSON.stringify(body));

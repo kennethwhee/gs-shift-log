@@ -34,10 +34,15 @@ function mocks(){
  return {core,contract,whatif};
 }
 const {core,contract,whatif}=mocks();
+// V14_R3_NODE_DATA_URL_HELPER: retain the real validation module in V12 tests.
+const validationImport="import {validateProvisionalAdjustment} from '../_shared/cofiring-provisional-adjust-v14.mjs';";
+assert.equal(source.split(validationImport).length,2,'V14 helper must be imported exactly once');
+const helperURL=new URL('../functions/_shared/cofiring-provisional-adjust-v14.mjs',import.meta.url).href;
 const rewritten=source.replace(/^import core[^;]*;\s*/m,'const core=globalThis.__test_core;\n')
  .replace(/^import contract[^;]*;\s*/m,'const contract=globalThis.__test_contract;\n')
  .replace(/^import scenarioApi[^;]*;\s*/m,'const scenarioApi=globalThis.__test_scenario;\n')
- .replace(/^import \{ensureCorrectionTable,latestCorrection\}[^;]*;\s*/m,'const ensureCorrectionTable=async()=>{}; const latestCorrection=async()=>null;\n');
+ .replace(/^import \{ensureCorrectionTable,latestCorrection\}[^;]*;\s*/m,'const ensureCorrectionTable=async()=>{}; const latestCorrection=async()=>null;\n')
+ .replace(validationImport,'import {validateProvisionalAdjustment} from ' + JSON.stringify(helperURL) + ';');
 globalThis.__test_core=core;globalThis.__test_contract=contract;globalThis.__test_scenario=whatif;
 const API=await import('data:text/javascript;base64,'+Buffer.from(rewritten).toString('base64'));
 class FakeD1{
@@ -102,4 +107,27 @@ test('V13 auto-syncs verified provisional values inline, without V12 save/query 
  assert.doesNotMatch(UI,/textContent='가정자료 조회'/);
  assert.doesNotMatch(UI,/\/api\/cofiring-closed-history/);
  assert.match(UI,/hasOfficialMorning\(date\)/);
+});
+
+test('V14 adjusted provisional record validates actual Bio transfer while leaving official close untouched', async()=>{
+ const {validateProvisionalAdjustment:validate}=await import(helperURL);
+ const d=fixture();const input=prepare('2026-10-24',0,201);
+ const r=whatif.displayScenario({quality:'Bad',quantity:-19.37},175.43,{startLocal:'2026-10-24T00:00'});
+ const calorifics={},coefficients={};for(const u of ['unit1','unit2']){calorifics[u]={};coefficients[u]={};for(const f of ['coal','bio','organic','manure']){calorifics[u][f]=settings[u][f].calorific;coefficients[u][f]=1;}}
+ const measured=core.analyzePeriodSummary({coal:{unit1:500,unit2:740},bio:{unit1:535,unit2:11.6953125}}, {calorifics,coefficients,organic:{unit1:r.unitTons,unit2:r.unitTons},manure:{unit1:0,unit2:0}});
+ const adjustment={mode:'manual_transfer',fromUnit:1,bioTransferTons:10,finalBioUnit1:525,finalBioUnit2:21.6953125,maxBioTpd:null};
+ const adjusted=validate(measured,settings,adjustment);
+ const preview={units:{},combined:{}};
+ for(const unit of ['unit1','unit2']){
+  const u=adjusted.units[unit];const ratios={};for(const k of ['bio','organicGroup','total']) ratios[k]=u.fuelRatios[k];
+  preview.units[unit]={...Object.fromEntries(['coal','bio','organic','manure'].map(f=>[f,u[f].quantity])),ratios};
+ }
+ for(const k of ['bio','organicGroup','total']) preview.combined[k]=adjusted.combined.fuelRatios[k];
+ const save=await call(d,'POST',{...input,adjustment,confirmProvisionalAdjustment:true,preview});
+ assert.equal(save.status,200,JSON.stringify(save));
+ assert.equal(save.item?.adjustment?.mode,'manual_transfer');
+ assert.equal(save.item?.summary?.unit1?.bio,525);
+ assert.ok(Math.abs(save.item?.summary?.unit2?.bio-21.6953125)<0.000001);
+ assert.equal(save.item?.officialClose,false);
+ assert.equal(d.db.prepare('SELECT count(*) AS count FROM cofiring_closed_snapshots').get().count,0);
 });

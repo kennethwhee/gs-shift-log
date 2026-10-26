@@ -58,14 +58,17 @@ function buildPayload(){
  const c=projectionContext();if(!c)throw Error('가정 계산이 완료된 일별 자료를 확인해 주세요.');
  const module=root.CofiringPeriodV5,settings=module?.readSettings?.(c.shell),manual=module?.readManual?.(c.shell);
  if(!settings||!manual)throw Error('가정 계산 발열량과 연료 사용량 자료를 기다리고 있습니다.');
+ const active=root.CofiringProvisionalAdjustV14?.getActive?.(c)||null;
+ const adjusted=active?.result||c.projected;
  const preview={units:{},combined:{}};
- for(const u of UNITS){const src=c.projected.units?.[u];preview.units[u]={ratios:{}};
+ for(const u of UNITS){const src=adjusted.units?.[u];preview.units[u]={ratios:{}};
   for(const fuel of FUELS)preview.units[u][fuel]=src?.[fuel]?.quantity;
   for(const k of RATIO_KEYS)preview.units[u].ratios[k]=src?.fuelRatios?.[k];
  }
- for(const k of RATIO_KEYS)preview.combined[k]=c.projected?.combined?.fuelRatios?.[k];
+ for(const k of RATIO_KEYS)preview.combined[k]=adjusted?.combined?.fuelRatios?.[k];
  const data={targetDate:c.date,sourceRequestId:String(c.saved.id),receiptTons:c.scenario.receipt,unitTons:c.scenario.unitTons,
-  settings,manure:{unit1:manual.unit1?.manure??0,unit2:manual.unit2?.manure??0},preview,acknowledgeUnverified:true};
+  settings,manure:{unit1:manual.unit1?.manure??0,unit2:manual.unit2?.manure??0},preview,
+  ...(active?.adjustment?{adjustment:active.adjustment,confirmProvisionalAdjustment:true}:{}),acknowledgeUnverified:true};
  if(!finite(data.receiptTons)||!finite(data.unitTons)||!UNITS.every(u=>FUELS.every(f=>finite(preview.units[u][f]))&&RATIO_KEYS.every(k=>finite(preview.units[u].ratios[k])))||!RATIO_KEYS.every(k=>finite(preview.combined[k])))throw Error('가정값 및 원본 계산값 검증을 완료하지 못했습니다.');
  return data;
 }
@@ -81,6 +84,7 @@ function saveStatus(message,tone=''){
 }
 function sameSaved(item,data){
  if(!validItem(item,data.targetDate)||item.sourceRequestId!==data.sourceRequestId||!near(item.summary?.unit1?.organic,data.unitTons,0.0001)||!near(item.summary?.unit2?.organic,data.unitTons,0.0001))return false;
+ if(JSON.stringify(item.adjustment||null)!==JSON.stringify(data.adjustment||null))return false;
  for(const u of UNITS){for(const f of FUELS)if(!near(item.summary[u][f],data.preview.units[u][f],0.0001))return false;
   if(!near(item.summary[u].totalRatio,data.preview.units[u].ratios.total,0.0001))return false;
  }
@@ -96,21 +100,27 @@ async function autoSave(){
   return;
  }
  const auth=getToken();if(!auth){saveStatus('가정 저장 대기 · 로그인 필요','warn');return;}
- const key=JSON.stringify([auth,data.targetDate,data.sourceRequestId,data.receiptTons,data.unitTons,data.preview.combined.total]);
+ const key=JSON.stringify([auth,data.targetDate,data.sourceRequestId,data.receiptTons,data.unitTons,data.preview.combined.total,data.adjustment||null,root.CofiringProvisionalAdjustV14?.resetRequested?.()===true]);
  if(state.saveKey===key){saveStatus('가정 계산 별도 저장 완료 · 미확정','success');return;}
  if(state.failKey===key&&Date.now()<state.failUntil)return;
  state.saveBusy=true;saveStatus('가정 계산 별도 저장 중…','working');
  try{
   const before=await request('?targetDate='+encodeURIComponent(data.targetDate));
   if(getToken()!==auth||calcContext().date!==data.targetDate)return;
-  if(sameSaved(before.item,data)){state.saveKey=key;saveStatus('가정 계산 별도 저장 완료 · 미확정','success');inlineUpdateEvent(data.targetDate);return;}
+  if(sameSaved(before.item,data)){state.saveKey=key;root.CofiringProvisionalAdjustV14?.onSaved?.();saveStatus('가정 계산 별도 저장 완료 · 미확정','success');inlineUpdateEvent(data.targetDate);return;}
+  // Existing operator-consented hypothetical transfer must not be overwritten
+  // on a periodic repaint by an unadjusted result without a reset request.
+  if(!data.adjustment&&before.item?.adjustment&&!root.CofiringProvisionalAdjustV14?.resetRequested?.()){
+   state.saveKey=key;return;
+  }
   if(!root.crypto?.randomUUID)throw Error('안전한 기록 ID를 만들 수 없습니다.');
   const response=await request('',{method:'POST',headers:{'Content-Type':'application/json','X-ShiftLog-Client':'desktop'},
     body:JSON.stringify({...data,expectedRevision:before.item?.revision||0,requestId:root.crypto.randomUUID()})});
   if(getToken()!==auth)return;
   if(!validItem(response.item,data.targetDate))throw Error('저장된 가정 계산의 구분 정보를 확인하지 못했습니다.');
-  state.saveKey=key;state.failKey='';saveStatus('가정 계산 별도 저장 완료 · 미확정','success');state.morningCheckAt=0;state.historyCheckAt=0;inlineUpdateEvent(data.targetDate);
+  state.saveKey=key;state.failKey='';root.CofiringProvisionalAdjustV14?.onSaved?.();saveStatus('가정 계산 별도 저장 완료 · 미확정','success');state.morningCheckAt=0;state.historyCheckAt=0;inlineUpdateEvent(data.targetDate);
  }catch(e){
+  if(data.adjustment||root.CofiringProvisionalAdjustV14?.resetRequested?.())root.CofiringProvisionalAdjustV14?.onSaveError?.(e?.message||'서버 확인 필요');
   state.failKey=key;state.failUntil=Date.now()+30000;
   saveStatus('가정 기록 저장 실패 · '+(e?.message||'재조회 필요'),'error');
   // Never pretend an unsaved provisional projection was officially stored.
@@ -167,7 +177,7 @@ function applyMorning(item,date,sourceDate=date){
   const header=card.querySelector('.efficiency-morning-meeting-auto-card__header')||card.querySelector('h3')||card;
   header.append(marker);
  }
- setText(marker,(sourceDate!==date?sourceDate+' 계산분 · ':'')+'유기성 추정 계산 · 미확정');
+ setText(marker,(sourceDate!==date?sourceDate+' 계산분 · ':'')+(item.adjustment?'유기성 추정 계산 · Bio 조정 · 미확정':'유기성 추정 계산 · 미확정'));
  marker.title='계산일 '+sourceDate+' · Storage B 2026-10-24 00:00 재고 19.143t 가정 · 실측 마감값 아님 · 재확인 필요';
  state.morningItem=item;state.morningSourceDate=sourceDate;return true;
 }
@@ -214,7 +224,7 @@ function decorateHistory(body,items){
  for(const item of missing.sort((a,b)=>b.targetDate.localeCompare(a.targetDate))){
   const row=root.document.createElement('tr');row.dataset.gsV13Row=item.targetDate;row.className='gs-v13-history-hypothesis';
   addCell(row,item.targetDate+' · 유기성 (가정)');addCell(row,fmtPct(item.summary.unit1.bioRatio));addCell(row,fmtPct(item.summary.unit2.bioRatio));
-  addCell(row,fmtPct(item.summary.combined.totalRatio));addCell(row,'가정 계산 · 미확정');
+  addCell(row,fmtPct(item.summary.combined.totalRatio));addCell(row,item.adjustment?'가정 계산 · Bio 조정 · 미확정':'가정 계산 · 미확정');
   addCell(row,'참고 기록');addCell(row,'');
   row.title='유기성 Storage B 00:00 재고 가정 포함 · 실측 마감값이 아닙니다.';tbody.append(row);
  }
