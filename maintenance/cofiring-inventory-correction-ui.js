@@ -136,7 +136,8 @@
       const total=model.usage(reference,receipt,spec,entries(),{...(options||{}),enableAutoEstimate:true,adjacentReference:peerReference});
       // A scenario is presentation-only. Never change the official model
       // success, correction revision, or source values used by save/close.
-      const scenario=whatIf?.scenario(reference,receipt,spec,peerReference)||null;
+      const scenario=whatIf?.scenario(reference,receipt,spec,peerReference)||
+        whatIf?.displayScenario?.(reference,receipt,spec,peerReference)||null;
       if(scenario)return {...total,scenario};
       if(whatIf?.side(reference,spec)==='next'&&total?.provisional){
         // No verified cross-day assumption: preserve the old source but never

@@ -67,6 +67,32 @@
    if(!Number.isFinite(t)||Math.abs(t-expected)>60000)return null;
    return OCT24_ACCEPTED_HYPOTHESIS.tons;
  }
+ function provisionalBadReason24(reference,b){
+   if(b?.tag!==definitions[2][1])return 'Storage B 계측 TAG가 확인된 설비와 일치하지 않습니다';
+   if(qualityGood(b?.startQuality))return 'Storage B 시작 계측값이 Good이므로 이전 가정을 적용하지 않았습니다';
+   if(typeof b?.startQuality!=='string'||!/\bbad\b/i.test(b.startQuality))
+     return 'Storage B 시작 계측값의 Bad 품질 상태를 확인하지 못했습니다';
+   if(b.startValue!==null&&b.startValue!==undefined&&!isTons(b.startValue))
+     return 'Storage B 원본 누적값 형식이 올바르지 않습니다';
+   const sampled=Date.parse(b.startTime||''),seam=Date.parse(SEAM+':00+09:00');
+   if(!Number.isFinite(sampled)||sampled<seam-3*3600000||sampled>seam+5*60000)
+     return 'Storage B 오류 기록 시각이 10월 24일 00:00 근처에서 확인되지 않았습니다';
+   return 'Storage B 공통 가정 근거가 일치하지 않습니다';
+ }
+ // Raw, Bad is not a measured midnight inventory. For the labelled WHAT-IF
+ // ONLY, permit a Bad boundary observation from the 00:00 outage window
+ // even when the unreliable numeric value or exact returned timestamp changes.
+ // This helper never confirms a stock, changes a source value, or unlocks close.
+ function provisionalBadBoundary24(reference,b){
+   if(reference?.startLocal!==dates.next.startLocal||reference?.endLocal!==dates.next.endLocal||
+     b?.tag!==definitions[2][1]||typeof b?.startQuality!=='string'||
+     qualityGood(b.startQuality)||!/\bbad\b/i.test(b.startQuality)||
+     (b.startValue!==null&&b.startValue!==undefined&&!isTons(b.startValue)))return null;
+   const sampled=Date.parse(b.startTime||''),boundary=Date.parse(SEAM+':00+09:00');
+   // A timestamp from an unrelated shift must not be confused with this seam.
+   if(!Number.isFinite(sampled)||sampled<boundary-3*3600000||sampled>boundary+5*60000)return null;
+   return OCT24_ACCEPTED_HYPOTHESIS.tons;
+ }
  // A present *saved* adjacent report is not necessarily a fully checked
  // midnight reading. Distinguish an explicit, credible contradiction from an
  // incomplete adjacent result. Only a contradiction blocks the historical
@@ -111,8 +137,13 @@
  function scenarioReason(reference,receipt,spec,prior=null){
    if(side(reference,spec)!=='next')return '';
    if(!isTons(receipt))return '10월 24일 유기성 입고량 확인 필요';
-   const map=samples(reference);if(!map)return '10월 24일 저장된 3개 사일로 원본 기록 확인 필요';
-   if(fixedWhatIf24(reference,map.get(B))===null)return '10월 24일 Storage B 원본값·품질·시각이 기존 가정 근거와 다릅니다';
+   const map=samples(reference);if(!map){
+     const b=reference?.organicInventorySamples?.find?.(s=>s?.key===B);
+     if(b&&b.tag!==definitions[2][1])return 'Storage B 계측 TAG가 확인된 설비와 일치하지 않습니다';
+     return '10월 24일 저장된 3개 사일로 원본 기록 확인 필요';
+   }
+   if(fixedWhatIf24(reference,map.get(B))===null && provisionalBadBoundary24(reference,map.get(B))===null)
+     return provisionalBadReason24(reference,map.get(B));
    const check=peerForOct24(prior);
    if(check.status==='foreign')return '인접 날짜 DataPARC 보고서의 기간·원본 검증 불일치';
    if(check.status==='confirmed-source')return '같은 자정에 검증된 계측값이 있어 기존 가정을 적용하지 않았습니다';
@@ -127,7 +158,7 @@
    }
    return '유기성 입고량 또는 재고수지 가정 계산 검증 불가';
  }
- function scenario(reference,receipt,spec,adjacentReference=null){
+ function scenario(reference,receipt,spec,adjacentReference=null,previewMode='strict'){
    const role=side(reference,spec);if(!role||!isTons(receipt))return null;
    const prior=role==='prev'?reference:adjacentReference;
    const map=samples(reference);if(!map)return null;
@@ -135,14 +166,21 @@
    let peerConfirmed=false;
    if(role==='prev')assumption=observedMin23(reference);
    else{
-     const approved=fixedWhatIf24(reference,b);if(approved===null)return null;
+     const original=fixedWhatIf24(reference,b);
+     // Unverified Bad rows may differ between the 23rd's end and the 24th's
+     // start, because a Bad value is not a trustworthy reference. This looser
+     // fallback is ONLY callable from the nonpersistent display projection.
+     const previewBad=original===null&&previewMode==='display-only';
+     const approved=original!==null?original:(previewBad?provisionalBadBoundary24(reference,b):null);
+     if(approved===null)return null;
+     if(previewBad)assumptionSource='Bad 품질 재고 계측값은 사용하지 않은 참고 가정';
      const peer=peerForOct24(prior);
      // A wrong period, a verified contradictory minimum, or an authentic
      // Good midnight source never gets overridden by the assumed 19.143t.
      if(peer.status==='foreign'||peer.status==='confirmed-source'||peer.status==='contradictory-record'||
        (peer.status==='measured-min'&&Math.abs(peer.tons-approved)>0.001))return null;
      assumption=approved;peerConfirmed=peer.status==='measured-min';
-     assumptionSource=peerConfirmed?'10/23 DataPARC 기간 최솟값과 일치하는 공통 가정':
+     if(!previewBad)assumptionSource=peerConfirmed?'10/23 DataPARC 기간 최솟값과 일치하는 공통 가정':
        '23일 관측 최솟값 19.143t을 적용한 고정 가정(인접자료 품질 미확인)';
    }
    if(assumption===null)return null;
@@ -169,8 +207,14 @@
      assumptionBoundaryLocal:SEAM,assumedStorageBTons:assumption,
      assumption:'10/23 DataPARC 기간 최솟값 19.143t을 10/24 00:00 재고로 가정',
      assumptionSource,peerConfirmedForPreview:role==='prev'||peerConfirmed,
+     badBoundarySourceIgnoredForPreview:role==='next'&&previewMode==='display-only'&&fixedWhatIf24(reference,b)===null,
      role,receipt,startTotal:start,endTotal:end,total,unitTons:total/2,
      receiptNeedsReview:role==='next',source:'DataPARC 기간 통계 + 해당일 입고기록 · 미검증 가정'});
+ }
+ function displayScenario(reference,receipt,spec,adjacentReference=null){
+   // All quantities returned here are projected for display only. Native
+   // adjustment, confirmed-correction and close paths use the strict model.
+   return scenario(reference,receipt,spec,adjacentReference,'display-only');
  }
  function isScenario(s){return !!s&&s.kind==='cross-day-shared-what-if-v7'&&s.verified===false&&s.provisional===true&&
     s.assumptionBoundaryLocal===SEAM&&isTons(s.assumedStorageBTons)&&isTons(s.receipt)&&isTons(s.unitTons)&&isTons(s.total)&&
@@ -208,7 +252,7 @@
    out.hypothesisDisplay=isScenario(scenario)?scenario:{kind:'pending',verified:false};
    return out;
  }
- const api=Object.freeze({SEAM,side,scenario,project,isScenario,observedMin23,scenarioReason,peerForOct24});
+ const api=Object.freeze({SEAM,side,scenario,displayScenario,project,isScenario,observedMin23,scenarioReason,peerForOct24});
  root.CofiringSharedScenarioV7=api;
  if(typeof module==='object'&&module.exports)module.exports=api;
 })(typeof globalThis==='object'?globalThis:this);
