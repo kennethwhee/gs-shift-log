@@ -52,20 +52,14 @@
     const total=heats.total;const ratios={bio:total>0?heats.bio/total*100:null,organic:total>0?(heats.organic+heats.manure)/total*100:null,total:total>0?(heats.bio+heats.organic+heats.manure)/total*100:null};
     result.combined={heats,ratios,fuelRatios:{bio:ratios.bio,organic:total>0?heats.organic/total*100:null,manure:total>0?heats.manure/total*100:null,organicGroup:total>0?(heats.organic+heats.manure)/total*100:null,total:ratios.total}};return result;
   }
-  // COFIRING_BIO_ACTIVE_UNIT_ONLY_V1: eligibility follows original measured use.
-  // A zero-use unit cannot receive Bio through automatic, manual or saved edits.
-  function inactiveBioMessage(base,finalOne,finalTwo){
-    for(const [unit,index,finalBio] of [['unit1',1,finalOne],['unit2',2,finalTwo]]){
-      if(base?.units?.[unit]?.bio?.quantity===0&&finalBio!==0)return `${index}호기는 원본 Bio 사용량이 0톤이므로 Bio 사용량을 배정할 수 없습니다.`;
-    }
-    return '';
-  }
+  // COFIRING_ZERO_BIO_CONFIRM_V1: UI requires explicit confirmation for Bio=0 units.
+  // A confirmed adjustment reallocates measured total Bio; it cannot create Bio
+  // or make adjusted Coal negative. These numeric checks also protect saved replays.
   function adjustFinal(base,settings,finalOne,finalTwo,meta={}){
     if(!base?.units?.unit1||!base?.units?.unit2)return {ok:false,message:'먼저 기간 계산을 완료해 주세요.'};
     const b1=base.units.unit1.bio?.quantity,b2=base.units.unit2.bio?.quantity,f1=finalOne,f2=finalTwo;
     if(!UNITS.every(unit=>['coal','bio','organic','manure'].every(fuel=>finite(base.units[unit]?.[fuel]?.quantity)&&base.units[unit][fuel].quantity>=0)))return {ok:false,message:'누락된 연료 사용량이 있습니다. 조회 결과와 입력값을 확인해 주세요.'};
     if(![b1,b2,f1,f2].every(Number.isFinite)||f1<0||f2<0)return {ok:false,message:'최종 Bio 사용량을 0 이상으로 확인해 주세요.'};
-    const inactiveMessage=inactiveBioMessage(base,f1,f2);if(inactiveMessage)return {ok:false,message:inactiveMessage};
     if(f1+f2>b1+b2+0.011)return {ok:false,message:'최종 Bio 합계는 실제 Bio 사용량 합계를 초과할 수 없습니다.'};
     const result=clone(base),hours=Number(result.period?.durationHours)||Number(meta.durationHours)||0,deltas={};
     for(const [unit,finalBio] of [['unit1',f1],['unit2',f2]]){
@@ -74,14 +68,14 @@
       const bioDelta=Number(raw.bio.quantity)-finalBio,coalDelta=bioDelta*bioHv/coalHv,finalCoal=Number(raw.coal.quantity)+coalDelta;
       if(!Number.isFinite(finalCoal)||finalCoal<0)return {ok:false,message:'조정 후 Coal 사용량이 0 미만이 됩니다.'};
       const unchangedAuto=meta.mode==='max_auto'&&finalBio===raw.bio.quantity;
-      u.bio.quantity=unchangedAuto?raw.bio.quantity:round(finalBio,6);u.coal.quantity=raw.bio.quantity===0||unchangedAuto?raw.coal.quantity:round(finalCoal,6);deltas[unit]={bioDelta,coalDelta};
+      u.bio.quantity=unchangedAuto?raw.bio.quantity:round(finalBio,6);u.coal.quantity=unchangedAuto?raw.coal.quantity:round(finalCoal,6);deltas[unit]={bioDelta,coalDelta};
       if(!recalcUnit(u,s,hours))return {ok:false,message:'조정 후 열량/혼소율을 계산하지 못했습니다.'};
     }
     recalcCombined(result);
     result.adjustment={mode:meta.mode||'manual_final',fromUnit:meta.fromUnit||null,bioTransferTons:round(meta.bioTransferTons||0,3),maxBioTpd:finite(meta.maxBioTpd)?meta.maxBioTpd:null,periodCapTons:finite(meta.periodCapTons)?meta.periodCapTons:null,excludedBioTons:round(Math.max(0,b1+b2-f1-f2),3),deltas,applied:true};
     return {ok:true,result,adjustment:result.adjustment};
   }
-  function manualTransfer(base,settings,fromUnit,tons){const t=Number(tons),dir=Number(fromUnit)===2?2:1,b1=base?.units?.unit1?.bio?.quantity,b2=base?.units?.unit2?.bio?.quantity;if(!Number.isFinite(t)||t<=0)return {ok:false,message:'Bio 이동량을 0보다 크게 입력해 주세요.'};if(![b1,b2].every(Number.isFinite))return {ok:false,message:'먼저 기간 계산을 완료해 주세요.'};if(b1===0||b2===0)return {ok:false,message:'원본 Bio 사용량이 0톤인 호기가 있어 호기 간 Bio 이동을 할 수 없습니다.'};const source=dir===1?b1:b2;if(t>source+1e-9)return {ok:false,message:`${dir}호기 Bio 사용량보다 많이 이동할 수 없습니다.`};return adjustFinal(base,settings,dir===1?b1-t:b1+t,dir===1?b2+t:b2-t,{mode:'manual_transfer',fromUnit:dir,bioTransferTons:t});}
+  function manualTransfer(base,settings,fromUnit,tons){const t=Number(tons),dir=Number(fromUnit)===2?2:1,b1=base?.units?.unit1?.bio?.quantity,b2=base?.units?.unit2?.bio?.quantity;if(!Number.isFinite(t)||t<=0)return {ok:false,message:'Bio 이동량을 0보다 크게 입력해 주세요.'};if(![b1,b2].every(Number.isFinite))return {ok:false,message:'먼저 기간 계산을 완료해 주세요.'};const source=dir===1?b1:b2;if(t>source+1e-9)return {ok:false,message:`${dir}호기 Bio 사용량보다 많이 이동할 수 없습니다.`};return adjustFinal(base,settings,dir===1?b1-t:b1+t,dir===1?b2+t:b2-t,{mode:'manual_transfer',fromUnit:dir,bioTransferTons:t});}
   // COFIRING_TABLE_EDIT_ENGINE_V1: quantities are authoritative; ratios are derived.
   const TABLE_MAX_TONS=1000000;
   const tableValues=result=>({
@@ -95,7 +89,6 @@
     if(!UNITS.every(unit=>['coal','bio','organic','manure'].every(fuel=>finite(base.units[unit]?.[fuel]?.quantity)&&base.units[unit][fuel].quantity>=0)))return {ok:false,message:'누락된 연료 사용량이 있습니다. 조회 결과와 입력값을 확인해 주세요.'};
     const fields=['finalCoalUnit1','finalCoalUnit2','finalBioUnit1','finalBioUnit2'];
     if(!values||!fields.every(key=>finite(values[key])&&values[key]>=0&&values[key]<=TABLE_MAX_TONS))return {ok:false,message:'Coal/Bio 사용량을 0 이상 1,000,000 t 이하의 숫자로 확인해 주세요.'};
-    const inactiveMessage=inactiveBioMessage(base,values.finalBioUnit1,values.finalBioUnit2);if(inactiveMessage)return {ok:false,message:inactiveMessage};
     if(!UNITS.every(unit=>['coal','bio','organic','manure'].every(fuel=>{const hv=Number(settings?.[unit]?.[fuel]?.calorific);return Number.isFinite(hv)&&hv>0;})))return {ok:false,message:'연료별 발열량을 0보다 큰 값으로 확인해 주세요.'};
     const finals=Object.fromEntries(fields.map(key=>[key,round(values[key],6)]));
     const originalBio=base.units.unit1.bio.quantity+base.units.unit2.bio.quantity;
@@ -164,7 +157,7 @@
   }
   function maxAutoAtCaps(base,settings,maxTpd,input,target1,target2){
     const {cap,b1,b2}=input;
-    let f1=b1<=cap?b1:Math.min(b1,target1),f2=b2<=cap?b2:Math.min(b2,target2),ex1=Math.max(0,b1-f1),ex2=Math.max(0,b2-f2),c1=b1>0?Math.max(0,target1-f1):0,c2=b2>0?Math.max(0,target2-f2):0;
+    let f1=b1<=cap?b1:Math.min(b1,target1),f2=b2<=cap?b2:Math.min(b2,target2),ex1=Math.max(0,b1-f1),ex2=Math.max(0,b2-f2),c1=Math.max(0,target1-f1),c2=Math.max(0,target2-f2);
     const move12=Math.min(ex1,c2);f2+=move12;ex1-=move12;c2-=move12;
     const move21=Math.min(ex2,c1);f1+=move21;ex2-=move21;c1-=move21;
     return adjustFinal(base,settings,f1,f2,{mode:'max_auto',maxBioTpd:Number(maxTpd),periodCapTons:cap,fromUnit:move12>0?1:move21>0?2:null,bioTransferTons:move12+move21,excludedBioTons:ex1+ex2});
@@ -175,7 +168,7 @@
     // Integer hundredths include both endpoints without rounding above the limit.
     const first=Math.ceil(low*100-1e-8),last=Math.floor(max*100+1e-8);
     const pick=()=>{const r=random();return finite(r)&&r>=0&&r<1?(first+Math.floor(r*(last-first+1)))/100:null;};
-    const one=input.b1===0?0:pick(),two=input.b2===0?0:pick();
+    const one=pick(),two=pick();
     if(!finite(one)||!finite(two))return {ok:false,message:'자동 조정 목표를 만들지 못했습니다. 다시 실행해 주세요.'};
     const toPeriod=value=>value===0?0:Math.min(input.cap,periodCap(value,input.hours));
     return maxAutoAtCaps(base,settings,maxTpd,input,toPeriod(one),toPeriod(two));
@@ -185,7 +178,6 @@
     const lowerTpd=Math.max(0,Number(maxTpd)-MAX_TARGET_BAND_TPD);
     const lower=lowerTpd===0?0:periodCap(lowerTpd,input.hours),tolerance=0.000001;
     if(![finalOne,finalTwo].every(v=>finite(v)&&v>=0&&v<=input.cap+tolerance))return {ok:false,message:'저장된 최대혼소 조정값이 최대량 범위를 벗어났습니다.'};
-    const inactiveMessage=inactiveBioMessage(base,finalOne,finalTwo);if(inactiveMessage)return {ok:false,message:inactiveMessage};
     // A capped unit retains its selected target; a recipient below the band
     // retains all available transferred Bio. No new random draw on save/read.
     const target=value=>value>=lower-tolerance?Math.min(value,input.cap):input.cap;
@@ -289,6 +281,15 @@
         </div>
         <footer><button type="button" data-cfv56-reset>원본으로</button><span class="cfv56-footer-hint" data-cfv56-footer-hint>아직 적용되지 않았습니다.</span><button type="button" data-cfv56-cancel>취소</button><button type="button" class="primary" data-cfv56-apply>조정값 적용</button></footer>
       </div>
+      <div class="cfv56-zero-bio-confirm" data-cfv56-zero-confirm hidden>
+        <div class="cfv56-zero-bio-confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="${prefix}-zero-bio-confirm-title" aria-describedby="${prefix}-zero-bio-confirm-message">
+          <div class="cfv56-zero-bio-confirm-icon" aria-hidden="true">!</div>
+          <h4 id="${prefix}-zero-bio-confirm-title">혼소 조정 확인</h4>
+          <p id="${prefix}-zero-bio-confirm-message" data-cfv56-zero-confirm-message>2호기 사용량이 없습니다. 그래도 조정하시겠습니까?</p>
+          <p class="cfv56-zero-bio-confirm-note">원본 Bio 사용량이 0톤입니다. 확인 후 조정한 값은 실측값이 아닌 연료 배분 계산값입니다.</p>
+          <div class="cfv56-zero-bio-confirm-actions"><button type="button" data-cfv56-zero-no>아니오</button><button type="button" class="is-primary" data-cfv56-zero-yes>예</button></div>
+        </div>
+      </div>
     </div>`;
   }
   // COFIRING_ADJUSTMENT_MANUAL_AUTO_COMPACT_V8
@@ -298,6 +299,29 @@
     const wrap=root.document.createElement('div');wrap.innerHTML=modalHtml();const modal=wrap.firstElementChild;root.document.body.appendChild(modal);
     let serverRevision=0,direction=1,preview=null,manualPreviewActive=false,base=null,settings=null,spec=null,epoch=0,ready=false,busy=false,disposed=false,returnFocus=null,contextSignature='';
     const q=s=>modal.querySelector(s),msg=(text,bad=false)=>{const e=q('[data-cfv56-msg]');e.textContent=text||'';e.dataset.bad=bad?'1':'0';e.hidden=!text;};
+    // COFIRING_ZERO_BIO_CONFIRM_V1: one explicit Yes/No gate for zero-source-Bio actions.
+    const zeroConfirm=q('[data-cfv56-zero-confirm]'),mainDialog=q('.cfv56-adjust-dialog');
+    let zeroConfirmAction=null,zeroConfirmReturnFocus=null;
+    function dismissZeroConfirm(accepted=false){
+      if(zeroConfirm.hidden)return;
+      const callback=accepted?zeroConfirmAction:null,focusTarget=zeroConfirmReturnFocus;
+      zeroConfirmAction=null;zeroConfirmReturnFocus=null;zeroConfirm.hidden=true;
+      mainDialog.inert=false;mainDialog.removeAttribute('aria-hidden');
+      if(!modal.hidden&&focusTarget?.isConnected)focusTarget.focus();
+      if(callback&&validAction())callback();
+    }
+    function requireZeroBioConfirm(action,trigger){
+      const zeroUnits=UNITS.filter(unit=>base?.units?.[unit]?.bio?.quantity===0);
+      if(!zeroUnits.length){action();return;}
+      if(!ready||busy||!zeroConfirm.hidden)return;
+      const names=zeroUnits.map(unit=>unit==='unit1'?'1호기':'2호기');
+      q('[data-cfv56-zero-confirm-message]').textContent=`${names.join('·')} 사용량이 없습니다. 그래도 조정하시겠습니까?`;
+      zeroConfirmAction=action;zeroConfirmReturnFocus=trigger||root.document.activeElement;
+      mainDialog.inert=true;mainDialog.setAttribute('aria-hidden','true');
+      zeroConfirm.hidden=false;q('[data-cfv56-zero-no]').focus();
+    }
+    q('[data-cfv56-zero-no]').addEventListener('click',()=>dismissZeroConfirm(false));
+    q('[data-cfv56-zero-yes]').addEventListener('click',()=>dismissZeroConfirm(true));
     // Tabs change the visible controls only; calculation drafts and previews are retained.
     function selectAdjustmentTab(name,focus=false){
       if(busy||!['auto','manual'].includes(name))return;
@@ -308,12 +332,19 @@
       }
       for(const panel of modal.querySelectorAll('[data-cfv56-panel]'))panel.hidden=panel.dataset.cfv56Panel!==name;
     }
+    function requestedTab(name,focus,trigger){
+      if(!ready||busy)return;
+      const manualEntry=name==='manual'&&q('[data-cfv56-tab="manual"]').getAttribute('aria-selected')!=='true';
+      if(manualEntry)requireZeroBioConfirm(()=>selectAdjustmentTab('manual',focus),trigger);
+      else selectAdjustmentTab(name,focus);
+    }
     for(const tab of modal.querySelectorAll('[data-cfv56-tab]')){
-      tab.addEventListener('click',()=>{if(ready&&!busy)selectAdjustmentTab(tab.dataset.cfv56Tab);});
+      tab.addEventListener('click',()=>requestedTab(tab.dataset.cfv56Tab,false,tab));
       tab.addEventListener('keydown',event=>{
         if(!ready||busy||!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
         event.preventDefault();
-        selectAdjustmentTab(event.key==='Home'?'auto':event.key==='End'?'manual':tab.dataset.cfv56Tab==='auto'?'manual':'auto',true);
+        const target=event.key==='Home'?'auto':event.key==='End'?'manual':tab.dataset.cfv56Tab==='auto'?'manual':'auto';
+        requestedTab(target,true,tab);
       });
     }
     const signature=ctx=>JSON.stringify([ctx?.spec,ctx?.settings,ctx?.result?.units]);
@@ -414,25 +445,17 @@
       q('[data-cfv56-final-edit]').hidden=!tableEditing;
       q('[data-cfv56-coal-review-notice]').hidden=tableEditing||!(hasPreview&&preview.adjustment?.mode==='max_auto');
       for(const e of modal.querySelectorAll('.cfv56-adjust-body input,.cfv56-adjust-body button,[data-cfv56-reset]'))e.disabled=!ready||busy;
-      // COFIRING_ACTIVE_BIO_UNIT_UI_V1: use the original calculation to keep
-      // unused units at zero in every preview, even after another adjustment.
-      const inactiveUnits=UNITS.filter(unit=>base?.units?.[unit]?.bio?.quantity===0);
-      const transferBlocked=inactiveUnits.length>0;
-      const inactiveNames=inactiveUnits.map(unit=>unit==='unit1'?'1호기':'2호기').join('·');
-      const inactiveReason=transferBlocked?`${inactiveNames} Bio 미사용 · 호기 간 이동 불가`:'';
+      const zeroBioUnits=UNITS.filter(unit=>base?.units?.[unit]?.bio?.quantity===0);
+      const zeroNames=zeroBioUnits.map(unit=>unit==='unit1'?'1호기':'2호기').join('·');
+      const zeroNotice=zeroBioUnits.length?`${zeroNames} Bio 0톤 · 확인 후 조정 가능`:'';
       for(const e of modal.querySelectorAll('[data-cfv56-dir],[data-cfv56-transfer],[data-cfv56-preview-transfer],[data-cfv56-cancel-transfer]')){
-        e.disabled=!ready||busy||transferBlocked;
-        e.title=inactiveReason;
+        e.disabled=!ready||busy;e.title=zeroNotice;
       }
-      for(const field of tableFields){
-        const locked=inactiveUnits.includes(field.dataset.cfv56TableUnit)&&['bio','bioRatio'].includes(field.dataset.cfv56TableField);
-        field.disabled=!ready||busy||locked;
-        field.title=locked?'Bio 미사용 호기는 0으로 유지합니다.':'';
-      }
+      for(const field of tableFields){field.disabled=!ready||busy;field.title=zeroNotice;}
       const manualCopy=q('.cfv56-manual-card .cfv56-section-head p');
-      if(manualCopy)manualCopy.textContent=inactiveReason||'호기 간 Bio 배분 조정';
+      if(manualCopy)manualCopy.textContent=zeroNotice||'호기 간 Bio 배분 조정';
       const autoCopy=q('.cfv56-auto-copy-line');
-      if(autoCopy)autoCopy.textContent=inactiveUnits.length===1?`${inactiveUnits[0]==='unit1'?'2호기':'1호기'} Bio만 조정 · ${inactiveNames} 0t 유지`:inactiveUnits.length===2?'Bio 미사용 · 조정할 사용량이 없습니다.':'호기별 Bio 최대량 초과 시 조정';
+      if(autoCopy)autoCopy.textContent=zeroBioUnits.length===2?'두 호기 Bio 0톤 · 조정할 사용량이 없습니다.':zeroNotice||'호기별 Bio 최대량 초과 시 조정';
       q('[data-cfv56-apply]').disabled=!ready||busy||tableEditing||!preview?.ok;
       q('[data-cfv56-edit]').disabled=!ready||busy||tableEditing;
       q('[data-cfv56-edit]').textContent=tableEditing?'수정 중':'직접 수정';
@@ -499,7 +522,7 @@
       ready=true;q('[data-cfv56-max]').value=maxInputText(Number(bundle.setting?.maxBioTpd)||storedMax());cap();render(preview);
       msg('');
     }
-    function close(){if(busy)return;++epoch;modal.hidden=true;modal.setAttribute('aria-hidden','true');if(returnFocus?.isConnected)returnFocus.focus();}
+    function close(){if(busy)return;dismissZeroConfirm(false);++epoch;modal.hidden=true;modal.setAttribute('aria-hidden','true');if(returnFocus?.isConnected)returnFocus.focus();}
     function validAction(){if(!ready||busy)return false;if(!currentContext()){ready=false;controls();msg('계산값이 변경되었습니다. 창을 닫고 다시 열어 주세요.',true);return false;}return true;}
     function showPreview(r){stopTableEdit();preview=r;render(preview);msg(preview.ok?'':preview.message,!preview.ok);}
     for(const b of modal.querySelectorAll('[data-cfv56-dir]'))b.addEventListener('click',()=>{if(!validAction())return;stopTableEdit();manualPreviewActive=false;direction=Number(b.dataset.cfv56Dir);for(const x of modal.querySelectorAll('[data-cfv56-dir]')){x.classList.toggle('is-selected',x===b);x.setAttribute('aria-pressed',String(x===b));}preview=null;render(null);msg('선택한 방향의 이동량을 입력하고 미리보기를 눌러 주세요.');});
@@ -513,12 +536,17 @@
     });
     q('[data-cfv56-save-max]').addEventListener('click',async()=>{if(!validAction())return;busy=true;controls();try{const saved=await saveSharedMax(Number(q('[data-cfv56-max]').value),options.getHeaders);cap();msg(saved.shared?'Bio 최대량을 공용 설정으로 저장했습니다.':'서버 저장을 확인하지 못해 이 브라우저에만 저장했습니다.',!saved.shared);}catch(e){msg(e.message,true);}finally{busy=false;controls();}});
     q('[data-cfv56-preview-transfer]').addEventListener('click',()=>{  if(!validAction())return;  const r=manualTransfer(base,settings,direction,q('[data-cfv56-transfer]').value);  manualPreviewActive=Boolean(r?.ok);  showPreview(r);});q('[data-cfv56-cancel-transfer]').addEventListener('click',()=>{  if(!validAction())return;  q('[data-cfv56-transfer]').value='';  if(manualPreviewActive){    preview=null;    manualPreviewActive=false;    render(null);    msg('수동 이동 미리보기를 취소했습니다.');    return;  }  manualPreviewActive=false;  controls();  msg(preview?.ok?'수동 이동 입력을 취소했습니다. 현재 미리보기는 유지됩니다.':'수동 이동 입력을 취소했습니다.');});
-    q('[data-cfv56-auto]').addEventListener('click',()=>{manualPreviewActive=false;if(!validAction())return;showPreview(autoMax(base,settings,Number(q('[data-cfv56-max]').value)));});
+    q('[data-cfv56-auto]').addEventListener('click',()=>{
+      if(!validAction())return;
+      requireZeroBioConfirm(()=>{manualPreviewActive=false;showPreview(autoMax(base,settings,Number(q('[data-cfv56-max]').value)));},q('[data-cfv56-auto]'));
+    });
     q('[data-cfv56-edit]').addEventListener('click',()=>{
       if(!validAction())return;
-      tableBefore=preview;tableDraft=clone(preview?.ok?preview.result:base);
-      tableCustom=preview?.adjustment?.mode==='manual_table';tablePending.clear();tableEditing=true;
-      fillTable(tableDraft);controls();msg('');tableFields[0]?.focus();
+      requireZeroBioConfirm(()=>{
+        tableBefore=preview;tableDraft=clone(preview?.ok?preview.result:base);
+        tableCustom=preview?.adjustment?.mode==='manual_table';tablePending.clear();tableEditing=true;
+        fillTable(tableDraft);controls();msg('');tableFields[0]?.focus();
+      },q('[data-cfv56-edit]'));
     });
     for(const field of tableFields){
       field.addEventListener('input',()=>{
@@ -573,8 +601,25 @@
     q('[data-cfv56-apply]').addEventListener('click',async()=>{if(!validAction()||!preview?.ok)return;busy=true;controls();try{msg('혼소 조정값을 저장하고 있습니다.');const saved=await saveServerAdjustment(spec,preview,serverRevision,options.getHeaders);serverRevision=Number(saved?.entry?.revision)||serverRevision+1;saveStored(spec,base,preview);options.onApply?.(preview.result,preview.adjustment);busy=false;close();}catch(e){msg(e.message||'혼소 조정 저장을 완료하지 못했습니다.',true);}finally{busy=false;controls();}});
     q('[data-cfv56-reset]').addEventListener('click',async()=>{if(!validAction())return;busy=true;controls();try{await clearServerAdjustment(spec,serverRevision,options.getHeaders);serverRevision+=1;clearStored(spec);preview=null;options.onReset?.();busy=false;close();}catch(e){msg(e.message||'원복을 저장하지 못했습니다. 기존 조정값을 유지합니다.',true);}finally{busy=false;controls();}});
     for(const sel of ['[data-cfv56-close]','[data-cfv56-cancel]'])q(sel).addEventListener('click',close);
-    modal.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();close();}if(e.key==='Tab'){const nodes=Array.from(modal.querySelectorAll('button:not(:disabled),input:not(:disabled)')).filter(x=>!x.closest('[hidden]'));if(!nodes.length)return;const first=nodes[0],last=nodes[nodes.length-1];if(e.shiftKey&&root.document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&root.document.activeElement===last){e.preventDefault();first.focus();}}});
-    return {open,close,isOpen:()=>!modal.hidden,isBusy:()=>busy,resetApplied,resolve:(result,currentSettings,currentSpec)=>resolveStored(result,currentSettings,currentSpec),clear:()=>spec&&clearStored(spec),dispose(){root.removeEventListener?.('cofiring:calorific-settings-saved',calorificSavedHandler);disposed=true;++epoch;modal.remove();}};
+    modal.addEventListener('keydown',e=>{
+      if(!zeroConfirm.hidden){
+        if(e.key==='Escape'){e.preventDefault();dismissZeroConfirm(false);return;}
+        if(e.key==='Tab'){
+          const nodes=[q('[data-cfv56-zero-no]'),q('[data-cfv56-zero-yes]')];
+          if(e.shiftKey&&root.document.activeElement===nodes[0]){e.preventDefault();nodes[1].focus();}
+          else if(!e.shiftKey&&root.document.activeElement===nodes[1]){e.preventDefault();nodes[0].focus();}
+        }
+        return;
+      }
+      if(e.key==='Escape'){e.preventDefault();close();}
+      if(e.key==='Tab'){
+        const nodes=Array.from(modal.querySelectorAll('button:not(:disabled),input:not(:disabled)')).filter(x=>!x.closest('[hidden]'));
+        if(!nodes.length)return;const first=nodes[0],last=nodes[nodes.length-1];
+        if(e.shiftKey&&root.document.activeElement===first){e.preventDefault();last.focus();}
+        else if(!e.shiftKey&&root.document.activeElement===last){e.preventDefault();first.focus();}
+      }
+    });
+    return {open,close,isOpen:()=>!modal.hidden,isBusy:()=>busy,resetApplied,resolve:(result,currentSettings,currentSpec)=>resolveStored(result,currentSettings,currentSpec),clear:()=>spec&&clearStored(spec),dispose(){root.removeEventListener?.('cofiring:calorific-settings-saved',calorificSavedHandler);dismissZeroConfirm(false);disposed=true;++epoch;modal.remove();}};
   }
   root.CofiringPeriodAdjustmentV56={periodCap,adjustFinal,adjustTable,editTableValue,resolveAdjustment,manualTransfer,autoMax,replayAutoMax,resolveStored,resolveServer,create,modalHtml,DEFAULT_MAX_TPD,API};
   if(typeof module==='object'&&module.exports)module.exports=root.CofiringPeriodAdjustmentV56;

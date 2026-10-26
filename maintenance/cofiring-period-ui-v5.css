@@ -1445,3 +1445,41 @@ small {
   .cfv56-adjust-modal .cfv56-transfer button{grid-column:1/-1}
   .cfv56-adjust-modal .cfv56-final-edit{grid-template-columns:minmax(0,1fr)}
 }
+
+/* COFIRING_ZERO_BIO_CONFIRM_V1 - small, explicit, accessible Yes/No confirmation */
+.cfv56-adjust-modal .cfv56-zero-bio-confirm{
+  position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;
+  padding:18px;background:rgba(12,31,43,.60);backdrop-filter:blur(2px);
+}
+.cfv56-adjust-modal .cfv56-zero-bio-confirm-card{
+  width:min(390px,100%);padding:25px 25px 22px;border:1px solid #d9e5ec;border-radius:16px;
+  background:#fff;box-shadow:0 28px 75px rgba(8,29,47,.30);text-align:center;
+}
+.cfv56-adjust-modal .cfv56-zero-bio-confirm-icon{
+  display:flex;align-items:center;justify-content:center;width:40px;height:40px;margin:0 auto 11px;
+  border:1px solid #f3d8a3;border-radius:50%;background:#fff6e5;color:#b97922;
+  font-size:22px;font-weight:800;
+}
+.cfv56-adjust-modal .cfv56-zero-bio-confirm-card h4{
+  margin:0 0 11px;color:#142f43;font-size:18px;font-weight:800;letter-spacing:-.3px;
+}
+.cfv56-adjust-modal .cfv56-zero-bio-confirm-card [data-cfv56-zero-confirm-message]{
+  margin:0;color:#213e51;font-size:15px;font-weight:700;line-height:1.6;word-break:keep-all;
+}
+.cfv56-adjust-modal .cfv56-zero-bio-confirm-note{
+  margin:11px 0 19px;color:#718697;font-size:11px;line-height:1.55;word-break:keep-all;
+}
+.cfv56-adjust-modal .cfv56-zero-bio-confirm-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cfv56-adjust-modal .cfv56-zero-bio-confirm-actions button{
+  min-height:40px;border:1px solid #d3dee6;border-radius:9px;background:#fff;color:#4a6476;
+  font-size:13px;font-weight:750;
+}
+.cfv56-adjust-modal .cfv56-zero-bio-confirm-actions button.is-primary{
+  border-color:#008c75;background:#008c75;color:#fff;
+}
+.cfv56-adjust-modal .cfv56-zero-bio-confirm-actions button.is-primary:hover{background:#007961}
+@media(max-width:480px){
+  .cfv56-adjust-modal .cfv56-zero-bio-confirm-card{padding:21px 18px 19px}
+  .cfv56-adjust-modal .cfv56-zero-bio-confirm-card h4{font-size:17px}
+  .cfv56-adjust-modal .cfv56-zero-bio-confirm-card [data-cfv56-zero-confirm-message]{font-size:14px}
+}
