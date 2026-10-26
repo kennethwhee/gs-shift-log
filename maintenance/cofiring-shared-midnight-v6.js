@@ -38,7 +38,19 @@
       data.saved?.status!=='complete'||data.saved?.requestType!=='cofiring_period'||
       !contract.uuid(data.saved?.id)||!data.result)return null;
    const checked=contract.periodResult(data.result,data.saved.id,selected);
-   const adjacent=checked?.report?.reference;
+   const report=checked?.report;
+   const basis=report?.reference;
+   // The saved DataPARC reference contains Coal/Bio; the three inventory
+   // samples sit beside it in report.organicInventorySamples. Use the SAME
+   // normalized object as the primary co-firing screen's onResult callback.
+   // Preserve legacy reference identity only when the report has no organic
+   // root fields (old API shape), so unrelated callers remain compatible.
+   const hasInventoryRoot=!!report&&['organicInventoryReady','organicInventory','organicInventorySamples']
+     .some(key=>Object.prototype.hasOwnProperty.call(report,key));
+   const adjacent=!basis?null:!hasInventoryRoot?basis:{...basis,
+     organicInventoryReady:report.organicInventoryReady===true,
+     organicInventory:report.organicInventory||null,
+     organicInventorySamples:Array.isArray(report.organicInventorySamples)?report.organicInventorySamples:null};
    if(!adjacent||adjacent.startLocal!==selected.startLocal||adjacent.endLocal!==selected.endLocal||
       adjacent.stepUnit!=='minute'||adjacent.stepValue!==1)return null;
    return Object.freeze({plan:p,adjacentReference:adjacent,sourceRequestId:data.saved.id});

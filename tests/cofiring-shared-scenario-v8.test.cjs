@@ -28,9 +28,10 @@ test('Fall back is strictly tied to the SAME historical Bad source identity',()=
   o=>o.organicInventorySamples[1].startTime='2026-10-24T03:00:00+09:00'
  ];for(const change of invalid){const ref=copy(next);change(ref);assert.equal(m.scenario(ref,175.43,ref,null),null);}
 });
-test('Bad adjacent report is a real conflict, never silently overridden by fixed assumption',()=>{
+test('foreign adjacent report blocks; a correctly scoped but incomplete report permits only an explicitly labelled historical WHAT-IF',()=>{
  assert.equal(m.scenario(next,175.43,next,{}),null);
- assert.equal(m.scenario(next,175.43,next,{kind:'cofiring_period_summary_v1',schemaVersion:1,startLocal:'2026-10-23T00:00',endLocal:'2026-10-24T00:00',stepUnit:'minute',stepValue:1,organicInventoryReady:false,organicInventory:null,organicInventorySamples:[]}),null);
+ const incomplete={kind:'cofiring_period_summary_v1',schemaVersion:1,startLocal:'2026-10-23T00:00',endLocal:'2026-10-24T00:00',stepUnit:'minute',stepValue:1,organicInventoryReady:false,organicInventory:null,organicInventorySamples:[]};
+ const scenario=m.scenario(next,175.43,next,incomplete);assert.ok(scenario);assert.equal(scenario.verified,false);assert.equal(scenario.peerConfirmedForPreview,false);
 });
 test('Actual original and save paths remain separate; approximation appears next to only organic',()=>{
  const ui=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.js'),'utf8');

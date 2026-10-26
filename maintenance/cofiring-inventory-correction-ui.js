@@ -82,9 +82,11 @@
           if(!isCurrent())return false;
           peerReference=result?.adjacentReference||null;
           peerState=peerReference?'ready':'unavailable';
-          if(peerReference)options.onChange?.();
+          // Successful and incomplete peer reports both affect the current
+          // scenario. Refresh cards once, without changing the raw result.
+          options.onChange?.();
           return !!peerReference;
-        }catch(_){if(isCurrent())peerState='unavailable';return false;}
+        }catch(_){if(isCurrent()){peerState='unavailable';options.onChange?.();}return false;}
         finally{if(isCurrent())peerPending=null;}
       })();peerPending=task;return task;
     }
@@ -137,7 +139,11 @@
       const scenario=whatIf?.scenario(reference,receipt,spec,peerReference)||null;
       if(scenario)return {...total,scenario};
       if(whatIf?.side(reference,spec)==='next'&&total?.provisional){
-        return {...total,sharedScenarioPending:true}; // never show old per-day B estimate as a certified usage
+        // No verified cross-day assumption: preserve the old source but never
+        // display its standalone inventory estimate as a certified result.
+        const reason=whatIf?.scenarioReason?.(reference,receipt,spec,peerReference)||
+          '공통 자정 가정 계산에 필요한 자료가 일치하지 않습니다';
+        return {...total,sharedScenarioPending:true,sharedScenarioReason:reason};
       }
       return total;
     }

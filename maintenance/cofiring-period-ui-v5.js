@@ -778,7 +778,7 @@
         return total;
       }
       if(total.sharedScenarioPending){
-        organicUsageSource('동일 시각 Storage B 가정 근거 교차 확인 중 · 기존 1일 추정 사용량 미적용','working');
+        organicUsageSource(total.sharedScenarioReason||'동일 시각 Storage B 가정 근거 확인 필요 · 기존 1일 추정 사용량 미적용','working');
         const save=container.querySelector('[data-cfv5-manual-save]');if(save)save.disabled=true;
         return total;
       }
@@ -805,7 +805,7 @@
     }
     function paintOrganicCalculationState(){
       if(organicUsageState?.scenario?.kind==='cross-day-shared-what-if-v7'){prepLabel('가정 계산 · 저장·마감 불가','working');setStatus(container,'공통 Storage B 재고 가정으로 혼소율을 미리 계산했습니다. 확정 사용량이 아니며 입고량·이송 내역 재확인이 필요합니다.','working');return true;}
-      if(organicUsageState?.sharedScenarioPending){prepLabel('가정 근거 확인 중','working');setStatus(container,'같은 00:00 재고의 인접 날짜 근거를 확인하고 있습니다.','working');return true;}
+      if(organicUsageState?.sharedScenarioPending){prepLabel('가정 계산 보류','working');setStatus(container,organicUsageState.sharedScenarioReason||'같은 00:00 재고의 교차 검증이 완료되지 않았습니다.','working');return true;}
       if(organicUsageState?.provisional){
         prepLabel('추정 재고 · 임시 계산','working');
         setStatus(container,'추정 재고로 계산한 임시 결과입니다. 근거를 확인해 확정값으로 보완하기 전에는 사용량 저장·마감할 수 없습니다.','working');

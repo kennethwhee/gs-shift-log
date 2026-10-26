@@ -67,20 +67,71 @@
    if(!Number.isFinite(t)||Math.abs(t-expected)>60000)return null;
    return OCT24_ACCEPTED_HYPOTHESIS.tons;
  }
+ // A present *saved* adjacent report is not necessarily a fully checked
+ // midnight reading. Distinguish an explicit, credible contradiction from an
+ // incomplete adjacent result. Only a contradiction blocks the historical
+ // WHAT-IF; neither case ever authorizes persistence of a projected quantity.
+ function peerForOct24(prior){
+   if(prior===null||prior===undefined)return {status:'unavailable'};
+   if(side(prior,{...dates.prev,stepUnit:'minute',stepValue:1})!=='prev')
+     return {status:'foreign'};
+   const peerSamples=samples(prior);
+   if(!peerSamples)return {status:'incomplete'};
+   const peerB=peerSamples.get(B),observed=observedMin23(prior);
+   if(observed!==null)return {status:'measured-min',tons:observed};
+   // An authentic Good point at the shared midnight overrides any hypothetical
+   // former minimum. We may not bury real evidence with an old assumption.
+   if(endpointValid(peerB,'end',SEAM))return {status:'confirmed-source',tons:peerB.endValue};
+   // The 23rd MUST still describe the same historical 19.143t / Raw Bad
+   // incident. Explicit contradictory metadata is not merely incomplete.
+   if((peerB.min!==undefined&&(!isTons(peerB.min)||Math.abs(peerB.min-OCT24_ACCEPTED_HYPOTHESIS.tons)>0.001))||
+     (peerB.delta!==undefined&&peerB.delta!==null)||
+     (peerB.endValue!==undefined&&peerB.endValue!==null)||
+     qualityGood(peerB.endQuality)||
+     (peerB.durationBadSeconds!==undefined&&(!isTons(peerB.durationBadSeconds)||peerB.durationBadSeconds<=0||peerB.durationBadSeconds>3600))||
+     (peerB.startQuality!==undefined&&!qualityGood(peerB.startQuality))||
+     (peerB.endTime&&(!Number.isFinite(Date.parse(peerB.endTime))||
+       Date.parse(peerB.endTime)>Date.parse(SEAM+':00+09:00')+60000||
+       Date.parse(SEAM+':00+09:00')-Date.parse(peerB.endTime)>3600000)))
+     return {status:'contradictory-record'};
+   return {status:'incomplete'};
+ }
+ function scenarioReason(reference,receipt,spec,prior=null){
+   if(side(reference,spec)!=='next')return '';
+   if(!isTons(receipt))return '10월 24일 유기성 입고량 확인 필요';
+   const map=samples(reference);if(!map)return '10월 24일 저장된 3개 사일로 원본 기록 확인 필요';
+   if(fixedWhatIf24(reference,map.get(B))===null)return '10월 24일 Storage B 원본값·품질·시각이 기존 가정 근거와 다릅니다';
+   const check=peerForOct24(prior);
+   if(check.status==='foreign')return '인접 날짜 DataPARC 보고서의 기간·원본 검증 불일치';
+   if(check.status==='confirmed-source')return '같은 자정에 검증된 계측값이 있어 기존 가정을 적용하지 않았습니다';
+   if(check.status==='contradictory-record')return '10월 23일 원본 데이터가 기존 가정 근거와 일치하지 않습니다';
+   if(check.status==='measured-min'&&Math.abs(check.tons-OCT24_ACCEPTED_HYPOTHESIS.tons)>0.001)
+     return '10월 23일 기간 최솟값과 19.143t 가정이 일치하지 않습니다';
+   for(const [key] of definitions){
+     const sample=map.get(key);
+     if(key===B){if(!endpointValid(sample,'end',dates.next.endLocal))return '10월 25일 00:00 Storage B 종료 재고 확인 필요';}
+     else if(!endpointValid(sample,'start',spec.startLocal)||!endpointValid(sample,'end',spec.endLocal))
+       return '10월 24일 정상 사일로 원본 경계값 확인 필요';
+   }
+   return '유기성 입고량 또는 재고수지 가정 계산 검증 불가';
+ }
  function scenario(reference,receipt,spec,adjacentReference=null){
    const role=side(reference,spec);if(!role||!isTons(receipt))return null;
    const prior=role==='prev'?reference:adjacentReference;
    const map=samples(reference);if(!map)return null;
    const b=map.get(B);let assumption=null,assumptionSource='23일 DataPARC 원본 기간 최솟값';
+   let peerConfirmed=false;
    if(role==='prev')assumption=observedMin23(reference);
-   else if(prior!==null&&prior!==undefined){
-     // A provided peer is authoritative for cross-checking the historical
-     // assumption; never quietly override a conflicting/invalid saved peer.
-     if(side(prior,{...dates.prev,stepUnit:'minute',stepValue:1})!=='prev')return null;
-     assumption=observedMin23(prior);
-   }else{
-     assumption=fixedWhatIf24(reference,b);
-     assumptionSource='23일 관측 최솟값 19.143t을 적용한 고정 가정(인접자료 재조회 미완료)';
+   else{
+     const approved=fixedWhatIf24(reference,b);if(approved===null)return null;
+     const peer=peerForOct24(prior);
+     // A wrong period, a verified contradictory minimum, or an authentic
+     // Good midnight source never gets overridden by the assumed 19.143t.
+     if(peer.status==='foreign'||peer.status==='confirmed-source'||peer.status==='contradictory-record'||
+       (peer.status==='measured-min'&&Math.abs(peer.tons-approved)>0.001))return null;
+     assumption=approved;peerConfirmed=peer.status==='measured-min';
+     assumptionSource=peerConfirmed?'10/23 DataPARC 기간 최솟값과 일치하는 공통 가정':
+       '23일 관측 최솟값 19.143t을 적용한 고정 가정(인접자료 품질 미확인)';
    }
    if(assumption===null)return null;
    if(role==='prev'){
@@ -105,7 +156,7 @@
    return Object.freeze({kind:'cross-day-shared-what-if-v7',verified:false,provisional:true,
      assumptionBoundaryLocal:SEAM,assumedStorageBTons:assumption,
      assumption:'10/23 DataPARC 기간 최솟값 19.143t을 10/24 00:00 재고로 가정',
-     assumptionSource,peerConfirmedForPreview:role==='prev'||!!prior,
+     assumptionSource,peerConfirmedForPreview:role==='prev'||peerConfirmed,
      role,receipt,startTotal:start,endTotal:end,total,unitTons:total/2,
      receiptNeedsReview:role==='next',source:'DataPARC 기간 통계 + 해당일 입고기록 · 미검증 가정'});
  }
@@ -145,7 +196,7 @@
    out.hypothesisDisplay=isScenario(scenario)?scenario:{kind:'pending',verified:false};
    return out;
  }
- const api=Object.freeze({SEAM,side,scenario,project,isScenario,observedMin23});
+ const api=Object.freeze({SEAM,side,scenario,project,isScenario,observedMin23,scenarioReason,peerForOct24});
  root.CofiringSharedScenarioV7=api;
  if(typeof module==='object'&&module.exports)module.exports=api;
 })(typeof globalThis==='object'?globalThis:this);
