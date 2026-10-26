@@ -25,7 +25,7 @@ const validDate=s=>typeof s==='string'&&/^20\d{2}-\d{2}-\d{2}$/.test(s);
 const getToken=()=>{try{const h=root.getShiftLogAuthHeaders?.()||{};return String(h.Authorization||h.authorization||'')}catch{return ''}};
 const headers=()=>({...root.getShiftLogAuthHeaders?.(),Accept:'application/json'});
 const dateAllowed=d=>APPROVED.has(d);
-const state={saveKey:'',saveBusy:false,failKey:'',failUntil:0,morningDate:'',morningItem:null,morningPending:'',morningCheckAt:0,historyCheckAt:0,historyItems:null,historyPending:false,historyKey:'',tickTimer:null};
+const state={saveKey:'',saveBusy:false,failKey:'',failUntil:0,morningDate:'',morningItem:null,morningSourceDate:'',morningPending:'',morningCheckAt:0,historyCheckAt:0,historyItems:null,historyPending:false,historyKey:'',tickTimer:null};
 async function request(suffix='',opts={}){
  const r=await root.fetch(API+suffix,{credentials:'same-origin',cache:'no-store',...opts,headers:{...headers(),...(opts.headers||{})}});
  let data;try{data=await r.json()}catch{throw Error('가정 계산 기록의 서버 응답을 확인하지 못했습니다.')}
@@ -69,6 +69,16 @@ function buildPayload(){
  if(!finite(data.receiptTons)||!finite(data.unitTons)||!UNITS.every(u=>FUELS.every(f=>finite(preview.units[u][f]))&&RATIO_KEYS.every(k=>finite(preview.units[u].ratios[k])))||!RATIO_KEYS.every(k=>finite(preview.combined[k])))throw Error('가정값 및 원본 계산값 검증을 완료하지 못했습니다.');
  return data;
 }
+// V14: Status is attached to the existing results toolbar. This does not
+// enable the official closing button or change any DataPARC source reading.
+function saveStatus(message,tone=''){
+ const shell=calcContext().shell;if(!shell)return;
+ const host=shell.querySelector('.cfv56-summary-actions')||shell.querySelector('.cfv11-status-row');
+ if(!host)return;
+ let node=host.querySelector('[data-gs-v14-save-status]');
+ if(!node){node=root.document.createElement('span');node.dataset.gsV14SaveStatus='';node.setAttribute('role','status');node.setAttribute('aria-live','polite');host.append(node);}
+ setText(node,message);node.dataset.tone=tone;
+}
 function sameSaved(item,data){
  if(!validItem(item,data.targetDate)||item.sourceRequestId!==data.sourceRequestId||!near(item.summary?.unit1?.organic,data.unitTons,0.0001)||!near(item.summary?.unit2?.organic,data.unitTons,0.0001))return false;
  for(const u of UNITS){for(const f of FUELS)if(!near(item.summary[u][f],data.preview.units[u][f],0.0001))return false;
@@ -81,23 +91,28 @@ function inlineUpdateEvent(date){
 }
 async function autoSave(){
  if(state.saveBusy)return;
- let data;try{data=buildPayload()}catch{return}
- const auth=getToken();if(!auth)return;
+ let data;try{data=buildPayload()}catch(e){
+  if(calcContext().shell?.querySelector('.cfv17-hypothesis-card'))saveStatus('가정 저장 대기 · '+(e?.message||'계산 준비 중'),'warn');
+  return;
+ }
+ const auth=getToken();if(!auth){saveStatus('가정 저장 대기 · 로그인 필요','warn');return;}
  const key=JSON.stringify([auth,data.targetDate,data.sourceRequestId,data.receiptTons,data.unitTons,data.preview.combined.total]);
- if(state.saveKey===key||state.failKey===key&&Date.now()<state.failUntil)return;
- state.saveBusy=true;
+ if(state.saveKey===key){saveStatus('가정 계산 별도 저장 완료 · 미확정','success');return;}
+ if(state.failKey===key&&Date.now()<state.failUntil)return;
+ state.saveBusy=true;saveStatus('가정 계산 별도 저장 중…','working');
  try{
   const before=await request('?targetDate='+encodeURIComponent(data.targetDate));
   if(getToken()!==auth||calcContext().date!==data.targetDate)return;
-  if(sameSaved(before.item,data)){state.saveKey=key;inlineUpdateEvent(data.targetDate);return;}
+  if(sameSaved(before.item,data)){state.saveKey=key;saveStatus('가정 계산 별도 저장 완료 · 미확정','success');inlineUpdateEvent(data.targetDate);return;}
   if(!root.crypto?.randomUUID)throw Error('안전한 기록 ID를 만들 수 없습니다.');
   const response=await request('',{method:'POST',headers:{'Content-Type':'application/json','X-ShiftLog-Client':'desktop'},
     body:JSON.stringify({...data,expectedRevision:before.item?.revision||0,requestId:root.crypto.randomUUID()})});
   if(getToken()!==auth)return;
   if(!validItem(response.item,data.targetDate))throw Error('저장된 가정 계산의 구분 정보를 확인하지 못했습니다.');
-  state.saveKey=key;state.morningCheckAt=0;state.historyCheckAt=0;inlineUpdateEvent(data.targetDate);
+  state.saveKey=key;state.failKey='';saveStatus('가정 계산 별도 저장 완료 · 미확정','success');state.morningCheckAt=0;state.historyCheckAt=0;inlineUpdateEvent(data.targetDate);
  }catch(e){
-  state.failKey=key;state.failUntil=Date.now()+60000;
+  state.failKey=key;state.failUntil=Date.now()+30000;
+  saveStatus('가정 기록 저장 실패 · '+(e?.message||'재조회 필요'),'error');
   // Never pretend an unsaved provisional projection was officially stored.
   root.console?.warn?.('미확정 가정 계산 자동 기록 실패 (원본 계산/공식 마감 보존):',e?.message||e);
  }finally{state.saveBusy=false;}
@@ -121,13 +136,16 @@ function clearMorning(){
   field.classList.remove('gs-v13-cell');field.parentElement?.classList.remove('gs-v13-cell-box');
   delete field.dataset.gsV13Written;delete field.dataset.gsV13Field;
  }
- state.morningItem=null;
+ state.morningItem=null;state.morningSourceDate='';
 }
 function morningDate(){try{return root.morningMeetingClosedCofiring?.targetDate?.()||''}catch{return ''}}
 function morningBlocked(date){try{return root.morningMeetingClosedCofiring?.isBlocked?.(date)===true}catch{return true}}
 function hasOfficialMorning(date){try{return !!root.morningMeetingClosedCofiring?.peek?.(date)}catch{return true}}
-function applyMorning(item,date){
- const doc=root.document,card=doc?.getElementById(MEETING_ID);if(!card||!validItem(item,date)||morningDate()!==date||hasOfficialMorning(date)||morningBlocked(date))return false;
+function applyMorning(item,date,sourceDate=date){
+ const doc=root.document,card=doc?.getElementById(MEETING_ID);
+ // Historical seam only: if no October 24 record exists, the October 23
+ // calculation may be displayed in the next morning's card, EXPLICITLY dated.
+ if(!card||!validItem(item,sourceDate)||!(sourceDate===date||date==='2026-10-24'&&sourceDate==='2026-10-23')||morningDate()!==date||hasOfficialMorning(date)||morningBlocked(date))return false;
  if(card.dataset.gsV13ProvisionalDate&&card.dataset.gsV13ProvisionalDate!==date)clearMorning();
  card.dataset.gsV13ProvisionalDate=date;card.classList.add('gs-v13-morning-hypothesis');
  for(const u of UNITS){const values=item.summary[u],ids=FIELD_IDS[u];
@@ -149,21 +167,28 @@ function applyMorning(item,date){
   const header=card.querySelector('.efficiency-morning-meeting-auto-card__header')||card.querySelector('h3')||card;
   header.append(marker);
  }
- setText(marker,'유기성 추정 계산 · 미확정');marker.title='Storage B 2026-10-24 00:00 재고 19.143t 가정. 공식 마감 계측값이 아닙니다.';
- state.morningItem=item;return true;
+ setText(marker,(sourceDate!==date?sourceDate+' 계산분 · ':'')+'유기성 추정 계산 · 미확정');
+ marker.title='계산일 '+sourceDate+' · Storage B 2026-10-24 00:00 재고 19.143t 가정 · 실측 마감값 아님 · 재확인 필요';
+ state.morningItem=item;state.morningSourceDate=sourceDate;return true;
 }
 async function refreshMorning({force=false}={}){
  const date=morningDate(),auth=getToken(),card=root.document?.getElementById(MEETING_ID);
  if(!card)return;
  if(state.morningDate!==date){clearMorning();state.morningDate=date;state.morningCheckAt=0}
  if(!dateAllowed(date)||!auth||morningBlocked(date)||hasOfficialMorning(date)){if(card.dataset.gsV13ProvisionalDate)clearMorning();return;}
- if(state.morningItem&&validItem(state.morningItem,date))applyMorning(state.morningItem,date);
+ if(state.morningItem&&validItem(state.morningItem,state.morningSourceDate))applyMorning(state.morningItem,date,state.morningSourceDate);
  if(!force&&Date.now()-state.morningCheckAt<60000)return;
  if(state.morningPending===auth+'|'+date)return;
  const key=auth+'|'+date;state.morningPending=key;state.morningCheckAt=Date.now();
- try{const {item}=await request('?targetDate='+encodeURIComponent(date));
-  if(state.morningPending!==key||auth!==getToken()||morningDate()!==date||hasOfficialMorning(date)||morningBlocked(date))return;
-  if(validItem(item,date))applyMorning(item,date);else if(card.dataset.gsV13ProvisionalDate)clearMorning();
+ try{
+  const dates=date==='2026-10-24'?[date,'2026-10-23']:[date];
+  let found=false;
+  for(const sourceDate of dates){
+   const {item}=await request('?targetDate='+encodeURIComponent(sourceDate));
+   if(state.morningPending!==key||auth!==getToken()||morningDate()!==date||hasOfficialMorning(date)||morningBlocked(date))return;
+   if(validItem(item,sourceDate)){found=applyMorning(item,date,sourceDate);if(found)break;}
+  }
+  if(!found&&card.dataset.gsV13ProvisionalDate)clearMorning();
  }catch(e){root.console?.warn?.('오전회의 가정 자료 조회 대기:',e.message)}
  finally{if(state.morningPending===key)state.morningPending=''}
 }
@@ -196,7 +221,7 @@ function decorateHistory(body,items){
 }
 async function refreshHistory({force=false}={}){
  const panel=root.document?.querySelector('.cfv12-history-panel');const body=panel?.querySelector('[data-cfv12-body]');
- if(!body||panel.hidden||!getToken())return;
+ if(!body||panel.hidden||!getToken()||panel.querySelector('[data-cfv15-host]'))return;
  const key=getToken();if(state.historyItems)decorateHistory(body,state.historyItems);
  if(state.historyPending||!force&&Date.now()-state.historyCheckAt<60000)return;
  state.historyPending=true;state.historyCheckAt=Date.now();state.historyKey=key;
@@ -213,6 +238,9 @@ const css=`
 .gs-v13-history-hypothesis{background:#fff9e5!important;color:#805408}
 .gs-v13-history-hypothesis td{border-bottom:1px solid #f0e1b9;padding:8px 9px;font-size:12px}
 .gs-v13-history-hypothesis td:nth-child(5){font-weight:700}
+[data-gs-v14-save-status]{display:inline-flex;max-width:min(440px,70vw);align-items:center;line-height:1.5;padding:3px 8px;border:1px solid #e6d8ad;border-radius:6px;background:#fff8e7;color:#845b13;font-size:11px;white-space:normal}
+[data-gs-v14-save-status][data-tone=success]{border-color:#a7dec8;background:#eefaf4;color:#00705c}
+[data-gs-v14-save-status][data-tone=error]{border-color:#e6b9b2;background:#fff1ef;color:#a03528}
 `;
 function mountCss(){const doc=root.document;if(!doc||doc.getElementById('gs-v13-inline-style'))return;
  const node=doc.createElement('style');node.id='gs-v13-inline-style';node.textContent=css;doc.head?.append(node)}
@@ -234,7 +262,7 @@ function boot(){if(!root.document)return;mountCss();clearLegacyExtras();root.doc
   if(mutations.some(m=>[...m.addedNodes].some(n=>n.nodeType===1)||m.type==='attributes'&&['hidden','value'].includes(m.attributeName)))schedule();
   // Native card writes are normally text-only mutations; apply inline values again without network.
   if(mutations.some(m=>m.type==='characterData'||m.type==='childList')){
-   const d=morningDate();if(state.morningItem&&d===state.morningDate)root.setTimeout?.(()=>applyMorning(state.morningItem,d),40);
+   const d=morningDate();if(state.morningItem&&d===state.morningDate)root.setTimeout?.(()=>applyMorning(state.morningItem,d,state.morningSourceDate),40);
   }
  });mo.observe(root.document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['hidden','value'],characterData:true});}
  root.addEventListener?.('cofiring:provisional-inline-updated',event=>{

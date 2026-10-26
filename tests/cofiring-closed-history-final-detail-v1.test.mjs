@@ -23,7 +23,9 @@ test('closed history API exposes adjustment flag and reconstructs old adjusted o
 test('history table retains one action pair per date and 1·2 unit combined column',()=>{
   const source=read('maintenance/cofiring-closed-history-cards-v2.js');
   assert.match(source,/class="cfh-actions" rowspan="2"/);
-  assert.match(source,/>보기<\/button><button type="button" class="danger"/);
+  assert.match(source,/data-cfv15-hypothesis/);
+  assert.match(source,/class="danger" data-cfv15-delete/);
+  assert.match(source,/cfh-hypothesis-readonly/);
   assert.match(source,/1·2호기 종합/);
   assert.match(source,/class="cfh-combined" rowspan="2"/);
 });

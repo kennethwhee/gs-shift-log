@@ -1,0 +1,11 @@
+/* ESTIMATED COFIRING PROVISIONAL V14: clearly labelled, never certified. */
+#efficiencyCofiringDraftView .cfh-readable-panel .cfh-hypothesis-notice{margin:8px 0;padding:9px 11px;border:1px solid #e8d39e;border-radius:7px;background:#fff9e8;color:#82580e;font-size:11px;line-height:1.65;white-space:normal}
+#efficiencyCofiringDraftView .cfh-readable-panel .cfh-hypothesis-notice strong{font-weight:800;color:#83500a}
+#efficiencyCofiringDraftView .cfh-readable-panel .cfh-hypothesis-day tr>td,
+#efficiencyCofiringDraftView .cfh-readable-panel .cfh-hypothesis-day tr>th{background:#fff9eb!important;border-bottom-color:#ebdbae!important}
+#efficiencyCofiringDraftView .cfh-readable-panel .cfh-hypothesis-day .cfh-combined{background:#fff0cf!important}
+#efficiencyCofiringDraftView .cfh-readable-panel .cfh-hypothesis-day .cfh-date{background:#fff0d4!important;color:#79500c!important}
+#efficiencyCofiringDraftView .cfh-readable-panel .cfh-hypothesis-tag{display:inline-block;margin:3px 0 0;padding:1px 5px;border:1px solid #dba54c;border-radius:5px;background:#fff1c8;color:#7d5007;font-size:9px;font-weight:800;line-height:1.5;white-space:nowrap}
+#efficiencyCofiringDraftView .cfh-readable-panel .cfh-hypothesis-readonly{display:block;margin:6px auto 0;padding:3px 5px;max-width:60px;border-radius:5px;background:#fff1ce;color:#81520c;font-size:10px;font-weight:750;text-align:center}
+#efficiencyCofiringDraftView .cfh-readable-panel .cfh-hypothesis-day .cfh-value{color:#80540e!important}
+@media(max-width:760px){#efficiencyCofiringDraftView .cfh-readable-panel .cfh-hypothesis-notice{font-size:10px;padding:8px}}

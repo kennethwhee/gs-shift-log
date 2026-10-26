@@ -568,6 +568,9 @@
   function captureView(event){
     const view=event.target?.closest?.('[data-cfv15-view]');
     if(!view||!view.closest(PANEL_SELECTOR))return;
+    // Hypothesis records have no certified closing snapshot: let the monthly
+    // table render their clearly labelled details instead of the official drawer.
+    if(view.hasAttribute('data-cfv15-hypothesis'))return;
     const date=String(view.getAttribute('data-cfv15-view')||'');
     if(!date)return;
     event.preventDefault();

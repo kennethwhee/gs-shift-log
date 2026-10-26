@@ -317,20 +317,20 @@
     const cards=[];
     for(const [i,unit] of UNITS.entries()){
       const u=result?.units?.[unit],manualComplete=!!(u?.organic?.complete&&u?.manure?.complete),bioReady=coalBioRatio(u)!==null,provisional=result.organicUsage?.provisionalZero===true||result.organicUsage?.provisional===true;
-      cards.push(`<article class="cfv52-card${isHypothesis?' cfv17-hypothesis-card':''}" data-cfv52-unit="${unit}"><header><div class="cfv52-unit-title"><span class="cfv52-unit-number" aria-hidden="true">0${i+1}</span><div><strong>${i+1}호기</strong></div></div><span class="cfv52-card-status${manualComplete&&bioReady&&!provisional?'':' is-waiting'}">${isHypothesis?(pendingHypothesis?'가정 계산 보류':'가정 계산 · 저장 불가'):result.organicUsage?.provisional?'추정 재고 · 임시 계산':provisional?'유기성 0t 임시 표시':manualComplete&&bioReady?'계산 완료':bioReady&&result?.organicUsage?.code==='ORGANIC_BOUNDARY_CORRECTION_REQUIRED'?'Coal·Bio 완료 · 유기성 미확인':bioReady?'종합 계산 대기':u?.coal?.complete&&u?.bio?.complete?'사용량 확인 · 재고 보완 필요':'조회값 확인'}</span></header><div class="cfv52-metrics">
+      cards.push(`<article class="cfv52-card${isHypothesis?' cfv17-hypothesis-card':''}" data-cfv52-unit="${unit}"><header><div class="cfv52-unit-title"><span class="cfv52-unit-number" aria-hidden="true">0${i+1}</span><div><strong>${i+1}호기</strong></div></div><span class="cfv52-card-status${manualComplete&&bioReady&&!provisional?'':' is-waiting'}">${isHypothesis?(pendingHypothesis?'가정 계산 보류':'가정 계산 · 미확정'):result.organicUsage?.provisional?'추정 재고 · 임시 계산':provisional?'유기성 0t 임시 표시':manualComplete&&bioReady?'계산 완료':bioReady&&result?.organicUsage?.code==='ORGANIC_BOUNDARY_CORRECTION_REQUIRED'?'Coal·Bio 완료 · 유기성 미확인':bioReady?'종합 계산 대기':u?.coal?.complete&&u?.bio?.complete?'사용량 확인 · 재고 보완 필요':'조회값 확인'}</span></header><div class="cfv52-metrics">
         ${summaryMetric('바이오 혼소율',coalBioRatio(u),{ratio:true})}
         ${summaryMetric('유기성 · 축분 혼소율',u?.fuelRatios?.organicGroup,{ratio:true})}
         ${summaryMetric('종합 혼소율',u?.fuelRatios?.total,{ratio:true,emphasis:true})}
       </div>${fuelUsageMarkup(u,result.organicUsage?.scenario)}${targetReferenceMarkup(targetError?{status:'invalid_input',ready:false,message:targetError,targetPercent}:deadlineTargetApi?{...deadlineTargetApi.forUnit(u,result.period,{targetPercent}),ratioPercent:coalBioRatio(u)}:{targetPercent},{unit,open:host.querySelector?.('[data-cfv52-unit="'+unit+'"]')?.querySelector?.('[data-cfv10-target-details]')?.open===true})}</article>`);
     }
-    cards.push(`<article class="cfv52-card cfv52-card-total${isHypothesis?' cfv17-hypothesis-card':''}"><header><strong>1·2호기 종합 혼소율</strong><span>${isHypothesis?'가정 계산 · 마감 불가':'열량 가중 기준'}</span></header><div class="cfv52-total-ratios">
+    cards.push(`<article class="cfv52-card cfv52-card-total${isHypothesis?' cfv17-hypothesis-card':''}"><header><strong>1·2호기 종합 혼소율</strong><span>${isHypothesis?'가정 계산 · 확정 마감 불가':'열량 가중 기준'}</span></header><div class="cfv52-total-ratios">
       ${summaryMetric('바이오 혼소율',combinedCoalBio(result).ratio,{ratio:true})}
       ${summaryMetric('유기성 · 축분 혼소율',result?.combined?.fuelRatios?.organicGroup,{ratio:true})}
       ${summaryMetric('종합 혼소율',result?.combined?.ratios?.total,{ratio:true,emphasis:true})}
     </div></article>`);
     host.innerHTML=cards.join('');
     restoreEditor();
-    if(note)note.textContent=isHypothesis?(pendingHypothesis?'가정 계산 보류':'가정 계산 · 저장 불가'):result?.organicUsage?.code==='ORGANIC_BOUNDARY_CORRECTION_REQUIRED'&&result?.organicUsage?.ok!==true?'Coal·Bio 완료 · 유기성 재고 미확인':result?.warnings?.length?'자료 확인 필요':'계산 완료';
+    if(note)note.textContent=isHypothesis?(pendingHypothesis?'가정 계산 보류':'가정 계산 · 미확정'):result?.organicUsage?.code==='ORGANIC_BOUNDARY_CORRECTION_REQUIRED'&&result?.organicUsage?.ok!==true?'Coal·Bio 완료 · 유기성 재고 미확인':result?.warnings?.length?'자료 확인 필요':'계산 완료';
   }
 
   // COFIRING_ADJUSTED_COMPARISON_CARDS_V4
@@ -771,8 +771,8 @@
       }
       if(total.scenario?.kind==='cross-day-shared-what-if-v7'){
         const s=total.scenario,detail=container.querySelector('[data-cfv15-organic-usage]');
-        organicUsageSource('가정 계산 · 유기성 총 ≈'+num(s.total,2)+'t · 호기당 ≈'+num(s.unitTons,2)+'t · 저장·마감 불가','working');
-        if(detail){detail.innerHTML='<span>가정 계산 · 유기성 총 ≈'+num(s.total,2)+'t · 호기당 ≈'+num(s.unitTons,2)+'t · 저장·마감 불가</span>'+
+        organicUsageSource('가정 계산 · 유기성 총 ≈'+num(s.total,2)+'t · 호기당 ≈'+num(s.unitTons,2)+'t · 확정 마감 불가 · 별도 저장','working');
+        if(detail){detail.innerHTML='<span>가정 계산 · 유기성 총 ≈'+num(s.total,2)+'t · 호기당 ≈'+num(s.unitTons,2)+'t · 실측 미확정 · 별도 저장</span>'+
           '<details class="cfv17-organic-math"><summary>계산 근거 보기</summary><p>가정 Storage B(10/24 00:00): '+num(s.assumedStorageBTons,3)+'t · 시작 '+num(s.startTotal,3)+'t + 입고 '+num(s.receipt,3)+'t − 종료 '+num(s.endTotal,3)+'t = '+num(s.total,3)+'t</p><p>10/23 DataPARC 기간 최솟값을 자정 재고로 가정한 결과입니다. 실제 측정값이 아니며, 입고·하역 기록과 이송 이력 확인이 필요합니다.</p></details>';detail.dataset.tone='working';}
         const save=container.querySelector('[data-cfv5-manual-save]');if(save)save.disabled=true;
         return total;
@@ -804,7 +804,7 @@
       return total;
     }
     function paintOrganicCalculationState(){
-      if(organicUsageState?.scenario?.kind==='cross-day-shared-what-if-v7'){prepLabel('가정 계산 · 저장·마감 불가','working');setStatus(container,'공통 Storage B 재고 가정으로 혼소율을 미리 계산했습니다. 확정 사용량이 아니며 입고량·이송 내역 재확인이 필요합니다.','working');return true;}
+      if(organicUsageState?.scenario?.kind==='cross-day-shared-what-if-v7'){prepLabel('가정 계산 · 미확정','working');setStatus(container,'공통 Storage B 재고 가정으로 계산했습니다. 가정 기록 저장 상태를 확인해 주세요. 실측 마감이 아니며 입고량·이송 내역 재확인이 필요합니다.','working');return true;}
       if(organicUsageState?.sharedScenarioPending){prepLabel('가정 계산 보류','working');setStatus(container,organicUsageState.sharedScenarioReason||'같은 00:00 재고의 교차 검증이 완료되지 않았습니다.','working');return true;}
       if(organicUsageState?.provisional){
         prepLabel('추정 재고 · 임시 계산','working');
