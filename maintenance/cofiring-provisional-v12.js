@@ -1,10 +1,12 @@
-/* V13: automatic, separately-audited provisional values in existing calculation,
+/* V17: stable DataPARC evidence binding and correct next-morning source date.
+   V13: automatic, separately-audited provisional values in existing calculation,
    closed-data and morning-meeting surfaces. No new save/query widgets.
    Official close records, measured DataPARC and Excel remain untouched. */
 (function(root){
 'use strict';
 if(root.CofiringProvisionalV13Installed)return;
 root.CofiringProvisionalV13Installed=true;
+const GS_V17_CONTEXT_BINDING = true; // V17 guard marker
 const API='/api/cofiring-provisional-v12';
 const MEETING_ID='efficiencyMorningMeetingAutoCofiringCard';
 const APPROVED=new Set(['2026-10-23','2026-10-24']);
@@ -44,18 +46,53 @@ function calcContext(){
  const spec=ctrl?.getSpec?.(),date=shell?.querySelector('[data-cfv7-date]')?.value,mode=shell?.querySelector('[data-cfv8-mode]')?.value;
  return {shell,ctrl,spec,date,mode};
 }
+function nextDate(value){
+ if(!validDate(value))return '';
+ const ms=Date.parse(value+'T00:00:00Z');
+ return Number.isFinite(ms)?new Date(ms+86400000).toISOString().slice(0,10):'';
+}
+function morningSourceDate(date){
+ // The report displayed on Oct 24 is the full Oct 23 calculation.
+ // Never silently use Oct 24's future daily total for the Oct 24 morning.
+ return date==='2026-10-24'?'2026-10-23':date==='2026-10-25'?'2026-10-24':'';
+}
 function projectionContext(){
  const c=calcContext(),scenarioApi=root.CofiringSharedScenarioV7;
- if(!c.shell||!c.ctrl||!dateAllowed(c.date)||c.mode!=='daily'||!c.spec||c.spec.startLocal!==c.date+'T00:00'||!scenarioApi)return null;
- const raw=c.ctrl.getResult?.();if(!raw)return null;
- const projected=scenarioApi.project?.(raw),scenario=projected?.hypothesisDisplay;
- if(!scenarioApi.isScenario?.(scenario)||!near(scenario.assumedStorageBTons,19.143,0.00001))return null;
- const live=c.ctrl.live?.state?.()?.item,saved=live?.saved;
- if(!saved||saved.status!=='complete'||live.active||live.loading||live.submitting)return null;
- return {...c,raw,projected,scenario,saved};
+ if(!c.shell||!c.ctrl)throw Error('혼소율 계산 화면이 준비되지 않았습니다. 혼소율 메뉴를 다시 열어 주세요.');
+ if(!dateAllowed(c.date))throw Error('가정 저장은 10월 23·24일의 승인된 재고 가정에만 사용할 수 있습니다.');
+ if(c.mode!=='daily')throw Error('계산 방식을 일별 계산으로 선택해 주세요.');
+ if(!c.spec||c.spec.startLocal!==c.date+'T00:00'||c.spec.endLocal!==nextDate(c.date)+'T00:00'||
+   (c.spec.stepUnit&&c.spec.stepUnit!=='minute')||(c.spec.stepValue!=null&&c.spec.stepValue!==1))
+   throw Error('선택일 00:00~다음 날 00:00의 완료된 일별 계산인지 확인해 주세요.');
+ if(!scenarioApi?.project||!scenarioApi?.isScenario)throw Error('유기성 가정 계산 모듈을 불러오지 못했습니다. 새로고침해 주세요.');
+ // Read the authoritative controller result, not the text or rounded values
+ // from the cards. A render may have completed before the async controller
+ // has published its last result; try only other controller-owned snapshots.
+ const candidates=[c.ctrl.getResult?.(),c.ctrl.getDisplayResult?.(),c.shell.__cfv6DetailPayload?.result];
+ let raw=null,projected=null,scenario=null;
+ for(const candidate of candidates){
+   if(!candidate)continue;
+   const projection=scenarioApi.project(candidate),assumption=projection?.hypothesisDisplay;
+   if(scenarioApi.isScenario(assumption)&&near(assumption.assumedStorageBTons,19.143,0.00001)){
+     raw=candidate;projected=projection;scenario=assumption;break;
+   }
+ }
+ if(!raw)throw Error('계산 카드의 가정값과 원본 계산 연결이 확인되지 않았습니다. 일별 [계산하기]를 다시 실행해 주세요.');
+ const live=c.ctrl.live?.state?.(),item=live?.item,saved=item?.saved;
+ if(!item)throw Error('DataPARC 조회 상태를 불러오지 못했습니다. [계산하기]로 저장된 결과를 확인해 주세요.');
+ if(item.active||item.loading||item.submitting)throw Error('DataPARC 조회가 진행 중입니다. 완료된 뒤 가정 기록을 다시 확인합니다.');
+ if(saved&&saved.status!=='complete')throw Error('DataPARC 원본이 아직 완료 상태가 아닙니다.');
+ const currentId=item.result?.requestId;
+ if(saved?.id&&currentId&&saved.id!==currentId)throw Error('화면 계산과 DataPARC 원본 조회 ID가 다릅니다. [계산하기]를 다시 눌러 주세요.');
+ // Older live states sometimes contain a verified completed report without
+ // its saved metadata. The POST endpoint independently requires a completed,
+ // exact-date source in the database and recomputes all figures before write.
+ const id=saved?.id||currentId;
+ if(typeof id!=='string'||!/^[a-f0-9-]{30,48}$/i.test(id))throw Error('DataPARC 원본 요청 ID를 확인하지 못했습니다. 저장된 결과를 다시 불러와 주세요.');
+ return {...c,raw,projected,scenario,saved:{id}};
 }
 function buildPayload(){
- const c=projectionContext();if(!c)throw Error('가정 계산이 완료된 일별 자료를 확인해 주세요.');
+ const c=projectionContext();
  const module=root.CofiringPeriodV5,settings=module?.readSettings?.(c.shell),manual=module?.readManual?.(c.shell);
  if(!settings||!manual)throw Error('가정 계산 발열량과 연료 사용량 자료를 기다리고 있습니다.');
  const active=root.CofiringProvisionalAdjustV14?.getActive?.(c)||null;
@@ -155,7 +192,7 @@ function applyMorning(item,date,sourceDate=date){
  const doc=root.document,card=doc?.getElementById(MEETING_ID);
  // Historical seam only: if no October 24 record exists, the October 23
  // calculation may be displayed in the next morning's card, EXPLICITLY dated.
- if(!card||!validItem(item,sourceDate)||!(sourceDate===date||date==='2026-10-24'&&sourceDate==='2026-10-23')||morningDate()!==date||hasOfficialMorning(date)||morningBlocked(date))return false;
+ if(!card||!validItem(item,sourceDate)||!(morningSourceDate(date)===sourceDate||sourceDate===date)||morningDate()!==date||hasOfficialMorning(date)||morningBlocked(date))return false;
  if(card.dataset.gsV13ProvisionalDate&&card.dataset.gsV13ProvisionalDate!==date)clearMorning();
  card.dataset.gsV13ProvisionalDate=date;card.classList.add('gs-v13-morning-hypothesis');
  for(const u of UNITS){const values=item.summary[u],ids=FIELD_IDS[u];
@@ -185,13 +222,13 @@ async function refreshMorning({force=false}={}){
  const date=morningDate(),auth=getToken(),card=root.document?.getElementById(MEETING_ID);
  if(!card)return;
  if(state.morningDate!==date){clearMorning();state.morningDate=date;state.morningCheckAt=0}
- if(!dateAllowed(date)||!auth||morningBlocked(date)||hasOfficialMorning(date)){if(card.dataset.gsV13ProvisionalDate)clearMorning();return;}
+ if(!morningSourceDate(date)||!auth||morningBlocked(date)||hasOfficialMorning(date)){if(card.dataset.gsV13ProvisionalDate)clearMorning();return;}
  if(state.morningItem&&validItem(state.morningItem,state.morningSourceDate))applyMorning(state.morningItem,date,state.morningSourceDate);
  if(!force&&Date.now()-state.morningCheckAt<60000)return;
  if(state.morningPending===auth+'|'+date)return;
  const key=auth+'|'+date;state.morningPending=key;state.morningCheckAt=Date.now();
  try{
-  const dates=date==='2026-10-24'?[date,'2026-10-23']:[date];
+  const dates=[morningSourceDate(date)];
   let found=false;
   for(const sourceDate of dates){
    const {item}=await request('?targetDate='+encodeURIComponent(sourceDate));
@@ -258,7 +295,7 @@ let scheduled=null;
 function tick(){clearLegacyExtras();
  // Auto-persist ONLY the server-revalidated hypothesis; no confirmed close writes.
  if(root.document?.querySelector('.cofiring-period-v5'))void autoSave();
- const date=morningDate();if(!dateAllowed(date)){if(state.morningDate!==date){clearMorning();state.morningDate=date}}else void refreshMorning();
+ const date=morningDate();if(!morningSourceDate(date)){if(state.morningDate!==date){clearMorning();state.morningDate=date}}else void refreshMorning();
  const panel=root.document?.querySelector('.cfv12-history-panel');if(panel&&!panel.hidden)void refreshHistory();
 }
 function schedule(){if(scheduled!==null)return;scheduled=root.setTimeout?.(()=>{scheduled=null;tick()},90)??null}
@@ -276,7 +313,7 @@ function boot(){if(!root.document)return;mountCss();clearLegacyExtras();root.doc
   }
  });mo.observe(root.document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['hidden','value'],characterData:true});}
  root.addEventListener?.('cofiring:provisional-inline-updated',event=>{
-  if(event.detail?.targetDate===morningDate())void refreshMorning({force:true});
+  if(event.detail?.targetDate===morningSourceDate(morningDate()))void refreshMorning({force:true});
   state.historyCheckAt=0;void refreshHistory({force:true});
  });
  root.addEventListener?.('cofiring:closed-history-changed',()=>{clearMorning();state.morningCheckAt=0;state.historyCheckAt=0;schedule()});
@@ -284,5 +321,5 @@ function boot(){if(!root.document)return;mountCss();clearLegacyExtras();root.doc
  root.setInterval?.(()=>{if(!root.document.hidden)tick()},2500);schedule();
 }
 if(root.document){if(root.document.readyState==='loading')root.document.addEventListener('DOMContentLoaded',boot,{once:true});else boot()}
-root.CofiringProvisionalV12={buildPayload,request,validItem,sameSaved,applyMorning,decorateHistory,autoSave};
+root.CofiringProvisionalV12={buildPayload,request,validItem,sameSaved,applyMorning,decorateHistory,autoSave,morningSourceDate,projectionContext};
 })(typeof globalThis==='object'?globalThis:this);
