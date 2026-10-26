@@ -317,7 +317,7 @@
     const cards=[];
     for(const [i,unit] of UNITS.entries()){
       const u=result?.units?.[unit],manualComplete=!!(u?.organic?.complete&&u?.manure?.complete),bioReady=coalBioRatio(u)!==null,provisional=result.organicUsage?.provisionalZero===true||result.organicUsage?.provisional===true;
-      cards.push(`<article class="cfv52-card${isHypothesis?' cfv17-hypothesis-card':''}" data-cfv52-unit="${unit}"><header><div class="cfv52-unit-title"><span class="cfv52-unit-number" aria-hidden="true">0${i+1}</span><div><strong>${i+1}호기</strong></div></div><span class="cfv52-card-status${manualComplete&&bioReady&&!provisional?'':' is-waiting'}">${isHypothesis?(pendingHypothesis?'가정 근거 확인 중':'가정 계산 · 저장 불가'):result.organicUsage?.provisional?'추정 재고 · 임시 계산':provisional?'유기성 0t 임시 표시':manualComplete&&bioReady?'계산 완료':bioReady&&result?.organicUsage?.code==='ORGANIC_BOUNDARY_CORRECTION_REQUIRED'?'Coal·Bio 완료 · 유기성 미확인':bioReady?'종합 계산 대기':u?.coal?.complete&&u?.bio?.complete?'사용량 확인 · 재고 보완 필요':'조회값 확인'}</span></header><div class="cfv52-metrics">
+      cards.push(`<article class="cfv52-card${isHypothesis?' cfv17-hypothesis-card':''}" data-cfv52-unit="${unit}"><header><div class="cfv52-unit-title"><span class="cfv52-unit-number" aria-hidden="true">0${i+1}</span><div><strong>${i+1}호기</strong></div></div><span class="cfv52-card-status${manualComplete&&bioReady&&!provisional?'':' is-waiting'}">${isHypothesis?(pendingHypothesis?'가정 계산 보류':'가정 계산 · 저장 불가'):result.organicUsage?.provisional?'추정 재고 · 임시 계산':provisional?'유기성 0t 임시 표시':manualComplete&&bioReady?'계산 완료':bioReady&&result?.organicUsage?.code==='ORGANIC_BOUNDARY_CORRECTION_REQUIRED'?'Coal·Bio 완료 · 유기성 미확인':bioReady?'종합 계산 대기':u?.coal?.complete&&u?.bio?.complete?'사용량 확인 · 재고 보완 필요':'조회값 확인'}</span></header><div class="cfv52-metrics">
         ${summaryMetric('바이오 혼소율',coalBioRatio(u),{ratio:true})}
         ${summaryMetric('유기성 · 축분 혼소율',u?.fuelRatios?.organicGroup,{ratio:true})}
         ${summaryMetric('종합 혼소율',u?.fuelRatios?.total,{ratio:true,emphasis:true})}
@@ -330,7 +330,7 @@
     </div></article>`);
     host.innerHTML=cards.join('');
     restoreEditor();
-    if(note)note.textContent=isHypothesis?(pendingHypothesis?'가정 근거 확인 중':'가정 계산 · 저장 불가'):result?.organicUsage?.code==='ORGANIC_BOUNDARY_CORRECTION_REQUIRED'&&result?.organicUsage?.ok!==true?'Coal·Bio 완료 · 유기성 재고 미확인':result?.warnings?.length?'자료 확인 필요':'계산 완료';
+    if(note)note.textContent=isHypothesis?(pendingHypothesis?'가정 계산 보류':'가정 계산 · 저장 불가'):result?.organicUsage?.code==='ORGANIC_BOUNDARY_CORRECTION_REQUIRED'&&result?.organicUsage?.ok!==true?'Coal·Bio 완료 · 유기성 재고 미확인':result?.warnings?.length?'자료 확인 필요':'계산 완료';
   }
 
   // COFIRING_ADJUSTED_COMPARISON_CARDS_V4

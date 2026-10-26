@@ -73,23 +73,35 @@
  // WHAT-IF; neither case ever authorizes persistence of a projected quantity.
  function peerForOct24(prior){
    if(prior===null||prior===undefined)return {status:'unavailable'};
-   if(side(prior,{...dates.prev,stepUnit:'minute',stepValue:1})!=='prev')
+   if(!prior||typeof prior!=='object'||Array.isArray(prior))return {status:'foreign'};
+   // The adjacent GET already checks the saved request/period identity. A
+   // missing optional quality field must not turn that exact-period report
+   // into a different period. Only an EXPLICIT date mismatch is foreign.
+   if(prior.startLocal!==dates.prev.startLocal||prior.endLocal!==dates.prev.endLocal)
      return {status:'foreign'};
-   const peerSamples=samples(prior);
-   if(!peerSamples)return {status:'incomplete'};
-   const peerB=peerSamples.get(B),observed=observedMin23(prior);
-   if(observed!==null)return {status:'measured-min',tons:observed};
-   // An authentic Good point at the shared midnight overrides any hypothetical
-   // former minimum. We may not bury real evidence with an old assumption.
+   // If a separate verified or confirmed corrected midnight stock exists,
+   // do not bypass it with the historic WHAT-IF, even if its daily metadata
+   // does not fit the current scenario parser.
+   const confirmed=prior.organicInventory?.end?.[B];
+   if(prior.organicInventoryReady===true&&isTons(confirmed))
+     return {status:'confirmed-source',tons:confirmed};
+   const rows=prior.organicInventorySamples;
+   if(!Array.isArray(rows)||!rows.length)return {status:'incomplete'};
+   const peerB=rows.find(s=>s?.key===B);
+   if(peerB&&peerB.tag!==definitions[2][1])return {status:'contradictory-record'};
+   const map=samples(prior);
+   if(!map)return {status:'incomplete'};
    if(endpointValid(peerB,'end',SEAM))return {status:'confirmed-source',tons:peerB.endValue};
-   // The 23rd MUST still describe the same historical 19.143t / Raw Bad
-   // incident. Explicit contradictory metadata is not merely incomplete.
-   if((peerB.min!==undefined&&(!isTons(peerB.min)||Math.abs(peerB.min-OCT24_ACCEPTED_HYPOTHESIS.tons)>0.001))||
-     (peerB.delta!==undefined&&peerB.delta!==null)||
-     (peerB.endValue!==undefined&&peerB.endValue!==null)||
+   const observed=observedMin23(prior);
+   if(observed!==null)return {status:'measured-min',tons:observed};
+   // A missing/null statistic is UNKNOWN; a measured contradiction is not.
+   // The real 23rd has a Bad end and an absent Delta; null != actual zero.
+   if((peerB.min===null||(peerB.min!==undefined&&(!isTons(peerB.min)||Math.abs(peerB.min-OCT24_ACCEPTED_HYPOTHESIS.tons)>0.001)))||
+     (peerB.delta!=null)||
+     (peerB.endValue!=null)||
      qualityGood(peerB.endQuality)||
-     (peerB.durationBadSeconds!==undefined&&(!isTons(peerB.durationBadSeconds)||peerB.durationBadSeconds<=0||peerB.durationBadSeconds>3600))||
-     (peerB.startQuality!==undefined&&!qualityGood(peerB.startQuality))||
+     (peerB.durationBadSeconds===null||(peerB.durationBadSeconds!==undefined&&(!isTons(peerB.durationBadSeconds)||peerB.durationBadSeconds<=0||peerB.durationBadSeconds>3600)))||
+     (peerB.startQuality!=null&&!qualityGood(peerB.startQuality))||
      (peerB.endTime&&(!Number.isFinite(Date.parse(peerB.endTime))||
        Date.parse(peerB.endTime)>Date.parse(SEAM+':00+09:00')+60000||
        Date.parse(SEAM+':00+09:00')-Date.parse(peerB.endTime)>3600000)))
