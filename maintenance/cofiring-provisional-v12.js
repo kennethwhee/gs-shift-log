@@ -280,25 +280,34 @@ function clearLegacyExtras(){
  }
 }
 function setText(el,value){if(el&&el.textContent!==value)el.textContent=value;}
-function setMorningSavedBadge(card){
+function setMorningSavedBadge(card,item,sourceDate){
  const badge=root.document?.getElementById('efficiencyMorningMeetingCofiringStatus');
  if(!badge||!card.contains(badge))return;
  if(!badge.hasAttribute('data-gs-v24-badge')){
   badge.dataset.gsV24Badge='';badge.dataset.gsV24Previous=badge.textContent||'';
   badge.dataset.gsV24PreviousTitle=badge.getAttribute('title')||'';
+  badge.dataset.gsV24PreviousAria=badge.getAttribute('aria-label')||'';
+  badge.dataset.gsV24HadAria=badge.hasAttribute('aria-label')?'1':'0';
  }
- setText(badge,'가정값 저장');badge.dataset.gsV24Written='가정값 저장';
- badge.title='가정 계산으로 저장된 값입니다. 00:00 원본 재고 오류로 재확인이 필요합니다.';
+ const detail='계산일 '+sourceDate+' · 가정값 저장 · 미확정'+(item?.adjustment?' · Bio 조정':'')+
+  ' · 2026-10-24 00:00 통신 오류로 Storage B 재고 19.143t 가정 · 정확한 값이 아닐 수 있어 재확인 필요';
+ setText(badge,'가정값');badge.dataset.gsV24Written='가정값';
+ if(badge.title!==detail)badge.title=detail;
+ if(badge.getAttribute('aria-label')!==detail)badge.setAttribute('aria-label',detail);
+ badge.dataset.gsV24WrittenTitle=detail;badge.dataset.gsV24WrittenAria=detail;
  badge.classList.add('gs-v24-saved-badge');
 }
 function clearMorningSavedBadge(card){
  const badge=card.querySelector('[data-gs-v24-badge]');if(!badge)return;
- if(badge.textContent===badge.dataset.gsV24Written){
-  setText(badge,badge.dataset.gsV24Previous||'마감자료 없음');
-  badge.title=badge.dataset.gsV24PreviousTitle||'';
+ if(badge.textContent===badge.dataset.gsV24Written)setText(badge,badge.dataset.gsV24Previous||'마감자료 없음');
+ // Restore only attributes still owned by this status; keep newer native paints.
+ if(badge.title===badge.dataset.gsV24WrittenTitle)badge.title=badge.dataset.gsV24PreviousTitle||'';
+ if(badge.getAttribute('aria-label')===badge.dataset.gsV24WrittenAria){
+  if(badge.dataset.gsV24HadAria==='1')badge.setAttribute('aria-label',badge.dataset.gsV24PreviousAria||'');
+  else badge.removeAttribute('aria-label');
  }
  badge.classList.remove('gs-v24-saved-badge');
- for(const key of ['gsV24Badge','gsV24Previous','gsV24PreviousTitle','gsV24Written'])delete badge.dataset[key];
+ for(const key of ['gsV24Badge','gsV24Previous','gsV24PreviousTitle','gsV24PreviousAria','gsV24HadAria','gsV24Written','gsV24WrittenTitle','gsV24WrittenAria'])delete badge.dataset[key];
 }
 function clearMorning(){
  const doc=root.document;if(!doc)return;
@@ -323,7 +332,7 @@ function applyMorning(item,date,sourceDate=date){
  if(!card||!validItem(item,sourceDate)||!(morningSourceDate(date)===sourceDate||sourceDate===date)||morningDate()!==date||hasOfficialMorning(date)||morningBlocked(date))return false;
  if(card.dataset.gsV13ProvisionalDate&&card.dataset.gsV13ProvisionalDate!==date)clearMorning();
  card.dataset.gsV13ProvisionalDate=date;card.classList.add('gs-v13-morning-hypothesis');
- setMorningSavedBadge(card);
+ setMorningSavedBadge(card,item,sourceDate);
  for(const u of UNITS){const values=item.summary[u],ids=FIELD_IDS[u];
   for(const f of ['coal','bio','organic']){
    const el=doc.getElementById(ids[f]);if(!el||!card.contains(el))continue;
@@ -339,12 +348,8 @@ function applyMorning(item,date,sourceDate=date){
    el.classList.add('gs-v13-cell');el.parentElement?.classList.add('gs-v13-cell-box');
   }
  }
- let marker=card.querySelector('[data-gs-v13-note]');if(!marker){marker=doc.createElement('span');marker.dataset.gsV13Note='';marker.className='gs-v13-note';
-  const header=card.querySelector('.efficiency-morning-meeting-auto-card__header')||card.querySelector('h3')||card;
-  header.append(marker);
- }
- setText(marker,(sourceDate!==date?sourceDate+' 계산분 · ':'')+(item.adjustment?'유기성 추정 계산 · Bio 조정 · 미확정':'유기성 추정 계산 · 미확정'));
- marker.title='계산일 '+sourceDate+' · Storage B 2026-10-24 00:00 재고 19.143t 가정 · 실측 마감값 아님 · 재확인 필요';
+ // A single status pill owns the hypothesis notice; no extra header row.
+ card.querySelector('[data-gs-v13-note]')?.remove();
  state.morningItem=item;state.morningSourceDate=sourceDate;return true;
 }
 async function refreshMorning({force=false}={}){
@@ -407,10 +412,10 @@ async function refreshHistory({force=false}={}){
  finally{state.historyPending=false}
 }
 const css=`
-.gs-v24-saved-badge{background:#fff7db!important;border-color:#eedba5!important;color:#885902!important}
-.gs-v13-morning-hypothesis .gs-v13-cell-box{background:#fff7db!important;border-radius:6px;box-shadow:inset 0 0 0 1px #f0dd9d}
+/* GS_COFIRING_HYPOTHESIS_COMPACT_UI_V1: compact status, native value cells. */
+#efficiencyMorningMeetingCofiringStatus.gs-v24-saved-badge{background:#fff7db!important;border-color:#e3c379!important;color:#885902!important;white-space:nowrap!important}
+.gs-v13-morning-hypothesis .gs-v13-cell-box{background:transparent!important;box-shadow:none!important}
 .gs-v13-morning-hypothesis .gs-v13-cell{color:#8c5a07!important;font-weight:700!important}
-.gs-v13-note{display:inline-block;margin-left:6px;padding:2px 6px;background:#fff7db;border:1px solid #eedba5;border-radius:5px;color:#885902;font-size:10px;font-weight:650;line-height:1.4}
 .gs-v13-inline-history-table{width:100%;border-collapse:collapse}
 .gs-v13-history-hypothesis{background:#fff9e5!important;color:#805408}
 .gs-v13-history-hypothesis td{border-bottom:1px solid #f0e1b9;padding:8px 9px;font-size:12px}

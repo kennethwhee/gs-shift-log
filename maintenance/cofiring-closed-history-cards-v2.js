@@ -104,7 +104,7 @@
   function mountHypothesisStyle(){
     const doc=root.document;if(!doc||doc.getElementById('gs-cofiring-hypothesis-monthly-v1'))return;
     const style=doc.createElement('style');style.id='gs-cofiring-hypothesis-monthly-v1';
-    style.textContent='.cfh-hypothesis-day{background:#fff9eb}.cfh-hypothesis-day .cfh-hypothesis-label{display:block;white-space:normal;font-size:10px;line-height:1.4;color:#8c5a07;margin-top:4px}.cfh-hypothesis-warning{margin:8px 0;font-size:12px;line-height:1.5;color:#925e11}.cfh-hypothesis-detail-note{margin:0 0 12px;color:#8c5a07;font-size:12px;line-height:1.5}';
+    style.textContent='.cfh-hypothesis-day{background:#fff9eb}#efficiencyCofiringDraftView .cfh-readable-panel .cfh-hypothesis-day .cfh-date-meta{display:flex!important;align-items:center;justify-content:center;gap:4px;white-space:nowrap!important;line-height:1.2!important}#efficiencyCofiringDraftView .cfh-readable-panel .cfh-hypothesis-day .cfh-date-meta .cfh-hypothesis-label{display:inline-flex;align-items:center;flex:0 0 auto;margin:0;padding:1px 4px;border:1px solid #e3c379;border-radius:4px;background:#fff5d6;color:#8c5a07;font-size:10px;font-weight:600;line-height:1.2;white-space:nowrap}.cfh-hypothesis-warning{margin:8px 0;font-size:12px;line-height:1.5;color:#925e11}.cfh-hypothesis-detail-note{margin:0 0 12px;color:#8c5a07;font-size:12px;line-height:1.5}';
     doc.head?.append(style);
   }
 
@@ -303,7 +303,7 @@
     const savedTitle=hypothesis?' title="'+escapeHtml('가정 계산 · 미확정 · 저장 '+row.updatedAt)+'"':'';
     return `<tbody class="cfh-day-group${adjusted?' cfh-list-adjusted-day':''}${hypothesis?' cfh-hypothesis-day':''}" data-cfh-date="${escapeHtml(date)}" data-cfh-list-adjustment="1"${hypothesis?' data-cfv24-hypothesis="1"':''}>
       <tr data-cfv15-row="${escapeHtml(date)}">
-        <th class="cfh-date" scope="rowgroup" rowspan="2" aria-label="${escapeHtml(date)}"${savedTitle}><span class="cfh-date-line"><strong>${escapeHtml(valid?date.slice(5).replace('-','.'):date)}</strong>${adjustmentMark}</span><small>${weekday?weekday+'요일':''}</small>${hypothesis?'<small class="cfh-hypothesis-label">가정 계산 · 미확정</small>':''}</th>
+        <th class="cfh-date" scope="rowgroup" rowspan="2" aria-label="${escapeHtml(date+(hypothesis?' · 가정 계산 · 미확정':''))}"${savedTitle}><span class="cfh-date-line"><strong>${escapeHtml(valid?date.slice(5).replace('-','.'):date)}</strong>${adjustmentMark}</span>${hypothesis?'<small class="cfh-date-meta"><span title="'+escapeHtml(weekday?weekday+'요일':'')+'">'+escapeHtml(weekday)+'</span><span class="cfh-hypothesis-label" title="가정 계산 · 미확정">가정</span></small>':'<small>'+(weekday?weekday+'요일':'')+'</small>'}</th>
         ${numericCells(row.unit1,0)}${combinedCell(row.combined)}
         <td class="cfh-actions" rowspan="2"><button type="button" ${viewAttribute}="${escapeHtml(date)}" aria-label="${escapeHtml(date)} ${hypothesis?'가정 계산':'마감'} 상세 보기" aria-controls="cfh-readable-detail" aria-expanded="false">보기</button>${hypothesis?'':`<button type="button" class="danger" data-cfv15-delete="${escapeHtml(date)}" aria-label="${escapeHtml(date)} 마감 데이터 삭제">삭제</button>`}</td>
       </tr><tr>${numericCells(row.unit2,1)}</tr>
