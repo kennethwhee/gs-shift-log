@@ -16,19 +16,19 @@ const headers = slice('  function getAuthHeaders(', '  function hasAuthenticated
 const send = slice('  async function sendApiRequest(', '  function buildAdaptiveRetryLimits(');
 const TAG='104ETH03AN602', NOW='2026-10-22T08:00:00Z';
 const asset={tagNumber:TAG,displayName:'Test Blower',enabled:true,lastReplacementAt:'2026-10-01T00:00:00Z',cycleStartState:'legacy',cycleRuntimeRevision:'fresh-r2',dataParcRuntimeBasis:null,hasUnverifiedDataParcHistory:false};
-const snapshot=()=>({ok:true,version:'blower-refresh-state-v1',user:{name:'Test'},permissions:{canWrite:true},assets:[{...asset}],generatedAt:NOW});
+const snapshot=()=>({ok:true,version:'blower-refresh-state-page-v1',done:true,nextCursor:null,user:{name:'Test'},permissions:{canWrite:true},assets:[{...asset}],generatedAt:NOW});
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {resolve,promise};};
 function harness(options={}) {
- const timers=new Map(), classes=new Set(), calls={api:[],reload:0,batch:0,toast:[]};let clock=0,id=0;
- const elements=Object.fromEntries(['blowerQueryOverlay','blowerQueryPhase','blowerQueryElapsed','unifiedRefreshDiagnostics','unifiedRefreshDiagnosticText','unifiedRefreshText','unifiedRefreshStatus','refreshButton'].map(key=>[key,{hidden:true,textContent:'',dataset:{},setAttribute(){},removeAttribute(){}}]));
- const state={data:{permissions:{canWrite:true},user:{name:'old'},assets:[{...asset,cycleRuntimeRevision:'stale-r1',dataParcRuntimeBasis:{observedAt:'stale'}}]},busy:false};
+ const timers=new Map(), classes=new Set(), storage=options.storage||new Map(), calls={api:[],reload:0,logs:0,batch:0,batchIo:[],toast:[]};let clock=0,id=0;
+ const elements=Object.fromEntries(['blowerQueryOverlay','blowerQueryPhase','blowerQueryElapsed','blowerQueryProgress','blowerQueryDismiss','unifiedRefreshResume','unifiedRefreshDiagnostics','unifiedRefreshDiagnosticText','unifiedRefreshText','unifiedRefreshStatus','refreshButton'].map(key=>[key,{hidden:true,textContent:'',dataset:{},setAttribute(){},removeAttribute(){}}]));
+ const state={data:{permissions:{canWrite:true},user:{name:'old',employeeNo:options.employeeNo||'employee-one'},assets:[{...asset,cycleRuntimeRevision:'stale-r1',dataParcRuntimeBasis:{observedAt:'stale'}}]},busy:false};
  const core={...realCore,
   readWithRetry:async read=>read(),
-  refreshLogsForRuntime:async io=>{for(let i=0;i<8;i++)io.progress('HTTP 503 Ray synthetic '+'very long '.repeat(i*10));if(options.gate)await options.gate.promise;if(options.logError)throw options.logError;return {complete:!options.partial,totals:{},warning:'synthetic log issue'};},
-  executeDataParcBatch:async(tasks)=>{calls.batch++;calls.tasks=tasks;if(options.batchError)throw options.batchError;return tasks.map(task=>({tagNumber:task.asset.tagNumber,status:'complete'}));}
+  refreshLogsForRuntime:async io=>{calls.logs++;io.logProgress?.({scannedReplacementLogs:123,scannedOperationLogs:44});for(let i=0;i<8;i++)io.progress('HTTP 503 Ray synthetic '+'very long '.repeat(i*10));if(options.gate)await options.gate.promise;if(options.logError)throw options.logError;return {complete:!options.partial,totals:{},warning:'synthetic log issue'};},
+  executeDataParcBatch:async(tasks,io)=>{calls.batch++;calls.tasks=tasks;calls.batchIo.push(io);if(options.batchError)throw options.batchError;if(options.batchHook)return options.batchHook(tasks,io);return tasks.map(task=>({tagNumber:task.asset.tagNumber,status:'complete'}));}
  };
  const context=vm.createContext({state,elements,API_URL:'/api/blower-history',Date,Map,Set,Number,String,Math,Error,Object,
-  window:{BlowerUnifiedRefresh:core,setInterval(fn){timers.set(++id,fn);return id;},clearInterval(id){timers.delete(id);},setTimeout,clearTimeout},
+  window:{BlowerUnifiedRefresh:core,sessionStorage:{getItem:key=>storage.get(key)??null,setItem:(key,value)=>storage.set(key,String(value)),removeItem:key=>storage.delete(key)},setInterval(fn){timers.set(++id,fn);return id;},clearInterval(id){timers.delete(id);},setTimeout,clearTimeout},
   performance:{now:()=>clock},document:{body:{classList:{add:x=>classes.add(x),remove:x=>classes.delete(x)}}},navigator:{},
   isMobileMonitoringView:()=>Boolean(options.mobile),getSessionToken:()=> options.token === undefined ? 'synthetic-session' : options.token,
   setBusy:b=>{state.busy=b;},updateOverviewRefreshProgress(p,t){state.unifiedRefreshProgressPct=p;state.unifiedRefreshProgressText=t;},
@@ -36,19 +36,20 @@ function harness(options={}) {
   renderUnifiedRefreshProgress(){},renderAssets(){},renderOverviewRefreshPanel(){},
   currentServerDate:()=>new Date(NOW),formatKstDateTimeDisplay:x=>x,
   showToast:(...x)=>calls.toast.push(x),
-  apiRequest:async r=>{calls.api.push(r);if(options.readError)throw options.readError;return options.snapshot??snapshot();},
+  apiRequest:async r=>{calls.api.push(r);if(options.readError)throw options.readError;return options.pages ? options.pages[calls.api.length-1] : options.snapshot??snapshot();},
   loadData:async()=>{calls.reload++;if(options.finalError)throw options.finalError;return state.data;}
  });
  vm.runInContext(permission+headers+feedback+guard+refresh,context);
- return {context,state,elements,calls,classes,timers,tick(ms){clock=ms;for(const fn of timers.values())fn();},run:()=>context.refreshAllBlowers()};
+ return {context,state,elements,calls,classes,timers,storage,tick(ms){clock=ms;for(const fn of timers.values())fn();},run:()=>context.refreshAllBlowers()};
 }
 test('actual refresh keeps centered phase short through retry text and ignores a second click',async()=>{
  const gate=deferred(),h=harness({gate});const first=h.run();
  assert.equal(h.elements.blowerQueryOverlay.hidden,false);assert.equal(h.classes.has('blower-query-active'),true);
  assert.equal(h.elements.blowerQueryPhase.textContent,'교체 이력을 확인하고 있습니다');
+ assert.equal(h.elements.blowerQueryProgress.textContent,'교체 123건 · 운전 44건 확인');
  h.tick(65000);assert.equal(h.elements.blowerQueryElapsed.textContent,'경과 01:05');
  await h.run();assert.equal(h.calls.api.length,0);gate.resolve();await first;
- assert.equal(h.calls.api.length,1);assert.equal(h.calls.api[0].url,'/api/blower-history?action=refresh_state');
+ assert.equal(h.calls.api.length,1);assert.equal(h.calls.api[0].url,'/api/blower-history?action=refresh_state_page&limit=2&cursor=');
  assert.equal(h.calls.batch,1);assert.equal(h.calls.reload,1);
  assert.equal(h.calls.tasks[0].asset.cycleRuntimeRevision,'fresh-r2');
  assert.equal(h.calls.tasks[0].startAt,asset.lastReplacementAt);
@@ -187,4 +188,152 @@ test('non-retryable resource-limit errors stop read, log replay, and polling wit
   await assert.rejects(()=>operation==='read'?realCore.readWithRetry(fail,io,'test',opts):operation==='logs'?realCore.refreshLogsForRuntime(io,opts):realCore.waitRequests([{id:'test-query',status:'pending'}],io,opts),e=>e.code==='CLOUDFLARE_1102');
   assert.equal(calls,1);
  }
+});
+
+test('actual UI combines all authenticated plan pages before one atomic runtime batch',async()=>{
+ const other={...asset,tagNumber:'204ETG30AN601',dataParcTag:'GSPOGE.ABB_DCS.TEST_ONLY_RUN'};
+ const h=harness({pages:[{...snapshot(),done:false,nextCursor:TAG}, {...snapshot(),assets:[other]}]});
+ await h.run();assert.equal(h.calls.api.length,2);assert.match(h.calls.api[1].url,new RegExp('cursor='+TAG));
+ assert.equal(h.calls.batch,1);assert.equal(h.calls.tasks.length,2);assert.equal(h.elements.unifiedRefreshStatus.dataset.state,'complete');
+});
+for(const page of [
+ {...snapshot(),done:false,nextCursor:'forged'}, {...snapshot(),done:false,assets:[],nextCursor:TAG},
+ {...snapshot(),done:true,nextCursor:TAG}, {...snapshot(),done:'true'},
+ {...snapshot(),assets:[asset,asset,asset]}
+])test('malformed plan pagination cannot start any runtime request',async()=>{
+ const h=harness({snapshot:page});await h.run();assert.equal(h.calls.batch,0);assert.equal(h.elements.unifiedRefreshStatus.dataset.state,'failed');
+});
+test('later plan page cannot repeat an asset or revoke permissions silently',async()=>{
+ for(const second of [snapshot(),{...snapshot(),permissions:{canWrite:false}}]) {
+  const h=harness({pages:[{...snapshot(),done:false,nextCursor:TAG},second]});await h.run();assert.equal(h.calls.batch,0);assert.equal(h.calls.reload,0);
+  assert.equal(h.elements.blowerQueryOverlay.hidden,true);assert.equal(h.elements.unifiedRefreshStatus.dataset.state,'failed');
+ }
+});
+
+const RESUME_KEY='gsShiftLog.blowerRuntimeResume.v4';
+function acceptedCheckpoint(tasks, outcomes=[]) {
+ return {version:1,tasks,createdBatch:{ok:true,atomic:true,batchVersion:1,requestedCount:tasks.length,
+  results:tasks.map((task,index)=>({ok:true,assetTag:task.snapshot.tagNumber,item:{id:`accepted-ui-${index+1}`,status:'pending',requestType:'blower_runtime_probe',probe:{assetTag:task.snapshot.tagNumber,requestId:`accepted-ui-${index+1}`}}}))},outcomes};
+}
+
+test('the centered overlay dismisses after 30 seconds while the admitted query and duplicate-click guard stay active',async()=>{
+ const gate=deferred(),h=harness({gate}),running=h.run();
+ h.tick(29000);assert.equal(h.elements.blowerQueryOverlay.hidden,false);
+ h.tick(30000);
+ assert.equal(h.elements.blowerQueryOverlay.hidden,true);
+ assert.equal(h.classes.has('blower-query-active'),false);
+ assert.equal(h.state.unifiedRefreshBusy,true);assert.equal(h.state.busy,true);
+ assert.equal(h.elements.unifiedRefreshStatus.hidden,false);
+ assert.match(h.elements.unifiedRefreshText.textContent,/저장된 이력을 볼 수 있습니다/);
+ assert.equal(h.timers.size,1,'elapsed feedback remains alive while the original operation is running');
+ await h.run();assert.equal(h.calls.logs,1);assert.equal(h.calls.batch,0);
+ gate.resolve();await running;
+ assert.equal(h.calls.batch,1);assert.equal(h.calls.reload,1);assert.equal(h.timers.size,0);
+ assert.equal(h.state.unifiedRefreshBusy,false);
+});
+
+test('manual history viewing hides the overlay without cancelling or restarting the running query',async()=>{
+ const gate=deferred(),h=harness({gate}),running=h.run();
+ h.context.dismissUnifiedRefreshFeedback();
+ assert.equal(h.elements.blowerQueryOverlay.hidden,true);
+ assert.equal(h.state.unifiedRefreshBusy,true);assert.equal(h.state.busy,true);
+ assert.equal(h.state.unifiedFeedbackDismissed,true);
+ h.tick(1000);assert.equal(h.elements.blowerQueryOverlay.hidden,true);
+ await h.run();assert.equal(h.calls.logs,1);assert.equal(h.calls.batch,0);
+ gate.resolve();await running;
+ assert.equal(h.calls.batch,1);assert.equal(h.calls.reload,1);
+ assert.equal(h.elements.unifiedRefreshStatus.dataset.state,'complete');
+ assert.equal(h.timers.size,0);
+});
+
+test('waiting results expose resume and a second confirmation reuses the accepted IDs without a new log scan or plan',async()=>{
+ let run=0;
+ const h=harness({batchHook:async(tasks,io)=>{
+  run++;
+  if(run===1){
+   assert.equal(io.runtimeResume,null);
+   io.runtimeCheckpoint(acceptedCheckpoint(tasks));
+   return tasks.map(task=>({tagNumber:task.snapshot.tagNumber,status:'waiting',requestId:'accepted-ui-1',message:'PC processing'}));
+  }
+  assert.equal(io.runtimeResume.createdBatch.results[0].item.id,'accepted-ui-1');
+  assert.equal(tasks[0].snapshot.cycleRuntimeRevision,'fresh-r2');
+  io.runtimeCheckpoint(null);
+  return tasks.map(task=>({tagNumber:task.snapshot.tagNumber,status:'complete',message:'confirmed same request'}));
+ }});
+ await h.run();
+ assert.equal(h.calls.logs,1);assert.equal(h.calls.api.length,1);assert.equal(h.calls.batch,1);
+ assert.equal(h.elements.unifiedRefreshStatus.dataset.state,'partial');
+ assert.equal(h.elements.unifiedRefreshResume.hidden,false);
+ assert.equal(h.state.unifiedRefreshProgressPct,0,'a waiting asset must not display 100% completion');
+ assert.match(h.elements.unifiedRefreshText.textContent,/1대의 결과를 기다리고/);
+ assert.doesNotMatch(h.elements.unifiedRefreshText.textContent,/조회가 완료됐습니다/);
+ h.state.data.assets[0].cycleRuntimeRevision='a-new-browser-snapshot';
+ await h.run();
+ assert.equal(h.calls.logs,1,'accepted work must be reconciled before rereading work logs');
+ assert.equal(h.calls.api.length,1,'accepted work must not receive a new planning snapshot');
+ assert.equal(h.calls.batch,2);assert.equal(h.calls.reload,2);
+ assert.equal(h.elements.unifiedRefreshStatus.dataset.state,'complete');
+ assert.equal(h.elements.unifiedRefreshResume.hidden,true);
+ assert.equal(h.state.unifiedRuntimeResume,null);assert.equal(h.storage.has(RESUME_KEY),false);
+});
+
+test('same-owner session restore retains accepted IDs, distrusts cached success, and never stores the login token',()=>{
+ const tasks=realCore.plan([asset],new Date(NOW)).tasks;
+ const original=harness();
+ original.context.saveUnifiedRuntimeResume(acceptedCheckpoint(tasks,[{tagNumber:TAG,status:'complete',message:'cached only'}]));
+ const stored=original.storage.get(RESUME_KEY);
+ assert.ok(stored);assert.doesNotMatch(stored,/synthetic-session|Authorization|Bearer/);
+ assert.equal(JSON.parse(stored).owner,'employee-one');
+ const restored=harness({storage:original.storage,token:'another-valid-session-for-same-owner'});
+ restored.context.restoreUnifiedRuntimeResume();
+ assert.equal(restored.state.unifiedRuntimeResume.createdBatch.results[0].item.id,'accepted-ui-1');
+ assert.equal(restored.state.unifiedRuntimeResume.outcomes.length,0,'storage may identify work, but cannot assert it was saved');
+ assert.equal(restored.state.unifiedRuntimeResumeOwner,'another-valid-session-for-same-owner');
+ assert.equal(restored.elements.unifiedRefreshResume.hidden,false);
+ assert.equal(restored.calls.batch,0);assert.equal(restored.calls.api.length,0);
+ assert.doesNotMatch(original.storage.get(RESUME_KEY),/another-valid-session-for-same-owner|synthetic-session/);
+});
+
+test('another employee cannot restore or execute a stored owner checkpoint',()=>{
+ const original=harness();
+ original.context.saveUnifiedRuntimeResume(acceptedCheckpoint(realCore.plan([asset],new Date(NOW)).tasks));
+ const other=harness({storage:original.storage,employeeNo:'employee-two',token:'other-token'});
+ other.context.restoreUnifiedRuntimeResume();
+ assert.equal(other.state.unifiedRuntimeResume,null);
+ assert.equal(other.state.unifiedRuntimeResumeOwner,'');
+ assert.equal(other.elements.unifiedRefreshResume.hidden,true);
+ assert.equal(other.calls.batch,0);assert.equal(other.calls.api.length,0);
+});
+
+test('a final data reload failure preserves waiting accepted work and the previously displayed runtime',async()=>{
+ const h=harness({finalError:Object.assign(new Error('reload unavailable'),{status:503}),batchHook:async(tasks,io)=>{
+  io.runtimeCheckpoint(acceptedCheckpoint(tasks));
+  return tasks.map(task=>({tagNumber:task.snapshot.tagNumber,status:'waiting',requestId:'accepted-ui-1',message:'waiting'}));
+ }});
+ h.state.data.assets[0].cycleElapsedHours=206.8;
+ const originalData=JSON.stringify(h.state.data);
+ await h.run();
+ assert.equal(h.calls.batch,1);assert.equal(h.calls.reload,1);
+ assert.equal(h.state.unifiedRuntimeResume.createdBatch.results[0].item.id,'accepted-ui-1');
+ assert.equal(h.elements.unifiedRefreshResume.hidden,false);
+ assert.equal(JSON.stringify(h.state.data),originalData);
+ assert.equal(h.state.unifiedRefreshResults[0].status,'waiting');
+ assert.equal(h.elements.unifiedRefreshStatus.dataset.state,'failed');
+ assert.equal(h.elements.blowerQueryOverlay.hidden,true);assert.equal(h.timers.size,0);
+ assert.equal(h.state.unifiedRefreshBusy,false);assert.equal(h.state.busy,false);
+ assert.doesNotMatch(h.elements.unifiedRefreshText.textContent,/조회가 완료됐습니다/);
+});
+
+test('an unknown create response explains uncertain acceptance, ends the overlay, and does not retry or report completion',async()=>{
+ const h=harness({batchError:Object.assign(new Error('receipt unavailable'),{status:504,code:'CREATE_RESULT_UNCONFIRMED'})});
+ await h.run();
+ assert.equal(h.calls.batch,1);assert.equal(h.calls.reload,0);
+ assert.equal(h.elements.unifiedRefreshStatus.dataset.state,'failed');
+ assert.match(h.elements.unifiedRefreshText.textContent,/접수 결과를 확인하지 못했습니다/);
+ assert.match(h.elements.unifiedRefreshText.textContent,/이미 처리 중일 수 있습니다/);
+ assert.match(h.elements.unifiedRefreshText.textContent,/자동 재요청은 하지 않았습니다/);
+ assert.doesNotMatch(h.elements.unifiedRefreshText.textContent,/조회가 완료됐습니다/);
+ assert.equal(h.state.unifiedRuntimeResume,null);assert.equal(h.storage.has(RESUME_KEY),false);
+ assert.equal(h.elements.blowerQueryOverlay.hidden,true);assert.equal(h.timers.size,0);
+ assert.equal(h.state.unifiedRefreshBusy,false);assert.equal(h.state.busy,false);
 });

@@ -10,10 +10,10 @@
   <link rel="stylesheet" href="blower-history-mobile-dialog-close-v1.css?v=20260903-v1">
   <link rel="stylesheet" href="/maintenance/seal-pot-ois-shadow.css?v=20260901-v2">
   <script src="shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
-  <link rel="stylesheet" href="blower-unified-refresh.css?v=20261022-centered-query-v1">
+  <link rel="stylesheet" href="blower-unified-refresh.css?v=20261022-query-resource-v3">
   <script src="blower-refresh-timing.js?v=20260915-fast-timing-v12" defer></script>
-  <script src="blower-unified-refresh.js?v=20261022-query-resilience-v2" defer></script>
-    <script src="blower-history.js?v=20261022-query-resilience-v2" defer></script>
+  <script src="blower-unified-refresh.js?v=20261022-query-resource-v3" defer></script>
+    <script src="blower-history.js?v=20261022-query-resource-v3" defer></script>
   <script src="/maintenance/seal-pot-ois-shadow.js?v=20260909-unified-refresh-v1" defer></script>
   <link rel="stylesheet" href="/maintenance/blower-schedule-v1.css?v=20260916-compact-ui-v1">
   <script src="/maintenance/blower-schedule-v1.js?v=20260916-v1" defer></script>
@@ -26,7 +26,9 @@
       <span class="blower-query-spinner" aria-hidden="true"></span>
       <strong>Blower 조회 중</strong>
       <p id="blowerQueryPhase">필요한 자료를 준비하고 있습니다</p>
+      <p class="blower-query-count" id="blowerQueryProgress" aria-live="off">교체 0건 · 운전 0건 확인</p>
       <span class="blower-query-elapsed" id="blowerQueryElapsed" aria-hidden="true">경과 00:00</span>
+      <button type="button" class="blower-query-dismiss" id="blowerQueryDismiss">이력 보면서 기다리기</button>
     </div>
   </section>
   <div class="page-shell">
@@ -47,6 +49,7 @@
     <section class="notice-bar" id="authNotice" role="status" aria-live="polite" hidden></section>
     <section class="unified-refresh-status" id="unifiedRefreshStatus" aria-label="전체 통합조회 결과" hidden>
       <p id="unifiedRefreshText" role="status" aria-live="polite"></p>
+      <button type="button" class="button secondary blower-resume-button" id="unifiedRefreshResume" hidden>조회 결과 다시 확인</button>
       <details id="unifiedRefreshDiagnostics" hidden><summary>조회 상세</summary><p id="unifiedRefreshDiagnosticText"></p></details>
       <details id="unifiedRefreshDetails" hidden><summary id="unifiedRefreshSummary">통합조회 결과</summary><div id="unifiedRefreshList"></div></details>
     </section>

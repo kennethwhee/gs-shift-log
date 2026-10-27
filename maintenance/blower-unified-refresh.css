@@ -70,3 +70,13 @@
 #unifiedRefreshDiagnosticText { white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; font-weight:400; max-height:160px; overflow:auto; }
 @keyframes blower-query-spin { to { transform:rotate(360deg); } }
 @media (prefers-reduced-motion:reduce) { .blower-query-spinner { animation:none; } }
+
+.blower-query-card > .blower-query-count { width:100%; min-height:20px; font-size:12px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.blower-query-count[hidden] { display:block !important; visibility:hidden; }
+
+/* BLOWER_LOADING_RECOVERY_V4: history remains readable during a slow query. */
+.blower-query-dismiss { pointer-events:auto; margin-top:4px; padding:8px 12px; border:1px solid #cbdaf0; border-radius:8px; color:#315b88; background:#f8fbff; font:inherit; font-size:12px; cursor:pointer; }
+.blower-query-dismiss:hover { background:#edf4ff; }
+.blower-query-dismiss:focus-visible { outline:2px solid #245bdb; outline-offset:3px; }
+.blower-resume-button { margin-top:8px; padding:7px 12px; font-size:12px; }
+.unified-refresh-result[data-result="waiting"] { background:#edf4ff; }

@@ -16,7 +16,8 @@
           completedCount: result.filter(item => item?.status === 'complete').length,
           failedCount: result.filter(item => item?.status === 'failed').length
         } : {};
-        measurement?.end(counts.failedCount ? 'partial' : status, counts);
+        const waiting = Array.isArray(result) && result.some(item => ['waiting', 'pending', 'processing'].includes(item?.status));
+        measurement?.end(counts.failedCount || waiting ? 'partial' : status, counts);
       } catch (_) {}
     };
     try { const result = await operation(); finish('complete', result); return result; }
@@ -132,7 +133,7 @@
     const start = clock(), deadline = start + (options.timeoutMs || 2 * 3600000);
     const settleFailures = options.settleFailures === true;
     let retry = 0, pollCount = 0;
-    while (clock() < deadline) {
+    while (true) {
       io.assertWritable?.();
       const all = [...map.values()];
       const failed = all.find(x => x.status === 'failed');
@@ -141,8 +142,14 @@
       if (all.some(x => !['pending', 'processing', 'complete', ...(settleFailures ? ['failed'] : [])].includes(x.status))) {
         throw error('알 수 없는 조회 상태입니다.', 'INVALID_REQUEST_STATUS');
       }
+      if (clock() >= deadline) {
+        if (options.returnPendingOnTimeout === true) return all;
+        throw error('운전시간 조회가 최대 대기시간을 초과했습니다.', 'REQUEST_TIMEOUT');
+      }
       // No Agent response: do not leave a large all-Blower queue waiting indefinitely.
-      if (all.every(x => x.status === 'pending') && clock() - start >= (options.pendingTimeoutMs || 180000)) {
+      const active = all.filter(x => !['complete', 'failed'].includes(x.status));
+      if (active.length && active.every(x => x.status === 'pending') && clock() - start >= (options.pendingTimeoutMs || 180000)) {
+        if (options.returnPendingOnTimeout === true) return all;
         throw error('회사 PC Agent 응답 대기시간을 초과했습니다. 완료된 값은 유지합니다.', 'AGENT_UNAVAILABLE');
       }
       const terminal = all.filter(x => ['complete', 'failed'].includes(x.status)).length;
@@ -156,25 +163,26 @@
         const interval = elapsed < 10000 ? 400 : elapsed < 60000 ? 1000 : 2500;
         await sleep(Math.min(interval, Math.max(0, deadline - clock())));
       }
+      if (clock() >= deadline) continue;
       let payloads;
       try {
         const groups = [];
         for (let index = 0; index < ids.length; index += 24) groups.push(ids.slice(index, index + 24));
         payloads = await Promise.all(groups.map((group, groupIndex) => io.api({
           url: `/api/ois-data-requests?action=status_batch&compact=1&ids=${encodeURIComponent(group.join(','))}&_=${clock() + groupIndex}`,
-          timeoutMs: 20000
+          timeoutMs: Math.min(20000, Math.max(1, deadline - clock()))
         })));
         pollCount += 1;
         retry = 0;
       } catch (e) {
         if (e?.retryable === false || ![0,429,502,503,504].includes(Number(e?.status || 0)) || retry >= 4) throw e;
-        await sleep(Math.min(30000, Math.max(1000 * 2 ** retry++, Number(e.retryAfterMs) || 0))); continue;
+        await sleep(Math.min(Math.max(0, deadline - clock()), 30000, Math.max(1000 * 2 ** retry++, Number(e.retryAfterMs) || 0))); continue;
       }
       const returned = payloads.flatMap(payload => Array.isArray(payload?.items) ? payload.items : []);
       if (ids.some(id => !returned.some(x => String(x.id) === id))) throw error('조회 요청 상태가 누락되었습니다.', 'REQUEST_MISSING');
       for (const item of returned) if (map.has(String(item.id))) map.set(String(item.id), item);
+      io.onStatuses?.([...map.values()]);
     }
-    throw error('운전시간 조회가 최대 대기시간을 초과했습니다.', 'REQUEST_TIMEOUT');
   }
 
   function dataParcCreateBody(task) {
@@ -190,10 +198,13 @@
   }
 
   async function executeDataParcBatch(tasks, io) {
-    const source = (tasks || []).filter(task => task?.snapshot?.tagNumber);
+    // BLOWER_LOADING_RECOVERY_V4: an accepted batch is resumed by its original
+    // IDs. A long-running job is never recreated just because its UI wait ends.
+    const resume = io.runtimeResume;
+    const source = (resume?.tasks || tasks || []).filter(task => task?.snapshot?.tagNumber);
     if (!source.length) return [];
     io.assertWritable?.();
-    io.progress?.(`${source.length}대 증분 조회 요청 등록 중`);
+    io.progress?.(resume ? `${source.length}대 이전 조회 결과 확인 중` : `${source.length}대 증분 조회 요청 등록 중`);
 
     // One authenticated server action validates every Cycle/append intent and
     // publishes all new queue rows in one D1 transaction.  Never fall back to
@@ -203,9 +214,22 @@
     const sourceTags = source.map(task => String(task.snapshot.tagNumber));
     if (new Set(sourceTags).size !== sourceTags.length) throw error('같은 Blower가 일괄 조회에 중복 포함되었습니다.', 'CREATE_BATCH_DUPLICATE_ASSET');
 
-    const createdBatch = await measurePhase('createRequests', { targetCount: source.length }, () => io.api({ method: 'POST', url: '/api/ois-data-requests', body: {
-      action: 'create_blower_runtime_probe_batch', requests: source.map(dataParcCreateBody)
-    }}));
+    let createdBatch = resume?.createdBatch;
+    if (!createdBatch) {
+      try {
+        createdBatch = await measurePhase('createRequests', { targetCount: source.length }, () => io.api({ method: 'POST', timeoutMs: 30000, url: '/api/ois-data-requests', body: {
+          action: 'create_blower_runtime_probe_batch', requests: source.map(dataParcCreateBody)
+        }}));
+      } catch (cause) {
+        if ([0, 502, 503, 504].includes(Number(cause?.status || 0))) {
+          const e = error('조회 요청의 접수 결과를 확인하지 못했습니다. 회사 PC에서 이미 처리 중일 수 있습니다.', 'CREATE_RESULT_UNCONFIRMED');
+          Object.assign(e, { status: cause?.status || 0, retryable: false, cause,
+            cloudflareCode: cause?.cloudflareCode, cfRay: cause?.cfRay });
+          throw e;
+        }
+        throw cause;
+      }
+    }
     const batchResults = Array.isArray(createdBatch?.results) ? createdBatch.results : [];
     if (createdBatch?.ok !== true || createdBatch?.atomic !== true || createdBatch?.batchVersion !== 1 ||
         Number(createdBatch?.requestedCount) !== source.length || batchResults.length !== source.length) {
@@ -235,10 +259,23 @@
     }
     const createOutcomes = source.map(task => ({ task, created: createdByTag.get(String(task.snapshot.tagNumber)) }));
 
-    const resultByTag = new Map();
+    const resultByTag = new Map((resume?.outcomes || []).filter(item =>
+      sourceTags.includes(item?.tagNumber) && ['complete', 'failed'].includes(item?.status)
+    ).map(item => [item.tagNumber, item]));
+    const saveCheckpoint = () => io.runtimeCheckpoint?.({ version: 1,
+      tasks: source.map(task => ({ ...task, asset: { tagNumber: task.snapshot.tagNumber,
+        displayName: task.asset?.displayName || task.snapshot.tagNumber } })),
+      createdBatch: { ok: true, atomic: true, batchVersion: 1, requestedCount: source.length,
+        results: batchResults.map(row => row.upToDate === true ? { ok: true, assetTag: row.assetTag, upToDate: true, message: row.message } : {
+          ok: true, assetTag: row.assetTag, item: { id: row.item.id, status: row.item.status,
+            requestType: 'blower_runtime_probe', probe: { assetTag: row.assetTag, requestId: row.item.id } }
+        }) }, outcomes: [...resultByTag.values()].filter(item => ['complete', 'failed'].includes(item.status)) });
+    // This checkpoint contains accepted IDs only. An uncertain create is not a receipt.
+    saveCheckpoint();
     const pending = [];
     for (const outcome of createOutcomes) {
       const task = outcome.task, s = task.snapshot;
+      if (resultByTag.has(s.tagNumber)) continue;
       if (outcome.cause) {
         if ([401, 403].includes(Number(outcome.cause?.status))) throw outcome.cause;
         resultByTag.set(s.tagNumber, { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber,
@@ -261,7 +298,16 @@
 
     if (pending.length) {
       io.progress?.(`숨김 Excel 일괄 조회 준비 · ${pending.length}대`);
-      const settled = await measurePhase('waitResults', { requestCount: pending.length }, () => waitRequests(pending.map(entry => entry.item), io, { settleFailures: true, sleep: io.sleep, clock: io.clock }));
+      let settled = pending.map(entry => ({ ...entry.item, status: resume ? 'pending' : entry.item.status })), waitError = null;
+      try {
+        settled = await measurePhase('waitResults', { requestCount: pending.length }, () => waitRequests(settled, {
+          ...io, onStatuses: items => { settled = items; io.onStatuses?.(items); }
+        }, { settleFailures: true, sleep: io.sleep, clock: io.clock,
+          timeoutMs: 120000, pendingTimeoutMs: 45000, returnPendingOnTimeout: true }));
+      } catch (cause) {
+        if ([401, 403].includes(Number(cause?.status)) || cause?.code === 'WRITE_ACCESS_CHANGED') throw cause;
+        waitError = cause;
+      }
       const statusById = new Map(settled.map(item => [String(item.id), item]));
       io.assertWritable?.();
 
@@ -272,20 +318,32 @@
           return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber, status: 'failed',
             message: request?.errorMessage || '회사 PC DataPARC 조회에 실패했습니다.' };
         }
+        if (request.status !== 'complete') {
+          return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber,
+            requestId: entry.item.id, status: 'waiting', message: waitError
+              ? `상태 확인 대기 · ${errorLabel(waitError)}`
+              : request.status === 'processing' ? '회사 PC 처리 중 · 같은 요청으로 결과 확인 가능'
+              : '회사 PC 응답 대기 · 같은 요청으로 결과 확인 가능' };
+        }
         try {
-          const applied = await io.api({ method: 'POST', body: { action: 'dataparc_runtime_sync', requestId: entry.item.id } });
+          const applied = await io.api({ method: 'POST', timeoutMs: 30000, body: { action: 'dataparc_runtime_sync', requestId: entry.item.id } });
           appliedCount += 1;
           io.progress?.(`조회 결과 저장 중 · ${appliedCount}/${pending.length}`);
           return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber, status: 'complete',
             message: applied.message || '증분 운전시간 반영 완료' };
         } catch (cause) {
           if ([401, 403].includes(Number(cause?.status))) throw cause;
-          return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber, status: 'failed',
-            message: cause?.message || '조회 결과 저장 실패 · 기존 값 유지' };
+          const uncertain = [0, 429, 502, 503, 504].includes(Number(cause?.status || 0));
+          return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber,
+            requestId: entry.item.id, status: uncertain ? 'waiting' : 'failed',
+            message: uncertain ? '조회 결과 저장 확인 대기 · 같은 요청으로 재확인 가능' : cause?.message || '조회 결과 저장 실패 · 기존 값 유지' };
         }
       })));
       for (const item of applyResults) resultByTag.set(item.tagNumber, item);
     }
+
+    if ([...resultByTag.values()].some(item => item.status === 'waiting')) saveCheckpoint();
+    else io.runtimeCheckpoint?.(null);
 
     return source.map(task => resultByTag.get(task.snapshot.tagNumber) || {
       tagNumber: task.snapshot.tagNumber, displayName: task.asset.displayName || task.snapshot.tagNumber,
@@ -343,13 +401,19 @@
   }
   async function readWithRetry(read, io, label = '현황 다시 읽기', options = {}) {
     const sleep = options.sleep || (ms => new Promise(r => setTimeout(r, ms)));
+    const clock = options.clock || Date.now;
+    const remaining = () => Number.isFinite(options.deadline) ? Math.max(0, options.deadline - clock()) : Infinity;
     for (let retry = 0; ; retry++) {
       io.assertWritable?.();
+      if (!remaining()) {
+        const e = error(`${label} 응답 시간이 초과되었습니다. 기존 값은 유지합니다.`, 'READ_DEADLINE');
+        e.retryable = false; throw e;
+      }
       try { return await read(); }
       catch (e) {
         if (!transient(e) || retry >= 3) throw e;
         io.progress?.(`${label} · ${errorLabel(e)} · 재시도 ${retry + 1}/3`);
-        await sleep(Math.min(30000, Math.max(1000 * 2 ** retry, Number(e.retryAfterMs) || 0)));
+        await sleep(Math.min(remaining(), 30000, Math.max(1000 * 2 ** retry, Number(e.retryAfterMs) || 0)));
       }
     }
   }
@@ -362,21 +426,35 @@
     const initial = options.resume;
     let phase = initial?.phase === 'operation' ? 'operation' : 'replacement';
     let window = initial?.window || null, cursor = initial?.cursor || null;
-    let limit = Math.max(1, Math.min(8, Number(initial?.limit || 4)));
+    const maxLimit = Math.max(1, Math.min(8, Number(options.pageLimit) || 8));
+    let limit = Math.max(1, Math.min(maxLimit, Number(initial?.limit || Math.min(4, maxLimit))));
     const totals = { scannedReplacementLogs: 0, scannedOperationLogs: 0, insertedCount: 0, appliedStateChanges: 0, ...initial?.totals };
     let pages = 0;
+    const clock = options.clock || Date.now;
+    const deadline = Number.isFinite(options.timeBudgetMs) ? clock() + Math.max(1, options.timeBudgetMs) : Infinity;
+    const maxPages = Math.max(1, Math.min(20000, Number(options.maxPages) || 20000));
+    const pause = () => {
+      const e = error(`업무일지 확인을 나누어 진행합니다 · 교체 기록 ${totals.scannedReplacementLogs}건 · 운전 기록 ${totals.scannedOperationLogs}건 확인 · 남은 기록은 다음 조회에서 이어서 확인`, 'LOG_REFRESH_PAUSED');
+      e.retryable = false; e.logTotals = { ...totals }; throw e;
+    };
+    const remaining = () => Math.max(0, deadline - clock());
+    const report = () => io.logProgress?.({ phase, ...totals });
     const checkpoint = () => io.checkpoint?.({ phase, window, cursor, limit, totals: { ...totals } });
     checkpoint();
-    while (pages++ < 20000) {
+    report();
+    while (pages++ < maxPages) {
+      io.assertWritable?.();
+      if (!remaining()) pause();
       const label = phase === 'replacement' ? 'V-Belt 교체 기록 확인' : '교체운전 확인';
       const countKey = phase === 'replacement' ? 'scannedReplacementLogs' : 'scannedOperationLogs';
       const position = `${label} · ${totals[countKey]}건 확인${cursor?.workDate ? ' · ' + cursor.workDate : ''}`;
       let payload;
       for (let retry = 0; ; retry++) {
         io.assertWritable?.();
+        if (!remaining()) pause();
         io.progress?.(`${position} · ${limit}건씩 처리${retry ? ` · 재시도 ${retry}/4` : ''}`);
         try {
-          payload = await io.api({ method: 'POST', timeoutMs: 30000,
+          payload = await io.api({ method: 'POST', timeoutMs: Math.min(30000, remaining()),
             body: { action: 'latest_logs_step', incrementalLogs: true, phase, limit, window, cursor,
               autoApplyConfirmedReplacements: phase === 'replacement' } });
           break;
@@ -385,11 +463,12 @@
             e.message = `${position}에서 중단 · ${e.message || '요청 실패'}`;
             throw e;
           }
+          if (!remaining()) pause();
           // Smaller replay after overload/timeout; the successful cursor is unchanged.
           limit = Math.max(1, Math.floor(limit / 2));
           checkpoint();
           io.progress?.(`${position} · ${errorLabel(e)} · ${limit}건으로 줄여 재시도 ${retry + 1}/4`);
-          await sleep(Math.min(30000, Math.max(1000 * 2 ** retry, Number(e.retryAfterMs) || 0)));
+          await sleep(Math.min(remaining(), 30000, Math.max(1000 * 2 ** retry, Number(e.retryAfterMs) || 0)));
         }
       }
       io.assertWritable?.();
@@ -410,14 +489,16 @@
       totals[countKey] += payload.scannedLogCount;
       totals.insertedCount += Math.max(0, Number(payload.insertedCount) || 0);
       totals.appliedStateChanges += Math.max(0, Number(payload.appliedStateChanges) || 0);
+      report();
       io.progress?.(`${label} · ${totals[countKey]}건 확인`);
       if (payload.done) {
         if (phase === 'operation') { io.checkpoint?.(null); return totals; }
         phase = 'operation'; cursor = null;
       } else cursor = next;
       checkpoint();
-      await sleep(20);
+      await sleep(Math.min(20, remaining()));
     }
+    if (options.maxPages) pause();
     throw logPageError('업무일지 묶음 처리 횟수 한도에 도달했습니다. 완료된 위치는 유지합니다.');
   }
 
@@ -426,13 +507,13 @@
    * Authentication/protocol errors are not bypassed, and no failed page is skipped.
    */
   async function refreshLogsForRuntime(io, options = {}) {
-    try { return { complete: true, totals: await measurePhase('workLogs', {}, () => refreshLogs(io, options)), warning: '' }; }
+    try { return { complete: true, totals: await measurePhase('workLogs', {}, () => refreshLogs(io, { timeBudgetMs: 45000, maxPages: 80, pageLimit: 1, ...options })), warning: '' }; }
     catch (e) {
-      if (!transient(e)) throw e;
+      if (e?.code !== 'LOG_REFRESH_PAUSED' && !transient(e)) throw e;
       io.assertWritable?.();
       const warning = errorLabel(e);
       io.progress?.(`업무일지 확인 미완료 · ${warning} · 저장된 교체 기준으로 운전시간 조회 계속`);
-      return { complete: false, totals: null, warning };
+      return { complete: false, totals: e.logTotals || null, warning };
     }
   }
 

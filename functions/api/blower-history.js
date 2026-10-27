@@ -1763,7 +1763,7 @@ function fbheSealRunProvenance(asset, rows, now = new Date()) {
 }
 
 async function loadAssetStates(database, settings, options = {}) {
-  const assetResult = await database
+  const assetResult = options.assetRows ? { results: options.assetRows } : await database
     .prepare(`
       SELECT *
       FROM blower_history_assets
@@ -1774,7 +1774,7 @@ async function loadAssetStates(database, settings, options = {}) {
 
   const assets = Array.isArray(assetResult.results) ? assetResult.results : [];
 
-  const problemResult = await database
+  const problemResult = options.skipDecorations ? { results: [] } : await database
     .prepare(`
       SELECT *
       FROM blower_history_events
@@ -1785,7 +1785,7 @@ async function loadAssetStates(database, settings, options = {}) {
 
   const problemRows = Array.isArray(problemResult.results) ? problemResult.results : [];
 
-  const referenceResult = await database
+  const referenceResult = options.skipDecorations ? { results: [] } : await database
     .prepare(`
       SELECT *
       FROM blower_history_references
@@ -1794,16 +1794,25 @@ async function loadAssetStates(database, settings, options = {}) {
     .all();
 
   const referenceRows = Array.isArray(referenceResult.results) ? referenceResult.results : [];
-  const runtimeResult = await database.prepare(`
+  const tags = assets.map(asset => asset.tag_number);
+  const runtimeResult = tags.length ? await database.prepare(`
     SELECT id, tag_number, event_type, event_date, runtime_hours, source_type, source_log_id, source_text, created_at, updated_at, issue_type, action_type, note
     FROM blower_history_events
     WHERE event_type IN ('runtime_correction', 'startup', 'operation_start', 'operation_stop')
+      ${options.assetRows ? `AND tag_number IN (${tags.map(() => '?').join(',')})` : ''}
     ORDER BY created_at DESC, event_date DESC, id DESC
-  `).all();
+  `).bind(...(options.assetRows ? tags : [])).all() : { results: [] };
   const runtimeRows = Array.isArray(runtimeResult.results) ? runtimeResult.results : [];
+  // Partition once, keeping every event and the original within-asset order.
+  const runtimeByTag = new Map();
+  for (const row of runtimeRows) {
+    if (!runtimeByTag.has(row.tag_number)) runtimeByTag.set(row.tag_number, []);
+    runtimeByTag.get(row.tag_number).push(row);
+  }
   const now = new Date();
 
   return assets.map(asset => {
+    const runtimeRows = runtimeByTag.get(asset.tag_number) || [];
     const replacementAt = asset.last_replacement_at ? new Date(asset.last_replacement_at) : null;
     const latestProblemRow = problemRows.find(row => {
       if (row.tag_number !== asset.tag_number) return false;
@@ -1966,6 +1975,27 @@ async function buildRefreshState(database, user) {
   const assets = await loadAssetStates(database, settings, { planning: true });
   return { ok: true, version: "blower-refresh-state-v1", user,
     permissions: buildPermissions(user), assets, generatedAt: new Date().toISOString() };
+}
+
+/* BLOWER_QUERY_RESOURCE_V3: one small authenticated planning page per Worker.
+ * No event-count truncation: every runtime row for the selected assets remains
+ * available to the existing provenance/append validators. Batch creation still
+ * revalidates each cycle revision after the pages have been collected.
+ */
+async function buildRefreshStatePage(database, user, cursor = '', limit = 2) {
+  if (typeof cursor !== 'string' || cursor.length > 200 ||
+      (cursor && !/^[A-Z0-9._/-]+$/.test(cursor)) ||
+      !Number.isInteger(limit) || limit < 1 || limit > 2) {
+    return jsonResponse({ ok: false, code: 'INVALID_REFRESH_PAGE', message: '조회 기준 이어보기 값이 올바르지 않습니다.' }, 400);
+  }
+  const result = await database.prepare(`SELECT * FROM blower_history_assets
+    WHERE enabled = 1 AND tag_number > ? ORDER BY tag_number ASC LIMIT ?`).bind(cursor, limit + 1).all();
+  const rows = result.results || [], selected = rows.slice(0, limit);
+  const assets = await loadAssetStates(database, {}, { planning: true, skipDecorations: true, assetRows: selected });
+  const done = rows.length <= limit;
+  return jsonResponse({ ok: true, version: 'blower-refresh-state-page-v1', user,
+    permissions: buildPermissions(user), assets, done,
+    nextCursor: done ? null : selected.at(-1).tag_number, generatedAt: new Date().toISOString() });
 }
 
 async function buildFullData(database, user) {
@@ -4205,6 +4235,12 @@ async function handleGet(context, user) {
   const url = new URL(context.request.url);
   const action = normalizeText(url.searchParams.get("action")) || "data";
   const permissions = buildPermissions(user);
+
+  if (action === "refresh_state_page") {
+    if (!user) return jsonResponse({ ok: false, message: "로그인이 필요합니다.", permissions }, 401);
+    return buildRefreshStatePage(database, user, url.searchParams.get("cursor") || "",
+      url.searchParams.has("limit") ? Number(url.searchParams.get("limit")) : 2);
+  }
 
   if (action === "refresh_state") {
     if (!user) return jsonResponse({ ok: false, message: "로그인이 필요합니다.", permissions }, 401);
@@ -8647,19 +8683,24 @@ function classifyRecognizedBlowerTag(tagNumber) {
 function extractCatalogBlowerTagMatches(text, assets = []) {
   const source = normalizeText(text).toUpperCase();
   if (!source) return { tags: [], matches: [] };
+  const compactSource = compactEquipmentText(source);
 
   const candidates = [];
-  const seenCanonical = new Set();
-  const byCanonical = new Map();
-  const tagNumbers = (assets || [])
-    .map(asset => normalizeText(asset?.tag_number || asset?.tagNumber).toUpperCase())
-    .filter(Boolean);
-
-  for (const tagNumber of tagNumbers) {
-    const compactTag = compactEquipmentText(tagNumber);
-    if (compactTag.length < 3 || seenCanonical.has(compactTag)) continue;
-    seenCanonical.add(compactTag);
-    byCanonical.set(compactTag, tagNumber);
+  const { entries, byCanonical } = blowerRecognitionMemo(assets, 'catalog', '', () => {
+    const entries = [], byCanonical = new Map();
+    for (const asset of assets || []) {
+      const tagNumber = normalizeText(asset?.tag_number || asset?.tagNumber).toUpperCase();
+      const compactTag = compactEquipmentText(tagNumber);
+      if (compactTag.length < 3 || byCanonical.has(compactTag)) continue;
+      byCanonical.set(compactTag, tagNumber);
+      entries.push({ tagNumber, compactTag });
+    }
+    return { entries, byCanonical };
+  });
+  for (const { tagNumber, compactTag } of entries) {
+    // Necessary-condition precheck only; the existing boundary parser remains
+    // authoritative for every possible match (including dotted/slashed tags).
+    if (!compactSource.includes(compactTag)) continue;
 
     const boundaryPattern = catalogTagBoundaryPattern(compactTag);
     boundaryPattern.lastIndex = 0;
@@ -8807,35 +8848,55 @@ function isLegacyFixedTagContext(source, start, end) {
   );
 }
 
-function extractRecognizedBlowerTags(text, assets = []) {
-  const groupedSource = normalizeText(text).toUpperCase();
-  const dynamicAssets = (assets || []).filter(asset => (
-    !ASSET_SEED_TAG_SET.has(
-      normalizeText(asset?.tag_number || asset?.tagNumber).toUpperCase()
-    )
-  ));
-  const catalogMatches = extractCatalogBlowerTagMatches(
-    text,
-    [...ASSET_SEED_TAG_ASSETS, ...dynamicAssets]
-  );
-  const found = new Set(catalogMatches.tags);
-  const groupedFamilies = [
+const GROUPED_BLOWER_TAG_PATTERNS = [
     { prefixes: ["104HHL60AP", "204HHL60AP"], suffixes: ["611", "621", "631"] },
     { prefixes: ["104HHL10AN", "204HHL10AN"], suffixes: ["611", "621", "631"] },
     { prefixes: ["104SDF01AN", "204SDF01AN"], suffixes: ["001", "002"] },
     { prefixes: ["104ETG30AN", "204ETG30AN"], suffixes: ["601", "602"] },
     { prefixes: ["104ETH03AN"], suffixes: ["601", "602"] },
     { prefixes: ["204LMDF01AN"], suffixes: ["001"] }
-  ];
+  ].map(family => {
+  const prefix = `(?:${family.prefixes.map(value => flexibleCanonicalTagPattern(value, "[\\s._-]*")).join("|")})`;
+  const suffix = `(?:${family.suffixes.map(value => flexibleCanonicalTagPattern(value, "[\\s._-]*")).join("|")})`;
+  return {
+    firstTags: family.prefixes.flatMap(prefix => family.suffixes.map(suffix => prefix + suffix)),
+    groupPattern: new RegExp(`(?:^|[^A-Z0-9])(${prefix})(${suffix})((?:\\s*[/,&+·]\\s*(?:${prefix})?${suffix})+)(?=$|[^A-Z0-9])`, 'giu'),
+    tailPattern: new RegExp(`[/,&+·]\\s*(${prefix})?(${suffix})`, 'giu')
+  };
+});
 
-  for (const family of groupedFamilies) {
-    const prefix = `(?:${family.prefixes.map(value => flexibleCanonicalTagPattern(value, "[\\s._-]*")).join("|")})`;
-    const suffix = `(?:${family.suffixes.map(value => flexibleCanonicalTagPattern(value, "[\\s._-]*")).join("|")})`;
-    const groupPattern = new RegExp(
-      `(?:^|[^A-Z0-9])(${prefix})(${suffix})((?:\\s*[/,&+·]\\s*(?:${prefix})?${suffix})+)(?=$|[^A-Z0-9])`,
-      "giu"
-    );
-
+const BLOWER_RECOGNITION_CACHE = new WeakMap();
+function blowerRecognitionMemo(assets, kind, text, compute) {
+  if (!Array.isArray(assets) || String(text || '').length > 6000) return compute();
+  const signature = assets.map(a => String(a?.tag_number || a?.tagNumber || '')).join('\n');
+  let entry = BLOWER_RECOGNITION_CACHE.get(assets);
+  if (!entry || entry.signature !== signature) {
+    entry = { signature, values: new Map() };
+    BLOWER_RECOGNITION_CACHE.set(assets, entry);
+  }
+  const key = kind + ':' + String(text || '');
+  if (entry.values.has(key)) return entry.values.get(key);
+  const value = compute();
+  if (entry.values.size >= 256) entry.values.clear();
+  entry.values.set(key, value);
+  return value;
+}
+function blowerRecognitionCatalog(assets) {
+  return blowerRecognitionMemo(assets, 'assets', '', () => [
+    ...ASSET_SEED_TAG_ASSETS,
+    ...(assets || []).filter(asset => !ASSET_SEED_TAG_SET.has(normalizeText(asset?.tag_number || asset?.tagNumber).toUpperCase()))
+  ]);
+}
+function extractRecognizedBlowerTags(text, assets = []) {
+  return [...blowerRecognitionMemo(assets, 'tags', text, () => computeRecognizedBlowerTags(text, assets))];
+}
+function computeRecognizedBlowerTags(text, assets = []) {
+  const groupedSource = normalizeText(text).toUpperCase();
+  const catalogMatches = extractCatalogBlowerTagMatches(text, blowerRecognitionCatalog(assets));
+  const found = new Set(catalogMatches.tags);
+  const compactSource = compactEquipmentText(groupedSource);
+  for (const { firstTags, groupPattern, tailPattern } of GROUPED_BLOWER_TAG_PATTERNS) {
+    if (!firstTags.some(tag => compactSource.includes(tag))) continue;
     for (const groupMatch of groupedSource.matchAll(groupPattern)) {
       const basePrefix = compactEquipmentText(groupMatch[1]);
       const firstTag = `${basePrefix}${compactEquipmentText(groupMatch[2])}`;
@@ -8858,10 +8919,6 @@ function extractRecognizedBlowerTags(text, assets = []) {
       if (coveredByLongerCatalogTag) continue;
       if (classifyRecognizedBlowerTag(firstTag)) found.add(firstTag);
 
-      const tailPattern = new RegExp(
-        `[/,&+·]\\s*(${prefix})?(${suffix})`,
-        "giu"
-      );
       for (const tailMatch of groupMatch[3].matchAll(tailPattern)) {
         const tagNumber = `${tailMatch[1] ? compactEquipmentText(tailMatch[1]) : basePrefix}${compactEquipmentText(tailMatch[2])}`;
         if (classifyRecognizedBlowerTag(tagNumber)) found.add(tagNumber);
@@ -9095,11 +9152,13 @@ function recognizedTagsMatchIdentity(tags, identity, assets = []) {
 }
 
 function textWithoutRecognizedTagSpans(text, assets = []) {
+  return blowerRecognitionMemo(assets, "spans", text, () => computeTextWithoutRecognizedTagSpans(text, assets));
+}
+function computeTextWithoutRecognizedTagSpans(text, assets = []) {
   const source = normalizeText(text);
   if (!source) return "";
 
-  const recognitionAssets = [...ASSET_SEED_TAG_ASSETS, ...(assets || [])];
-  const matches = extractCatalogBlowerTagMatches(source, recognitionAssets).matches;
+  const matches = extractCatalogBlowerTagMatches(source, blowerRecognitionCatalog(assets)).matches;
   if (matches.length === 0) return source;
 
   const characters = source.split("");
@@ -14765,7 +14824,7 @@ export async function onRequestPost(context) {
 
 /* Node 회귀 테스트에서 V13 복구와 Cycle 상태 경계를 실제 SQLite로 검증한다. */
 export const __blowerHistoryTest = {
-  buildRefreshState, handleGet,
+  buildRefreshState, buildRefreshStatePage, handleGet,
   isFbheSealRunAsset, fbheSealRunProvenance, historyDeleteRestoreBoundary, historyDeleteRestoreBeforeSnapshot,
   ensureIncrementalLogSchema, loadIncrementalLogPage, storeIncrementalLogReceipts,
   latestLogWindow, loadLatestLogPage, latestLogsStep, scanShiftLogs, syncOperationChanges,

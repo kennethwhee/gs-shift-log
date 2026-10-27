@@ -58,14 +58,14 @@ test('create failure preserves the original exception and exports no error text'
   assert.equal(calls,1);assert.equal(records.at(-1).status,'failed');
   assert.ok(!JSON.stringify(records).includes('private'));
 });
-test('partial apply is reported as partial without repeating the save',async t=>{
+test('uncertain apply is reported as partial and waiting without repeating the save',async t=>{
   const events=[];
   setup(t,{beginPhase(name){return {end(status,counts){events.push({name,status,counts});}};}});
   const f=successfulIo();const original=f.io.api;
   f.io.api=async request=>{if(request.body.action==='dataparc_runtime_sync'){f.calls.push(request);throw new Error('save unavailable');}return original(request);};
   const result=await core.executeDataParcBatch([task()],f.io);
-  assert.equal(result[0].status,'failed');assert.equal(f.calls.length,2);
-  assert.deepEqual(events.at(-1),{name:'applyResults',status:'partial',counts:{completedCount:0,failedCount:1}});
+  assert.equal(result[0].status,'waiting');assert.equal(f.calls.length,2);
+  assert.deepEqual(events.at(-1),{name:'applyResults',status:'partial',counts:{completedCount:0,failedCount:0}});
 });
 test('work-log authorization failure is measured and remains a hard failure',async t=>{
   const events=[];const original=Object.assign(new Error('expired secret'),{status:401});

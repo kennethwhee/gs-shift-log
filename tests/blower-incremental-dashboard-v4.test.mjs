@@ -55,7 +55,8 @@ test('dashboard explains append-only behavior and computes percentage from actua
   assert.match(uiSource, /Math\.floor\(\(safeProcessed\s*\/\s*safeTarget\)\s*\*\s*100\)/);
   assert.match(uiSource, /기존 저장값 유지|기존 누적값에 추가/);
   assert.match(uiSource, /기존 DataPARC 조회값 유지/);
-  assert.match(uiSource, /setOverviewRefreshProcessed\(planned\.targetCount, planned\.targetCount/);
+  // A retained pending request is not a processed/completed asset.
+  assert.match(uiSource, /setOverviewRefreshProcessed\(planned\.targetCount - waitingCount, planned\.targetCount/);
 });
 
 test('next unified query starts exactly at the previous successful end while preserving the original coverage start', () => {
