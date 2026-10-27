@@ -5,8 +5,6 @@
   root.__cofiringClosedHistoryMonthlyV3Installed=true;
 
   const API='/api/cofiring-closed-history';
-  const HYPOTHESIS_API='/api/cofiring-provisional-v12';
-  const HYPOTHESIS_DATES=new Set(['2026-10-23','2026-10-24']);
   const VERSION='COFIRING_CLOSED_HISTORY_READABLE_V1';
   const UNITS=['unit1','unit2'];
   const FUELS=['coal','bio','organic','manure'];
@@ -57,26 +55,57 @@
     return payload;
   }
 
-  // An unverified calculation is an auditable, separately saved record. It may
-  // appear in the SAME monthly table, but is never a certified closing row.
-  async function hypothesisApi(query=''){
-    const response=await root.fetch(HYPOTHESIS_API+query,{credentials:'same-origin',cache:'no-store',headers:{...authHeaders(),Accept:'application/json'}});
-    const payload=await response.json().catch(()=>null);
+  // GS_COFIRING_HYPOTHESIS_MONTHLY_V1: validated saved hypotheses join the
+  // visible date table; same-day official records always take precedence.
+  const PROVISIONAL_API='/api/cofiring-provisional-v12';
+  function validHypothesisItem(item){
+    const finite=(value,max=1000000)=>typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=max;
+    if(!item||!['2026-10-23','2026-10-24'].includes(item.targetDate)||
+      item.recordKind!=='hypothesis'||item.verificationStatus!=='unverified'||item.officialClose!==false||
+      !Number.isSafeInteger(item.revision)||item.revision<1||
+      typeof item.sourceRequestId!=='string'||!/^[a-f0-9-]{30,48}$/i.test(item.sourceRequestId)||
+      typeof item.savedAt!=='string'||!Number.isFinite(Date.parse(item.savedAt))||
+      item.assumption?.silo!=='organicStorageSiloB'||item.assumption?.boundaryLocal!=='2026-10-24T00:00'||
+      !finite(item.assumption?.tons)||Math.abs(item.assumption.tons-19.143)>0.00001)return false;
+    const ratios=value=>['bioRatio','organicGroupRatio','totalRatio'].every(key=>finite(value?.[key],100));
+    return UNITS.every(unit=>FUELS.every(fuel=>finite(item.summary?.[unit]?.[fuel]))&&ratios(item.summary?.[unit]))&&ratios(item.summary?.combined);
+  }
+  async function provisionalApi(path=''){
+    const response=await root.fetch(PROVISIONAL_API+path,{
+      method:'GET',credentials:'same-origin',cache:'no-store',headers:{...authHeaders(),Accept:'application/json'}
+    });
+    let payload=null;try{payload=await response.json();}catch(_){}
     if(!response.ok||payload?.ok!==true)throw new Error(payload?.message||'가정 계산 기록을 불러오지 못했습니다.');
     return payload;
   }
-  function isHypothesis(item){
-    return !!item&&HYPOTHESIS_DATES.has(item.targetDate)&&item.recordKind==='hypothesis'&&
-      item.verificationStatus==='unverified'&&item.officialClose===false&&
-      item.assumption?.silo==='organicStorageSiloB'&&item.assumption?.boundaryLocal==='2026-10-24T00:00'&&
-      Math.abs(item.assumption.tons-19.143)<0.00001&&
-      ['unit1','unit2'].every(u=>['coal','bio','organic','manure','bioRatio','organicGroupRatio','totalRatio']
-        .every(f=>typeof item.summary?.[u]?.[f]==='number'&&Number.isFinite(item.summary[u][f])&&item.summary[u][f]>=0));
+  function checkedHypotheses(payload){
+    if(!Array.isArray(payload?.items))throw new Error('가정 계산 목록의 응답 형식을 확인하지 못했습니다.');
+    const items=payload.items.filter(validHypothesisItem);
+    return {items,warning:items.length!==payload.items.length?'일부 가정 계산 기록의 날짜·구분 정보를 확인하지 못했습니다.':''};
   }
-  function mergeOfficialAndHypothesis(official,hypothesis){
-    const byDate=new Map((official||[]).filter(x=>x&&typeof x.targetDate==='string').map(x=>[x.targetDate,x]));
-    for(const item of hypothesis||[]){if(isHypothesis(item)&&!byDate.has(item.targetDate))byDate.set(item.targetDate,item);}
-    return [...byDate.values()].sort((a,b)=>b.targetDate.localeCompare(a.targetDate));
+  function mergeHistoryItems(official,provisional,month){
+    const merged=new Map();
+    for(const item of provisional){
+      if(!validHypothesisItem(item)||(month&&item.targetDate.slice(0,7)!==month))continue;
+      const previous=merged.get(item.targetDate);
+      if(!previous||item.revision>previous.revision)merged.set(item.targetDate,item);
+    }
+    for(const item of official){
+      if(typeof item?.targetDate==='string'&&(!month||item.targetDate.slice(0,7)===month))merged.set(item.targetDate,item);
+    }
+    return [...merged.values()].sort((a,b)=>b.targetDate.localeCompare(a.targetDate));
+  }
+  // Keep the existing public monthly API while using the strict validator.
+  function isHypothesis(item){return validHypothesisItem(item);}
+  function mergeOfficialAndHypothesis(official,hypothesis){return mergeHistoryItems(official||[],hypothesis||[]);}
+  function hypothesisWarning(message){
+    return message?'<p class="cfh-hypothesis-warning" role="status">'+escapeHtml(message)+'</p>':'';
+  }
+  function mountHypothesisStyle(){
+    const doc=root.document;if(!doc||doc.getElementById('gs-cofiring-hypothesis-monthly-v1'))return;
+    const style=doc.createElement('style');style.id='gs-cofiring-hypothesis-monthly-v1';
+    style.textContent='.cfh-hypothesis-day{background:#fff9eb}.cfh-hypothesis-day .cfh-hypothesis-label{display:block;white-space:normal;font-size:10px;line-height:1.4;color:#8c5a07;margin-top:4px}.cfh-hypothesis-warning{margin:8px 0;font-size:12px;line-height:1.5;color:#925e11}.cfh-hypothesis-detail-note{margin:0 0 12px;color:#8c5a07;font-size:12px;line-height:1.5}';
+    doc.head?.append(style);
   }
 
   // COFIRING_TOTAL_HEAT_BASIS_V2_R3: read the canonical total-heat Bio ratio from the stored result.
@@ -110,14 +139,18 @@
   }
 
   function deriveSnapshot(item){
-    if(isHypothesis(item)){
-      const record=item.record||{};
-      return {targetDate:item.targetDate,unit1:unitSnapshot(null,'unit1',item.summary.unit1),
-        unit2:unitSnapshot(null,'unit2',item.summary.unit2),
-        combined:{bioRatio:number(item.summary.combined?.bioRatio),organicGroupRatio:number(item.summary.combined?.organicGroupRatio),totalRatio:number(item.summary.combined?.totalRatio)},
-        settings:record.settings||{},manual:{},sourceRequestId:item.sourceRequestId||'',savedByName:item.savedByName||'',
-        updatedAt:item.savedAt||'',adjustmentApplied:false,revision:item.revision||'',isHypothesis:true,
-        hypothesisNote:'유기성 Storage B 2026-10-24 00:00 재고를 19.143t으로 가정한 미확정 저장 기록 · 재확인 필요'};
+    if(item?.recordKind==='hypothesis'){
+      if(!validHypothesisItem(item))throw new Error('가정 계산 기록의 날짜·구분 정보를 확인하지 못했습니다.');
+      return {
+        targetDate:item.targetDate,
+        unit1:unitSnapshot({},'unit1',item.summary.unit1),
+        unit2:unitSnapshot({},'unit2',item.summary.unit2),
+        combined:{bioRatio:item.summary.combined.bioRatio,organicGroupRatio:item.summary.combined.organicGroupRatio,totalRatio:item.summary.combined.totalRatio},
+        settings:item.record?.settings||{},manual:{},capturedAt:item.savedAt,
+        sourceRequestId:item.sourceRequestId,savedByName:String(item.savedByName||''),updatedAt:item.savedAt,
+        hypothesis:true,isHypothesis:true,assumption:item.assumption,
+        adjustmentApplied:!!item.adjustment,revision:item.revision
+      };
     }
     const snapshot=item?.snapshot||{};
     const result=item?.effectiveResult||snapshot?.result||{};
@@ -211,15 +244,9 @@
   }
 
   function detailMarkup(item,row){
-    if(row.isHypothesis){return `<div class="cfh-readable-detail-head"><strong>${escapeHtml(row.targetDate)} 가정 계산 상세 · 미확정</strong><button type="button" data-cfh-detail-close>접기</button></div>
-      <p class="cfh-hypothesis-notice">${escapeHtml(row.hypothesisNote)}. DataPARC 원본값이 아니며 공식 마감으로 인정되지 않습니다.</p>
-      <div class="cfh-readable-detail-units">${UNITS.map((u,index)=>`<section class="cfh-readable-detail-unit"><h4>${index+1}호기</h4>
-        <dl class="cfh-readable-detail-ratios">${[['바이오',row[u].bioRatio],['유기성·축분',row[u].organicGroupRatio],['종합 혼소율',row[u].totalRatio]].map(([label,value])=>`<div><dt>${label}</dt><dd>${fmtPct(value)}</dd></div>`).join('')}</dl>
-        <dl class="cfh-readable-detail-fuels">${FUELS.map((fuel,i)=>`<div><dt>${['Coal','Bio','유기성','축분'][i]}</dt><dd>${fmtTon(row[u][fuel])} <small>t</small></dd></div>`).join('')}</dl>
-        </section>`).join('')}</div>
-      <p class="cfh-hypothesis-notice">별도 가정 기록 · 저장자 ${escapeHtml(row.savedByName||'—')} · 저장 ${dateTime(row.updatedAt)} · 공식 마감자료를 대체하지 않습니다.</p>`;}
     return `
-      <div class="cfh-readable-detail-head"><strong>${escapeHtml(row.targetDate)} 마감 상세</strong><button type="button" data-cfh-detail-close>접기</button></div>
+      <div class="cfh-readable-detail-head"><strong>${escapeHtml(row.targetDate)} ${row.hypothesis?'가정 계산':'마감'} 상세</strong><button type="button" data-cfh-detail-close>접기</button></div>
+      ${row.hypothesis?'<p class="cfh-hypothesis-detail-note">가정 계산 · 미확정 — 2026-10-24 00:00 Storage B 재고 19.143t 가정이 포함된 저장값입니다.</p>':''}
       <div class="cfh-readable-detail-units">${UNITS.map((key,index)=>`
         <section class="cfh-readable-detail-unit"><h4>${index+1}호기</h4>
           <dl class="cfh-readable-detail-ratios">${[['바이오',row[key].bioRatio],['유기성·축분',row[key].organicGroupRatio],['종합 혼소율',row[key].totalRatio]].map(([label,value])=>`<div><dt>${label}</dt><dd>${fmtPct(value)}</dd></div>`).join('')}</dl>
@@ -228,7 +255,7 @@
       <div class="cfv15-detail-shell">
         <div class="cfv15-detail-grid">
           <section>
-            <h4>마감 당시 발열량 · 보정계수</h4>
+            <h4>${row.hypothesis?'저장 당시':'마감 당시'} 발열량 · 보정계수</h4>
             <div class="cfv15-detail-table-wrap">
               <table>
                 <thead><tr><th>연료</th><th>1호기 발열량</th><th>1호기 보정</th><th>2호기 발열량</th><th>2호기 보정</th></tr></thead>
@@ -237,10 +264,10 @@
             </div>
           </section>
           <section>
-            <h4>마감 정보</h4>
+            <h4>${row.hypothesis?'가정 계산 저장 정보':'마감 정보'}</h4>
             <dl class="cfv15-detail-meta">
-              <div><dt>마감자</dt><dd>${escapeHtml(row.savedByName||'—')}</dd></div>
-              <div><dt>마감 시각</dt><dd>${dateTime(row.updatedAt)}</dd></div>
+              <div><dt>${row.hypothesis?'저장자':'마감자'}</dt><dd>${escapeHtml(row.savedByName||'—')}</dd></div>
+              <div><dt>${row.hypothesis?'저장 시각':'마감 시각'}</dt><dd>${dateTime(row.updatedAt)}</dd></div>
               <div><dt>Revision</dt><dd>${escapeHtml(row.revision||'—')}</dd></div>
               <div><dt>스냅샷 생성</dt><dd>${dateTime(row.capturedAt)}</dd></div>
               <div class="is-wide"><dt>DataPARC 요청</dt><dd title="${escapeHtml(row.sourceRequestId)}">${escapeHtml(row.sourceRequestId||'—')}</dd></div>
@@ -268,27 +295,25 @@
 
   function rowMarkup(row){
     const date=String(row.targetDate||'');
-    const hypothesis=row.isHypothesis===true;
     const valid=/^20\d{2}-\d{2}-\d{2}$/.test(date);
     const weekday=valid?['일','월','화','수','목','금','토'][new Date(date+'T00:00:00Z').getUTCDay()]:'';
-    const adjusted=row?.adjustmentApplied===true;
+    const adjusted=row?.adjustmentApplied===true,hypothesis=row.hypothesis===true;
     const adjustmentMark=adjusted?'<span class="cfh-list-adjust-dot" aria-label="혼소조정 적용" title="혼소조정 적용"></span>':'';
-    return `<tbody class="cfh-day-group${adjusted?' cfh-list-adjusted-day':''}${hypothesis?' cfh-hypothesis-day':''}" data-cfh-date="${escapeHtml(date)}" data-cfh-list-adjustment="1"${hypothesis?' data-cfh-hypothesis="true" title="가정 계산 · 미확정 · 공식 마감 아님"':''}>
+    const viewAttribute=hypothesis?'data-cfv24-provisional-view':'data-cfv15-view';
+    const savedTitle=hypothesis?' title="'+escapeHtml('가정 계산 · 미확정 · 저장 '+row.updatedAt)+'"':'';
+    return `<tbody class="cfh-day-group${adjusted?' cfh-list-adjusted-day':''}${hypothesis?' cfh-hypothesis-day':''}" data-cfh-date="${escapeHtml(date)}" data-cfh-list-adjustment="1"${hypothesis?' data-cfv24-hypothesis="1"':''}>
       <tr data-cfv15-row="${escapeHtml(date)}">
-        <th class="cfh-date" scope="rowgroup" rowspan="2" aria-label="${escapeHtml(date)}"><span class="cfh-date-line"><strong>${escapeHtml(valid?date.slice(5).replace('-','.'):date)}</strong>${adjustmentMark}${hypothesis?'<span class="cfh-hypothesis-tag" title="00:00 재고 가정 · 재확인 필요">가정</span>':''}</span><small>${weekday?weekday+'요일':''}</small></th>
+        <th class="cfh-date" scope="rowgroup" rowspan="2" aria-label="${escapeHtml(date)}"${savedTitle}><span class="cfh-date-line"><strong>${escapeHtml(valid?date.slice(5).replace('-','.'):date)}</strong>${adjustmentMark}</span><small>${weekday?weekday+'요일':''}</small>${hypothesis?'<small class="cfh-hypothesis-label">가정 계산 · 미확정</small>':''}</th>
         ${numericCells(row.unit1,0)}${combinedCell(row.combined)}
-        <td class="cfh-actions" rowspan="2"><button type="button" data-cfv15-view="${escapeHtml(date)}" ${hypothesis?'data-cfv15-hypothesis="true" ':''}aria-label="${escapeHtml(date)} ${hypothesis?'가정 계산':'마감'} 상세 보기" aria-controls="cfh-readable-detail" aria-expanded="false">보기</button>${hypothesis?'<span class="cfh-hypothesis-readonly" title="실측 마감과 별도 보존된 미확정 기록입니다">미확정</span>':`<button type="button" class="danger" data-cfv15-delete="${escapeHtml(date)}" aria-label="${escapeHtml(date)} 마감 데이터 삭제">삭제</button>`}</td>
+        <td class="cfh-actions" rowspan="2"><button type="button" ${viewAttribute}="${escapeHtml(date)}" aria-label="${escapeHtml(date)} ${hypothesis?'가정 계산':'마감'} 상세 보기" aria-controls="cfh-readable-detail" aria-expanded="false">보기</button>${hypothesis?'':`<button type="button" class="danger" data-cfv15-delete="${escapeHtml(date)}" aria-label="${escapeHtml(date)} 마감 데이터 삭제">삭제</button>`}</td>
       </tr><tr>${numericCells(row.unit2,1)}</tr>
     </tbody>`;
   }
 
   function averageMarkup(rows){
-    // An assumed inventory must never change certified monthly KPIs.
-    const certified=rows.filter(row=>row.isHypothesis!==true);
-    if(!certified.length)return '';
-    const a=averageRows(certified);
+    const a=averageRows(rows);
     return `<tfoot class="cfh-average-group">
-      <tr><th class="cfh-date" scope="rowgroup" rowspan="2"><strong>월평균</strong><small>${certified.length}일 · 실측만</small></th>
+      <tr><th class="cfh-date" scope="rowgroup" rowspan="2"><strong>월평균</strong><small>${rows.length}일</small></th>
         ${numericCells(a.unit1,0)}${combinedCell(a.combined)}<td class="cfh-average-label" rowspan="2">평균</td>
       </tr><tr>${numericCells(a.unit2,1)}</tr>
     </tfoot>`;
@@ -299,7 +324,6 @@
       return `<div class="cfv15-state"><strong>${escapeHtml(monthLabel(month))} 마감 데이터가 없습니다.</strong><span>마감 저장 후 날짜별 1·2호기 수치를 확인할 수 있습니다.</span></div>`;
     }
     return `
-      ${rows.some(row=>row.isHypothesis)?'<p class="cfh-hypothesis-notice"><strong>가정 계산 · 미확정 기록 포함</strong> · 2026-10-24 00:00 Storage B 재고 추정(19.143t) · 통신 오류로 실제 계측값과 다를 수 있습니다. 월평균에서는 제외됩니다.</p>':''}
       <div class="cfv15-table-wrap cfh-readable-wrap" tabindex="0" role="region" aria-label="날짜별 마감 데이터 비교 표">
         <table class="cfv15-history-table cfh-readable-table" aria-label="${escapeHtml(monthLabel(month))} 혼소율 마감 데이터">
           <colgroup><col class="cfh-date-col"><col class="cfh-unit-col"><col span="4" class="cfh-fuel-col"><col span="3" class="cfh-ratio-col"><col class="cfh-combined-col"><col class="cfh-actions-col"></colgroup>
@@ -318,7 +342,7 @@
           </thead>
           ${rows.map(rowMarkup).join('')}${averageMarkup(rows)}
         </table>
-      </div><div class="cfh-readable-notes"><span>유·축 = 유기성·축분 혼소율 · 일별 종합: 열량 가중</span><span>월평균: 공식 마감일만 산술평균 · 가정값 제외</span></div>`;
+      </div><div class="cfh-readable-notes"><span>유·축 = 유기성·축분 혼소율 · 일별 종합: 열량 가중</span><span>월평균: 저장일별 산술평균 · 누락값 제외${rows.some(row=>row.hypothesis)?' · 가정 계산 '+rows.filter(row=>row.hypothesis).length+'일 포함':''}</span></div>`;
   }
 
   async function mapLimit(items,limit,worker){
@@ -340,6 +364,7 @@
     const head=panel.querySelector('.cfv12-history-head');
     if(!head)return false;
 
+    mountHypothesisStyle();
     panel.dataset.cfv15Mounted='1';
     panel.classList.add('cfv15-monthly','cfh-readable-panel');
 
@@ -368,17 +393,23 @@
     let selectedMonth='';
     let loadEpoch=0;
     let openDate='';
+    let provisionalWarning='';
 
     async function getDetail(item){
-      const date=String(item?.targetDate||'');
-      if(detailCache.has(date))return detailCache.get(date);
-      const fetcher=isHypothesis(item)?hypothesisApi:api;
-      const promise=fetcher('?targetDate='+encodeURIComponent(date)).then(payload=>{
+      const date=String(item?.targetDate||''),hypothesis=validHypothesisItem(item);
+      const cacheKey=(hypothesis?'hypothesis:':'official:')+date;
+      if(detailCache.has(cacheKey))return detailCache.get(cacheKey);
+      const read=hypothesis?provisionalApi:api;
+      const promise=read('?targetDate='+encodeURIComponent(date)).then(payload=>{
         if(payload?.item&&payload.item.targetDate!==date)throw new Error('마감 상세 자료의 날짜가 다릅니다.');
+        if(hypothesis&&(!validHypothesisItem(payload?.item)||payload.item.targetDate!==date||!payload.item.record||
+          payload.item.record.targetDate!==date||payload.item.record.recordKind!=='hypothesis'||
+          payload.item.record.verificationStatus!=='unverified'||payload.item.record.officialClose!==false))
+          throw new Error('가정 계산 상세 기록의 날짜·구분 정보를 확인하지 못했습니다.');
         return payload?.item||null;
       });
-      detailCache.set(date,promise);
-      try{return await promise;}catch(error){if(detailCache.get(date)===promise)detailCache.delete(date);throw error;}
+      detailCache.set(cacheKey,promise);
+      try{return await promise;}catch(error){if(detailCache.get(cacheKey)===promise)detailCache.delete(cacheKey);throw error;}
     }
 
     function setMonth(month){
@@ -390,24 +421,43 @@
 
     async function loadList({keepMonth=true}={}){
       const epoch=++loadEpoch;
-      detailCache.clear();
+      detailCache.clear();provisionalWarning='';
       host.innerHTML='<div class="cfv15-state">마감 데이터 목록을 확인하는 중입니다...</div>';
       try{
+        let provisional=null;
         if(!keepMonth||!selectedMonth){
-          const [latest,hypothesis]=await Promise.all([api('?limit=1'),hypothesisApi('?limit=1').catch(()=>({items:[]}))]);
+          const results=await Promise.allSettled([api('?limit=1'),provisionalApi('?limit=180')]);
           if(epoch!==loadEpoch)return;
-          const latestDate=[latest.items?.[0]?.targetDate,hypothesis.items?.[0]?.targetDate].filter(Boolean).sort().at(-1);
-          selectedMonth=normalizeMonth(latestDate?.slice?.(0,7))||koreanCurrentMonth();
+          if(results[0].status==='rejected')throw results[0].reason;
+          provisional=results[1];
+          let dates=(results[0].value.items||[]).map(item=>String(item?.targetDate||''));
+          if(provisional.status==='fulfilled'){
+            try{dates=dates.concat(checkedHypotheses(provisional.value).items.map(item=>item.targetDate));}catch(_){}
+          }
+          dates=dates.filter(date=>/^20\d{2}-\d{2}-\d{2}$/.test(date)).sort().reverse();
+          selectedMonth=normalizeMonth(dates[0]?.slice(0,7))||koreanCurrentMonth();
         }
         const month=selectedMonth;
-        const [payload,hypothetical]=await Promise.all([api('?month='+encodeURIComponent(month)),
-          hypothesisApi('?limit=180').catch(error=>{root.console?.warn?.('가정 계산 목록 조회 실패',error?.message);return {items:[]};})]);
+        const results=await Promise.allSettled([
+          api('?month='+encodeURIComponent(month)),
+          provisional?Promise.resolve(provisional):month==='2026-10'?provisionalApi('?limit=180')
+            .then(value=>({status:'fulfilled',value}),reason=>({status:'rejected',reason})):Promise.resolve({status:'fulfilled',value:{items:[]}})
+        ]);
         if(epoch!==loadEpoch||month!==selectedMonth)return;
-        listItems=mergeOfficialAndHypothesis(payload?.items, hypothetical.items);
+        if(results[0].status==='rejected')throw results[0].reason;
+        let savedHypotheses=[];
+        const result=results[1].status==='fulfilled'?results[1].value:results[1];
+        if(result.status==='fulfilled'){
+          try{const checked=checkedHypotheses(result.value);savedHypotheses=checked.items;provisionalWarning=checked.warning;}
+          catch(error){provisionalWarning='가정 계산 기록 확인 실패 · '+error.message;}
+        }else provisionalWarning='가정 계산 기록 확인 실패 · '+String(result.reason?.message||'다시 조회해 주세요.');
+        const payload=results[0].value;
+        listItems=mergeHistoryItems(Array.isArray(payload?.items)?payload.items:[],savedHypotheses,month);
         monthInput.value=selectedMonth;monthText.textContent=monthLabel(selectedMonth);
         await renderMonth(epoch);
       }catch(error){
         if(epoch!==loadEpoch)return;
+        countText.textContent='목록 조회 실패';
         host.innerHTML=`<div class="cfv15-state is-error">${escapeHtml(error.message)}</div>`;
       }
     }
@@ -416,13 +466,16 @@
       openDate='';
       const month=selectedMonth;
       const items=listItems.filter(item=>String(item?.targetDate||'').slice(0,7)===month);
-      const estimatedCount=items.filter(isHypothesis).length;
-      countText.textContent=`${items.length}일 표시${estimatedCount?' · 가정 '+estimatedCount+'일':''}`;
+      const hypothesisCount=items.filter(validHypothesisItem).length;
+      countText.textContent=`${items.length}일 저장`+(hypothesisCount?` · 가정 ${hypothesisCount}일 포함`:'');
       monthText.textContent=monthLabel(selectedMonth);
-      if(!items.length){host.innerHTML=tableMarkup([],selectedMonth);return;}
+      if(!items.length){host.innerHTML=hypothesisWarning(provisionalWarning)+tableMarkup([],selectedMonth);return;}
 
-      host.innerHTML=`<div class="cfv15-state"><strong>${escapeHtml(monthLabel(selectedMonth))}</strong><span>${items.length}일의 마감 스냅샷을 표로 정리하는 중입니다...</span></div>`;
+      host.innerHTML=`<div class="cfv15-state"><strong>${escapeHtml(monthLabel(selectedMonth))}</strong><span>${items.length}일의 저장값을 표로 정리하는 중입니다...</span></div>`;
       const rows=await mapLimit(items,6,async item=>{
+        // The verified list already contains the complete saved hypothesis summary.
+        // Fetch its settings/evidence only when the operator opens its detail.
+        if(validHypothesisItem(item))return deriveSnapshot(item);
         try{
           const detail=await getDetail(item);
           return deriveSnapshot(detail||item);
@@ -432,7 +485,7 @@
       });
       if(epoch!==loadEpoch||month!==selectedMonth||month!==monthInput.value)return;
       rows.sort((a,b)=>String(b.targetDate).localeCompare(String(a.targetDate)));
-      host.innerHTML=tableMarkup(rows,selectedMonth);
+      host.innerHTML=hypothesisWarning(provisionalWarning)+tableMarkup(rows,selectedMonth);
     }
 
     async function toggleDetail(date){
@@ -442,11 +495,11 @@
       if(existing){
         const was=existing.getAttribute('data-cfv15-detail-row');
         existing.remove();
-        host.querySelector(`[data-cfv15-view="${was}"]`)?.setAttribute('aria-expanded','false');
+        host.querySelector(`[data-cfv15-view="${was}"],[data-cfv24-provisional-view="${was}"]`)?.setAttribute('aria-expanded','false');
         if(was===date){openDate='';return;}
       }
 
-      const button=host.querySelector(`[data-cfv15-view="${date}"]`);
+      const button=host.querySelector(`[data-cfv15-view="${date}"],[data-cfv24-provisional-view="${date}"]`);
       button?.setAttribute('aria-expanded','true');
       const detailRow=root.document.createElement('section');
       detailRow.className='cfh-readable-detail';
@@ -470,10 +523,10 @@
     }
 
     async function deleteDate(date){
-      const item=listItems.find(row=>row.targetDate===date);
-      if(!item||isHypothesis(item)){root.alert?.('가정 계산 기록은 공식 마감 삭제 기능으로 처리하지 않습니다.');return;}
       if(!root.confirm?.(date+' 마감 데이터를 삭제하시겠습니까?'))return;
       try{
+        const item=listItems.find(row=>row.targetDate===date);
+        if(item?.recordKind==='hypothesis')throw new Error('가정 계산 기록은 공식 마감 삭제 기능을 사용하지 않습니다.');
         if(!item||!Number.isSafeInteger(item.revision)||!/^[a-f0-9]{64}$/.test(item.version||''))throw new Error('마감 목록을 새로고침하고 다시 확인해 주세요.');
         const query=new URLSearchParams({targetDate:date,expectedRevision:item.revision,expectedVersion:item.version});
         await api('?'+query.toString(),{method:'DELETE'});
@@ -504,12 +557,14 @@
       if(event.target.closest?.('[data-cfh-detail-close]')){
         const date=openDate;
         host.querySelector('[data-cfv15-detail-row]')?.remove();
-        const button=host.querySelector(`[data-cfv15-view="${date}"]`);
+        const button=host.querySelector(`[data-cfv15-view="${date}"],[data-cfv24-provisional-view="${date}"]`);
         button?.setAttribute('aria-expanded','false');
         button?.focus({preventScroll:true});
         openDate='';
         return;
       }
+      const provisionalView=event.target.closest?.('[data-cfv24-provisional-view]');
+      if(provisionalView){void toggleDetail(provisionalView.getAttribute('data-cfv24-provisional-view')||'');return;}
       const view=event.target.closest?.('[data-cfv15-view]');
       const del=event.target.closest?.('[data-cfv15-delete]');
       const go=event.target.closest?.('[data-cfv15-go]');
@@ -523,11 +578,14 @@
       detailCache.clear();if(!panel.hidden)void loadList({keepMonth:true});
     });
 
-    root.addEventListener?.('cofiring:period-adjustment-changed',()=>{
-      detailCache.clear();
-      if(!panel.hidden)void loadList({keepMonth:true});
+    root.addEventListener?.('cofiring:provisional-inline-updated',event=>{
+      const date=event?.detail?.targetDate;
+      if(['2026-10-23','2026-10-24'].includes(date)&&date.slice(0,7)===selectedMonth){
+        detailCache.clear();if(!panel.hidden)void loadList({keepMonth:true});
+      }
     });
-    root.addEventListener?.('cofiring:provisional-inline-updated',()=>{
+
+    root.addEventListener?.('cofiring:period-adjustment-changed',()=>{
       detailCache.clear();
       if(!panel.hidden)void loadList({keepMonth:true});
     });

@@ -98,7 +98,7 @@ async function derive(db,body){
  if(!same(body.receiptTons,r.tons,0.001))fail('입고 기록이 바뀌었습니다. 가정 계산을 다시 조회해 주세요.','RECEIPT_CHANGED');
  let adjacent=null;
  if(body.targetDate==='2026-10-24'){
-  const prior=await db.prepare(`SELECT id FROM ois_data_requests WHERE target_date='2026-10-23' AND request_type='cofiring_period' AND status='complete' ORDER BY created_at DESC LIMIT 1`).first();
+  const prior=await db.prepare(`SELECT id FROM ois_data_requests WHERE target_date='2026-10-23' AND request_type='cofiring_period' AND status='complete' ORDER BY requested_at DESC,id DESC LIMIT 1`).first();
   if(prior){try{adjacent=(await sourceFor(db,'2026-10-23',prior.id)).ref}catch{} }
  }
  const candidate=scenarioApi.displayScenario(src.ref,r.tons,src.spec,adjacent);
@@ -107,8 +107,8 @@ async function derive(db,body){
  const manure={};for(const u of UNITS){if(!number(body?.manure?.[u]))fail('축분 사용량을 확인해 주세요.','MANURE_INVALID');manure[u]=body.manure[u]}
  let calculated;
  try{calculated=core.analyzePeriodSummary(src.ref,{startLocal:src.spec.startLocal,endLocal:src.spec.endLocal,calorifics,coefficients,
-  organic:{start:src.spec.startLocal,end:src.spec.endLocal,unit1:candidate.unitTons,unit2:candidate.unitTons},
-  manure:{start:src.spec.startLocal,end:src.spec.endLocal,...manure}})}catch{fail('원본 DataPARC 계산을 재현하지 못했습니다.','RECALC_FAILED')}
+  organic:{start:src.spec.startLocal+':00+09:00',end:src.spec.endLocal+':00+09:00',unit1:candidate.unitTons,unit2:candidate.unitTons},
+  manure:{start:src.spec.startLocal+':00+09:00',end:src.spec.endLocal+':00+09:00',...manure}})}catch{fail('원본 DataPARC 계산을 재현하지 못했습니다.','RECALC_FAILED')}
  if(!UNITS.every(u=>calculated.units[u]?.coal?.complete&&calculated.units[u]?.bio?.complete))fail('정상 Coal·Bio 원본값을 확인하지 못했습니다.','FUEL_SOURCE_INVALID');
  // Official measured fuel and close records remain untouched. Recalculate the
  // optional user-consented adjustment from the saved DataPARC WHAT-IF source.

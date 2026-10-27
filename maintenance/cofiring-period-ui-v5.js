@@ -323,7 +323,7 @@
         ${summaryMetric('종합 혼소율',u?.fuelRatios?.total,{ratio:true,emphasis:true})}
       </div>${fuelUsageMarkup(u,result.organicUsage?.scenario)}${targetReferenceMarkup(targetError?{status:'invalid_input',ready:false,message:targetError,targetPercent}:deadlineTargetApi?{...deadlineTargetApi.forUnit(u,result.period,{targetPercent}),ratioPercent:coalBioRatio(u)}:{targetPercent},{unit,open:host.querySelector?.('[data-cfv52-unit="'+unit+'"]')?.querySelector?.('[data-cfv10-target-details]')?.open===true})}</article>`);
     }
-    cards.push(`<article class="cfv52-card cfv52-card-total${isHypothesis?' cfv17-hypothesis-card':''}"><header><strong>1·2호기 종합 혼소율</strong><span>${isHypothesis?'가정 계산 · 확정 마감 불가':'열량 가중 기준'}</span></header><div class="cfv52-total-ratios">
+    cards.push(`<article class="cfv52-card cfv52-card-total${isHypothesis?' cfv17-hypothesis-card':''}"><header><strong>1·2호기 종합 혼소율</strong><span>${isHypothesis?'가정 계산 · 미확정':'열량 가중 기준'}</span></header><div class="cfv52-total-ratios">
       ${summaryMetric('바이오 혼소율',combinedCoalBio(result).ratio,{ratio:true})}
       ${summaryMetric('유기성 · 축분 혼소율',result?.combined?.fuelRatios?.organicGroup,{ratio:true})}
       ${summaryMetric('종합 혼소율',result?.combined?.ratios?.total,{ratio:true,emphasis:true})}
