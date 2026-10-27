@@ -788,9 +788,9 @@
           const outcome=await provisional.autoSave({force:true});
           if(credential()!==authKey||container.querySelector('[data-cfv7-date]')?.value!==targetDate)return;
           if(!outcome?.ok||outcome.targetDate!==targetDate)
-            throw new Error(outcome?.message||'가정값 마감 저장을 확인하지 못했습니다.');
-          closeNotice(container,'가정값 마감 저장 완료 · 00:00 재고 재확인 필요');
-          root.alert?.('가정 계산값으로 마감 데이터를 저장했습니다.\n00:00 원본 재고 오류로 재확인이 필요합니다.');
+            throw new Error(outcome?.message||'추정값 마감 저장을 확인하지 못했습니다.');
+          closeNotice(container,'추정값 마감 저장 완료 · 00:00 재고 재확인 필요');
+          root.alert?.('추정 계산값으로 마감 데이터를 저장했습니다.\n00:00 원본 재고 오류로 재확인이 필요합니다.');
           return;
         }
         const packed=buildSnapshot(container);

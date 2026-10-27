@@ -38,7 +38,7 @@ function paintSaveStatus(label,error=false){
   try{
    const presenter=root.GSCofiringSaveNoticeCompactV1?.show;
    if(typeof presenter==='function'){presenter(shell,statusMessage,statusTone);return;}
-  }catch(error){root.console?.warn?.('가정 저장 안내 표시 오류:',error);}
+  }catch(error){root.console?.warn?.('추정 저장 안내 표시 오류:',error);}
   const host=shell.querySelector('.cfv-results-dark');if(!host)return;
   let node=host.querySelector('[data-cfv-save-notice-fallback-v1]');
   if(!node){
@@ -53,33 +53,33 @@ function paintSaveStatus(label,error=false){
   node.dataset.gsV14Date=date;node.dataset.v14Date=date;
   if(node.textContent!==String(statusMessage||''))node.textContent=String(statusMessage||'');
   node.dataset.tone=statusTone;node.style.color=statusTone==='error'?'#a33b27':'#64748b';
- }catch(error){root.console?.warn?.('가정 저장 안내를 표시하지 못했습니다:',error);}
+ }catch(error){root.console?.warn?.('추정 저장 안내를 표시하지 못했습니다:',error);}
 }
 function onSaved(){
  const hadReset=state.resetPending;state.resetPending=false;
- if(state.active?.key===context()?.key)paintSaveStatus('가정 조정 저장됨 · 미확정');
- else if(hadReset)paintSaveStatus('가정 조정 원복 기록됨 · 미확정');
+ if(state.active?.key===context()?.key)paintSaveStatus('추정 조정 저장됨 · 미확정');
+ else if(hadReset)paintSaveStatus('추정 조정 원복 기록됨 · 미확정');
 }
-function onSaveError(message){if(state.active?.key===context()?.key||state.resetPending)paintSaveStatus('가정 조정 저장 실패 · '+String(message||'다시 확인 필요'),true);}
+function onSaveError(message){if(state.active?.key===context()?.key||state.resetPending)paintSaveStatus('추정 조정 저장 실패 · '+String(message||'다시 확인 필요'),true);}
 
 function notice(message,bad=false){const n=state.dialog?.querySelector('[data-v14-message]');if(n){n.textContent=message||'';n.dataset.error=bad?'1':'0';}}
 const html=`<div class="gsv14-overlay" data-v14-overlay hidden>
- <div class="gsv14-sheet" role="dialog" aria-modal="true" aria-label="가정 혼소조정">
+ <div class="gsv14-sheet" role="dialog" aria-modal="true" aria-label="추정 혼소조정">
   <div class="gsv14-confirm" data-v14-confirm>
-   <h3>가정 계산 확인</h3>
-   <p><strong>가정 계산된 유기성 고형연료가 통신 오류로 인해 가계산되었습니다.</strong><br>그래도 혼소조정을 진행하시겠습니까?</p>
-   <p class="gsv14-caption">원본 재고는 미확정입니다. 조정 결과도 ‘가정 계산’으로만 저장·표시되며 공식 확정 마감에 반영되지 않습니다.</p>
+   <h3>추정 계산 확인</h3>
+   <p><strong>추정 계산된 유기성 고형연료가 통신 오류로 인해 가계산되었습니다.</strong><br>그래도 혼소조정을 진행하시겠습니까?</p>
+   <p class="gsv14-caption">원본 재고는 미확정입니다. 조정 결과도 ‘추정 계산’으로만 저장·표시되며 공식 확정 마감에 반영되지 않습니다.</p>
    <div class="gsv14-actions"><button type="button" data-v14-no>아니오</button><button type="button" data-v14-yes class="gsv14-main">예</button></div>
   </div>
   <div data-v14-editor hidden>
-   <div class="gsv14-title"><h3>혼소조정 <span>가정 계산</span></h3><button data-v14-close type="button" aria-label="닫기">×</button></div>
-   <p class="gsv14-caption">가정된 유기성 사용량을 포함한 혼소율입니다. 실제 계측값을 확인하기 전에는 공식 마감할 수 없습니다.</p>
+   <div class="gsv14-title"><h3>혼소조정 <span>추정 계산</span></h3><button data-v14-close type="button" aria-label="닫기">×</button></div>
+   <p class="gsv14-caption">추정된 유기성 사용량을 포함한 혼소율입니다. 실제 계측값을 확인하기 전에는 공식 마감할 수 없습니다.</p>
    <div class="gsv14-tabs"><button type="button" data-v14-tab="auto" aria-selected="true">최대혼소조정</button><button type="button" data-v14-tab="manual" aria-selected="false">Bio 사용량 이동</button></div>
    <div class="gsv14-control" data-v14-panel="auto"><label>호기당 Bio 최대량 (t/d)<input data-v14-max type="number" min="0.01" max="2000" step="0.01" value="361.4"></label><button type="button" data-v14-auto-preview>최대혼소조정 미리보기</button></div>
    <div class="gsv14-control" data-v14-panel="manual" hidden><label>이동 방향<select data-v14-direction><option value="1">1호기 → 2호기</option><option value="2">2호기 → 1호기</option></select></label><label>Bio 이동량 (t)<input data-v14-transfer type="number" min="0.001" step="0.01" placeholder="이동량 입력"></label><button data-v14-manual-preview type="button">Bio 이동 미리보기</button></div>
    <div class="gsv14-table" data-v14-result></div>
    <p data-v14-message role="status" aria-live="polite"></p>
-   <div class="gsv14-actions"><button type="button" data-v14-reset>가정 조정 원복</button><button type="button" data-v14-cancel>취소</button><button type="button" class="gsv14-main" data-v14-apply disabled>가정 조정 적용</button></div>
+   <div class="gsv14-actions"><button type="button" data-v14-reset>추정 조정 원복</button><button type="button" data-v14-cancel>취소</button><button type="button" class="gsv14-main" data-v14-apply disabled>추정 조정 적용</button></div>
   </div>
  </div>
 </div>`;
@@ -134,7 +134,7 @@ function show(ctx){ensure();if(!state.dialog||!ctx)return;
 }
 function close(){if(!state.dialog)return;state.dialog.hidden=true;state.ctx=null;state.preview=null;if(state.focus?.isConnected)state.focus.focus();}
 function preview(fn){const c=context();if(!c||state.ctx?.key!==c.key){close();return;}
- try{const r=fn();state.preview=r?.ok?r:null;renderPreview(r);notice(r?.ok?'원본 대비 조정 미리보기입니다. [가정 조정 적용]을 눌러야 반영됩니다.':r?.message||'미리보기 실패',!r?.ok)}catch(e){state.preview=null;renderPreview(null);notice(e?.message||'조정값을 확인해 주세요.',true)}
+ try{const r=fn();state.preview=r?.ok?r:null;renderPreview(r);notice(r?.ok?'원본 대비 조정 미리보기입니다. [추정 조정 적용]을 눌러야 반영됩니다.':r?.message||'미리보기 실패',!r?.ok)}catch(e){state.preview=null;renderPreview(null);notice(e?.message||'조정값을 확인해 주세요.',true)}
 }
 function renderPreview(r){const host=state.dialog?.querySelector('[data-v14-result]');if(!host)return;
  const c=state.ctx,base=c?.base,result=r?.ok?r.result:(getActive(c)?.result||base);
@@ -158,15 +158,15 @@ function adjustmentPayload(r){const m=r.adjustment||{},mode=m.mode;
 }
 function apply(){const c=context(),r=state.preview;if(!c||c.key!==state.ctx?.key||!r?.ok){notice('계산 결과가 변경되었습니다. 다시 열어 주세요.',true);return;}
  const adjustment=adjustmentPayload(r),next={key:c.key,result:r.result,adjustment};
- if(c.ctrl.applyProvisionalAdjustment?.(r.result)!==true){notice('가정 조정 표시 기능이 준비되지 않았습니다. 새로고침 후 다시 시도해 주세요.',true);return;}
+ if(c.ctrl.applyProvisionalAdjustment?.(r.result)!==true){notice('추정 조정 표시 기능이 준비되지 않았습니다. 새로고침 후 다시 시도해 주세요.',true);return;}
  state.active=next;state.resetPending=false;state.hydratedKey=c.key;
- paintSaveStatus('가정 조정 저장 확인 중 · 공식 마감 아님');
+ paintSaveStatus('추정 조정 저장 확인 중 · 공식 마감 아님');
  close();root.CofiringProvisionalV12?.autoSave?.();
  root.setTimeout?.(()=>root.CofiringProvisionalV12?.autoSave?.(),1700);
 }
 function reset(){const c=context();if(!c||state.ctx?.key!==c.key){close();return;}
  state.active=null;state.resetPending=true;state.hydratedKey=c.key;
- paintSaveStatus('가정 조정 원복 저장 확인 중');
+ paintSaveStatus('추정 조정 원복 저장 확인 중');
  c.ctrl.applyProvisionalAdjustment?.(c.base);close();root.CofiringProvisionalV12?.autoSave?.();
  root.setTimeout?.(()=>root.CofiringProvisionalV12?.autoSave?.(),1700);
 }
@@ -182,7 +182,7 @@ async function maybeHydrate(c){
     {mode:m.mode,fromUnit:m.fromUnit,bioTransferTons:m.bioTransferTons,maxBioTpd:m.maxBioTpd});
   if(!r?.ok)return;
   state.active={key:c.key,result:r.result,adjustment:m};
-  c.ctrl.applyProvisionalAdjustment?.(r.result);paintSaveStatus('가정 조정 복원 · 미확정');
+  c.ctrl.applyProvisionalAdjustment?.(r.result);paintSaveStatus('추정 조정 복원 · 미확정');
  }catch(_){}finally{if(state.loadingKey===c.key)state.loadingKey='';}
 }
 function refreshButton(){

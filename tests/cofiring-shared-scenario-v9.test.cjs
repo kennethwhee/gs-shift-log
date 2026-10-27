@@ -15,7 +15,7 @@ const calc=(peer)=>m.scenario(next,175.430,next,peer);
 test('exact 24th is displayed despite structurally-correct adjacent report with incomplete quality statistics',()=>{
  const p=copy(prev);p.organicInventorySamples[2].durationGoodSeconds=null;
  const out=calc(p);assert.ok(out);assert.equal(out.unitTons,78.0315);assert.equal(out.assumedStorageBTons,19.143);
- assert.equal(out.peerConfirmedForPreview,false);assert.match(out.assumptionSource,/고정 가정/);
+ assert.equal(out.peerConfirmedForPreview,false);assert.match(out.assumptionSource,/고정 추정/);
 });
 test('exact 24th is displayed if adjacent saved report lacks the B summary, but original remains a preview',()=>{
  const p=copy(prev);p.organicInventorySamples=[];
@@ -77,7 +77,7 @@ test('adjacent API reconstructs the same organic inventory samples as the main o
 });
 test('unavailable case is never indefinitely labelled as loading, nor automatically saved',()=>{
  const model=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.js'),'utf8');
- assert.match(model,/prepLabel\('가정 계산 보류'/);assert.match(model,/total\.sharedScenarioReason/);
+ assert.match(model,/prepLabel\('추정 계산 보류'/);assert.match(model,/total\.sharedScenarioReason/);
  assert.match(model,/if\(total\.scenario\|\|total\.sharedScenarioPending\)throw new Error/);
  const correction=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-inventory-correction-ui.js'),'utf8');
  assert.match(correction,/scenarioReason/);

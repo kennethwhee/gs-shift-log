@@ -8,8 +8,8 @@ function err(msg){throw Object.assign(new Error(msg),{code:'PROVISIONAL_ADJUSTME
 export function validateProvisionalAdjustment(base,settings,body){
   if(!body||typeof body!=='object'||Array.isArray(body)||
     !['max_auto','manual_transfer'].includes(body.mode)||
-    Object.keys(body).some(k=>!['mode','finalBioUnit1','finalBioUnit2','fromUnit','bioTransferTons','maxBioTpd'].includes(k)))err('가정 조정 형식이 올바르지 않습니다.');
-  if(!base?.units||!settings||!UNITS.every(u=>FUELS.every(f=>good(base.units[u]?.[f]?.quantity)&&typeof settings?.[u]?.[f]?.calorific==='number'&&Number.isFinite(settings[u][f].calorific)&&settings[u][f].calorific>0)))err('가정 계산의 원본 연료량 및 발열량이 확인되지 않습니다.');
+    Object.keys(body).some(k=>!['mode','finalBioUnit1','finalBioUnit2','fromUnit','bioTransferTons','maxBioTpd'].includes(k)))err('추정 조정 형식이 올바르지 않습니다.');
+  if(!base?.units||!settings||!UNITS.every(u=>FUELS.every(f=>good(base.units[u]?.[f]?.quantity)&&typeof settings?.[u]?.[f]?.calorific==='number'&&Number.isFinite(settings[u][f].calorific)&&settings[u][f].calorific>0)))err('추정 계산의 원본 연료량 및 발열량이 확인되지 않습니다.');
   const b1=base.units.unit1.bio.quantity,b2=base.units.unit2.bio.quantity;
   const f1=body.finalBioUnit1,f2=body.finalBioUnit2;
   if(!good(f1)||!good(f2)||f1+f2>b1+b2+0.011)err('조정 Bio 합계가 원본 실제 Bio보다 큽니다.');

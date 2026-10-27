@@ -31,8 +31,8 @@ const dateAllowed=d=>APPROVED.has(d);
 const state={saveKey:'',saveBusy:false,failKey:'',failUntil:0,morningDate:'',morningItem:null,morningSourceDate:'',morningPending:'',morningCheckAt:0,historyCheckAt:0,historyItems:null,historyPending:false,historyKey:'',tickTimer:null};
 async function request(suffix='',opts={}){
  const r=await root.fetch(API+suffix,{credentials:'same-origin',cache:'no-store',...opts,headers:{...headers(),...(opts.headers||{})}});
- let data;try{data=await r.json()}catch{throw Error('가정 계산 기록의 서버 응답을 확인하지 못했습니다.')}
- if(!r.ok||data?.ok!==true)throw Error(data?.message||'가정 계산 자료 조회에 실패했습니다.');
+ let data;try{data=await r.json()}catch{throw Error('추정 계산 기록의 서버 응답을 확인하지 못했습니다.')}
+ if(!r.ok||data?.ok!==true)throw Error(data?.message||'추정 계산 자료 조회에 실패했습니다.');
  return data;
 }
 function validItem(item,date){
@@ -59,12 +59,12 @@ function morningSourceDate(date){
 function projectionContext(){
  const c=calcContext(),scenarioApi=root.CofiringSharedScenarioV7;
  if(!c.shell||!c.ctrl)throw Error('혼소율 계산 화면이 준비되지 않았습니다. 혼소율 메뉴를 다시 열어 주세요.');
- if(!dateAllowed(c.date))throw Error('가정 저장은 10월 23·24일의 승인된 재고 가정에만 사용할 수 있습니다.');
+ if(!dateAllowed(c.date))throw Error('추정 저장은 10월 23·24일의 승인된 재고 추정에만 사용할 수 있습니다.');
  if(c.mode!=='daily')throw Error('계산 방식을 일별 계산으로 선택해 주세요.');
  if(!c.spec||c.spec.startLocal!==c.date+'T00:00'||c.spec.endLocal!==nextDate(c.date)+'T00:00'||
    (c.spec.stepUnit&&c.spec.stepUnit!=='minute')||(c.spec.stepValue!=null&&c.spec.stepValue!==1))
    throw Error('선택일 00:00~다음 날 00:00의 완료된 일별 계산인지 확인해 주세요.');
- if(!scenarioApi?.project||!scenarioApi?.isScenario)throw Error('유기성 가정 계산 모듈을 불러오지 못했습니다. 새로고침해 주세요.');
+ if(!scenarioApi?.project||!scenarioApi?.isScenario)throw Error('유기성 추정 계산 모듈을 불러오지 못했습니다. 새로고침해 주세요.');
  // Read the authoritative controller result, not the text or rounded values
  // from the cards. A render may have completed before the async controller
  // has published its last result; try only other controller-owned snapshots.
@@ -77,7 +77,7 @@ function projectionContext(){
      raw=candidate;projected=projection;scenario=assumption;break;
    }
  }
- if(!raw)throw Error('계산 카드의 가정값과 원본 계산 연결이 확인되지 않았습니다. 일별 [계산하기]를 다시 실행해 주세요.');
+ if(!raw)throw Error('계산 카드의 추정값과 원본 계산 연결이 확인되지 않았습니다. 일별 [계산하기]를 다시 실행해 주세요.');
  const live=c.ctrl.live?.state?.(),item=live?.item,saved=item?.saved;
  if(!item)throw Error('DataPARC 조회 상태를 불러오지 못했습니다. [계산하기]로 저장된 결과를 확인해 주세요.');
  // A newer DataPARC request may be running while the exact old daily result
@@ -98,7 +98,7 @@ function projectionContext(){
   if(live.period&&['startLocal','endLocal','stepUnit','stepValue'].some(key=>live.period[key]!==c.spec[key]))
     throw Error('화면의 조회 기간과 저장된 원본의 조회 기간이 다릅니다. [계산하기]를 다시 실행해 주세요.');
  }else if(item.active||item.loading||item.submitting){
-  throw Error('완료된 DataPARC 원본이 아직 없습니다. 현재 조회가 끝나면 가정 저장을 다시 확인합니다.');
+  throw Error('완료된 DataPARC 원본이 아직 없습니다. 현재 조회가 끝나면 추정 저장을 다시 확인합니다.');
  }
  // Legacy cached results without saved metadata remain read-only candidates:
  // the server independently requires a matching completed saved source ID.
@@ -109,7 +109,7 @@ function projectionContext(){
 function buildPayload(){
  const c=projectionContext();
  const module=root.CofiringPeriodV5,settings=module?.readSettings?.(c.shell),manual=module?.readManual?.(c.shell);
- if(!settings||!manual)throw Error('가정 계산 발열량과 연료 사용량 자료를 기다리고 있습니다.');
+ if(!settings||!manual)throw Error('추정 계산 발열량과 연료 사용량 자료를 기다리고 있습니다.');
  const active=root.CofiringProvisionalAdjustV14?.getActive?.(c)||null;
  const adjusted=active?.result||c.projected;
  const preview={units:{},combined:{}};
@@ -121,7 +121,7 @@ function buildPayload(){
  const data={targetDate:c.date,sourceRequestId:String(c.saved.id),receiptTons:c.scenario.receipt,unitTons:c.scenario.unitTons,
   settings,manure:{unit1:manual.unit1?.manure??0,unit2:manual.unit2?.manure??0},preview,
   ...(active?.adjustment?{adjustment:active.adjustment,confirmProvisionalAdjustment:true}:{}),acknowledgeUnverified:true};
- if(!finite(data.receiptTons)||!finite(data.unitTons)||!UNITS.every(u=>FUELS.every(f=>finite(preview.units[u][f]))&&RATIO_KEYS.every(k=>finite(preview.units[u].ratios[k])))||!RATIO_KEYS.every(k=>finite(preview.combined[k])))throw Error('가정값 및 원본 계산값 검증을 완료하지 못했습니다.');
+ if(!finite(data.receiptTons)||!finite(data.unitTons)||!UNITS.every(u=>FUELS.every(f=>finite(preview.units[u][f]))&&RATIO_KEYS.every(k=>finite(preview.units[u].ratios[k])))||!RATIO_KEYS.every(k=>finite(preview.combined[k])))throw Error('추정값 및 원본 계산값 검증을 완료하지 못했습니다.');
  return data;
 }
 // V14: Status is attached to the existing results toolbar. This does not
@@ -134,7 +134,7 @@ function saveStatus(message,tone=''){
   try{
    const presenter=root.GSCofiringSaveNoticeCompactV1?.show;
    if(typeof presenter==='function'){presenter(shell,statusMessage,statusTone);return;}
-  }catch(error){root.console?.warn?.('가정 저장 안내 표시 오류:',error);}
+  }catch(error){root.console?.warn?.('추정 저장 안내 표시 오류:',error);}
   const host=shell.querySelector('.cfv-results-dark');if(!host)return;
   let node=host.querySelector('[data-cfv-save-notice-fallback-v1]');
   if(!node){
@@ -149,7 +149,7 @@ function saveStatus(message,tone=''){
   node.dataset.gsV14Date=date;node.dataset.v14Date=date;
   if(node.textContent!==String(statusMessage||''))node.textContent=String(statusMessage||'');
   node.dataset.tone=statusTone;node.style.color=statusTone==='error'?'#a33b27':'#64748b';
- }catch(error){root.console?.warn?.('가정 저장 안내를 표시하지 못했습니다:',error);}
+ }catch(error){root.console?.warn?.('추정 저장 안내를 표시하지 못했습니다:',error);}
 }
 function sameSaved(item,data){
  if(!validItem(item,data.targetDate)||item.sourceRequestId!==data.sourceRequestId)return false;
@@ -183,23 +183,23 @@ function currentSaveContext(auth,data){
  if(getToken()!==auth||calcContext().date!==data.targetDate||calcContext().mode!=='daily')return false;
  try{return JSON.stringify(buildPayload())===JSON.stringify(data)}catch{return false}
 }
-function saveNotice(message,tone){try{saveStatus(message,tone)}catch(error){root.console?.warn?.('가정 저장 안내 표시 오류:',error)}}
+function saveNotice(message,tone){try{saveStatus(message,tone)}catch(error){root.console?.warn?.('추정 저장 안내 표시 오류:',error)}}
 function publishSaved(item,data,key){
  state.saveKey=key;state.savedItem=item;state.failKey='';state.failUntil=0;
  state.pendingKey='';state.pendingUntil=0;state.pendingMessage='';
  state.morningCheckAt=0;state.historyCheckAt=0;
- try{root.CofiringProvisionalAdjustV14?.onSaved?.()}catch(error){root.console?.warn?.('가정 조정 저장 표시 오류:',error)}
- saveNotice('가정 계산 저장 완료 · 미확정','success');
- try{inlineUpdateEvent(data.targetDate)}catch(error){root.console?.warn?.('가정 저장 화면 갱신 오류:',error)}
+ try{root.CofiringProvisionalAdjustV14?.onSaved?.()}catch(error){root.console?.warn?.('추정 조정 저장 표시 오류:',error)}
+ saveNotice('추정 계산 저장 완료 · 미확정','success');
+ try{inlineUpdateEvent(data.targetDate)}catch(error){root.console?.warn?.('추정 저장 화면 갱신 오류:',error)}
 }
 async function autoSave(options={}){
  const force=options?.force===true;
  let data;try{data=buildPayload()}catch(error){
   const message=error?.message||'계산 준비 중';
-  if(isCurrentHypothesis())saveNotice('가정 저장 대기 · '+message,'warn');
+  if(isCurrentHypothesis())saveNotice('추정 저장 대기 · '+message,'warn');
   return {ok:false,pending:true,message};
  }
- const auth=getToken();if(!auth){saveNotice('가정 저장 대기 · 로그인 필요','warn');return {ok:false,message:'로그인이 필요합니다.'}}
+ const auth=getToken();if(!auth){saveNotice('추정 저장 대기 · 로그인 필요','warn');return {ok:false,message:'로그인이 필요합니다.'}}
  const key=JSON.stringify([auth,data]);
  const cancelled=()=>({ok:false,cancelled:true,targetDate:data.targetDate,message:'선택 날짜 또는 계산값이 변경되었습니다. 현재 결과에서 다시 저장해 주세요.'});
  if(state.saveTask){
@@ -213,20 +213,20 @@ async function autoSave(options={}){
   // A quick adjustment/reset may return to the already-persisted base values.
   // Acknowledge that reset without emitting another history/morning event.
   if(root.CofiringProvisionalAdjustV14?.resetRequested?.()){
-   try{root.CofiringProvisionalAdjustV14?.onSaved?.()}catch(error){root.console?.warn?.('가정 원복 저장 표시 오류:',error)}
+   try{root.CofiringProvisionalAdjustV14?.onSaved?.()}catch(error){root.console?.warn?.('추정 원복 저장 표시 오류:',error)}
   }
-  saveNotice('가정 계산 저장 완료 · 미확정','success');
+  saveNotice('추정 계산 저장 완료 · 미확정','success');
   return {ok:true,item:state.savedItem,targetDate:data.targetDate,cached:true};
  }
  if(!force&&state.failKey===key&&Date.now()<state.failUntil)
-  return {ok:false,targetDate:data.targetDate,message:state.saveError||'가정 계산 저장을 다시 확인해 주세요.'};
+  return {ok:false,targetDate:data.targetDate,message:state.saveError||'추정 계산 저장을 다시 확인해 주세요.'};
  // Rendering ticks must not repeatedly refetch an adjustment that cannot yet
  // be restored. An explicit reset or a changed payload can proceed at once.
  if(!force&&state.pendingKey===key&&Date.now()<state.pendingUntil&&
     !root.CofiringProvisionalAdjustV14?.resetRequested?.())
   return {ok:false,pending:true,targetDate:data.targetDate,message:state.pendingMessage};
  state.saveBusy=true;
- saveNotice('가정 계산 저장 중…','working');
+ saveNotice('추정 계산 저장 중…','working');
  const task={key,promise:null};
  task.promise=Promise.resolve().then(async()=>{
   try{
@@ -234,17 +234,17 @@ async function autoSave(options={}){
    const before=await request('?targetDate='+encodeURIComponent(data.targetDate));
    if(!currentSaveContext(auth,data))return cancelled();
    if(before.item&&(!validItem(before.item,data.targetDate)||!Number.isSafeInteger(before.item.revision)||before.item.revision<1))
-    throw Error('기존 가정 저장 기록의 날짜 또는 버전을 확인하지 못했습니다.');
+    throw Error('기존 추정 저장 기록의 날짜 또는 버전을 확인하지 못했습니다.');
    if(sameSaved(before.item,data)){
     publishSaved(before.item,data,key);return {ok:true,item:before.item,targetDate:data.targetDate};
    }
    // Let the existing adjustment module restore its saved transfer first.
    if(!data.adjustment&&before.item?.adjustment&&!root.CofiringProvisionalAdjustV14?.resetRequested?.()){
     const message=before.item.sourceRequestId===data.sourceRequestId
-     ?'저장된 가정 혼소조정을 불러오는 중입니다. 조정값이 표시된 뒤 다시 저장해 주세요.'
-     :'이전 조회 원본에 저장된 가정 혼소조정이 있습니다. 현재 결과에서 혼소조정을 다시 적용하거나 [가정 조정 원복]을 눌러 주세요.';
+     ?'저장된 추정 혼소조정을 불러오는 중입니다. 조정값이 표시된 뒤 다시 저장해 주세요.'
+     :'이전 조회 원본에 저장된 추정 혼소조정이 있습니다. 현재 결과에서 혼소조정을 다시 적용하거나 [추정 조정 원복]을 눌러 주세요.';
     state.pendingKey=key;state.pendingUntil=Date.now()+30000;state.pendingMessage=message;
-    saveNotice('가정 저장 대기 · '+message,'warn');
+    saveNotice('추정 저장 대기 · '+message,'warn');
     return {ok:false,pending:true,targetDate:data.targetDate,message};
    }
    if(!root.crypto?.randomUUID)throw Error('안전한 기록 ID를 만들 수 없습니다.');
@@ -252,18 +252,18 @@ async function autoSave(options={}){
     body:JSON.stringify({...data,expectedRevision:before.item?.revision||0,requestId:root.crypto.randomUUID()})});
    if(!validItem(response.item,data.targetDate)||!sameSaved(response.item,data)||
       !Number.isSafeInteger(response.item.revision)||response.item.revision<1)
-    throw Error('서버가 저장한 가정값과 현재 계산값이 일치하는지 확인하지 못했습니다.');
+    throw Error('서버가 저장한 추정값과 현재 계산값이 일치하는지 확인하지 못했습니다.');
    if(!currentSaveContext(auth,data))return {...cancelled(),stored:true};
    publishSaved(response.item,data,key);
    return {ok:true,item:response.item,targetDate:data.targetDate};
   }catch(error){
-   const message=error?.message||'가정 계산 저장을 확인하지 못했습니다.';
+   const message=error?.message||'추정 계산 저장을 확인하지 못했습니다.';
    state.failKey=key;state.failUntil=Date.now()+30000;state.saveError=message;
    if(currentSaveContext(auth,data)){
     try{if(data.adjustment||root.CofiringProvisionalAdjustV14?.resetRequested?.())root.CofiringProvisionalAdjustV14?.onSaveError?.(message)}catch{}
-    saveNotice('가정 기록 저장 실패 · '+message,'error');
+    saveNotice('추정 기록 저장 실패 · '+message,'error');
    }
-   root.console?.warn?.('가정 계산 저장 실패:',message);
+   root.console?.warn?.('추정 계산 저장 실패:',message);
    return {ok:false,targetDate:data.targetDate,message};
   }finally{
    if(state.saveTask===task){state.saveTask=null;state.saveBusy=false;}
@@ -289,9 +289,9 @@ function setMorningSavedBadge(card,item,sourceDate){
   badge.dataset.gsV24PreviousAria=badge.getAttribute('aria-label')||'';
   badge.dataset.gsV24HadAria=badge.hasAttribute('aria-label')?'1':'0';
  }
- const detail='계산일 '+sourceDate+' · 가정값 저장 · 미확정'+(item?.adjustment?' · Bio 조정':'')+
-  ' · 2026-10-24 00:00 통신 오류로 Storage B 재고 19.143t 가정 · 정확한 값이 아닐 수 있어 재확인 필요';
- setText(badge,'가정값');badge.dataset.gsV24Written='가정값';
+ const detail='계산일 '+sourceDate+' · 추정값 저장 · 미확정'+(item?.adjustment?' · Bio 조정':'')+
+  ' · 2026-10-24 00:00 통신 오류로 Storage B 재고 19.143t 추정 · 정확한 값이 아닐 수 있어 재확인 필요';
+ setText(badge,'추정값');badge.dataset.gsV24Written='추정값';
  if(badge.title!==detail)badge.title=detail;
  if(badge.getAttribute('aria-label')!==detail)badge.setAttribute('aria-label',detail);
  badge.dataset.gsV24WrittenTitle=detail;badge.dataset.gsV24WrittenAria=detail;
@@ -370,7 +370,7 @@ async function refreshMorning({force=false}={}){
    if(validItem(item,sourceDate)){found=applyMorning(item,date,sourceDate);if(found)break;}
   }
   if(!found&&card.dataset.gsV13ProvisionalDate)clearMorning();
- }catch(e){root.console?.warn?.('오전회의 가정 자료 조회 대기:',e.message)}
+ }catch(e){root.console?.warn?.('오전회의 추정 자료 조회 대기:',e.message)}
  finally{if(state.morningPending===key)state.morningPending=''}
 }
 function officialDates(table){return new Set([...table.querySelectorAll('tbody tr')].filter(r=>!r.hasAttribute('data-gs-v13-row')).map(r=>(r.cells?.[0]?.textContent||'').match(/20\d\d-\d\d-\d\d/)?.[0]).filter(Boolean))}
@@ -394,10 +394,10 @@ function decorateHistory(body,items){
  const tbody=table.querySelector('tbody')||table.appendChild(root.document.createElement('tbody'));
  for(const item of missing.sort((a,b)=>b.targetDate.localeCompare(a.targetDate))){
   const row=root.document.createElement('tr');row.dataset.gsV13Row=item.targetDate;row.className='gs-v13-history-hypothesis';
-  addCell(row,item.targetDate+' · 유기성 (가정)');addCell(row,fmtPct(item.summary.unit1.bioRatio));addCell(row,fmtPct(item.summary.unit2.bioRatio));
-  addCell(row,fmtPct(item.summary.combined.totalRatio));addCell(row,item.adjustment?'가정 계산 · Bio 조정 · 미확정':'가정 계산 · 미확정');
+  addCell(row,item.targetDate+' · 유기성 (추정)');addCell(row,fmtPct(item.summary.unit1.bioRatio));addCell(row,fmtPct(item.summary.unit2.bioRatio));
+  addCell(row,fmtPct(item.summary.combined.totalRatio));addCell(row,item.adjustment?'추정 계산 · Bio 조정 · 미확정':'추정 계산 · 미확정');
   addCell(row,'참고 기록');addCell(row,'');
-  row.title='유기성 Storage B 00:00 재고 가정 포함 · 실측 마감값이 아닙니다.';tbody.append(row);
+  row.title='유기성 Storage B 00:00 재고 추정 포함 · 실측 마감값이 아닙니다.';tbody.append(row);
  }
 }
 async function refreshHistory({force=false}={}){
@@ -408,7 +408,7 @@ async function refreshHistory({force=false}={}){
  state.historyPending=true;state.historyCheckAt=Date.now();state.historyKey=key;
  try{const {items}=await request('?limit=180');if(key!==getToken()||panel.hidden)return;
   state.historyItems=Array.isArray(items)?items:[];decorateHistory(body,state.historyItems);
- }catch(e){root.console?.warn?.('마감 데이터 가정값 조회 대기:',e.message)}
+ }catch(e){root.console?.warn?.('마감 데이터 추정값 조회 대기:',e.message)}
  finally{state.historyPending=false}
 }
 const css=`

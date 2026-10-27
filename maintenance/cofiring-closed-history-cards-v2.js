@@ -75,13 +75,13 @@
       method:'GET',credentials:'same-origin',cache:'no-store',headers:{...authHeaders(),Accept:'application/json'}
     });
     let payload=null;try{payload=await response.json();}catch(_){}
-    if(!response.ok||payload?.ok!==true)throw new Error(payload?.message||'가정 계산 기록을 불러오지 못했습니다.');
+    if(!response.ok||payload?.ok!==true)throw new Error(payload?.message||'추정 계산 기록을 불러오지 못했습니다.');
     return payload;
   }
   function checkedHypotheses(payload){
-    if(!Array.isArray(payload?.items))throw new Error('가정 계산 목록의 응답 형식을 확인하지 못했습니다.');
+    if(!Array.isArray(payload?.items))throw new Error('추정 계산 목록의 응답 형식을 확인하지 못했습니다.');
     const items=payload.items.filter(validHypothesisItem);
-    return {items,warning:items.length!==payload.items.length?'일부 가정 계산 기록의 날짜·구분 정보를 확인하지 못했습니다.':''};
+    return {items,warning:items.length!==payload.items.length?'일부 추정 계산 기록의 날짜·구분 정보를 확인하지 못했습니다.':''};
   }
   function mergeHistoryItems(official,provisional,month){
     const merged=new Map();
@@ -140,7 +140,7 @@
 
   function deriveSnapshot(item){
     if(item?.recordKind==='hypothesis'){
-      if(!validHypothesisItem(item))throw new Error('가정 계산 기록의 날짜·구분 정보를 확인하지 못했습니다.');
+      if(!validHypothesisItem(item))throw new Error('추정 계산 기록의 날짜·구분 정보를 확인하지 못했습니다.');
       return {
         targetDate:item.targetDate,
         unit1:unitSnapshot({},'unit1',item.summary.unit1),
@@ -245,8 +245,8 @@
 
   function detailMarkup(item,row){
     return `
-      <div class="cfh-readable-detail-head"><strong>${escapeHtml(row.targetDate)} ${row.hypothesis?'가정 계산':'마감'} 상세</strong><button type="button" data-cfh-detail-close>접기</button></div>
-      ${row.hypothesis?'<p class="cfh-hypothesis-detail-note">가정 계산 · 미확정 — 2026-10-24 00:00 Storage B 재고 19.143t 가정이 포함된 저장값입니다.</p>':''}
+      <div class="cfh-readable-detail-head"><strong>${escapeHtml(row.targetDate)} ${row.hypothesis?'추정 계산':'마감'} 상세</strong><button type="button" data-cfh-detail-close>접기</button></div>
+      ${row.hypothesis?'<p class="cfh-hypothesis-detail-note">추정 계산 · 미확정 — 2026-10-24 00:00 Storage B 재고 19.143t 추정이 포함된 저장값입니다.</p>':''}
       <div class="cfh-readable-detail-units">${UNITS.map((key,index)=>`
         <section class="cfh-readable-detail-unit"><h4>${index+1}호기</h4>
           <dl class="cfh-readable-detail-ratios">${[['바이오',row[key].bioRatio],['유기성·축분',row[key].organicGroupRatio],['종합 혼소율',row[key].totalRatio]].map(([label,value])=>`<div><dt>${label}</dt><dd>${fmtPct(value)}</dd></div>`).join('')}</dl>
@@ -264,7 +264,7 @@
             </div>
           </section>
           <section>
-            <h4>${row.hypothesis?'가정 계산 저장 정보':'마감 정보'}</h4>
+            <h4>${row.hypothesis?'추정 계산 저장 정보':'마감 정보'}</h4>
             <dl class="cfv15-detail-meta">
               <div><dt>${row.hypothesis?'저장자':'마감자'}</dt><dd>${escapeHtml(row.savedByName||'—')}</dd></div>
               <div><dt>${row.hypothesis?'저장 시각':'마감 시각'}</dt><dd>${dateTime(row.updatedAt)}</dd></div>
@@ -300,12 +300,12 @@
     const adjusted=row?.adjustmentApplied===true,hypothesis=row.hypothesis===true;
     const adjustmentMark=adjusted?'<span class="cfh-list-adjust-dot" aria-label="혼소조정 적용" title="혼소조정 적용"></span>':'';
     const viewAttribute=hypothesis?'data-cfv24-provisional-view':'data-cfv15-view';
-    const savedTitle=hypothesis?' title="'+escapeHtml('가정 계산 · 미확정 · 저장 '+row.updatedAt)+'"':'';
+    const savedTitle=hypothesis?' title="'+escapeHtml('추정 계산 · 미확정 · 저장 '+row.updatedAt)+'"':'';
     return `<tbody class="cfh-day-group${adjusted?' cfh-list-adjusted-day':''}${hypothesis?' cfh-hypothesis-day':''}" data-cfh-date="${escapeHtml(date)}" data-cfh-list-adjustment="1"${hypothesis?' data-cfv24-hypothesis="1"':''}>
       <tr data-cfv15-row="${escapeHtml(date)}">
-        <th class="cfh-date" scope="rowgroup" rowspan="2" aria-label="${escapeHtml(date+(hypothesis?' · 가정 계산 · 미확정':''))}"${savedTitle}><span class="cfh-date-line"><strong>${escapeHtml(valid?date.slice(5).replace('-','.'):date)}</strong>${adjustmentMark}</span>${hypothesis?'<small class="cfh-date-meta"><span title="'+escapeHtml(weekday?weekday+'요일':'')+'">'+escapeHtml(weekday)+'</span><span class="cfh-hypothesis-label" title="가정 계산 · 미확정">가정</span></small>':'<small>'+(weekday?weekday+'요일':'')+'</small>'}</th>
+        <th class="cfh-date" scope="rowgroup" rowspan="2" aria-label="${escapeHtml(date+(hypothesis?' · 추정 계산 · 미확정':''))}"${savedTitle}><span class="cfh-date-line"><strong>${escapeHtml(valid?date.slice(5).replace('-','.'):date)}</strong>${adjustmentMark}</span>${hypothesis?'<small class="cfh-date-meta"><span title="'+escapeHtml(weekday?weekday+'요일':'')+'">'+escapeHtml(weekday)+'</span><span class="cfh-hypothesis-label" title="추정 계산 · 미확정">추정</span></small>':'<small>'+(weekday?weekday+'요일':'')+'</small>'}</th>
         ${numericCells(row.unit1,0)}${combinedCell(row.combined)}
-        <td class="cfh-actions" rowspan="2"><button type="button" ${viewAttribute}="${escapeHtml(date)}" aria-label="${escapeHtml(date)} ${hypothesis?'가정 계산':'마감'} 상세 보기" aria-controls="cfh-readable-detail" aria-expanded="false">보기</button>${hypothesis?'':`<button type="button" class="danger" data-cfv15-delete="${escapeHtml(date)}" aria-label="${escapeHtml(date)} 마감 데이터 삭제">삭제</button>`}</td>
+        <td class="cfh-actions" rowspan="2"><button type="button" ${viewAttribute}="${escapeHtml(date)}" aria-label="${escapeHtml(date)} ${hypothesis?'추정 계산':'마감'} 상세 보기" aria-controls="cfh-readable-detail" aria-expanded="false">보기</button>${hypothesis?'':`<button type="button" class="danger" data-cfv15-delete="${escapeHtml(date)}" aria-label="${escapeHtml(date)} 마감 데이터 삭제">삭제</button>`}</td>
       </tr><tr>${numericCells(row.unit2,1)}</tr>
     </tbody>`;
   }
@@ -342,7 +342,7 @@
           </thead>
           ${rows.map(rowMarkup).join('')}${averageMarkup(rows)}
         </table>
-      </div><div class="cfh-readable-notes"><span>유·축 = 유기성·축분 혼소율 · 일별 종합: 열량 가중</span><span>월평균: 저장일별 산술평균 · 누락값 제외${rows.some(row=>row.hypothesis)?' · 가정 계산 '+rows.filter(row=>row.hypothesis).length+'일 포함':''}</span></div>`;
+      </div><div class="cfh-readable-notes"><span>유·축 = 유기성·축분 혼소율 · 일별 종합: 열량 가중</span><span>월평균: 저장일별 산술평균 · 누락값 제외${rows.some(row=>row.hypothesis)?' · 추정 계산 '+rows.filter(row=>row.hypothesis).length+'일 포함':''}</span></div>`;
   }
 
   async function mapLimit(items,limit,worker){
@@ -405,7 +405,7 @@
         if(hypothesis&&(!validHypothesisItem(payload?.item)||payload.item.targetDate!==date||!payload.item.record||
           payload.item.record.targetDate!==date||payload.item.record.recordKind!=='hypothesis'||
           payload.item.record.verificationStatus!=='unverified'||payload.item.record.officialClose!==false))
-          throw new Error('가정 계산 상세 기록의 날짜·구분 정보를 확인하지 못했습니다.');
+          throw new Error('추정 계산 상세 기록의 날짜·구분 정보를 확인하지 못했습니다.');
         return payload?.item||null;
       });
       detailCache.set(cacheKey,promise);
@@ -449,8 +449,8 @@
         const result=results[1].status==='fulfilled'?results[1].value:results[1];
         if(result.status==='fulfilled'){
           try{const checked=checkedHypotheses(result.value);savedHypotheses=checked.items;provisionalWarning=checked.warning;}
-          catch(error){provisionalWarning='가정 계산 기록 확인 실패 · '+error.message;}
-        }else provisionalWarning='가정 계산 기록 확인 실패 · '+String(result.reason?.message||'다시 조회해 주세요.');
+          catch(error){provisionalWarning='추정 계산 기록 확인 실패 · '+error.message;}
+        }else provisionalWarning='추정 계산 기록 확인 실패 · '+String(result.reason?.message||'다시 조회해 주세요.');
         const payload=results[0].value;
         listItems=mergeHistoryItems(Array.isArray(payload?.items)?payload.items:[],savedHypotheses,month);
         monthInput.value=selectedMonth;monthText.textContent=monthLabel(selectedMonth);
@@ -467,7 +467,7 @@
       const month=selectedMonth;
       const items=listItems.filter(item=>String(item?.targetDate||'').slice(0,7)===month);
       const hypothesisCount=items.filter(validHypothesisItem).length;
-      countText.textContent=`${items.length}일 저장`+(hypothesisCount?` · 가정 ${hypothesisCount}일 포함`:'');
+      countText.textContent=`${items.length}일 저장`+(hypothesisCount?` · 추정 ${hypothesisCount}일 포함`:'');
       monthText.textContent=monthLabel(selectedMonth);
       if(!items.length){host.innerHTML=hypothesisWarning(provisionalWarning)+tableMarkup([],selectedMonth);return;}
 
@@ -526,7 +526,7 @@
       if(!root.confirm?.(date+' 마감 데이터를 삭제하시겠습니까?'))return;
       try{
         const item=listItems.find(row=>row.targetDate===date);
-        if(item?.recordKind==='hypothesis')throw new Error('가정 계산 기록은 공식 마감 삭제 기능을 사용하지 않습니다.');
+        if(item?.recordKind==='hypothesis')throw new Error('추정 계산 기록은 공식 마감 삭제 기능을 사용하지 않습니다.');
         if(!item||!Number.isSafeInteger(item.revision)||!/^[a-f0-9]{64}$/.test(item.version||''))throw new Error('마감 목록을 새로고침하고 다시 확인해 주세요.');
         const query=new URLSearchParams({targetDate:date,expectedRevision:item.revision,expectedVersion:item.version});
         await api('?'+query.toString(),{method:'DELETE'});

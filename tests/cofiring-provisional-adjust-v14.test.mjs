@@ -24,7 +24,7 @@ function apply(mode,overrides={}){
  return validateProvisionalAdjustment(makeBase(),settings,{...defaultInput,...overrides});
 }
 test('explicit Yes and No before adjusting hypothetical organic fuel',()=>{
- assert.match(v14,/가정 계산된 유기성 고형연료가 통신 오류로 인해 가계산되었습니다/);
+ assert.match(v14,/추정 계산된 유기성 고형연료가 통신 오류로 인해 가계산되었습니다/);
  assert.match(v14,/그래도 혼소조정을 진행하시겠습니까/);
  assert.match(v14,/data-v14-yes/);assert.match(v14,/data-v14-no/);
 });

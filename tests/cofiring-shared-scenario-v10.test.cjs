@@ -60,12 +60,12 @@ test('bad B identity, Bad source replaced by Good, or bad receipt cannot be forc
 });
 test('result remains a non-persistent what-if projection',()=>{
  const usage=calc(peer);assert.ok(usage);assert.equal(usage.provisional,true);assert.equal(usage.verified,false);assert.equal(usage.receiptNeedsReview,true);
- assert.match(usage.assumption,/가정/);
+ assert.match(usage.assumption,/추정/);
 });
 test('the UI stops showing indefinite peer checking and keeps storage/close protections',()=>{
  const root=path.join(__dirname,'..');const ui=fs.readFileSync(path.join(root,'maintenance/cofiring-period-ui-v5.js'),'utf8');const corr=fs.readFileSync(path.join(root,'maintenance/cofiring-inventory-correction-ui.js'),'utf8');const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
- assert.doesNotMatch(ui,/pendingHypothesis\?'가정 근거 확인 중'/);
- assert.match(ui,/pendingHypothesis\?'가정 계산 보류'/);
+ assert.doesNotMatch(ui,/pendingHypothesis\?'추정 근거 확인 중'/);
+ assert.match(ui,/pendingHypothesis\?'추정 계산 보류'/);
  assert.match(ui,/if\(total\.scenario\|\|total\.sharedScenarioPending\)throw new Error/);
  assert.match(ui,/if\(organicUsageState\?\.scenario\|\|organicUsageState\?\.sharedScenarioPending\)throw new Error/);
  assert.match(corr,/sharedScenarioReason/);

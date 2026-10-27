@@ -21,11 +21,11 @@ test('hypothesis appears with actual tonnes but cannot masquerade as official cl
  const html=monthly.rowMarkup(item);
  assert.match(html,/data-cfv15-hypothesis="true"/);
  assert.match(html,/cfh-hypothesis-readonly/);
- assert.match(html,/>가정<\/span>/);
+ assert.match(html,/>추정<\/span>/);
  assert.doesNotMatch(html,/data-cfv15-delete/);
  const table=monthly.tableMarkup([item],'2026-10');
  assert.match(table,/536\.32/);
- assert.match(table,/가정 계산 · 미확정/);
+ assert.match(table,/추정 계산 · 미확정/);
  assert.match(table,/월평균에서는 제외/);
  assert.doesNotMatch(table,/<tfoot/);
  const detail=monthly.detailMarkup(scenario,item);
@@ -55,7 +55,7 @@ test('actual monthly KPIs never include the guessed fuel data',()=>{
  assert.match(table,/<tfoot/);
  assert.match(table,/1일 · 실측만/);
  assert.doesNotMatch(table,/2일 · 실측만/);
- assert.match(table,/가정값 제외/);
+ assert.match(table,/추정값 제외/);
 });
 test('previous day hypothesis can feed following morning only with its source date labelled',()=>{
  const source=read(preview);
@@ -81,8 +81,8 @@ test('previous day hypothesis can feed following morning only with its source da
 });
 test('visible save-status errors and no official data / excel endpoint writes',()=>{
  const ui=read(preview),index=read(require('node:path').join(__dirname,'../index.html'));
- assert.match(ui,/가정 기록 저장 실패/);
- assert.match(ui,/가정 계산 별도 저장 완료/);
+ assert.match(ui,/추정 기록 저장 실패/);
+ assert.match(ui,/추정 계산 별도 저장 완료/);
  assert.match(ui,/data-gs-v14-save-status/);
  assert.doesNotMatch(ui,/\/api\/cofiring-closed-history/);
  assert.match(index,/cofiring-estimated-inline-v14.css/);

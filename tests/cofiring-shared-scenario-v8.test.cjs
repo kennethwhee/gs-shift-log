@@ -14,7 +14,7 @@ test('Oct 24 displays the approved 19.143t scenario even when adjacent GET is ab
   assert.equal(out.unitTons,78.0315);assert.equal(out.total,156.063);
   assert.equal(out.verified,false);assert.equal(out.provisional,true);
   assert.equal(out.peerConfirmedForPreview,false);assert.equal(out.receiptNeedsReview,true);
-  assert.match(out.assumptionSource,/고정 가정/);
+  assert.match(out.assumptionSource,/고정 추정/);
  }
 });
 test('Fall back is strictly tied to the SAME historical Bad source identity',()=>{

@@ -65,8 +65,8 @@ test('morning existing card is yellow and labelled only for an unconfirmed scena
 });
 test('V13 has no separate save, read or history panel, uses the existing official fields only',()=>{
  assert.doesNotMatch(SOURCE,/createElement\(['"]button['"]\)/);
- assert.doesNotMatch(SOURCE,/textContent\s*=\s*['"]가정 계산 저장/);
- assert.doesNotMatch(SOURCE,/textContent\s*=\s*['"]가정자료 조회/);
+ assert.doesNotMatch(SOURCE,/textContent\s*=\s*['"]추정 계산 저장/);
+ assert.doesNotMatch(SOURCE,/textContent\s*=\s*['"]추정자료 조회/);
  assert.match(SOURCE,/cfv12-history-panel/);
  assert.match(SOURCE,/clearLegacyExtras/);
  assert.doesNotMatch(SOURCE,/\/api\/cofiring-closed-history/);
@@ -114,7 +114,7 @@ test('existing close-data table gets a pale-yellow row in place; official rows a
  const api=w.CofiringProvisionalV12;
  api.decorateHistory(body,[record('2026-10-24')]);
  assert.equal(rows.length,1);assert.equal(rows[0].dataset.gsV13Row,'2026-10-24');
- assert.match(rows[0].children[0].textContent,/유기성 \(가정\)/);
+ assert.match(rows[0].children[0].textContent,/유기성 \(추정\)/);
  assert.match(rows[0].children[4].textContent,/미확정/);
  assert.equal(official.cells[0].textContent,'2026-10-26');
  api.decorateHistory(body,[record('2026-10-24')]);assert.equal(rows.length,1);

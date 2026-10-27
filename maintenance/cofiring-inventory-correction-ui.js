@@ -143,7 +143,7 @@
         // No verified cross-day assumption: preserve the old source but never
         // display its standalone inventory estimate as a certified result.
         const reason=whatIf?.scenarioReason?.(reference,receipt,spec,peerReference)||
-          '공통 자정 가정 계산에 필요한 자료가 일치하지 않습니다';
+          '공통 자정 추정 계산에 필요한 자료가 일치하지 않습니다';
         return {...total,sharedScenarioPending:true,sharedScenarioReason:reason};
       }
       return total;

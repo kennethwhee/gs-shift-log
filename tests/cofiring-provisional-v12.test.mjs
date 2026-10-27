@@ -102,9 +102,9 @@ test('client cannot silently save changed usage, forged receipt, fake Good sourc
 test('V13 auto-syncs verified provisional values inline, without V12 save/query widgets or official-close write',()=>{
  assert.match(UI,/async function autoSave/);assert.match(UI,/const API='\/api\/cofiring-provisional-v12'/);
  assert.match(UI,/cfv12-history-panel/);assert.match(UI,/efficiencyMorningMeetingAutoCofiringCard/);
- assert.match(UI,/가정 계산 · 미확정/);
- assert.doesNotMatch(UI,/textContent='가정 계산 저장'/);
- assert.doesNotMatch(UI,/textContent='가정자료 조회'/);
+ assert.match(UI,/추정 계산 · 미확정/);
+ assert.doesNotMatch(UI,/textContent='추정 계산 저장'/);
+ assert.doesNotMatch(UI,/textContent='추정자료 조회'/);
  assert.doesNotMatch(UI,/\/api\/cofiring-closed-history/);
  assert.match(UI,/hasOfficialMorning\(date\)/);
 });

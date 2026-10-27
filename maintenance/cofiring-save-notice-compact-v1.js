@@ -25,17 +25,17 @@ function style(){
  doc.head.append(el);
 }
 function presentation(message,tone){
- const original=String(message||'').trim();
+ const original=String(message||'').replace(/\uAC00\uC815/g,'추정').trim();
  let label=original,detail='',kind=tone||'info';
  if(kind==='error'){
-  label='⚠ 가정 계산이 저장되지 않았습니다.';
-  detail=original.replace(/^가정 (?:기록|계산|조정) 저장 실패\s*[·:]?\s*/,'').trim();
-  if(/^(?:가정 계산 저장을 완료하지 못했습니다\.?|가정 계산이 저장되지\s*않았습니다\.?|재조회 필요|다시 확인 필요)?$/.test(detail))detail='';
- }else if(kind==='success')label='가정 계산 저장 완료 · 미확정';
- else if(kind==='working')label='가정 계산 저장 중…';
+  label='⚠ 추정 계산이 저장되지 않았습니다.';
+  detail=original.replace(/^추정 (?:기록|계산|조정) 저장 실패\s*[·:]?\s*/,'').trim();
+  if(/^(?:추정 계산 저장을 완료하지 못했습니다\.?|추정 계산이 저장되지\s*않았습니다\.?|재조회 필요|다시 확인 필요)?$/.test(detail))detail='';
+ }else if(kind==='success')label='추정 계산 저장 완료 · 미확정';
+ else if(kind==='working')label='추정 계산 저장 중…';
  else if(kind==='warn'){
-  label='가정 계산 저장 대기';
-  detail=original.replace(/^가정 (?:계산 )?저장 대기\s*[·:]?\s*/,'').trim();
+  label='추정 계산 저장 대기';
+  detail=original.replace(/^추정 (?:계산 )?저장 대기\s*[·:]?\s*/,'').trim();
  }
  if(detail===label)detail='';
  return {label,detail,kind};
@@ -68,7 +68,7 @@ function show(shell,message,tone=''){
   const label=root.document.createElement('span');label.className='gs-cfv-save-notice-text';
   label.setAttribute('role','status');label.setAttribute('aria-live','polite');label.setAttribute('aria-atomic','true');
   const toggle=root.document.createElement('button');toggle.type='button';toggle.className='gs-cfv-save-notice-toggle';
-  toggle.textContent='자세히';toggle.setAttribute('aria-expanded','false');toggle.setAttribute('aria-label','가정 계산 저장 안내 자세히');
+  toggle.textContent='자세히';toggle.setAttribute('aria-expanded','false');toggle.setAttribute('aria-label','추정 계산 저장 안내 자세히');
   const detail=root.document.createElement('p');detail.className='gs-cfv-save-notice-detail';detail.hidden=true;
   detail.id='gs-cfv-save-detail-v1-'+(++nextId);toggle.setAttribute('aria-controls',detail.id);
   toggle.addEventListener('click',()=>{

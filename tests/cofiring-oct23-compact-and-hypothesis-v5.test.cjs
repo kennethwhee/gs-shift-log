@@ -69,7 +69,7 @@ test('production UI shows clearly labelled scenario but never inserts it into ca
  const ui=fs.readFileSync(path.join(dir,'maintenance/cofiring-period-ui-v5.js'),'utf8');
  const index=fs.readFileSync(path.join(dir,'index.html'),'utf8');
  assert.match(ui,/total\.scenario=root\.CofiringOrganicScenarioV5\?\.scenario\?\./);
- assert.match(ui,/가정 ≈/);assert.match(ui,/확정 사용량 아님 · 저장 불가/);
+ assert.match(ui,/추정 ≈/);assert.match(ui,/확정 사용량 아님 · 저장 불가/);
  assert.match(ui,/mv\[u\]\.organic=organicUsageState\?\.ok\?organicUsageState\.allocation\[u\]:null/);
  assert.match(ui,/if\(organicUsageState\?\.ok!==true\)throw new Error/);
  assert.match(ui,/b\.disabled=!lastResult\|\|mobile\|\|organicUsageState\?\.ok!==true/);
