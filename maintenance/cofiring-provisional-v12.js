@@ -10,7 +10,8 @@ const GS_V17_CONTEXT_BINDING = true; // V17 guard marker
 const GS_V20_COMPLETED_SOURCE_WHILE_REFRESHING = true; // V20 guard marker
 const API='/api/cofiring-provisional-v12';
 const MEETING_ID='efficiencyMorningMeetingAutoCofiringCard';
-const APPROVED=new Set(['2026-10-23','2026-10-24']);
+// GS_COFIRING_ESTIMATE_AUTOSAVE_V1: any complete, source-validated daily estimate.
+const estimateApi=()=>root.CofiringEstimateV1;
 const UNITS=['unit1','unit2'];
 const FUELS=['coal','bio','organic','manure'];
 const RATIO_KEYS=['bio','organicGroup','total'];
@@ -24,11 +25,11 @@ const finite=x=>typeof x==='number'&&Number.isFinite(x)&&x>=0;
 const near=(a,b,tol=0.001)=>finite(a)&&finite(b)&&Math.abs(a-b)<=tol;
 const fmt=n=>finite(n)?n.toLocaleString('ko-KR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
 const fmtPct=n=>finite(n)?n.toFixed(2)+'%':'—';
-const validDate=s=>typeof s==='string'&&/^20\d{2}-\d{2}-\d{2}$/.test(s);
+const validDate=s=>estimateApi()?.validDate(s)===true;
 const getToken=()=>{try{const h=root.getShiftLogAuthHeaders?.()||{};return String(h.Authorization||h.authorization||'')}catch{return ''}};
 const headers=()=>({...root.getShiftLogAuthHeaders?.(),Accept:'application/json'});
-const dateAllowed=d=>APPROVED.has(d);
-const state={saveKey:'',saveBusy:false,failKey:'',failUntil:0,morningDate:'',morningItem:null,morningSourceDate:'',morningPending:'',morningCheckAt:0,historyCheckAt:0,historyItems:null,historyPending:false,historyKey:'',tickTimer:null};
+const dateAllowed=d=>validDate(d);
+const state={saveKey:'',saveBusy:false,failKey:'',failUntil:0,morningDate:'',morningAuth:'',morningGeneration:0,morningItem:null,morningSourceDate:'',morningPending:'',morningCheckAt:0,historyCheckAt:0,historyItems:null,historyPending:false,historyKey:'',tickTimer:null};
 async function request(suffix='',opts={}){
  const r=await root.fetch(API+suffix,{credentials:'same-origin',cache:'no-store',...opts,headers:{...headers(),...(opts.headers||{})}});
  let data;try{data=await r.json()}catch{throw Error('추정 계산 기록의 서버 응답을 확인하지 못했습니다.')}
@@ -36,11 +37,7 @@ async function request(suffix='',opts={}){
  return data;
 }
 function validItem(item,date){
- if(!dateAllowed(date))return false;
- if(!item||item.targetDate!==date||item.recordKind!=='hypothesis'||item.verificationStatus!=='unverified'||item.officialClose!==false)return false;
- if(item.assumption?.silo!=='organicStorageSiloB'||item.assumption?.boundaryLocal!=='2026-10-24T00:00'||!near(item.assumption?.tons,19.143,0.00001))return false;
- return UNITS.every(u=>FUELS.every(f=>finite(item.summary?.[u]?.[f]))&&
- ['bioRatio','organicGroupRatio','totalRatio'].every(k=>finite(item.summary?.[u]?.[k])))&&finite(item.summary?.combined?.totalRatio);
+ return estimateApi()?.validItem(item,date)===true;
 }
 function calcContext(){
  const shell=root.document?.querySelector('.cofiring-period-v5');const ctrl=root.__cofiringPeriodV5Controller;
@@ -57,59 +54,52 @@ function morningSourceDate(date){
  return dateAllowed(date)?date:'';
 }
 function projectionContext(){
- const c=calcContext(),scenarioApi=root.CofiringSharedScenarioV7;
+ const c=calcContext(),estimator=estimateApi();
  if(!c.shell||!c.ctrl)throw Error('혼소율 계산 화면이 준비되지 않았습니다. 혼소율 메뉴를 다시 열어 주세요.');
- if(!dateAllowed(c.date))throw Error('추정 저장은 10월 23·24일의 승인된 재고 추정에만 사용할 수 있습니다.');
+ if(!validDate(c.date))throw Error('추정 계산을 저장할 날짜를 확인해 주세요.');
  if(c.mode!=='daily')throw Error('계산 방식을 일별 계산으로 선택해 주세요.');
- if(!c.spec||c.spec.startLocal!==c.date+'T00:00'||c.spec.endLocal!==nextDate(c.date)+'T00:00'||
-   (c.spec.stepUnit&&c.spec.stepUnit!=='minute')||(c.spec.stepValue!=null&&c.spec.stepValue!==1))
+ if(!estimator?.projection||!estimator.isDailyPeriod?.(c.spec,c.date))
    throw Error('선택일 00:00~다음 날 00:00의 완료된 일별 계산인지 확인해 주세요.');
- if(!scenarioApi?.project||!scenarioApi?.isScenario)throw Error('유기성 추정 계산 모듈을 불러오지 못했습니다. 새로고침해 주세요.');
- // Read the authoritative controller result, not the text or rounded values
- // from the cards. A render may have completed before the async controller
- // has published its last result; try only other controller-owned snapshots.
- const candidates=[c.ctrl.getResult?.(),c.ctrl.getDisplayResult?.(),c.shell.__cfv6DetailPayload?.result];
- let raw=null,projected=null,scenario=null;
+ if(Date.parse(nextDate(c.date)+'T00:01:00+09:00')>=Date.now())
+   throw Error('하루가 완료된 추정 계산은 자동 저장됩니다. 진행 중인 오늘 계산은 현재값으로 표시합니다.');
+ const hasSnapshot=typeof c.ctrl.getEstimateSnapshot==='function';
+ const snapshot=hasSnapshot?c.ctrl.getEstimateSnapshot():null;
+ if(hasSnapshot&&!snapshot)throw Error('화면 계산과 원본 입력값을 함께 확인하고 있습니다. 계산 완료 후 자동 저장합니다.');
+ const candidates=snapshot?[snapshot.result]:[c.ctrl.getResult?.(),c.ctrl.getDisplayResult?.(),c.shell.__cfv6DetailPayload?.result];
+ let raw=null,estimate=null,pendingMessage='';
  for(const candidate of candidates){
-   if(!candidate)continue;
-   const projection=scenarioApi.project(candidate),assumption=projection?.hypothesisDisplay;
-   if(scenarioApi.isScenario(assumption)&&near(assumption.assumedStorageBTons,19.143,0.00001)){
-     raw=candidate;projected=projection;scenario=assumption;break;
-   }
+  if(!candidate)continue;
+  if(candidate.organicUsage?.estimateReady===false){pendingMessage=candidate.organicUsage.estimatePendingMessage||'재고 보완 이력과 인접 날짜 근거를 확인하고 있습니다.';continue;}
+  const selected=estimator.projection(candidate);
+  if(selected){raw=candidate;estimate=selected;break;}
  }
- if(!raw)throw Error('계산 카드의 추정값과 원본 계산 연결이 확인되지 않았습니다. 일별 [계산하기]를 다시 실행해 주세요.');
+ if(!raw)throw Error(pendingMessage||'완료된 추정 계산과 원본 계산의 연결을 확인하지 못했습니다. 일별 [계산하기]를 다시 실행해 주세요.');
  const live=c.ctrl.live?.state?.(),item=live?.item,saved=item?.saved;
  if(!item)throw Error('DataPARC 조회 상태를 불러오지 못했습니다. [계산하기]로 저장된 결과를 확인해 주세요.');
- // A newer DataPARC request may be running while the exact old daily result
- // remains complete and visible. Never treat background refreshing of that
- // newer request as loss of the independently persisted old source evidence.
- // The API will REVALIDATE the completed original and all displayed numbers.
  const currentId=item.result?.requestId;
  if(saved){
   if(saved.status!=='complete'||saved.requestType&&saved.requestType!=='cofiring_period'||saved.targetDate&&saved.targetDate!==c.date)
-    throw Error('완료된 DataPARC 원본의 저장 상태 또는 날짜를 다시 확인해 주세요.');
-  if(typeof saved.id!=='string'||!/^[a-f0-9-]{30,48}$/i.test(saved.id))
-    throw Error('저장된 DataPARC 원본 ID가 유효하지 않습니다.');
-  if(currentId&&currentId!==saved.id)
-    throw Error('화면 계산과 완료된 DataPARC 원본 조회 ID가 다릅니다. [계산하기]를 다시 눌러 주세요.');
-  if((item.active||item.loading||item.submitting)&&!currentId)
-    throw Error('최신 조회 중에는 화면의 완료 원본 ID가 필요합니다. 원본 조회 완료 후 다시 확인합니다.');
-  // A completed result is only valid for the exact currently selected period.
+   throw Error('완료된 DataPARC 원본의 저장 상태 또는 날짜를 다시 확인해 주세요.');
+  if(typeof saved.id!=='string'||!/^[a-f0-9-]{30,48}$/i.test(saved.id))throw Error('저장된 DataPARC 원본 ID가 유효하지 않습니다.');
+  if(currentId&&currentId!==saved.id)throw Error('화면 계산과 완료된 DataPARC 원본 조회 ID가 다릅니다. [계산하기]를 다시 눌러 주세요.');
+  if((item.active||item.loading||item.submitting)&&!currentId)throw Error('최신 조회 중에는 화면의 완료 원본 ID가 필요합니다. 원본 조회 완료 후 다시 확인합니다.');
   if(live.period&&['startLocal','endLocal','stepUnit','stepValue'].some(key=>live.period[key]!==c.spec[key]))
-    throw Error('화면의 조회 기간과 저장된 원본의 조회 기간이 다릅니다. [계산하기]를 다시 실행해 주세요.');
+   throw Error('화면의 조회 기간과 저장된 원본의 조회 기간이 다릅니다. [계산하기]를 다시 실행해 주세요.');
  }else if(item.active||item.loading||item.submitting){
   throw Error('완료된 DataPARC 원본이 아직 없습니다. 현재 조회가 끝나면 추정 저장을 다시 확인합니다.');
  }
- // Legacy cached results without saved metadata remain read-only candidates:
- // the server independently requires a matching completed saved source ID.
  const id=saved?.id||currentId;
  if(typeof id!=='string'||!/^[a-f0-9-]{30,48}$/i.test(id))throw Error('DataPARC 원본 요청 ID를 확인하지 못했습니다. 저장된 결과를 다시 불러와 주세요.');
- return {...c,raw,projected,scenario,saved:{id}};
+ if(snapshot&&snapshot.sourceRequestId!==id)throw Error('새 원본을 화면 계산에 반영한 뒤 자동 저장합니다.');
+ return {...c,raw,projected:estimate.result,scenario:raw.organicUsage?.scenario||null,estimate,snapshot,saved:{id},sourceId:id};
 }
 function buildPayload(){
  const c=projectionContext();
- const module=root.CofiringPeriodV5,settings=module?.readSettings?.(c.shell),manual=module?.readManual?.(c.shell);
- if(!settings||!manual)throw Error('추정 계산 발열량과 연료 사용량 자료를 기다리고 있습니다.');
+ const module=root.CofiringPeriodV5,currentSettings=module?.readSettings?.(c.shell),currentManual=module?.readManual?.(c.shell);
+ if(!currentSettings||!currentManual)throw Error('추정 계산 발열량과 연료 사용량 자료를 기다리고 있습니다.');
+ if(c.snapshot&&(JSON.stringify(c.snapshot.settings)!==JSON.stringify(currentSettings)||JSON.stringify(c.snapshot.manual)!==JSON.stringify(currentManual)))
+  throw Error('변경된 입력값으로 재계산한 뒤 자동 저장합니다.');
+ const settings=c.snapshot?.settings||currentSettings,manual=c.snapshot?.manual||currentManual;
  const active=root.CofiringProvisionalAdjustV14?.getActive?.(c)||null;
  const adjusted=active?.result||c.projected;
  const preview={units:{},combined:{}};
@@ -118,10 +108,15 @@ function buildPayload(){
   for(const k of RATIO_KEYS)preview.units[u].ratios[k]=src?.fuelRatios?.[k];
  }
  for(const k of RATIO_KEYS)preview.combined[k]=adjusted?.combined?.fuelRatios?.[k];
- const data={targetDate:c.date,sourceRequestId:String(c.saved.id),receiptTons:c.scenario.receipt,unitTons:c.scenario.unitTons,
-  settings,manure:{unit1:manual.unit1?.manure??0,unit2:manual.unit2?.manure??0},preview,
+ const peerSourceRequestId=c.raw.organicUsage?.peerSourceRequestId;
+ const data={targetDate:c.date,sourceRequestId:String(c.saved.id),estimateKind:c.estimate.kind,
+  receiptTons:c.estimate.receiptTons,unitTons:c.estimate.unitTons,correctionRefs:c.estimate.correctionRefs,
+  ...(peerSourceRequestId?{peerSourceRequestId}:{}),settings,
+  manure:{unit1:manual.unit1?.manure??0,unit2:manual.unit2?.manure??0},preview,
   ...(active?.adjustment?{adjustment:active.adjustment,confirmProvisionalAdjustment:true}:{}),acknowledgeUnverified:true};
- if(!finite(data.receiptTons)||!finite(data.unitTons)||!UNITS.every(u=>FUELS.every(f=>finite(preview.units[u][f]))&&RATIO_KEYS.every(k=>finite(preview.units[u].ratios[k])))||!RATIO_KEYS.every(k=>finite(preview.combined[k])))throw Error('추정값 및 원본 계산값 검증을 완료하지 못했습니다.');
+ if(!finite(data.receiptTons)||!finite(data.unitTons)||!Array.isArray(data.correctionRefs)||
+  !UNITS.every(u=>FUELS.every(f=>finite(preview.units[u][f]))&&RATIO_KEYS.every(k=>finite(preview.units[u].ratios[k])))||
+  !RATIO_KEYS.every(k=>finite(preview.combined[k])))throw Error('추정값 및 원본 계산값 검증을 완료하지 못했습니다.');
  return data;
 }
 // V14: Status is attached to the existing results toolbar. This does not
@@ -153,6 +148,9 @@ function saveStatus(message,tone=''){
 }
 function sameSaved(item,data){
  if(!validItem(item,data.targetDate)||item.sourceRequestId!==data.sourceRequestId)return false;
+ if(item.estimation&&(item.estimation.kind!==data.estimateKind||
+   JSON.stringify(item.estimation.correctionRefs||[])!==JSON.stringify(data.correctionRefs||[])||
+   data.peerSourceRequestId&&item.estimation.peerSourceRequestId!==data.peerSourceRequestId))return false;
  if(JSON.stringify(item.adjustment||null)!==JSON.stringify(data.adjustment||null))return false;
  for(const u of UNITS){
   for(const f of FUELS)if(!near(item.summary[u][f],data.preview.units[u][f],0.0001))return false;
@@ -172,11 +170,11 @@ function inlineUpdateEvent(date){
  if(typeof root.CustomEvent==='function')root.dispatchEvent?.(new root.CustomEvent('cofiring:provisional-inline-updated',{detail:{targetDate:date}}));
 }
 function isCurrentHypothesis(){
- const c=calcContext();if(!dateAllowed(c.date)||c.mode!=='daily'||!c.shell)return false;
+ const c=calcContext();if(!validDate(c.date)||c.mode!=='daily'||!c.shell)return false;
  try{
-  const projected=root.CofiringSharedScenarioV7?.project?.(c.ctrl?.getResult?.());
-  return root.CofiringSharedScenarioV7?.isScenario?.(projected?.hypothesisDisplay)===true||
-   !!c.shell.querySelector('.cfv17-hypothesis-card');
+  const result=c.ctrl?.getEstimateSnapshot?.()?.result||c.ctrl?.getResult?.(),usage=result?.organicUsage;
+  return estimateApi()?.projection?.(result)!=null||usage?.provisional===true||
+   !!usage?.scenario||usage?.sharedScenarioPending===true||!!c.shell.querySelector('.cfv17-hypothesis-card');
  }catch{return !!c.shell.querySelector('.cfv17-hypothesis-card')}
 }
 function currentSaveContext(auth,data){
@@ -187,7 +185,8 @@ function saveNotice(message,tone){try{saveStatus(message,tone)}catch(error){root
 function publishSaved(item,data,key){
  state.saveKey=key;state.savedItem=item;state.failKey='';state.failUntil=0;
  state.pendingKey='';state.pendingUntil=0;state.pendingMessage='';
- state.morningCheckAt=0;state.historyCheckAt=0;
+ if(data.targetDate===morningSourceDate(morningDate())){state.morningCheckAt=0;state.morningGeneration++;}
+ state.historyCheckAt=0;
  try{root.CofiringProvisionalAdjustV14?.onSaved?.()}catch(error){root.console?.warn?.('추정 조정 저장 표시 오류:',error)}
  saveNotice('추정 계산 저장 완료 · 미확정','success');
  try{inlineUpdateEvent(data.targetDate)}catch(error){root.console?.warn?.('추정 저장 화면 갱신 오류:',error)}
@@ -289,8 +288,7 @@ function setMorningSavedBadge(card,item,sourceDate){
   badge.dataset.gsV24PreviousAria=badge.getAttribute('aria-label')||'';
   badge.dataset.gsV24HadAria=badge.hasAttribute('aria-label')?'1':'0';
  }
- const detail='계산일 '+sourceDate+' · 추정값 저장 · 미확정'+(item?.adjustment?' · Bio 조정':'')+
-  ' · 2026-10-24 00:00 통신 오류로 Storage B 재고 19.143t 추정 · 정확한 값이 아닐 수 있어 재확인 필요';
+ const detail=estimateApi()?.description?.(item)||'계산일 '+sourceDate+' · 추정값 저장 · 미확정 · 원본 재확인 필요';
  setText(badge,'추정값');badge.dataset.gsV24Written='추정값';
  if(badge.title!==detail)badge.title=detail;
  if(badge.getAttribute('aria-label')!==detail)badge.setAttribute('aria-label',detail);
@@ -352,26 +350,43 @@ function applyMorning(item,date,sourceDate=date){
  card.querySelector('[data-gs-v13-note]')?.remove();
  state.morningItem=item;state.morningSourceDate=sourceDate;return true;
 }
+function morningVisible(card){
+ if(!card||root.document?.hidden||card.isConnected===false||card.hidden||card.closest?.('[hidden],[aria-hidden="true"]'))return false;
+ return typeof card.getClientRects!=='function'||card.getClientRects().length>0;
+}
 async function refreshMorning({force=false}={}){
  const date=morningDate(),auth=getToken(),card=root.document?.getElementById(MEETING_ID);
  if(!card)return;
- if(state.morningDate!==date){clearMorning();state.morningDate=date;state.morningCheckAt=0}
- if(!morningSourceDate(date)||!auth||morningBlocked(date)||hasOfficialMorning(date)){if(card.dataset.gsV13ProvisionalDate)clearMorning();return;}
+ if(state.morningDate!==date||state.morningAuth!==auth){
+  clearMorning();state.morningDate=date;state.morningAuth=auth;state.morningCheckAt=0;state.morningGeneration++;
+ }
+ if(force){state.morningCheckAt=0;state.morningGeneration++;}
+ if(!morningSourceDate(date)||!auth||morningBlocked(date)||hasOfficialMorning(date)){
+  if(card.dataset.gsV13ProvisionalDate)clearMorning();return;
+ }
+ // Restoring cached values is local. No idle timer or hidden card may refetch.
  if(state.morningItem&&validItem(state.morningItem,state.morningSourceDate))applyMorning(state.morningItem,date,state.morningSourceDate);
- if(!force&&Date.now()-state.morningCheckAt<60000)return;
- if(state.morningPending===auth+'|'+date)return;
- const key=auth+'|'+date;state.morningPending=key;state.morningCheckAt=Date.now();
+ if(!morningVisible(card))return;
+ const key=auth+'|'+date;
+ if(state.morningPending?.key===key)return;
+ if(!force&&state.morningCheckAt>0)return;
+ const task={key,generation:state.morningGeneration};state.morningPending=task;state.morningCheckAt=Date.now();
+ const current=()=>state.morningPending===task&&state.morningGeneration===task.generation&&
+  auth===getToken()&&morningDate()===date&&!hasOfficialMorning(date)&&!morningBlocked(date);
  try{
-  const dates=[morningSourceDate(date)];
-  let found=false;
-  for(const sourceDate of dates){
-   const {item}=await request('?targetDate='+encodeURIComponent(sourceDate));
-   if(state.morningPending!==key||auth!==getToken()||morningDate()!==date||hasOfficialMorning(date)||morningBlocked(date))return;
-   if(validItem(item,sourceDate)){found=applyMorning(item,date,sourceDate);if(found)break;}
-  }
+  const sourceDate=morningSourceDate(date),{item}=await request('?targetDate='+encodeURIComponent(sourceDate));
+  if(!current())return;
+  const found=validItem(item,sourceDate)&&applyMorning(item,date,sourceDate);
   if(!found&&card.dataset.gsV13ProvisionalDate)clearMorning();
  }catch(e){root.console?.warn?.('오전회의 추정 자료 조회 대기:',e.message)}
- finally{if(state.morningPending===key)state.morningPending=''}
+ finally{
+  if(state.morningPending===task){
+   state.morningPending=null;
+   // A save/refresh during an in-flight read invalidates that response and
+   // schedules one current read, only when the card becomes visible again.
+   if(state.morningGeneration!==task.generation){state.morningCheckAt=0;schedule();}
+  }
+ }
 }
 function officialDates(table){return new Set([...table.querySelectorAll('tbody tr')].filter(r=>!r.hasAttribute('data-gs-v13-row')).map(r=>(r.cells?.[0]?.textContent||'').match(/20\d\d-\d\d-\d\d/)?.[0]).filter(Boolean))}
 function addCell(row,text){const el=root.document.createElement('td');el.textContent=text;row.append(el);return el}
@@ -397,7 +412,7 @@ function decorateHistory(body,items){
   addCell(row,item.targetDate+' · 유기성 (추정)');addCell(row,fmtPct(item.summary.unit1.bioRatio));addCell(row,fmtPct(item.summary.unit2.bioRatio));
   addCell(row,fmtPct(item.summary.combined.totalRatio));addCell(row,item.adjustment?'추정 계산 · Bio 조정 · 미확정':'추정 계산 · 미확정');
   addCell(row,'참고 기록');addCell(row,'');
-  row.title='유기성 Storage B 00:00 재고 추정 포함 · 실측 마감값이 아닙니다.';tbody.append(row);
+  row.title=estimateApi()?.description?.(item)||'추정 계산 · 미확정 · 원본 재확인 필요';tbody.append(row);
  }
 }
 async function refreshHistory({force=false}={}){
@@ -437,7 +452,7 @@ function schedule(){if(scheduled!==null)return;scheduled=root.setTimeout?.(()=>{
 function clickCapture(event){const target=event.target?.closest?.('button');if(!target)return;
  const text=String(target.textContent||'').replace(/\s+/g,' ').trim();
  if(text==='마감 데이터'||target.hasAttribute('data-cfv12-refresh'))root.setTimeout?.(()=>void refreshHistory({force:true}),350);
- if(text.includes('오전회의자료')||text==='전체자료'||text==='새로 조회')root.setTimeout?.(()=>void refreshMorning({force:true}),350);
+ if(['morningMeetingCofiringRefreshButton','morningMeetingAllQueryButton','morningMeetingOperationsQueryButton'].includes(target.id)||text==='전체자료'||text==='전체조회'||text==='새로 조회')root.setTimeout?.(()=>void refreshMorning({force:true}),350);
 }
 function boot(){if(!root.document)return;mountCss();clearLegacyExtras();root.document.addEventListener('click',clickCapture,true);
  if(root.MutationObserver){const mo=new root.MutationObserver(mutations=>{
@@ -447,11 +462,12 @@ function boot(){if(!root.document)return;mountCss();clearLegacyExtras();root.doc
    const d=morningDate();if(state.morningItem&&d===state.morningDate)root.setTimeout?.(()=>applyMorning(state.morningItem,d,state.morningSourceDate),40);
   }
  });mo.observe(root.document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['hidden','value'],characterData:true});}
+ root.addEventListener?.('cofiring:estimate-calculated',schedule);
  root.addEventListener?.('cofiring:provisional-inline-updated',event=>{
   if(event.detail?.targetDate===morningSourceDate(morningDate()))void refreshMorning({force:true});
   state.historyCheckAt=0;void refreshHistory({force:true});
  });
- root.addEventListener?.('cofiring:closed-history-changed',()=>{clearMorning();state.morningCheckAt=0;state.historyCheckAt=0;schedule()});
+ root.addEventListener?.('cofiring:closed-history-changed',()=>{clearMorning();state.morningCheckAt=0;state.morningGeneration++;state.historyCheckAt=0;schedule()});
  // Bounded polling handles silently updated date selections and completed async reports.
  root.setInterval?.(()=>{if(!root.document.hidden)tick()},2500);schedule();
 }

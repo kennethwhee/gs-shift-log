@@ -5,22 +5,22 @@
 (function(root){
 'use strict';
 if(root.CofiringProvisionalAdjustV14)return;
-const ALLOWED=new Set(['2026-10-23','2026-10-24']),FUELS=['coal','bio','organic','manure'],UNITS=['unit1','unit2'];
+// GS_COFIRING_ESTIMATE_AUTOSAVE_V1: same verified estimate context on every date.
+const FUELS=['coal','bio','organic','manure'],UNITS=['unit1','unit2'];
 const num=x=>typeof x==='number'&&Number.isFinite(x)&&x>=0;
 const fmt=x=>num(x)?x.toLocaleString('ko-KR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
 const adj=()=>root.CofiringPeriodAdjustmentV56;
-const scenarioApi=()=>root.CofiringSharedScenarioV7;
+const estimateApi=()=>root.CofiringEstimateV1;
 const state={active:null,resetPending:false,preview:null,ctx:null,hydratedKey:'',loadingKey:'',dialog:null,focus:null};
 function context(){
- const shell=root.document?.querySelector('.cofiring-period-v5'),ctrl=root.__cofiringPeriodV5Controller;
- const date=shell?.querySelector('[data-cfv7-date]')?.value,mode=shell?.querySelector('[data-cfv8-mode]')?.value;
- const spec=ctrl?.getSpec?.(),original=ctrl?.getResult?.(),sourceId=ctrl?.live?.state?.()?.item?.saved?.id;
- const base=scenarioApi()?.project?.(original),h=base?.hypothesisDisplay;
- if(!shell||!ctrl||!ALLOWED.has(date)||mode!=='daily'||!sourceId||!spec||spec.startLocal!==date+'T00:00'||!scenarioApi()?.isScenario?.(h)||
-   !UNITS.every(u=>FUELS.every(f=>num(base?.units?.[u]?.[f]?.quantity))))return null;
+ let selected;try{selected=root.CofiringProvisionalV12?.projectionContext?.();}catch{return null;}
+ if(!selected)return null;
+ const {shell,ctrl,date,spec,raw:original,projected:base,sourceId}=selected;
+ if(!estimateApi()?.validDate?.(date)||!sourceId||!UNITS.every(u=>FUELS.every(f=>num(base?.units?.[u]?.[f]?.quantity))))return null;
  const settings=root.CofiringPeriodV5?.readSettings?.(shell);
- if(!settings)return null;
- const key=JSON.stringify([date,sourceId,UNITS.map(u=>FUELS.map(f=>[base.units[u][f].quantity,settings[u]?.[f]?.calorific,settings[u]?.[f]?.coefficient]))]);
+ if(!settings||selected.snapshot&&JSON.stringify(selected.snapshot.settings)!==JSON.stringify(settings))return null;
+ const key=JSON.stringify([date,sourceId,selected.estimate?.estimation,
+  UNITS.map(u=>FUELS.map(f=>[base.units[u][f].quantity,settings[u]?.[f]?.calorific,settings[u]?.[f]?.coefficient]))]);
  return {shell,ctrl,date,spec,sourceId,original,base,settings,key};
 }
 function getActive(c){

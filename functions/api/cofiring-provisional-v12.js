@@ -1,9 +1,10 @@
-// Separate, append-only OPERATOR WHAT-IF records. Never a certified close.
+// Completed daily estimates, append-only and independently revalidated. Never a certified close.
 import core from '../../maintenance/cofiring-core.js';
 import contract from '../../maintenance/cofiring-live-contract.js';
-import scenarioApi from '../../maintenance/cofiring-shared-scenario-v7.js';
+import estimateApi from '../../maintenance/cofiring-estimate-v1.js';
+import sharedMidnight from '../../maintenance/cofiring-shared-midnight-v6.js';
 import {validateProvisionalAdjustment} from '../_shared/cofiring-provisional-adjust-v14.mjs';
-import {ensureCorrectionTable,latestCorrection} from '../_shared/cofiring-inventory-correction-store.js';
+import {CORRECTION_TABLE,SILOS,boundaryKey,listCorrections,snapshotEvidence,correctionWriteGuard} from '../_shared/cofiring-inventory-correction-store.js';
 
 const TABLE='cofiring_provisional_snapshots_v12';
 const UNITS=['unit1','unit2'], FUELS=['coal','bio','organic','manure'];
@@ -11,6 +12,7 @@ const number=x=>typeof x==='number'&&Number.isFinite(x)&&x>=0&&x<=1e6;
 const object=x=>!!x&&typeof x==='object'&&!Array.isArray(x);
 const isoDate=x=>typeof x==='string'&&/^20\d\d-\d\d-\d\d$/.test(x)&&!Number.isNaN(Date.parse(x+'T00:00:00Z'))&&new Date(x+'T00:00:00Z').toISOString().slice(0,10)===x;
 const nextDay=date=>new Date(Date.parse(date+'T00:00:00Z')+86400000).toISOString().slice(0,10);
+const previousDay=date=>new Date(Date.parse(date+'T00:00:00Z')-86400000).toISOString().slice(0,10);
 const json=(value,status=200)=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 const reject=(message,code='INVALID',status=400)=>json({ok:false,code,message},status);
 const SHA=async text=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text)))].map(x=>x.toString(16).padStart(2,'0')).join('');
@@ -36,26 +38,29 @@ async function schema(db){
 function decode(row,includeFull=false){
  if(!row)return null;let saved;try{saved=JSON.parse(row.record_json)}catch{return null}
  if(saved?.recordKind!=='hypothesis'||saved.verificationStatus!=='unverified'||saved.officialClose===true||saved.targetDate!==row.target_date)return null;
- return {targetDate:row.target_date,revision:Number(row.revision),recordKind:'hypothesis',verificationStatus:'unverified',officialClose:false,
+ const item={targetDate:row.target_date,revision:Number(row.revision),recordKind:'hypothesis',verificationStatus:'unverified',officialClose:false,
   sourceRequestId:row.source_request_id,summary:saved.summary,assumption:saved.assumption,adjustment:saved.adjustment||null,
-  savedByName:row.saved_by_name,savedAt:row.created_at,
+  ...(saved.estimation?{estimation:saved.estimation}:{}),savedByName:row.saved_by_name,savedAt:row.created_at,
   ...(includeFull?{record:saved}:{})};
+ return estimateApi.validItem(item,row.target_date)?item:null;
 }
 async function latest(db,date){return db.prepare(`SELECT * FROM ${TABLE} WHERE target_date=? ORDER BY revision DESC LIMIT 1`).bind(date).first();}
 async function receiptFor(db,start,end){
  // The same completed-unloading departure interval as solid-fuel-trouble's receiptSummaryPeriod.
- const row=await db.prepare(`SELECT COALESCE(SUM(receipt_tons),0) AS tons FROM solid_fuel_unloading_logs
- WHERE deleted_at IS NULL AND fuel_type='organic' AND receipt_tons IS NOT NULL AND departure_time<>''
- AND (unloading_date||'T'||departure_time)>=? AND (unloading_date||'T'||departure_time)<?`)
- .bind(start,end).first();
  const entries=await db.prepare(`SELECT id,version,receipt_tons,unloading_date,departure_time,fuel_type FROM solid_fuel_unloading_logs
  WHERE deleted_at IS NULL AND fuel_type='organic' AND receipt_tons IS NOT NULL AND departure_time<>''
  AND (unloading_date||'T'||departure_time)>=? AND (unloading_date||'T'||departure_time)<? ORDER BY id`)
  .bind(start,end).all();
- const tons=Number(row?.tons);if(!number(tons))fail('입고량을 확인하지 못했습니다.','RECEIPT_INVALID');
- for(const e of entries.results||[])if(!number(e.receipt_tons)||e.receipt_tons<=0||!Number.isSafeInteger(Number(e.version)))fail('입고 자료에 확인되지 않은 기록이 있습니다.','RECEIPT_INVALID');
- const evidence=JSON.stringify(entries.results||[]);
- return {tons,sha256:await SHA(evidence),count:(entries.results||[]).length,evidence};
+ const rows=entries.results;
+ if(!Array.isArray(rows))fail('입고 기록 응답을 확인하지 못했습니다.','RECEIPT_INVALID');
+ for(const e of rows)if(!number(e.receipt_tons)||e.receipt_tons<=0||!Number.isSafeInteger(Number(e.version))||Number(e.version)<1)
+  fail('입고 자료에 확인되지 않은 기록이 있습니다.','RECEIPT_INVALID');
+ // One row snapshot supplies BOTH the calculation total and the write guard.
+ // A separate SUM read could race with an unloading edit before evidence read.
+ const tons=rows.reduce((total,entry)=>total+entry.receipt_tons,0);
+ if(!number(tons))fail('입고량을 확인하지 못했습니다.','RECEIPT_INVALID');
+ const evidence=JSON.stringify(rows);
+ return {tons,sha256:await SHA(evidence),count:rows.length,evidence};
 }
 async function sourceFor(db,date,sourceId){
  if(!/^[a-f\d-]{30,48}$/i.test(sourceId||''))fail('원본 조회 ID를 확인해 주세요.','SOURCE_ID');
@@ -65,7 +70,7 @@ async function sourceFor(db,date,sourceId){
  let parsed;try{parsed=contract.periodResult(JSON.parse(row.result_json),sourceId,spec)}catch{fail('원본 보고서 기간·품질 검증에 실패했습니다.','SOURCE_MISMATCH')}
  const ref={...parsed.report.reference,organicInventoryReady:parsed.report.organicInventoryReady,
   organicInventory:parsed.report.organicInventory??null,organicInventorySamples:parsed.report.organicInventorySamples};
- return {spec,ref,raw:row.result_json,sha256:await SHA(row.result_json)};
+ return {id:sourceId,targetDate:date,spec,ref,raw:row.result_json,sha256:await SHA(row.result_json)};
 }
 function checkedSettings(settings){
  if(!object(settings))fail('계산 당시의 발열량·보정계수를 확인해 주세요.','SETTINGS');
@@ -86,23 +91,95 @@ function validatePreview(client,result){
  }
  for(const k of ['bio','organicGroup','total'])if(!same(client.combined[k],result.combined.fuelRatios[k],0.0001))fail('종합 혼소율이 서버 재계산값과 다릅니다.','PREVIEW_MISMATCH');
 }
+async function adjacentFor(db,src,requestedId){
+ const planned=sharedMidnight.plan(src.spec,src.ref);
+ if(requestedId!==undefined&&(!planned||typeof requestedId!=='string'||!/^[a-f\d-]{30,48}$/i.test(requestedId)))
+  fail('인접 날짜의 원본 조회 ID를 확인해 주세요.','PEER_SOURCE_ID');
+ if(!planned)return null;
+ const spec=planned.peerSpec,date=spec.startLocal.slice(0,10);
+ if(requestedId!==undefined)return sourceFor(db,date,requestedId);
+ // Match the existing read-only OIS endpoint: only independently validated,
+ // completed results for this exact adjacent full day may be used.
+ const rows=await db.prepare(`SELECT id FROM ois_data_requests WHERE request_type='cofiring_period' AND target_date=? AND status='complete'
+  AND CASE WHEN json_valid(result_json) THEN json_extract(result_json,'$.request.startLocal') END=?
+  AND CASE WHEN json_valid(result_json) THEN json_extract(result_json,'$.request.endLocal') END=?
+  AND CASE WHEN json_valid(result_json) THEN json_extract(result_json,'$.request.stepUnit') END=?
+  AND CASE WHEN json_valid(result_json) THEN json_extract(result_json,'$.request.stepValue') END=?
+  ORDER BY requested_at DESC,id DESC LIMIT 20`).bind(date,spec.startLocal,spec.endLocal,spec.stepUnit,spec.stepValue).all();
+ for(const row of rows.results||[]){try{return await sourceFor(db,date,row.id)}catch{}}
+ return null;
+}
+function allCorrectionGuard(entries,spec){
+ const sql=[],args=[];
+ for(const boundary of [spec.startLocal,spec.endLocal])for(const silo of SILOS){
+  const revision=entries.find(item=>item.silo===silo&&item.boundaryLocal===boundary)?.revision||0;
+  sql.push(`(SELECT COALESCE(MAX(revision),0) FROM ${CORRECTION_TABLE} WHERE boundary_key=?)=?`);
+  args.push(boundaryKey(silo,boundary),revision);
+ }
+ return {sql:' AND '+sql.join(' AND '),args};
+}
+function receiptWriteGuard(receipt,start,end){
+ const rows=JSON.parse(receipt.evidence);
+ return {sql:` AND (SELECT COUNT(*) FROM solid_fuel_unloading_logs WHERE deleted_at IS NULL
+  AND fuel_type='organic' AND receipt_tons IS NOT NULL AND departure_time<>''
+  AND (unloading_date||'T'||departure_time)>=? AND (unloading_date||'T'||departure_time)<?)=?
+  AND NOT EXISTS(SELECT 1 FROM json_each(?) ref WHERE NOT EXISTS(
+   SELECT 1 FROM solid_fuel_unloading_logs evidence WHERE evidence.id=json_extract(ref.value,'$.id')
+   AND evidence.version=json_extract(ref.value,'$.version') AND evidence.deleted_at IS NULL
+   AND evidence.receipt_tons=json_extract(ref.value,'$.receipt_tons')
+   AND evidence.unloading_date=json_extract(ref.value,'$.unloading_date')
+   AND evidence.departure_time=json_extract(ref.value,'$.departure_time')
+   AND evidence.fuel_type=json_extract(ref.value,'$.fuel_type')))`,args:[start,end,rows.length,receipt.evidence]};
+}
+function peerWriteGuard(peer){
+ return peer?{sql:` AND EXISTS(SELECT 1 FROM ois_data_requests WHERE id=? AND target_date=?
+  AND request_type='cofiring_period' AND status='complete' AND result_json=?)`,args:[peer.id,peer.targetDate,peer.raw]}:{sql:'',args:[]};
+}
+function savedBoundaries(item){
+ if(!item)return [];
+ if(item.estimation)return item.estimation.boundaries;
+ const a=item.assumption;return a?[{silo:a.silo,boundaryLocal:a.boundaryLocal,tons:a.tons}]:[];
+}
+async function adjacentSnapshotGuard(db,record){
+ const sql=[],args=[];
+ for(const date of [previousDay(record.targetDate),nextDay(record.targetDate)]){
+  const row=await latest(db,date),item=decode(row);
+  if(row&&!item)fail('인접 날짜의 저장된 추정 기록을 확인하지 못했습니다.','SAVED_RECORD_INVALID');
+  for(const left of record.estimation.boundaries)for(const right of savedBoundaries(item)){
+   // Historical 19.143t was recorded to three decimal places. Compare at that
+   // established precision, while retaining the full source value in each row.
+   if(left.silo===right.silo&&left.boundaryLocal===right.boundaryLocal&&!same(left.tons,right.tons,0.001))
+    fail('인접 날짜에 저장된 동일 시각 재고 추정값과 다릅니다. 원본과 추정 근거를 다시 확인해 주세요.','SEAM_CONFLICT');
+  }
+  sql.push(`(SELECT COALESCE(MAX(revision),0) FROM ${TABLE} WHERE target_date=?)=?`);
+  args.push(date,Number(row?.revision||0));
+ }
+ return {sql:' AND '+sql.join(' AND '),args};
+}
 async function derive(db,body){
- if(!isoDate(body?.targetDate)||!['2026-10-23','2026-10-24'].includes(body.targetDate))fail('추정 재고가 승인된 10월 23일·24일 자료만 지원합니다.','DATE_UNSUPPORTED');
+ if(!isoDate(body?.targetDate))fail('추정 계산을 저장할 날짜를 확인해 주세요.','DATE');
  if(Date.parse(nextDay(body.targetDate)+'T00:01:00+09:00')>=Date.now())fail('완료된 일별 조회 결과만 추정 저장할 수 있습니다.','PERIOD_NOT_CLOSED');
  if(body.acknowledgeUnverified!==true)fail('추정 계산의 미확정 상태를 먼저 확인해 주세요.','ACK_REQUIRED');
- await ensureCorrectionTable(db);
- const confirmed=await latestCorrection(db,'organicStorageSiloB','2026-10-24T00:00');
- if(confirmed?.method==='confirmed')fail('공통 자정 재고의 확인값이 존재합니다. 추정 계산 대신 정상 재계산을 사용해 주세요.','SOURCE_CONFIRMED');
+ if(body.estimateKind!==undefined&&!['shared-scenario','inventory-balance'].includes(body.estimateKind))
+  fail('추정 계산의 근거 유형을 확인해 주세요.','ESTIMATE_KIND');
  const src=await sourceFor(db,body.targetDate,body.sourceRequestId);
- const r=await receiptFor(db,src.spec.startLocal,src.spec.endLocal);
- if(!same(body.receiptTons,r.tons,0.001))fail('입고 기록이 바뀌었습니다. 추정 계산을 다시 조회해 주세요.','RECEIPT_CHANGED');
- let adjacent=null;
- if(body.targetDate==='2026-10-24'){
-  const prior=await db.prepare(`SELECT id FROM ois_data_requests WHERE target_date='2026-10-23' AND request_type='cofiring_period' AND status='complete' ORDER BY requested_at DESC,id DESC LIMIT 1`).first();
-  if(prior){try{adjacent=(await sourceFor(db,'2026-10-23',prior.id)).ref}catch{} }
+ const corrections=await listCorrections(db,src.spec.startLocal,src.spec.endLocal);
+ const receipt=await receiptFor(db,src.spec.startLocal,src.spec.endLocal);
+ if(!same(body.receiptTons,receipt.tons,0.001))fail('입고 기록이 바뀌었습니다. 추정 계산을 다시 조회해 주세요.','RECEIPT_CHANGED');
+ const peer=await adjacentFor(db,src,body.peerSourceRequestId);
+ const candidate=estimateApi.deriveUsage(src.ref,receipt.tons,src.spec,corrections,peer?.ref||null,body.estimateKind);
+ if(!candidate||!same(candidate.unitTons,body.unitTons,0.0001))
+  fail('현재 원본과 저장된 재고 근거로 화면의 추정 계산을 재현하지 못했습니다. 계산 결과를 다시 확인해 주세요.','ESTIMATE_MISMATCH');
+ const refs=estimateApi.normalizeCorrectionRefs(body.correctionRefs||[]);
+ if(!refs||JSON.stringify(refs)!==JSON.stringify(candidate.correctionRefs))
+  fail('추정 계산에 사용한 재고 보완 기록이 변경됐습니다. 최신 값을 다시 확인해 주세요.','CORRECTION_CHANGED');
+ const usedCorrections=[];
+ for(const ref of candidate.correctionRefs){
+  const entry=corrections.find(item=>item.silo===ref.silo&&item.boundaryLocal===ref.boundaryLocal&&item.revision===ref.revision);
+  if(!entry)fail('계산에 사용한 재고 보완 이력이 일치하지 않습니다.','CORRECTION_CHANGED');
+  let evidence;try{evidence=await snapshotEvidence(db,entry)}catch{fail('재고 보완의 입고·하역 근거가 변경됐습니다. 최신 기록을 다시 확인해 주세요.','CORRECTION_EVIDENCE_CHANGED')}
+  usedCorrections.push({...entry,evidenceSnapshots:evidence});
  }
- const candidate=scenarioApi.displayScenario(src.ref,r.tons,src.spec,adjacent);
- if(!scenarioApi.isScenario(candidate)||!same(candidate.assumedStorageBTons,19.143,0.00001)||!same(candidate.unitTons,body.unitTons,0.0001))fail('현재 원본 기록으로 해당 날짜의 공통 추정 계산을 재현할 수 없습니다.','SCENARIO_MISMATCH');
  const {calorifics,coefficients}=checkedSettings(body.settings);
  const manure={};for(const u of UNITS){if(!number(body?.manure?.[u]))fail('축분 사용량을 확인해 주세요.','MANURE_INVALID');manure[u]=body.manure[u]}
  let calculated;
@@ -110,27 +187,38 @@ async function derive(db,body){
   organic:{start:src.spec.startLocal+':00+09:00',end:src.spec.endLocal+':00+09:00',unit1:candidate.unitTons,unit2:candidate.unitTons},
   manure:{start:src.spec.startLocal+':00+09:00',end:src.spec.endLocal+':00+09:00',...manure}})}catch{fail('원본 DataPARC 계산을 재현하지 못했습니다.','RECALC_FAILED')}
  if(!UNITS.every(u=>calculated.units[u]?.coal?.complete&&calculated.units[u]?.bio?.complete))fail('정상 Coal·Bio 원본값을 확인하지 못했습니다.','FUEL_SOURCE_INVALID');
- // Official measured fuel and close records remain untouched. Recalculate the
- // optional user-consented adjustment from the saved DataPARC WHAT-IF source.
  if(body.adjustment!==undefined){
   if(body.confirmProvisionalAdjustment!==true)fail('추정 연료 계산에 대한 운전원 확인이 필요합니다.','ADJUSTMENT_ACK_REQUIRED');
   calculated=validateProvisionalAdjustment(calculated,body.settings,body.adjustment);
  }
  validatePreview(body.preview,calculated);
- const summary=core.summaryFromResult(calculated);
+ const summary=core.summaryFromResult(calculated),estimation={...candidate.estimation,...(peer?{peerSourceRequestId:peer.id}:{})};
+ const usage=candidate.usage,scenario=candidate.scenario;
  const record={schemaVersion:12,recordKind:'hypothesis',verificationStatus:'unverified',officialClose:false,canOfficialClose:false,
   targetDate:body.targetDate,period:src.spec,sourceRequestId:body.sourceRequestId,sourceSha256:src.sha256,
-  receiptSha256:r.sha256,receiptCount:r.count,receiptTons:r.tons,
-  assumption:{silo:'organicStorageSiloB',boundaryLocal:'2026-10-24T00:00',tons:candidate.assumedStorageBTons,
-   basis:'2026-10-23 DataPARC 기간 최솟값을 00:00 종료/시작 재고로 가정',source:'display-only, not certified'},
-  scenario:{role:candidate.role,total:candidate.total,perUnit:candidate.unitTons,startTotal:candidate.startTotal,endTotal:candidate.endTotal},
-  settings:body.settings,manure,summary,adjustment:body.adjustment||null,saveNote:'가정 계산·미확정. 원본값과 별도 저장. 공식 마감 아님.'};
- return {record,sourceRaw:src.raw,receipt:r};
+  receiptSha256:receipt.sha256,receiptCount:receipt.count,receiptTons:receipt.tons,
+  estimation,assumption:candidate.assumption,
+  scenario:{role:scenario?.role||'inventory-balance',total:scenario?.total??usage?.usage,perUnit:candidate.unitTons,
+   startTotal:scenario?.startTotal??usage?.startTotal,endTotal:scenario?.endTotal??usage?.endTotal},
+  ...(peer?{peerSourceRequestId:peer.id,peerSourceSha256:peer.sha256}:{}),organicCorrections:usedCorrections,
+  ...(usage?.inventory?{organicInventory:usage.inventory}:{}),settings:body.settings,manure,summary,adjustment:body.adjustment||null,
+  saveNote:'추정 계산 · 미확정. 원본값과 별도 저장. 공식 마감 아님.'};
+ const guards=[allCorrectionGuard(corrections,src.spec),correctionWriteGuard(usedCorrections),
+  receiptWriteGuard(receipt,src.spec.startLocal,src.spec.endLocal),peerWriteGuard(peer),await adjacentSnapshotGuard(db,record)];
+ return {record,sourceRaw:src.raw,guard:{sql:guards.map(x=>x.sql).join(''),args:guards.flatMap(x=>x.args)}};
 }
 export async function onRequestGet(ctx){
  try{const user=await auth(ctx);if(user.error)return user.error;const db=ctx.env.DB;await schema(db);
-  const qs=new URL(ctx.request.url).searchParams,date=qs.get('targetDate');
+  const qs=new URL(ctx.request.url).searchParams,date=qs.get('targetDate'),month=qs.get('month');
+  if(date&&month)return reject('날짜 또는 조회 월 하나를 선택해 주세요.','DATE');
   if(date){if(!isoDate(date))return reject('조회 날짜를 확인해 주세요.','DATE');return json({ok:true,item:decode(await latest(db,date),true)});}
+  if(month){
+   if(!/^20\d\d-(?:0[1-9]|1[0-2])$/.test(month))return reject('조회 월을 확인해 주세요.','MONTH');
+   const start=month+'-01',end=new Date(Date.UTC(Number(month.slice(0,4)),Number(month.slice(5,7)),1)).toISOString().slice(0,10);
+   const rows=await db.prepare(`SELECT p.* FROM ${TABLE} p WHERE p.target_date>=? AND p.target_date<?
+    AND p.revision=(SELECT MAX(q.revision) FROM ${TABLE} q WHERE q.target_date=p.target_date) ORDER BY p.target_date DESC`).bind(start,end).all();
+   return json({ok:true,month,items:(rows.results||[]).map(x=>decode(x)).filter(Boolean)});
+  }
   const limit=Math.min(180,Math.max(1,Number.parseInt(qs.get('limit')||'90',10)||90));
   const rows=await db.prepare(`SELECT p.* FROM ${TABLE} p WHERE p.revision=(SELECT MAX(q.revision) FROM ${TABLE} q WHERE q.target_date=p.target_date) ORDER BY p.target_date DESC LIMIT ?`).bind(limit).all();
   return json({ok:true,items:(rows.results||[]).map(x=>decode(x)).filter(Boolean)});
@@ -143,27 +231,21 @@ export async function onRequestPost(ctx){
   if(!/^application\/json(?:\s*;|$)/i.test(req.headers.get('Content-Type')||''))return reject('JSON 요청만 허용됩니다.','TYPE',415);
   const raw=await req.text();if(new TextEncoder().encode(raw).length>30000)return reject('저장 요청이 너무 큽니다.','SIZE',413);
   let body;try{body=JSON.parse(raw)}catch{return reject('저장 형식이 올바르지 않습니다.','JSON')}
-  if(!object(body)||Object.keys(body).some(k=>!['targetDate','sourceRequestId','receiptTons','unitTons','settings','manure','preview','adjustment','confirmProvisionalAdjustment','acknowledgeUnverified','expectedRevision','requestId'].includes(k))||
+  if(!object(body)||Object.keys(body).some(k=>!['targetDate','sourceRequestId','receiptTons','unitTons','settings','manure','preview','adjustment','confirmProvisionalAdjustment','acknowledgeUnverified','expectedRevision','requestId','estimateKind','correctionRefs','peerSourceRequestId'].includes(k))||
     !Number.isSafeInteger(body.expectedRevision)||body.expectedRevision<0||typeof body.requestId!=='string'||!/^[a-f0-9-]{30,48}$/i.test(body.requestId))return reject('저장 요청의 버전 또는 ID가 올바르지 않습니다.','REQUEST');
   const db=ctx.env.DB;await schema(db);
   const bodyHash=await SHA(JSON.stringify(body));
   const old=await db.prepare(`SELECT * FROM ${TABLE} WHERE request_id=? LIMIT 1`).bind(body.requestId).first();
   if(old)return old.target_date===body.targetDate&&old.saved_by_id===user.user.id&&old.payload_sha256===bodyHash?json({ok:true,item:decode(old),replayed:true}):reject('같은 요청 ID가 다른 내용으로 제출됐습니다.','REQUEST_CONFLICT',409);
-  const {record,sourceRaw,receipt}=await derive(db,body);
-  // Cross-date seam consistency: an immutable what-if must never conflict with the other day.
-  const otherDate=body.targetDate==='2026-10-23'?'2026-10-24':'2026-10-23';
-  const other=decode(await latest(db,otherDate),true);
-  if(other&&(!same(other.record?.assumption?.tons,record.assumption.tons,0.000001)||other.record?.assumption?.boundaryLocal!==record.assumption.boundaryLocal))return reject('다른 날짜에 저장된 공통 자정 재고 추정과 충돌합니다.','SEAM_CONFLICT',409);
-  const receiptNow=await receiptFor(db,record.period.startLocal,record.period.endLocal);
-  if(receiptNow.sha256!==receipt.sha256)return reject('입고 기록이 저장 중 변경됐습니다. 다시 계산해 주세요.','RECEIPT_CHANGED',409);
+  const {record,sourceRaw,guard}=await derive(db,body);
   const now=new Date().toISOString(),data=JSON.stringify(record);
   const result=await db.prepare(`INSERT INTO ${TABLE}(target_date,revision,request_id,payload_sha256,source_request_id,source_sha256,receipt_sha256,record_json,saved_by_id,saved_by_name,created_at)
    SELECT ?,?, ?,?,?,?,?,?,?,?,? WHERE (SELECT COALESCE(MAX(revision),0) FROM ${TABLE} WHERE target_date=?)=?
-   AND EXISTS(SELECT 1 FROM ois_data_requests WHERE id=? AND target_date=? AND request_type='cofiring_period' AND status='complete' AND result_json=?)
+   AND EXISTS(SELECT 1 FROM ois_data_requests WHERE id=? AND target_date=? AND request_type='cofiring_period' AND status='complete' AND result_json=?)${guard.sql}
    ON CONFLICT DO NOTHING RETURNING *`)
-    .bind(body.targetDate,body.expectedRevision+1,body.requestId,bodyHash,body.sourceRequestId,record.sourceSha256,receipt.sha256,data,user.user.id,user.user.name,now,
-      body.targetDate,body.expectedRevision,body.sourceRequestId,body.targetDate,sourceRaw).all();
-  const saved=result.results?.[0];if(!saved)return reject('원본 조회값 또는 다른 화면의 저장 기록이 변경됐습니다. 최신 값을 다시 확인해 주세요.','STALE_REVISION',409);
+    .bind(body.targetDate,body.expectedRevision+1,body.requestId,bodyHash,body.sourceRequestId,record.sourceSha256,record.receiptSha256,data,user.user.id,user.user.name,now,
+      body.targetDate,body.expectedRevision,body.sourceRequestId,body.targetDate,sourceRaw,...guard.args).all();
+  const saved=result.results?.[0];if(!saved)return reject('원본 조회값·입고량·재고 근거 또는 저장 기록이 변경됐습니다. 최신 값을 다시 확인해 주세요.','STALE_REVISION',409);
   return json({ok:true,item:decode(saved),message:'추정 계산을 미확정 기록으로 저장했습니다. 공식 마감값은 변경되지 않았습니다.'});
  }catch(err){if(err?.code)return reject(err.message,err.code,409);console.error('provisional save failed',err?.message);return reject('추정 계산 저장을 완료하지 못했습니다.','SAVE_FAILED',500)}
 }

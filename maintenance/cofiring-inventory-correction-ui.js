@@ -63,7 +63,8 @@
   }
   function create(options={}){
     const host=options.host;let reference=null,spec=null,disposed=false,scheduled=false,lastRender='',drafts=new Map(),openBoundaries=new Set(),contextKey='';
-    let peerReference=null,peerState='idle',peerPending=null,peerGeneration=0;
+    // GS_COFIRING_ESTIMATE_AUTOSAVE_V1: retain exact source identity and read readiness.
+    let peerReference=null,peerSourceRequestId='',peerState='idle',peerPending=null,peerGeneration=0;
     const store=createStore({...options,onChange:()=>{render();if(!scheduled){scheduled=true;Promise.resolve().then(()=>{scheduled=false;if(!disposed)options.onChange?.();});}}});
     const entries=()=>{const s=store.state();return s.loaded&&!s.loading?s.entries:[];};
     const resolution=()=>reference&&spec?model.resolve(reference,entries(),spec,{enableAutoEstimate:true,adjacentReference:peerReference}):null;
@@ -81,12 +82,13 @@
           const result=await shared.read({reference:selectedRef,spec,headers:options.getHeaders?.()||{},fetcher:options.fetch||root.fetch?.bind(root)});
           if(!isCurrent())return false;
           peerReference=result?.adjacentReference||null;
+          peerSourceRequestId=peerReference?String(result?.sourceRequestId||''):'';
           peerState=peerReference?'ready':'unavailable';
           // Successful and incomplete peer reports both affect the current
           // scenario. Refresh cards once, without changing the raw result.
           options.onChange?.();
           return !!peerReference;
-        }catch(_){if(isCurrent()){peerState='unavailable';options.onChange?.();}return false;}
+        }catch(_){if(isCurrent()){peerReference=null;peerSourceRequestId='';peerState='unavailable';options.onChange?.();}return false;}
         finally{if(isCurrent())peerPending=null;}
       })();peerPending=task;return task;
     }
@@ -95,7 +97,7 @@
       const keyChanged=nextKey!==contextKey;
       if(keyChanged){contextKey=nextKey;drafts=new Map();openBoundaries=new Set();lastRender='';}
       const changed=reference!==nextReference;
-      if(changed||keyChanged){peerGeneration++;peerReference=null;peerState='idle';peerPending=null;}
+      if(changed||keyChanged){peerGeneration++;peerReference=null;peerSourceRequestId='';peerState='idle';peerPending=null;}
       spec=nextSpec;reference=nextReference;store.select(spec);
       const missing=reference&&spec?model.resolve(reference,[],spec,{enableAutoEstimate:true}).missing||[]:[];
       if(changed||nextKey!==lastRender)render();
@@ -110,7 +112,7 @@
       const wrapper=host.closest?.('[data-cfv-inventory-optional]');if(wrapper)wrapper.hidden=host.hidden;
       if(host.hidden){host.innerHTML='';return;}
       const context=JSON.stringify([contextKey,missing,state.entries,state.history,state.historyTruncated,state.loaded,state.loading,state.saving,state.error,state.evidence]);if(context===lastRender)return;lastRender=context;
-      host.innerHTML=`<div class="cfv-inventory-heading"><strong>통신 오류 재고 보완</strong><button type="button" data-cfv-inventory-reload ${state.loading||state.saving?'disabled':''}>최신 기록 다시 확인</button></div><p>정상 Coal·Bio 사용량은 그대로 표시합니다. 확인되지 않은 재고만 보완하며, 같은 시각의 재고는 전날 종료와 다음 날 시작에 함께 사용합니다.</p><p class="cfv-inventory-caution">입고·하역 기록은 외부 반입 근거입니다. 입고가 없어도 Storage → Day Silo 이송은 있을 수 있습니다. 하역 전후 재고와 운전기록으로 경계 시각의 재고를 확인하세요. 추정값은 임시 계산에만 사용하며, 사용량 저장·마감은 확정 후 가능합니다.</p>${state.error?`<p role="alert">${esc(state.error)}</p>`:state.loading?'<p role="status">저장된 보완 이력 확인 중</p>':''}${missing.map((item,index)=>{
+      host.innerHTML=`<div class="cfv-inventory-heading"><strong>통신 오류 재고 보완</strong><button type="button" data-cfv-inventory-reload ${state.loading||state.saving?'disabled':''}>최신 기록 다시 확인</button></div><p>정상 Coal·Bio 사용량은 그대로 표시합니다. 확인되지 않은 재고만 보완하며, 같은 시각의 재고는 전날 종료와 다음 날 시작에 함께 사용합니다.</p><p class="cfv-inventory-caution">입고·하역 기록은 외부 반입 근거입니다. 입고가 없어도 Storage → Day Silo 이송은 있을 수 있습니다. 하역 전후 재고와 운전기록으로 경계 시각의 재고를 확인하세요. 추정값으로 완료된 일별 계산은 미확정 기록으로 자동 저장합니다. 실제 계측값과 구분해 확인해 주세요.</p>${state.error?`<p role="alert">${esc(state.error)}</p>`:state.loading?'<p role="status">저장된 보완 이력 확인 중</p>':''}${missing.map((item,index)=>{
         const entry=state.entries.find(row=>key(row)===key(item)),draft=drafts.get(key(item))||{tons:entry?.tons??'',method:entry?.method||'estimated',reason:entry?.reason||'',evidence:entry?.evidence||[]};
         const disabled=!state.canEdit||!state.loaded||state.loading||state.saving;
         return `<section class="cfv-inventory-boundary"><h4>${esc(item.label||label[item.silo])} · ${esc(item.boundaryLocal?.replace('T',' '))} <small>${item.side==='start'?'시작':'종료'} 재고</small></h4><p>원본: ${esc(item.quality||'품질 미확인')} · ${esc(item.returnedTime||'시각 미확인')} · ${esc(item.reason||'유효한 경계 재고 없음')}</p>${entry?`<p class="cfv-inventory-audit">적용 이력 v${entry.revision} · ${entry.method==='confirmed'?'확정':'추정'} ${esc(entry.tons)} t · ${esc(entry.updatedByName||entry.updatedById)} · ${esc(entry.updatedAt)}<br>근거: ${esc(entry.reason)}</p>`:''}<div class="cfv-inventory-fields"><label>보완 재고(t)<input type="text" inputmode="decimal" data-cfv-inventory-tons="${index}" value="${esc(draft.tons)}" ${disabled?'disabled':''}></label><label>값 구분<select data-cfv-inventory-method="${index}" ${disabled?'disabled':''}><option value="estimated" ${draft.method==='estimated'?'selected':''}>추정값 · 임시 계산</option><option value="confirmed" ${draft.method==='confirmed'?'selected':''}>확정값 · 근거 확인 완료</option></select></label><label class="cfv-inventory-reason">재고 확인 근거<textarea data-cfv-inventory-reason="${index}" rows="2" maxlength="1000" placeholder="확인한 재고·시각, 운전기록 또는 추정 방법을 적어 주세요." ${disabled?'disabled':''}>${esc(draft.reason)}</textarea></label></div><details data-cfv-inventory-details="${index}" ${openBoundaries.has(key(item))?'open':''}><summary>고형연료 관리 입고·하역 근거 보기</summary>${evidenceMarkup(state.evidence[item.boundaryLocal],index)}</details>${historyMarkup(state.history.filter(row=>key(row)===key(item)),entry,state.historyTruncated)}<button type="button" data-cfv-inventory-save="${index}" ${disabled?'disabled':''}>재고 보완 이력 저장·적용</button><p data-cfv-inventory-message="${index}" role="status"></p></section>`;
@@ -134,21 +136,25 @@
     }
     function usage(receipt,options){
       const total=model.usage(reference,receipt,spec,entries(),{...(options||{}),enableAutoEstimate:true,adjacentReference:peerReference});
-      // A scenario is presentation-only. Never change the official model
-      // success, correction revision, or source values used by save/close.
-      const scenario=whatIf?.scenario(reference,receipt,spec,peerReference)||
+      const correctionState=store.state(),needsCorrectionRead=!!total?.missing?.length;
+      const correctionReady=!needsCorrectionRead||correctionState.loaded&&!correctionState.loading&&!correctionState.error;
+      const needsPeer=!!shared?.plan?.(spec,reference),peerReady=!needsPeer||['ready','unavailable'].includes(peerState);
+      const readiness={estimateReady:!!(correctionReady&&peerReady),
+        estimatePendingMessage:!correctionReady?'저장된 재고 보완 이력을 확인한 뒤 자동 저장합니다.':!peerReady?'인접 날짜의 원본 근거를 확인한 뒤 자동 저장합니다.':'',
+        ...(peerSourceRequestId?{peerSourceRequestId}: {})};
+      // A saved operator correction supersedes the historical display scenario.
+      const correctedBoundary=total.corrections?.some(entry=>entry.silo==='organicStorageSiloB'&&entry.boundaryLocal===whatIf?.SEAM);
+      const scenario=correctedBoundary?null:whatIf?.scenario(reference,receipt,spec,peerReference)||
         whatIf?.displayScenario?.(reference,receipt,spec,peerReference)||null;
-      if(scenario)return {...total,scenario};
-      if(whatIf?.side(reference,spec)==='next'&&total?.provisional){
-        // No verified cross-day assumption: preserve the old source but never
-        // display its standalone inventory estimate as a certified result.
+      if(scenario)return {...total,...readiness,scenario};
+      if(!correctedBoundary&&whatIf?.side(reference,spec)==='next'&&total?.provisional){
         const reason=whatIf?.scenarioReason?.(reference,receipt,spec,peerReference)||
           '공통 자정 추정 계산에 필요한 자료가 일치하지 않습니다';
-        return {...total,sharedScenarioPending:true,sharedScenarioReason:reason};
+        return {...total,...readiness,sharedScenarioPending:true,sharedScenarioReason:reason};
       }
-      return total;
+      return {...total,...readiness};
     }
-    function dispose(){disposed=true;peerGeneration++;peerReference=null;peerPending=null;store.dispose();if(host)host.innerHTML='';}
+    function dispose(){disposed=true;peerGeneration++;peerReference=null;peerSourceRequestId='';peerPending=null;store.dispose();if(host)host.innerHTML='';}
     return {setContext,refresh,usage,state:store.state,dispose};
   }
   root.CofiringInventoryCorrectionUI={create,createStore,parseTons,evidenceMarkup,historyMarkup};

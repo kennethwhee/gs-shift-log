@@ -8,6 +8,7 @@
   const VERSION='COFIRING_CLOSED_HISTORY_READABLE_V1';
   const UNITS=['unit1','unit2'];
   const FUELS=['coal','bio','organic','manure'];
+  const estimates=root.CofiringEstimateV1||(typeof require==='function'?require('./cofiring-estimate-v1.js'):null);
 
   const number=value=>{
     if(value===null||value===undefined||typeof value==='boolean'||(typeof value==='string'&&!value.trim()))return null;
@@ -59,16 +60,7 @@
   // visible date table; same-day official records always take precedence.
   const PROVISIONAL_API='/api/cofiring-provisional-v12';
   function validHypothesisItem(item){
-    const finite=(value,max=1000000)=>typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=max;
-    if(!item||!['2026-10-23','2026-10-24'].includes(item.targetDate)||
-      item.recordKind!=='hypothesis'||item.verificationStatus!=='unverified'||item.officialClose!==false||
-      !Number.isSafeInteger(item.revision)||item.revision<1||
-      typeof item.sourceRequestId!=='string'||!/^[a-f0-9-]{30,48}$/i.test(item.sourceRequestId)||
-      typeof item.savedAt!=='string'||!Number.isFinite(Date.parse(item.savedAt))||
-      item.assumption?.silo!=='organicStorageSiloB'||item.assumption?.boundaryLocal!=='2026-10-24T00:00'||
-      !finite(item.assumption?.tons)||Math.abs(item.assumption.tons-19.143)>0.00001)return false;
-    const ratios=value=>['bioRatio','organicGroupRatio','totalRatio'].every(key=>finite(value?.[key],100));
-    return UNITS.every(unit=>FUELS.every(fuel=>finite(item.summary?.[unit]?.[fuel]))&&ratios(item.summary?.[unit]))&&ratios(item.summary?.combined);
+    return estimates?.validItem?.(item)===true;
   }
   async function provisionalApi(path=''){
     const response=await root.fetch(PROVISIONAL_API+path,{
@@ -148,7 +140,7 @@
         combined:{bioRatio:item.summary.combined.bioRatio,organicGroupRatio:item.summary.combined.organicGroupRatio,totalRatio:item.summary.combined.totalRatio},
         settings:item.record?.settings||{},manual:{},capturedAt:item.savedAt,
         sourceRequestId:item.sourceRequestId,savedByName:String(item.savedByName||''),updatedAt:item.savedAt,
-        hypothesis:true,isHypothesis:true,assumption:item.assumption,
+        hypothesis:true,isHypothesis:true,assumption:item.assumption,estimation:item.estimation,
         adjustmentApplied:!!item.adjustment,revision:item.revision
       };
     }
@@ -246,7 +238,7 @@
   function detailMarkup(item,row){
     return `
       <div class="cfh-readable-detail-head"><strong>${escapeHtml(row.targetDate)} ${row.hypothesis?'추정 계산':'마감'} 상세</strong><button type="button" data-cfh-detail-close>접기</button></div>
-      ${row.hypothesis?'<p class="cfh-hypothesis-detail-note">추정 계산 · 미확정 — 2026-10-24 00:00 Storage B 재고 19.143t 추정이 포함된 저장값입니다.</p>':''}
+      ${row.hypothesis?'<p class="cfh-hypothesis-detail-note">'+escapeHtml(estimates.description(item))+'</p>':''}
       <div class="cfh-readable-detail-units">${UNITS.map((key,index)=>`
         <section class="cfh-readable-detail-unit"><h4>${index+1}호기</h4>
           <dl class="cfh-readable-detail-ratios">${[['바이오',row[key].bioRatio],['유기성·축분',row[key].organicGroupRatio],['종합 혼소율',row[key].totalRatio]].map(([label,value])=>`<div><dt>${label}</dt><dd>${fmtPct(value)}</dd></div>`).join('')}</dl>
@@ -424,15 +416,13 @@
       detailCache.clear();provisionalWarning='';
       host.innerHTML='<div class="cfv15-state">마감 데이터 목록을 확인하는 중입니다...</div>';
       try{
-        let provisional=null;
         if(!keepMonth||!selectedMonth){
-          const results=await Promise.allSettled([api('?limit=1'),provisionalApi('?limit=180')]);
+          const results=await Promise.allSettled([api('?limit=1'),provisionalApi('?limit=1')]);
           if(epoch!==loadEpoch)return;
           if(results[0].status==='rejected')throw results[0].reason;
-          provisional=results[1];
           let dates=(results[0].value.items||[]).map(item=>String(item?.targetDate||''));
-          if(provisional.status==='fulfilled'){
-            try{dates=dates.concat(checkedHypotheses(provisional.value).items.map(item=>item.targetDate));}catch(_){}
+          if(results[1].status==='fulfilled'){
+            try{dates=dates.concat(checkedHypotheses(results[1].value).items.map(item=>item.targetDate));}catch(_){}
           }
           dates=dates.filter(date=>/^20\d{2}-\d{2}-\d{2}$/.test(date)).sort().reverse();
           selectedMonth=normalizeMonth(dates[0]?.slice(0,7))||koreanCurrentMonth();
@@ -440,13 +430,12 @@
         const month=selectedMonth;
         const results=await Promise.allSettled([
           api('?month='+encodeURIComponent(month)),
-          provisional?Promise.resolve(provisional):month==='2026-10'?provisionalApi('?limit=180')
-            .then(value=>({status:'fulfilled',value}),reason=>({status:'rejected',reason})):Promise.resolve({status:'fulfilled',value:{items:[]}})
+          provisionalApi('?month='+encodeURIComponent(month))
         ]);
         if(epoch!==loadEpoch||month!==selectedMonth)return;
         if(results[0].status==='rejected')throw results[0].reason;
         let savedHypotheses=[];
-        const result=results[1].status==='fulfilled'?results[1].value:results[1];
+        const result=results[1];
         if(result.status==='fulfilled'){
           try{const checked=checkedHypotheses(result.value);savedHypotheses=checked.items;provisionalWarning=checked.warning;}
           catch(error){provisionalWarning='추정 계산 기록 확인 실패 · '+error.message;}
@@ -580,7 +569,7 @@
 
     root.addEventListener?.('cofiring:provisional-inline-updated',event=>{
       const date=event?.detail?.targetDate;
-      if(['2026-10-23','2026-10-24'].includes(date)&&date.slice(0,7)===selectedMonth){
+      if(typeof date==='string'&&/^20\d{2}-\d{2}-\d{2}$/.test(date)&&date.slice(0,7)===selectedMonth){
         detailCache.clear();if(!panel.hidden)void loadList({keepMonth:true});
       }
     });
