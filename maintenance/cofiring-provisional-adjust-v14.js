@@ -31,10 +31,29 @@ function getActive(c){
 function getAdjusted(){const c=context();return c&&state.active?.key===c.key?state.active.result:null;}
 function resetRequested(){return state.resetPending;}
 function paintSaveStatus(label,error=false){
- const c=context(),btn=c?.shell?.querySelector('[data-cfv56-adjust]');if(!btn)return;
- let span=c.shell.querySelector('[data-v14-save-status]');
- if(!span){span=root.document.createElement('small');span.dataset.v14SaveStatus='';span.style.cssText='display:inline-block;margin-left:8px;font-size:11px;color:#946313;line-height:1.4';btn.insertAdjacentElement('afterend',span);}
- span.textContent=label;span.style.color=error?'#a33129':'#946313';
+ // Compact save notice V1: display failures must never interrupt saving.
+ try{
+  const shell=context()?.shell;if(!shell)return;
+  const statusMessage=label,statusTone=error?'error':'info';
+  try{
+   const presenter=root.GSCofiringSaveNoticeCompactV1?.show;
+   if(typeof presenter==='function'){presenter(shell,statusMessage,statusTone);return;}
+  }catch(error){root.console?.warn?.('가정 저장 안내 표시 오류:',error);}
+  const host=shell.querySelector('.cfv-results-dark');if(!host)return;
+  let node=host.querySelector('[data-cfv-save-notice-fallback-v1]');
+  if(!node){
+   node=root.document.createElement('div');node.dataset.cfvSaveNoticeFallbackV1='';
+   node.dataset.gsV14SaveStatus='';node.dataset.v14SaveStatus='';
+   node.setAttribute('role','status');node.setAttribute('aria-live','polite');
+   node.style.cssText='display:block;max-width:100%;margin:7px 0 0;padding:0;border:0;background:transparent;font-size:12px;line-height:1.5;white-space:normal;overflow-wrap:anywhere';
+   host.append(node);
+  }
+  for(const previous of shell.querySelectorAll('[data-gs-v14-save-status],[data-v14-save-status]'))if(previous!==node)previous.remove();
+  const date=shell.querySelector('[data-cfv7-date]')?.value||'';
+  node.dataset.gsV14Date=date;node.dataset.v14Date=date;
+  if(node.textContent!==String(statusMessage||''))node.textContent=String(statusMessage||'');
+  node.dataset.tone=statusTone;node.style.color=statusTone==='error'?'#a33b27':'#64748b';
+ }catch(error){root.console?.warn?.('가정 저장 안내를 표시하지 못했습니다:',error);}
 }
 function onSaved(){
  const hadReset=state.resetPending;state.resetPending=false;

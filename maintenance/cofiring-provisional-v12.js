@@ -128,12 +128,29 @@ function buildPayload(){
 // V14: Status is attached to the existing results toolbar. This does not
 // enable the official closing button or change any DataPARC source reading.
 function saveStatus(message,tone=''){
- const shell=calcContext().shell;if(!shell)return;
- const host=shell.querySelector('.cfv56-summary-actions')||shell.querySelector('.cfv11-status-row');
- if(!host)return;
- let node=host.querySelector('[data-gs-v14-save-status]');
- if(!node){node=root.document.createElement('span');node.dataset.gsV14SaveStatus='';node.setAttribute('role','status');node.setAttribute('aria-live','polite');host.append(node);}
- setText(node,message);node.dataset.tone=tone;
+ // Compact save notice V1: display failures must never interrupt saving.
+ try{
+  const shell=calcContext().shell;if(!shell)return;
+  const statusMessage=message,statusTone=tone;
+  try{
+   const presenter=root.GSCofiringSaveNoticeCompactV1?.show;
+   if(typeof presenter==='function'){presenter(shell,statusMessage,statusTone);return;}
+  }catch(error){root.console?.warn?.('가정 저장 안내 표시 오류:',error);}
+  const host=shell.querySelector('.cfv-results-dark');if(!host)return;
+  let node=host.querySelector('[data-cfv-save-notice-fallback-v1]');
+  if(!node){
+   node=root.document.createElement('div');node.dataset.cfvSaveNoticeFallbackV1='';
+   node.dataset.gsV14SaveStatus='';node.dataset.v14SaveStatus='';
+   node.setAttribute('role','status');node.setAttribute('aria-live','polite');
+   node.style.cssText='display:block;max-width:100%;margin:7px 0 0;padding:0;border:0;background:transparent;font-size:12px;line-height:1.5;white-space:normal;overflow-wrap:anywhere';
+   host.append(node);
+  }
+  for(const previous of shell.querySelectorAll('[data-gs-v14-save-status],[data-v14-save-status]'))if(previous!==node)previous.remove();
+  const date=shell.querySelector('[data-cfv7-date]')?.value||'';
+  node.dataset.gsV14Date=date;node.dataset.v14Date=date;
+  if(node.textContent!==String(statusMessage||''))node.textContent=String(statusMessage||'');
+  node.dataset.tone=statusTone;node.style.color=statusTone==='error'?'#a33b27':'#64748b';
+ }catch(error){root.console?.warn?.('가정 저장 안내를 표시하지 못했습니다:',error);}
 }
 function sameSaved(item,data){
  if(!validItem(item,data.targetDate)||item.sourceRequestId!==data.sourceRequestId||!near(item.summary?.unit1?.organic,data.unitTons,0.0001)||!near(item.summary?.unit2?.organic,data.unitTons,0.0001))return false;
