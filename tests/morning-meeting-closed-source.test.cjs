@@ -72,7 +72,7 @@ test('both cards share a deduplicated authenticated GET and organic export overl
 });
 test('missing close protects workbook while checking independent saved data, without Agent/Excel work',async()=>{
  const h=harness(async()=>({ok:true,json:async()=>({ok:true,item:null})}));await h.api.load(DATE);
- assert.equal(h.api.state(DATE).status,'missing');assert.equal(h.calls.length,4);assert.ok(h.calls.some(x=>x.url.startsWith('/api/solid-fuel-trouble?')));assert.ok(h.calls.some(x=>x.url.includes('cofiring_period_latest')));assert.ok(h.calls.some(x=>x.url.startsWith('/api/cofiring-provisional-v12?')));
+ assert.equal(h.api.state(DATE).status,'missing');assert.equal(h.calls.length,4);assert.ok(h.calls.some(x=>x.url.startsWith('/api/solid-fuel-trouble?')));assert.ok(h.calls.some(x=>x.url.includes('cofiring_period_source')));assert.ok(h.calls.some(x=>x.url.startsWith('/api/cofiring-provisional-v12?')));
  const result=h.api.valuesForWorkbook({sludgeTotal:7,sludgeTruckCount:8,organicTruckCount:44,organicReceivedAmount:555,organicDaySilo:9,organicDaySiloLevel:10,powerGeneration:111});
  assert.equal(result.sludgeTotal,undefined);assert.equal(result.organicTruckCount,undefined);assert.equal(result.organicReceivedAmount,undefined);assert.equal(result.organicDaySiloLevel,undefined);assert.equal(result.powerGeneration,111);
  assert.equal(h.node('efficiencyMorningMeetingAutoDailySludgeStatus').textContent,'마감자료 없음');
@@ -174,16 +174,16 @@ test('missing official close displays independent receipts and the 23 Oct 00:00 
       assert.equal(q.get('receiptEnd'), next + 'T00:00');
       data = {ok: true, source: 'solid-fuel-unloading', basis: 'completed-unloading-departure',
         receiptStart: date + 'T00:00', receiptEnd: next + 'T00:00', receipts: {organic: 55.25}, counts: {organic: 3}};
-    } else if (q.get('action') === 'cofiring_period_latest') data = {
-      ok:true, targetDate:date, saved:{id:'22222222-2222-4222-8222-222222222222', status:'complete'},
-      result:{kind:'cofiring_period_live_result',requestId:'22222222-2222-4222-8222-222222222222',
+    } else if (q.get('action') === 'cofiring_period_source') data = {
+      ok:true, targetDate:date, saved:{id:'22222222-2222-4222-8222-222222222222', status:'complete',requestType:'cofiring_period'},
+      result:{kind:'cofiring_period_live_result',schemaVersion:1,requestId:'22222222-2222-4222-8222-222222222222',
         request:{startLocal:date+'T00:00',endLocal:next+'T00:00',stepUnit:'minute',stepValue:1},
         report:{startLocal:date+'T00:00',endLocal:next+'T00:00',organicInventoryReady:false,
           organicInventory:null,organicInventorySamples:inventory}}
     };
     else if (url.startsWith('/api/cofiring-provisional-v12')) data = {
       ok:true,item:{targetDate:date,recordKind:'hypothesis',verificationStatus:'unverified',officialClose:false,
-        revision:2, estimation:{boundaries:[{silo:'organicStorageSiloB',boundaryLocal:next+'T00:00',tons:19.143}]}}
+        revision:2, sourceRequestId:'22222222-2222-4222-8222-222222222222', estimation:{boundaries:[{silo:'organicStorageSiloB',boundaryLocal:next+'T00:00',tons:19.143}]}}
     };
     else throw Error('Unrecognized GET ' + url);
     return {ok:true,json:async()=>data};
@@ -199,4 +199,82 @@ test('missing official close displays independent receipts and the 23 Oct 00:00 
   assert.equal(h.node(p+'OrganicStorageSiloB').textContent, '≈19.143 t');
   assert.equal(h.node(p+'OrganicSiloTotal').textContent, '≈49.143 t');
   assert.equal(h.node(p+'SludgeStatus').textContent, '추정 포함 · 재확인');
+});
+
+const recoveryId = '33333333-3333-4333-8333-333333333333';
+const currentRecoveryId = '22222222-2222-4222-8222-222222222222';
+function recoveryEnvelope(date, amounts, id = currentRecoveryId) {
+  const next = new Date(Date.parse(date + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10);
+  const keys = ['organicDaySilo', 'organicStorageSiloA', 'organicStorageSiloB'];
+  const tags = ['104SDF01CW001XQ01', '003SDF01CW001XQ01', '003SDF02CW001XQ01'];
+  return {ok:true,targetDate:date,saved:{id,status:'complete',requestType:'cofiring_period'},
+    result:{kind:'cofiring_period_live_result',schemaVersion:1,requestId:id,
+      request:{startLocal:date+'T00:00',endLocal:next+'T00:00',stepUnit:'minute',stepValue:1},
+      report:{startLocal:date+'T00:00',endLocal:next+'T00:00',organicInventoryReady:false,organicInventory:null,
+        organicInventorySamples:keys.map((key,i)=>({key,tag:'GSPOGE.ABB_DCS.'+tags[i]+'/PLOT',
+          endValue:amounts[i],endQuality:amounts[i]===null?'Bad':'Raw, Good',endTime:next+'T00:00:00+09:00'}))}}};
+}
+function recoveryProvisional(date, values = {}, id = recoveryId) {
+  const next = new Date(Date.parse(date+'T00:00:00Z')+86400000).toISOString().slice(0,10);
+  return {ok:true,item:{targetDate:date,sourceRequestId:id,recordKind:'hypothesis',verificationStatus:'unverified',
+    officialClose:false,revision:1,estimation:{boundaries:Object.entries(values).map(([silo,tons])=>({
+      silo,side:'end',boundaryLocal:next+'T00:00',tons}))}}};
+}
+function recoveryBrowserFetch(date, primary, provisional, pinned) {
+  return async url => {
+    const q=new URLSearchParams(url.split('?')[1]);let data;
+    if(url.startsWith('/api/cofiring-closed-history'))data={ok:true,item:null};
+    else if(url.startsWith('/api/solid-fuel-trouble'))data={ok:true,source:'solid-fuel-unloading',basis:'completed-unloading-departure',
+      receiptStart:q.get('receiptStart'),receiptEnd:q.get('receiptEnd'),receipts:{organic:175.43},counts:{organic:6}};
+    else if(url.startsWith('/api/cofiring-provisional-v12'))data=provisional;
+    else if(q.get('sourceRequestId'))data=typeof pinned==='function'?await pinned():pinned;
+    else if(q.get('action')==='cofiring_period_source')data=primary;
+    else throw Error('Unexpected URL '+url);
+    return {ok:true,json:async()=>data};
+  };
+}
+test('browser fills missing Oct24 B from saved calculation source and displays measured total',async()=>{
+  const date='2026-10-24',h=harness(recoveryBrowserFetch(date,recoveryEnvelope(date,[8.099,32.144,null]),
+    recoveryProvisional(date),recoveryEnvelope(date,[8.099,32.144,57.839],recoveryId)));
+  h.date(date);await h.api.load(date);
+  const p='efficiencyMorningMeetingAutoDaily';
+  assert.equal(h.node(p+'OrganicStorageSiloB').textContent,'57.84 t');
+  assert.equal(h.node(p+'OrganicSiloTotal').textContent,'98.08 t');
+  assert.match(h.node(p+'OrganicStorageSiloB').title,/저장된 혼소율 계산 원본/);
+  assert.match(h.node(p+'SludgeCard').title,/2026-10-25 00:00/);
+  assert.equal(h.calls.filter(x=>x.url.includes('sourceRequestId=')).length,1);
+});
+test('browser marks generic-date estimates for all three silos and total',async()=>{
+  const date='2026-11-02',h=harness(recoveryBrowserFetch(date,recoveryEnvelope(date,[null,null,null]),
+    recoveryProvisional(date,{organicDaySilo:1.25,organicStorageSiloA:2.5,organicStorageSiloB:3.75},currentRecoveryId),null));
+  h.date(date);await h.api.load(date);
+  const p='efficiencyMorningMeetingAutoDaily';
+  assert.equal(h.node(p+'OrganicDaySilo').textContent,'≈1.250 t');
+  assert.equal(h.node(p+'OrganicStorageSiloA').textContent,'≈2.500 t');
+  assert.equal(h.node(p+'OrganicStorageSiloB').textContent,'≈3.750 t');
+  assert.equal(h.node(p+'OrganicSiloTotal').textContent,'≈7.500 t');
+  assert.equal(h.node(p+'SludgeStatus').textContent,'추정 포함 · 재확인');
+  assert.ok(!h.node(p+'SludgeStatus').className.includes('is-complete'));
+});
+test('browser explains unresolved inventory without a fabricated zero or green completion',async()=>{
+  const date='2026-11-02',h=harness(recoveryBrowserFetch(date,recoveryEnvelope(date,[1,2,null]),
+    {ok:true,item:null},null));
+  h.date(date);await h.api.load(date);
+  const p='efficiencyMorningMeetingAutoDaily';
+  assert.equal(h.node(p+'OrganicStorageSiloB').textContent,'-');
+  assert.equal(h.node(p+'OrganicSiloTotal').textContent,'-');
+  assert.equal(h.node(p+'SludgeStatus').textContent,'재고 확인 필요');
+  assert.match(h.node(p+'OrganicStorageSiloB').title,/품질/);
+  assert.ok(!h.node(p+'SludgeStatus').className.includes('is-complete'));
+});
+test('changing date during a pinned-source read cannot repaint the new day',async()=>{
+  const date='2026-10-24',late=deferred(),started=deferred();
+  const h=harness(recoveryBrowserFetch(date,recoveryEnvelope(date,[8.099,32.144,null]),
+    recoveryProvisional(date),()=>{started.resolve();return late.promise;}));
+  h.date(date);const loading=h.api.load(date);await started.promise;
+  h.date('2026-10-25');h.api.renderOrganic();
+  late.resolve(recoveryEnvelope(date,[8.099,32.144,57.839],recoveryId));await loading;
+  const p='efficiencyMorningMeetingAutoDaily';
+  assert.notEqual(h.node(p+'OrganicStorageSiloB').textContent,'57.84 t');
+  assert.ok(!h.node(p+'SludgeDate').textContent.includes('2026-10-24'));
 });

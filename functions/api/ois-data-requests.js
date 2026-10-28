@@ -16472,6 +16472,7 @@ export async function onRequestGet(
     if (action === "cofiring_daily") return await handleCofiringLiveGet(context, requestUrl);
     if (action === "cofiring_period") return await handleCofiringPeriodGet(context, requestUrl);
     if (action === "cofiring_period_latest") return await handleCofiringPeriodLatestGet(context, requestUrl);
+    if (action === "cofiring_period_source") return await handleCofiringPeriodSourceGet(context, requestUrl);
     if (action === "cofiring_agent_idle") return await handleCofiringAgentIdle(context);
 
 /*
@@ -24659,6 +24660,37 @@ async function handleCofiringPeriodLatestGet(context,url) {
     period:{start:p.startLocal,end:p.endLocal,stepUnit:p.stepUnit,stepValue:p.stepValue},saved,result:match.validated});
 }
 /* COFIRING_LATEST_DAY_READ_V1_END */
+/* COFIRING_SAVED_FULL_DAY_SOURCE_READ_V5
+   Read an exact completed calendar day, optionally pinned to the source of a
+   saved estimate. No queue expiration, schema changes, requests, or data writes.
+   Existing authentication retains its normal session last-used bookkeeping. */
+async function handleCofiringPeriodSourceGet(context,url) {
+  const auth=await getAuthenticatedUser(context);if(auth.error)return auth.error;
+  const targetDate=url.searchParams.get('targetDate'),sourceRequestId=url.searchParams.get('sourceRequestId');
+  let p;
+  try {
+    const d=COFIRING_LIVE.completedDay(targetDate);
+    if(sourceRequestId!==null&&!COFIRING_LIVE.uuid(sourceRequestId))throw new Error('저장된 원본 조회 ID를 확인해 주세요.');
+    p=COFIRING_LIVE.period({startLocal:d.start.slice(0,16),endLocal:d.end.slice(0,16),stepUnit:'minute',stepValue:1});
+  } catch(error) {return cofiringJson({ok:false,code:'COFIRING_SOURCE_REQUEST_INVALID',message:error.message},400);}
+  const db=context.env.DB;
+  let match=null;
+  if(sourceRequestId===null) {
+    match=await findMatchingPeriodComplete(db,p);
+  } else {
+    const row=await db.prepare("SELECT * FROM ois_data_requests WHERE id=? AND target_date=? AND request_type='cofiring_period' AND status='complete' LIMIT 1")
+      .bind(sourceRequestId,targetDate).first();
+    if(row) {
+      try {match={row,validated:COFIRING_LIVE.periodResult(JSON.parse(row.result_json||'null'),sourceRequestId,p)};}
+      catch(error) {return cofiringJson({ok:false,code:'COFIRING_SOURCE_RESULT_INVALID',message:'저장된 원본 조회의 기간·요청 ID·결과 검증에 실패했습니다.'},409);}
+    }
+  }
+  if(!match)return cofiringJson({ok:true,bridgeVersion:2,targetDate,sourceRequestId:null,periodKey:null,period:null,saved:null,result:null});
+  const saved={...cofiringPeriodPublicRequest(match.row),request:match.validated.request,progress:null,errorMessage:''};
+  return cofiringJson({ok:true,bridgeVersion:2,targetDate,sourceRequestId:match.row.id,periodKey:COFIRING_LIVE.periodKey(p),
+    period:{start:p.startLocal,end:p.endLocal,stepUnit:p.stepUnit,stepValue:p.stepValue},saved,result:match.validated});
+}
+/* COFIRING_SAVED_FULL_DAY_SOURCE_READ_V5_END */
 async function handleCofiringPeriodGet(context,url) {
   const auth=await getAuthenticatedUser(context);if(auth.error)return auth.error;
   let p;try{p=COFIRING_LIVE.period(specFromPeriodUrl(url));}catch(e){return cofiringJson({ok:false,message:e.message},400);}
