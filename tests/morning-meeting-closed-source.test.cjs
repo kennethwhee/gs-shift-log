@@ -70,9 +70,9 @@ test('both cards share a deduplicated authenticated GET and organic export overl
  assert.equal(values.sludgeTruckCount,2);assert.equal(original.sludgeTotal,999);
  assert.equal(h.node('efficiencyMorningMeetingAutoDailyOrganicDaySilo').textContent,'0.00 t');
 });
-test('missing close clears stale same-day workbook data and never starts receipt or Excel lookup',async()=>{
+test('missing close protects workbook while checking independent saved data, without Agent/Excel work',async()=>{
  const h=harness(async()=>({ok:true,json:async()=>({ok:true,item:null})}));await h.api.load(DATE);
- assert.equal(h.api.state(DATE).status,'missing');assert.equal(h.calls.length,1);
+ assert.equal(h.api.state(DATE).status,'missing');assert.equal(h.calls.length,4);assert.ok(h.calls.some(x=>x.url.startsWith('/api/solid-fuel-trouble?')));assert.ok(h.calls.some(x=>x.url.includes('cofiring_period_latest')));assert.ok(h.calls.some(x=>x.url.startsWith('/api/cofiring-provisional-v12?')));
  const result=h.api.valuesForWorkbook({sludgeTotal:7,sludgeTruckCount:8,organicTruckCount:44,organicReceivedAmount:555,organicDaySilo:9,organicDaySiloLevel:10,powerGeneration:111});
  assert.equal(result.sludgeTotal,undefined);assert.equal(result.organicTruckCount,undefined);assert.equal(result.organicReceivedAmount,undefined);assert.equal(result.organicDaySiloLevel,undefined);assert.equal(result.powerGeneration,111);
  assert.equal(h.node('efficiencyMorningMeetingAutoDailySludgeStatus').textContent,'마감자료 없음');
@@ -152,4 +152,51 @@ test('automatic receipt close refreshes amount and count from completed unloadin
 
  assert.equal(manual.api.peek(DATE).organic.sludgeTotal,174.26);
  assert.equal(manual.api.peek(DATE).organic.sludgeTruckCount,null);
+});
+
+test('missing official close displays independent receipts and the 23 Oct 00:00 Storage B estimate', async () => {
+  const date = '2026-10-23', next = '2026-10-24';
+  const tags = {
+    organicDaySilo: 'GSPOGE.ABB_DCS.104SDF01CW001XQ01/PLOT',
+    organicStorageSiloA: 'GSPOGE.ABB_DCS.003SDF01CW001XQ01/PLOT',
+    organicStorageSiloB: 'GSPOGE.ABB_DCS.003SDF02CW001XQ01/PLOT'
+  };
+  const endpoint = async url => {
+    const q = new URLSearchParams(url.split('?')[1]);
+    const inventory = ['organicDaySilo', 'organicStorageSiloA', 'organicStorageSiloB'].map((key, i) => ({
+      key, tag: tags[key], endValue: i === 2 ? null : i === 0 ? 10 : 20,
+      endQuality: i === 2 ? 'Bad' : 'Raw, Good', endTime: next + 'T00:00:00+09:00'
+    }));
+    let data;
+    if (url.startsWith('/api/cofiring-closed-history')) data = {ok: true, item: null};
+    else if (url.startsWith('/api/solid-fuel-trouble')) {
+      assert.equal(q.get('receiptStart'), date + 'T00:00');
+      assert.equal(q.get('receiptEnd'), next + 'T00:00');
+      data = {ok: true, source: 'solid-fuel-unloading', basis: 'completed-unloading-departure',
+        receiptStart: date + 'T00:00', receiptEnd: next + 'T00:00', receipts: {organic: 55.25}, counts: {organic: 3}};
+    } else if (q.get('action') === 'cofiring_period_latest') data = {
+      ok:true, targetDate:date, saved:{id:'22222222-2222-4222-8222-222222222222', status:'complete'},
+      result:{kind:'cofiring_period_live_result',requestId:'22222222-2222-4222-8222-222222222222',
+        request:{startLocal:date+'T00:00',endLocal:next+'T00:00',stepUnit:'minute',stepValue:1},
+        report:{startLocal:date+'T00:00',endLocal:next+'T00:00',organicInventoryReady:false,
+          organicInventory:null,organicInventorySamples:inventory}}
+    };
+    else if (url.startsWith('/api/cofiring-provisional-v12')) data = {
+      ok:true,item:{targetDate:date,recordKind:'hypothesis',verificationStatus:'unverified',officialClose:false,
+        revision:2, estimation:{boundaries:[{silo:'organicStorageSiloB',boundaryLocal:next+'T00:00',tons:19.143}]}}
+    };
+    else throw Error('Unrecognized GET ' + url);
+    return {ok:true,json:async()=>data};
+  };
+  const h = harness(endpoint);h.date(date);
+  await h.api.load(date);
+  assert.equal(h.api.state(date).status, 'missing');
+  const p = 'efficiencyMorningMeetingAutoDaily';
+  assert.equal(h.node(p+'SludgeTotal').textContent, '55.25 t');
+  assert.equal(h.node(p+'SludgeTruckCount').textContent, '3 건');
+  assert.equal(h.node(p+'OrganicDaySilo').textContent, '10.00 t');
+  assert.equal(h.node(p+'OrganicStorageSiloA').textContent, '20.00 t');
+  assert.equal(h.node(p+'OrganicStorageSiloB').textContent, '≈19.143 t');
+  assert.equal(h.node(p+'OrganicSiloTotal').textContent, '≈49.143 t');
+  assert.equal(h.node(p+'SludgeStatus').textContent, '추정 포함 · 재확인');
 });
