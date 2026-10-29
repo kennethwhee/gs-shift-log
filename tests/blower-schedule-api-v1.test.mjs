@@ -8,7 +8,7 @@ import {
 
 const DEVICE = 'a'.repeat(64), OTHER_DEVICE = 'b'.repeat(64), TOKEN = 'c'.repeat(64);
 const USER = { employeeNo: 'TEST_BCO1' };
-const SLOT = '2026-09-15T19:00:00.000Z';
+const SLOT = '2026-09-15T15:00:00.000Z';
 const RealDate = Date;
 let clock = RealDate.parse(SLOT);
 function at(value) { clock = typeof value === 'number' ? value : RealDate.parse(value); }
@@ -28,6 +28,7 @@ function fixture(t, withQueue = true) {
     CREATE TABLE existing_results (id TEXT PRIMARY KEY,value TEXT);
     INSERT INTO existing_results VALUES ('preserved','123.456');`);
   const state = { beforeRun: null };
+  let transactionTail = Promise.resolve();
   const db = {
     prepare(sql) {
       let args = [];
@@ -43,36 +44,44 @@ function fixture(t, withQueue = true) {
       };
       return statement;
     },
-    async batch(statements) {
-      sqlite.exec('BEGIN');
-      try {
-        const results = [];
-        for (const statement of statements) results.push(await statement.run());
-        sqlite.exec('COMMIT');
-        return results;
-      } catch (cause) { sqlite.exec('ROLLBACK'); throw cause; }
+    batch(statements) {
+      // D1 executes each batch atomically; serialize the single local connection.
+      const operation = transactionTail.then(async () => {
+        sqlite.exec('BEGIN');
+        try {
+          const results = [];
+          for (const statement of statements) results.push(await statement.run());
+          sqlite.exec('COMMIT'); return results;
+        } catch (cause) { sqlite.exec('ROLLBACK'); throw cause; }
+      });
+      transactionTail = operation.catch(() => {});
+      return operation;
     }
   };
   async function call(operation, values = {}, user = USER, headers = {}) {
     const response = await handleBlowerSchedule({ env: { DB: db }, request: new Request('https://test.invalid/api/blower-history', { headers }) },
-      user, { action: 'scheduled_refresh', operation, ...values });
+      user, { action: 'scheduled_refresh', scheduleVersion: 2, operation, ...values });
     return { status: response.status, data: await response.json(), headers: response.headers };
   }
   const register = (deviceKey = DEVICE, expectedRevision = 0, user = USER) =>
     call('register', { deviceKey, expectedRevision, confirmedPhysicalBco1: true }, user);
   const metadata = { deviceKey: DEVICE, runToken: TOKEN, slotKey: SLOT };
-  const claim = (values = {}, user = USER) => call('claim', { ...metadata, ...values }, user);
+  const claim = (values = {}, user = USER) => call('claim', { ...metadata, expectedRevision: sqlite.prepare('SELECT revision FROM blower_schedule_config_v1 WHERE singleton=1').get()?.revision || 0, ...values }, user);
   return { db, sqlite, state, call, register, claim, metadata };
 }
 
-test('all six KST slots and midnight/year boundaries use server time', () => {
+test('default KST midnight and configurable slots respect day/month/year boundaries', () => {
   for (const date of ['2026-09-16', '2027-01-01']) {
+    const midnight = RealDate.parse(`${date}T00:00:00+09:00`);
+    assert.equal(__blowerScheduleTest.slotStart(midnight), midnight);
+    assert.equal(__blowerScheduleTest.slotStart(midnight + 23 * 3600000), midnight);
+    assert.equal(__blowerScheduleTest.slotStart(midnight - 1), midnight - 86400000);
     for (const hour of [0, 4, 8, 12, 16, 20]) {
-      const kst = `${date}T${String(hour).padStart(2, '0')}:00:00+09:00`;
-      const start = RealDate.parse(kst);
-      assert.equal(__blowerScheduleTest.slotStart(start), start);
-      assert.equal(__blowerScheduleTest.slotStart(start + 1), start);
-      assert.equal(__blowerScheduleTest.slotStart(start - 1), start - 14400000);
+      const start = RealDate.parse(`${date}T${String(hour).padStart(2, '0')}:00:00+09:00`);
+      const timing = { intervalHours: 4, startTime: '00:00' };
+      assert.equal(__blowerScheduleTest.slotStart(start, timing), start);
+      assert.equal(__blowerScheduleTest.slotStart(start + 1, timing), start);
+      assert.equal(__blowerScheduleTest.slotStart(start - 1, timing), start - 14400000);
     }
   }
 });
@@ -81,8 +90,8 @@ test('status defaults disabled and requires no device registration', async t => 
   const f = fixture(t);
   const reply = await f.call('status');
   assert.equal(reply.status, 200);
-  assert.deepEqual(reply.data, { version: 'blower-schedule-v1', serverNow: SLOT, ok: true,
-    enabled: false, revision: 0, thisDevice: false, nextSlotAt: '2026-09-15T23:00:00.000Z', latestSlot: null });
+  assert.deepEqual(reply.data, { version: 'blower-schedule-v2', serverNow: SLOT, ok: true,
+    enabled: false, revision: 0, thisDevice: false, timing: {intervalHours: 24, startTime: '00:00', timeZone: 'Asia/Seoul'}, nextSlotAt: '2026-09-16T15:00:00.000Z', latestSlot: null });
   assert.equal(reply.headers.get('cache-control'), 'no-store');
   assert.equal(f.sqlite.prepare('SELECT COUNT(*) n FROM blower_schedule_slots_v1').get().n, 0);
 });
@@ -142,7 +151,7 @@ test('claim admits exact start and last millisecond, rejects past/future/noncano
   at(RealDate.parse(SLOT) + 120000);
   assert.equal((await f.claim()).data.code, 'outside_slot_window');
   at(SLOT);
-  assert.equal((await f.claim({ slotKey: '2026-09-15T15:00:00.000Z' })).data.code, 'outside_slot_window');
+  assert.equal((await f.claim({ slotKey: '2026-09-14T15:00:00.000Z' })).data.code, 'outside_slot_window');
   assert.equal((await f.claim({ slotKey: '2026-09-15T23:00:00.000Z' })).data.code, 'outside_slot_window');
   assert.equal((await f.claim({ slotKey: '2026-09-16T04:00:00+09:00' })).data.code, 'invalid_run');
   assert.equal((await f.claim({ deviceKey: OTHER_DEVICE })).status, 403);
@@ -337,4 +346,153 @@ test('responses expose bounded summaries and never device keys, run tokens or ha
     assert.equal(serialized.includes('owner_id'), false);
   }
   assert.equal(f.sqlite.prepare('SELECT value FROM existing_results').get().value, '123.456');
+});
+
+test('legacy enabled configuration adopts daily midnight without rewriting designation or execution receipts', async t => {
+  const f = fixture(t);
+  await f.register();
+  await f.claim();
+  // A pre-V2 database has the config/slots, but no explicit timing row.
+  f.sqlite.exec('DELETE FROM blower_schedule_timing_v2');
+  const beforeConfig = f.sqlite.prepare('SELECT * FROM blower_schedule_config_v1').all();
+  const beforeSlots = f.sqlite.prepare('SELECT * FROM blower_schedule_slots_v1').all();
+  at('2026-09-16T04:00:00+09:00');
+  const status = await f.call('status', { deviceKey: DEVICE });
+  assert.equal(status.data.enabled, true);
+  assert.equal(status.data.thisDevice, true);
+  assert.deepEqual(status.data.timing, { intervalHours: 24, startTime: '00:00', timeZone: 'Asia/Seoul' });
+  assert.equal(status.data.nextSlotAt, '2026-09-16T15:00:00.000Z');
+  assert.equal((await f.claim({slotKey: new Date(clock).toISOString()})).data.code, 'outside_slot_window');
+  assert.deepEqual(f.sqlite.prepare('SELECT * FROM blower_schedule_config_v1').all(), beforeConfig);
+  assert.deepEqual(f.sqlite.prepare('SELECT * FROM blower_schedule_slots_v1').all(), beforeSlots);
+  assert.equal(f.sqlite.prepare('SELECT COUNT(*) n FROM blower_schedule_timing_v2').get().n, 0);
+});
+
+test('daily default refuses every former four-hour automatic boundary except midnight', async t => {
+  const f = fixture(t);
+  await f.register();
+  for (const hour of [4,8,12,16,20]) {
+    at(`2026-09-16T${String(hour).padStart(2,'0')}:00:00+09:00`);
+    assert.equal((await f.claim({slotKey: new Date(clock).toISOString()})).data.code, 'outside_slot_window');
+  }
+  assert.equal(f.sqlite.prepare('SELECT COUNT(*) n FROM blower_schedule_slots_v1').get().n, 0);
+  at('2026-09-17T00:00:00+09:00');
+  assert.equal((await f.claim({slotKey: new Date(clock).toISOString()})).data.acquired, true);
+});
+
+test('daily time configuration saves atomically, preserves enablement, and creates no immediate request', async t => {
+  const f = fixture(t);
+  await f.register();
+  const beforeQueue = f.sqlite.prepare('SELECT * FROM ois_data_requests').all();
+  const beforeResults = f.sqlite.prepare('SELECT * FROM existing_results').all();
+  const beforeConfig = f.sqlite.prepare('SELECT * FROM blower_schedule_config_v1').get();
+  const configured = await f.call('configure', {deviceKey: DEVICE, expectedRevision: 1,
+    timing: {intervalHours: 24, startTime: '09:23'}});
+  assert.equal(configured.status, 200);
+  assert.equal(configured.data.revision, 2);
+  assert.equal(configured.data.enabled, true);
+  assert.equal(configured.data.nextSlotAt, '2026-09-16T00:23:00.000Z');
+  assert.deepEqual(configured.data.timing, {intervalHours:24,startTime:'09:23',timeZone:'Asia/Seoul'});
+  const afterConfig = f.sqlite.prepare('SELECT * FROM blower_schedule_config_v1').get();
+  for (const key of ['enabled','device_hash','registered_by']) assert.equal(afterConfig[key],beforeConfig[key]);
+  assert.deepEqual(f.sqlite.prepare('SELECT * FROM ois_data_requests').all(), beforeQueue);
+  assert.deepEqual(f.sqlite.prepare('SELECT * FROM existing_results').all(), beforeResults);
+  assert.equal(f.sqlite.prepare('SELECT COUNT(*) n FROM blower_schedule_slots_v1').get().n, 0);
+  at('2026-09-16T09:23:00+09:00');
+  assert.equal((await f.claim({slotKey:new Date(clock).toISOString()})).data.acquired,true);
+});
+
+for (const intervalHours of [1,2,3,4,6,8,12,24]) {
+  test(`${intervalHours}-hour timing at 23:59 admits exact minute slots across the KST date boundary`, async t => {
+    const f = fixture(t);
+    const registered = await f.call('register', {deviceKey:DEVICE,expectedRevision:0,confirmedPhysicalBco1:true,
+      timing:{intervalHours,startTime:'23:59'}});
+    assert.equal(registered.status,200);
+    const periodMinutes=intervalHours*60;
+    const firstMinute=1439%periodMinutes;
+    const midnight=RealDate.parse('2026-09-16T00:00:00+09:00');
+    for(let minute=firstMinute;minute<1440;minute+=periodMinutes){
+      at(midnight+minute*60000);
+      const slotKey=new Date(clock).toISOString();
+      const result=await f.claim({slotKey});
+      assert.equal(result.data.acquired,true,`${intervalHours}h minute ${minute}`);
+      at(clock+120000);
+      assert.equal((await f.claim({slotKey})).data.code,'outside_slot_window');
+    }
+    at('2026-09-16T23:59:00+09:00');
+    const status=await f.call('status',{deviceKey:DEVICE});
+    assert.equal(RealDate.parse(status.data.nextSlotAt),clock+intervalHours*3600000);
+    assert.equal(f.sqlite.prepare('SELECT COUNT(*) n FROM blower_schedule_slots_v1').get().n,24/intervalHours);
+  });
+}
+
+test('malformed timing and old protocol are rejected before any schedule storage is touched', async t => {
+  const f=fixture(t);
+  for(const timing of [null,{},[],{intervalHours:24},{startTime:'00:00'},
+    {intervalHours:'24',startTime:'00:00'},{intervalHours:0,startTime:'00:00'},
+    {intervalHours:5,startTime:'00:00'},{intervalHours:48,startTime:'00:00'},
+    {intervalHours:24,startTime:'0:00'},{intervalHours:24,startTime:'24:00'},
+    {intervalHours:24,startTime:'00:60'},{intervalHours:24,startTime:'00:00:00'},
+    {intervalHours:24,startTime:'00:00',timeZone:'UTC'},
+    {intervalHours:24,startTime:'00:00',enabled:true}]){
+    assert.equal((await f.call('register',{deviceKey:DEVICE,expectedRevision:0,confirmedPhysicalBco1:true,timing})).data.code,'invalid_timing');
+  }
+  for(const operation of ['register','configure','disable','claim']){
+    assert.equal((await f.call(operation,{deviceKey:DEVICE,expectedRevision:0,confirmedPhysicalBco1:true,
+      scheduleVersion:undefined,...f.metadata})).data.code,'client_update_required');
+  }
+  assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE name LIKE 'blower_schedule_%'").get().n,0);
+});
+
+test('only the designated browser can configure, including when autoquery is disabled', async t => {
+  const f=fixture(t);await f.register();
+  const timing={intervalHours:6,startTime:'01:30'};
+  assert.equal((await f.call('configure',{deviceKey:OTHER_DEVICE,expectedRevision:1,timing})).status,403);
+  assert.equal((await f.call('configure',{deviceKey:OTHER_DEVICE,expectedRevision:1,timing},{...USER,isSuperAdmin:true})).status,403);
+  await f.call('disable',{deviceKey:DEVICE,expectedRevision:1});
+  const changed=await f.call('configure',{deviceKey:DEVICE,expectedRevision:2,timing});
+  assert.equal(changed.status,200);assert.equal(changed.data.enabled,false);assert.equal(changed.data.revision,3);
+  const registered=await f.register(DEVICE,3);
+  assert.equal(registered.data.enabled,true);
+  assert.deepEqual(registered.data.timing,{...timing,timeZone:'Asia/Seoul'});
+  assert.equal(f.sqlite.prepare('SELECT COUNT(*) n FROM blower_schedule_slots_v1').get().n,0);
+});
+
+test('concurrent timing saves commit one matching revision and never combine settings from both writers', async t => {
+  const f=fixture(t);await f.register();
+  const options=[{intervalHours:12,startTime:'01:17'},{intervalHours:4,startTime:'02:41'}];
+  const replies=await Promise.all(options.map(timing=>f.call('configure',{deviceKey:DEVICE,expectedRevision:1,timing})));
+  assert.deepEqual(replies.map(r=>r.status).sort(),[200,409]);
+  const winner=replies.findIndex(r=>r.status===200);
+  const status=await f.call('status',{deviceKey:DEVICE});
+  assert.equal(status.data.revision,2);
+  assert.deepEqual(status.data.timing,{...options[winner],timeZone:'Asia/Seoul'});
+  assert.equal(f.sqlite.prepare('SELECT COUNT(*) n FROM blower_schedule_assertions_v1').get().n,0);
+});
+
+test('timing write failure rolls back the config revision and preserves the prior settings', async t => {
+  const f=fixture(t);await f.register();
+  const before=f.sqlite.prepare('SELECT * FROM blower_schedule_config_v1').all();
+  const timingBefore=f.sqlite.prepare('SELECT * FROM blower_schedule_timing_v2').all();
+  f.state.beforeRun=sql=>{if(sql.includes('INSERT INTO blower_schedule_timing_v2'))throw new Error('fixture timing write failure');};
+  const result=await f.call('configure',{deviceKey:DEVICE,expectedRevision:1,timing:{intervalHours:4,startTime:'02:41'}});
+  assert.equal(result.status,503);
+  assert.deepEqual(f.sqlite.prepare('SELECT * FROM blower_schedule_config_v1').all(),before);
+  assert.deepEqual(f.sqlite.prepare('SELECT * FROM blower_schedule_timing_v2').all(),timingBefore);
+  assert.equal(f.sqlite.prepare('SELECT COUNT(*) n FROM blower_schedule_slots_v1').get().n,0);
+});
+
+test('settings revision invalidates a stale coincident-boundary claim and an already prepared create', async t => {
+  const f=fixture(t);await f.register();await f.claim();
+  const guard=await prepareScheduledBatch(f.db,USER,f.metadata);
+  const receiptBefore=f.sqlite.prepare('SELECT * FROM blower_schedule_slots_v1').all();
+  assert.equal((await f.call('configure',{deviceKey:DEVICE,expectedRevision:1,timing:{intervalHours:12,startTime:'00:00'}})).status,200);
+  assert.equal((await f.claim({expectedRevision:1})).data.code,'configuration_changed');
+  assert.equal((await f.claim({expectedRevision:undefined})).data.code,'invalid_revision');
+  await assert.rejects(f.db.batch([...scheduledBatchStatements(f.db,guard,RECEIPT),
+    f.db.prepare("INSERT INTO ois_data_requests VALUES ('stale','blower_runtime_probe','pending')")]),isScheduledBatchConflict);
+  assert.deepEqual(f.sqlite.prepare('SELECT * FROM blower_schedule_slots_v1').all(),receiptBefore);
+  assert.equal(f.sqlite.prepare('SELECT COUNT(*) n FROM ois_data_requests').get().n,0);
+  assert.equal((await f.call('check',{...f.metadata,purpose:'resume',scheduleVersion:undefined})).data.allowed,true);
+  assert.equal((await f.call('finish',{...f.metadata,scheduleVersion:undefined,status:'interrupted',targetCount:0,completedCount:0,failedCount:0})).status,200);
 });

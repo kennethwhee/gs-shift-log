@@ -1,10 +1,11 @@
-/* BLOWER_SCHEDULE_V1
+/* BLOWER_SCHEDULE_V2
  * A browser explicitly designated as the physical BCO1 PC may claim one KST
- * four-hour slot. Receipts survive logout, replacement and disable/re-enable.
+ * configured slot (daily midnight by default). Receipts survive logout, replacement and disable/re-enable.
  * This module never creates or changes a DataPARC request or a Blower result.
  */
-const VERSION = 'blower-schedule-v1';
-const PERIOD_MS = 4 * 60 * 60 * 1000;
+const VERSION = 'blower-schedule-v2';
+const INTERVAL_HOURS = Object.freeze([1, 2, 3, 4, 6, 8, 12, 24]);
+const DEFAULT_TIMING = Object.freeze({ intervalHours: 24, startTime: '00:00', timeZone: 'Asia/Seoul' });
 const KST_MS = 9 * 60 * 60 * 1000;
 const CLAIM_WINDOW_MS = 2 * 60 * 1000;
 const CREATE_WINDOW_MS = 10 * 60 * 1000;
@@ -15,8 +16,29 @@ const isKey = value => typeof value === 'string' && KEY.test(value);
 const clockValue = value => typeof value === 'string' ? Date.parse(value) :
   value instanceof Date ? value.getTime() : Number(value);
 
-function slotStart(now) {
-  return Math.floor((now + KST_MS) / PERIOD_MS) * PERIOD_MS - KST_MS;
+function normalizeTiming(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) ||
+      Object.keys(value).length !== 2 || !Object.hasOwn(value, 'intervalHours') || !Object.hasOwn(value, 'startTime') ||
+      !INTERVAL_HOURS.includes(value.intervalHours) || typeof value.startTime !== 'string' ||
+      !/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/.test(value.startTime)) return null;
+  return { intervalHours: value.intervalHours, startTime: value.startTime, timeZone: 'Asia/Seoul' };
+}
+function timingFor(config) {
+  if (config?.interval_hours == null && config?.start_minute == null) return { ...DEFAULT_TIMING };
+  if (!INTERVAL_HOURS.includes(config?.interval_hours) || !Number.isInteger(config?.start_minute) ||
+      config.start_minute < 0 || config.start_minute > 1439) throw error('invalid_stored_timing', '저장된 자동조회 시각을 확인할 수 없습니다.');
+  return { intervalHours: config.interval_hours,
+    startTime: String(Math.floor(config.start_minute / 60)).padStart(2, '0') + ':' + String(config.start_minute % 60).padStart(2, '0'),
+    timeZone: 'Asia/Seoul' };
+}
+function timingMinute(timing) {
+  const [hour, minute] = timing.startTime.split(':').map(Number);
+  return hour * 60 + minute;
+}
+function slotStart(now, timing = DEFAULT_TIMING) {
+  const period = timing.intervalHours * 60 * 60 * 1000;
+  const offset = timingMinute(timing) * 60 * 1000;
+  return Math.floor((now + KST_MS - offset) / period) * period - KST_MS + offset;
 }
 function slotSummary(row) {
   if (!row) return null;
@@ -46,6 +68,13 @@ async function ensureSchema(db) {
     device_hash TEXT NOT NULL, revision INTEGER NOT NULL CHECK (revision > 0),
     registered_by TEXT NOT NULL, updated_at TEXT NOT NULL
   )`).run();
+  // A separate additive table preserves existing config rows and all receipts.
+  // Absence means the new default: once daily at 00:00 KST.
+  await db.prepare(`CREATE TABLE IF NOT EXISTS blower_schedule_timing_v2 (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    interval_hours INTEGER NOT NULL CHECK (interval_hours IN (1,2,3,4,6,8,12,24)),
+    start_minute INTEGER NOT NULL CHECK (start_minute BETWEEN 0 AND 1439)
+  )`).run();
   await db.prepare(`CREATE TABLE IF NOT EXISTS blower_schedule_slots_v1 (
     slot_key TEXT PRIMARY KEY, device_hash TEXT NOT NULL, owner_id TEXT NOT NULL,
     run_hash TEXT NOT NULL, config_revision INTEGER NOT NULL,
@@ -61,7 +90,9 @@ async function ensureSchema(db) {
   )`).run();
 }
 function loadConfig(db) {
-  return db.prepare('SELECT * FROM blower_schedule_config_v1 WHERE singleton = 1').first();
+  return db.prepare(`SELECT config.*, timing.interval_hours, timing.start_minute
+    FROM blower_schedule_config_v1 AS config LEFT JOIN blower_schedule_timing_v2 AS timing
+      ON timing.singleton = config.singleton WHERE config.singleton = 1`).first();
 }
 function loadSlot(db, key) {
   return db.prepare('SELECT * FROM blower_schedule_slots_v1 WHERE slot_key = ?').bind(key).first();
@@ -152,11 +183,12 @@ export function isScheduledBatchConflict(cause) {
   return /NOT NULL constraint failed:\s*blower_schedule_assertions_v1\.required/i.test(String(cause?.message || cause));
 }
 async function statusData(db, config, deviceHash, now) {
+  const timing = timingFor(config);
   const latest = await db.prepare('SELECT * FROM blower_schedule_slots_v1 ORDER BY slot_key DESC LIMIT 1').first();
   return {
     enabled: config?.enabled === 1, revision: config?.revision || 0,
     thisDevice: sameDevice(config, deviceHash),
-    nextSlotAt: new Date(slotStart(now) + PERIOD_MS).toISOString(),
+    timing, nextSlotAt: new Date(slotStart(now, timing) + timing.intervalHours * 60 * 60 * 1000).toISOString(),
     latestSlot: slotSummary(latest)
   };
 }
@@ -175,13 +207,23 @@ export async function handleBlowerSchedule(context, user, body) {
   }
   if (!body || typeof body !== 'object' || Array.isArray(body)) return fail('invalid_body', '요청 형식이 올바르지 않습니다.');
   const operation = body.operation;
-  if (!['status', 'register', 'disable', 'claim', 'check', 'finish'].includes(operation)) {
+  if (!['status', 'register', 'configure', 'disable', 'claim', 'check', 'finish'].includes(operation)) {
     return fail('invalid_operation', '자동조회 작업이 올바르지 않습니다.');
+  }
+  // A cached V1 browser must not consume a slot using its former four-hour clock.
+  // Owned receipt recovery remains valid after deployment and configuration changes.
+  if (['register', 'configure', 'disable', 'claim'].includes(operation) && body.scheduleVersion !== 2) {
+    return fail('client_update_required', '자동조회 설정이 업데이트됐습니다. Ctrl+F5로 새로고침해 주세요.', 409);
+  }
+  const requestedTiming = body.timing === undefined ? null : normalizeTiming(body.timing);
+  if ((body.timing !== undefined && !requestedTiming) || (operation === 'configure' && !requestedTiming) ||
+      (body.timing !== undefined && !['register', 'configure'].includes(operation))) {
+    return fail('invalid_timing', '조회 주기와 한국시간 기준 실행 시각을 확인해 주세요.');
   }
   if ((operation !== 'status' || body.deviceKey !== undefined) && !isKey(body.deviceKey)) {
     return fail('invalid_device_key', '이 PC의 자동조회 등록 정보가 올바르지 않습니다.');
   }
-  if (['register', 'disable'].includes(operation) &&
+  if (['register', 'configure', 'disable', 'claim'].includes(operation) &&
       (!Number.isSafeInteger(body.expectedRevision) || body.expectedRevision < 0 || body.expectedRevision >= Number.MAX_SAFE_INTEGER)) {
     return fail('invalid_revision', '자동조회 설정 버전을 다시 확인해 주세요.');
   }
@@ -214,27 +256,45 @@ export async function handleBlowerSchedule(context, user, body) {
     let config = await loadConfig(db);
     if (operation === 'status') return reply({ ok: true, ...await statusData(db, config, deviceHash, now) });
 
-    if (operation === 'register' || operation === 'disable') {
+    if (['register', 'configure', 'disable'].includes(operation)) {
+      if (operation === 'configure' && !sameDevice(config, deviceHash)) {
+        return fail('device_not_designated', '등록된 BCO1 PC에서 자동조회 시간을 설정해 주세요.', 403);
+      }
       if (operation === 'disable' && !sameDevice(config, deviceHash) && user.isSuperAdmin !== true) {
         return fail('device_not_designated', '등록된 BCO1 PC에서 자동조회를 해제해 주세요.', 403);
       }
-      let result;
-      if (operation === 'register' && body.expectedRevision === 0) {
-        result = await db.prepare(`INSERT INTO blower_schedule_config_v1
-          (singleton, enabled, device_hash, revision, registered_by, updated_at)
-          VALUES (1, 1, ?, 1, ?, ?) ON CONFLICT(singleton) DO NOTHING`)
-          .bind(deviceHash, owner, serverNow).run();
-      } else if (operation === 'register') {
-        result = await db.prepare(`UPDATE blower_schedule_config_v1 SET enabled = 1, device_hash = ?,
-          revision = revision + 1, registered_by = ?, updated_at = ?
-          WHERE singleton = 1 AND revision = ?`)
-          .bind(deviceHash, owner, serverNow, body.expectedRevision).run();
-      } else {
-        result = await db.prepare(`UPDATE blower_schedule_config_v1 SET enabled = 0, revision = revision + 1,
+      if (operation === 'disable') {
+        const result = await db.prepare(`UPDATE blower_schedule_config_v1 SET enabled = 0, revision = revision + 1,
           updated_at = ? WHERE singleton = 1 AND revision = ? AND (device_hash = ? OR ? = 1)`)
           .bind(serverNow, body.expectedRevision, deviceHash, user.isSuperAdmin === true ? 1 : 0).run();
+        if (changes(result) !== 1) return fail('configuration_changed', '자동조회 설정이 변경됐습니다. 현재 설정을 다시 확인해 주세요.', 409);
+      } else {
+        const timing = requestedTiming || timingFor(config);
+        const first = operation === 'register' && body.expectedRevision === 0;
+        const predicate = first ? 'NOT EXISTS (SELECT 1 FROM blower_schedule_config_v1 WHERE singleton = 1)' :
+          `EXISTS (SELECT 1 FROM blower_schedule_config_v1 WHERE singleton = 1 AND revision = ?${operation === 'configure' ? ' AND device_hash = ?' : ''})`;
+        const guardArgs = first ? [] : [body.expectedRevision, ...(operation === 'configure' ? [deviceHash] : [])];
+        const guard = db.prepare(`/* BLOWER_SCHEDULE_SETTINGS_CAS_V2 */
+          INSERT INTO blower_schedule_assertions_v1 (required) SELECT NULL WHERE NOT (${predicate})`).bind(...guardArgs);
+        const update = first ? db.prepare(`INSERT INTO blower_schedule_config_v1
+          (singleton, enabled, device_hash, revision, registered_by, updated_at) VALUES (1,1,?,1,?,?)`)
+          .bind(deviceHash, owner, serverNow) : operation === 'register' ?
+          db.prepare(`UPDATE blower_schedule_config_v1 SET enabled = 1, device_hash = ?, revision = revision + 1,
+            registered_by = ?, updated_at = ? WHERE singleton = 1 AND revision = ?`)
+            .bind(deviceHash, owner, serverNow, body.expectedRevision) :
+          db.prepare(`UPDATE blower_schedule_config_v1 SET revision = revision + 1, updated_at = ?
+            WHERE singleton = 1 AND revision = ? AND device_hash = ?`)
+            .bind(serverNow, body.expectedRevision, deviceHash);
+        try {
+          await db.batch([guard, update,
+            db.prepare(`INSERT INTO blower_schedule_timing_v2(singleton,interval_hours,start_minute) VALUES(1,?,?)
+              ON CONFLICT(singleton) DO UPDATE SET interval_hours=excluded.interval_hours,start_minute=excluded.start_minute`)
+              .bind(timing.intervalHours, timingMinute(timing))]);
+        } catch (cause) {
+          if (isScheduledBatchConflict(cause)) return fail('configuration_changed', '자동조회 설정이 변경됐습니다. 현재 설정을 다시 확인해 주세요.', 409);
+          throw cause;
+        }
       }
-      if (changes(result) !== 1) return fail('configuration_changed', '자동조회 설정이 변경됐습니다. 현재 설정을 다시 확인해 주세요.', 409);
       config = await loadConfig(db);
       return reply({ ok: true, ...await statusData(db, config, deviceHash, now) });
     }
@@ -245,7 +305,8 @@ export async function handleBlowerSchedule(context, user, body) {
       return fail('device_not_designated', '이 PC는 자동조회가 켜진 BCO1 PC가 아닙니다.', 403);
     }
     if (operation === 'claim') {
-      const start = slotStart(now);
+      if (body.expectedRevision !== config.revision) return fail('configuration_changed', '자동조회 설정이 변경됐습니다. 현재 설정을 다시 확인해 주세요.', 409);
+      const start = slotStart(now, timingFor(config));
       if (body.slotKey !== new Date(start).toISOString() || now < start || now >= start + CLAIM_WINDOW_MS) {
         return fail('outside_slot_window', '지정된 자동조회 시작 시간이 아닙니다.', 409);
       }
@@ -301,4 +362,4 @@ export async function handleBlowerSchedule(context, user, body) {
   }
 }
 
-export const __blowerScheduleTest = Object.freeze({ slotStart, CLAIM_WINDOW_MS, CREATE_WINDOW_MS, RESUME_WINDOW_MS });
+export const __blowerScheduleTest = Object.freeze({ slotStart, normalizeTiming, timingFor, DEFAULT_TIMING, INTERVAL_HOURS, CLAIM_WINDOW_MS, CREATE_WINDOW_MS, RESUME_WINDOW_MS });

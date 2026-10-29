@@ -8,6 +8,9 @@
   'use strict';
   const AUTH_KEY = 'gsShiftLog.currentUser';
   const CHANGE_KEY = 'gsShiftLog.blowerSchedule.resultsChanged.v1';
+  const VERSION = 'blower-schedule-v2';
+  const INTERVAL_HOURS = [1, 2, 3, 4, 6, 8, 12, 24];
+  const DEFAULT_TIMING = {intervalHours: 24, startTime: '00:00'};
   const MOBILE = '(max-width: 700px), (max-width: 1024px) and (hover: none) and (pointer: coarse)';
   function accessError() {
     const error = new Error('로그인 상태가 변경되어 자동조회를 중단했습니다.');
@@ -76,11 +79,37 @@
     return new Intl.DateTimeFormat('ko-KR', {timeZone:'Asia/Seoul', month:'2-digit', day:'2-digit',
       hour:'2-digit', minute:'2-digit', hourCycle:'h23'}).format(date);
   }
+  function timingValue(value) {
+    if (!value || !INTERVAL_HOURS.includes(value.intervalHours) ||
+        typeof value.startTime !== 'string' || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value.startTime)) return null;
+    return {intervalHours: value.intervalHours, startTime: value.startTime};
+  }
+  function sameTiming(left, right) {
+    return Boolean(left && right && left.intervalHours === right.intervalHours && left.startTime === right.startTime);
+  }
+  function timingText(value) {
+    const timing = timingValue(value);
+    if (!timing) return {summary: '자동조회 시각 확인 중', preview: ''};
+    const period = timing.intervalHours * 60;
+    const [hour, minute] = timing.startTime.split(':').map(Number);
+    const first = (hour * 60 + minute) % period;
+    const slots = [];
+    for (let at = first; at < 1440; at += period) {
+      slots.push(String(Math.floor(at / 60)).padStart(2, '0') + ':' + String(at % 60).padStart(2, '0'));
+    }
+    return {
+      summary: timing.intervalHours === 24 ? `매일 ${timing.startTime} · 1회` : `매일 ${timing.intervalHours}시간 간격 · ${slots.length}회`,
+      preview: slots.length <= 8 ? `실행 시각 · ${slots.join(' · ')} (한국시간)`
+        : `매일 ${slots[0]}부터 ${timing.intervalHours}시간 간격 (${slots.at(-1)}까지) · 한국시간`
+    };
+  }
   function install(root) {
     if (root.__blowerScheduleBrowserV1) return;
     root.__blowerScheduleBrowserV1 = true;
     const document = root.document;
     let controller, timer, blockedToken = '', lastBusy = false, paused = false;
+    let draftOwner = '', draftDirty = false, settingsPending = false, settingsNotice = '';
+    let draft = {...DEFAULT_TIMING};
     const readIdentity = () => identity(root, blockedToken);
     const api = createApi(root, readIdentity);
     const byId = id => document.getElementById(id);
@@ -90,11 +119,39 @@
       try { root.localStorage.setItem(CHANGE_KEY, String(Date.now())); } catch (_) {}
     }
     function render(snapshot = {}) {
-      const loggedIn = Boolean(readIdentity());
+      const identityNow = readIdentity();
+      const loggedIn = Boolean(identityNow);
+      const owner = identityNow ? `${identityNow.employeeNo}\n${identityNow.token}` : '';
+      if (owner !== draftOwner) {
+        draftOwner = owner; draftDirty = false; settingsNotice = ''; draft = {...DEFAULT_TIMING};
+      }
       const panel = byId('blowerSchedulePanel');
       if (panel) panel.hidden = !loggedIn;
       const status = snapshot.status || {};
       const here = status.enabled === true && status.thisDevice === true;
+      const confirmedTiming = timingValue(status.timing);
+      const ready = status.version === VERSION && Boolean(confirmedTiming) && Number.isInteger(status.revision);
+      const editable = loggedIn && ready && (status.thisDevice === true || status.revision === 0);
+      if (!draftDirty && !settingsPending && confirmedTiming) draft = {...confirmedTiming};
+      const interval = byId('blowerScheduleInterval'), startTime = byId('blowerScheduleTime');
+      if (interval) {
+        if (!draftDirty && !settingsPending) interval.value = String(draft.intervalHours);
+        interval.disabled = !editable || Boolean(snapshot.busy) || settingsPending;
+      }
+      if (startTime) {
+        if (!draftDirty && !settingsPending) startTime.value = draft.startTime;
+        startTime.disabled = !editable || Boolean(snapshot.busy) || settingsPending;
+      }
+      text('blowerScheduleCadence', timingText(confirmedTiming).summary);
+      text('blowerSchedulePreview', timingValue(draft) ? timingText(draft).preview : '조회 주기와 시각을 확인해 주세요.');
+      const save = byId('blowerScheduleSave');
+      if (save) {
+        save.hidden = !loggedIn || status.thisDevice !== true;
+        save.disabled = !editable || Boolean(snapshot.busy) || settingsPending || !draftDirty || !timingValue(draft);
+      }
+      text('blowerScheduleDraftStatus', settingsNotice || (draftDirty ? '저장 전 설정입니다.' :
+        !ready ? '현재 설정을 확인 중입니다.' : status.thisDevice === true ? '저장한 설정은 다음 예약부터 적용됩니다.' :
+          status.revision === 0 ? '주기와 시각을 선택한 뒤 BCO1 지정을 눌러 주세요.' : '시간 설정은 지정된 BCO1 브라우저에서 변경할 수 있습니다.'));
       const errorText = snapshot.error ? snapshot.message || (typeof snapshot.error === 'string' ? snapshot.error : snapshot.error?.message) || '' : '';
       text('blowerScheduleState', !loggedIn ? '로그인 후 설정' : here ? '이 PC에서 자동조회 사용 중' :
         status.enabled ? '다른 브라우저가 BCO1으로 지정됨' : '자동조회 꺼짐');
@@ -105,8 +162,8 @@
       text('blowerScheduleLast', latest ? '최근 예약 · ' + formatKst(latest.slotKey) + ' · ' + (names[latest.state] || '확인 필요') +
         (Number.isInteger(latest.completedCount) ? ' · 반영 ' + latest.completedCount + '건' : '') : '예약 실행 기록 없음');
       const register = byId('blowerScheduleRegister'), disable = byId('blowerScheduleDisable');
-      if (register) { register.hidden = !loggedIn || here; register.disabled = Boolean(snapshot.busy) || !status.version; }
-      if (disable) { disable.hidden = !loggedIn || !here; disable.disabled = Boolean(snapshot.busy); }
+      if (register) { register.hidden = !loggedIn || here; register.disabled = Boolean(snapshot.busy) || settingsPending || !ready || !timingValue(draft); }
+      if (disable) { disable.hidden = !loggedIn || !here; disable.disabled = Boolean(snapshot.busy) || settingsPending; }
       const menu = byId('blowerScheduleMenuStatus');
       if (menu) {
         /* 햄버거 메뉴 보조 문구는 자동조회가 실제 설정된 경우에만 표시한다. */
@@ -144,13 +201,60 @@
       tick(); timer = root.setInterval(tick, 15000);
     }
     function ready() {
-      byId('blowerScheduleRegister')?.addEventListener('click', async () => {
-        if (!readIdentity() || !controller) return;
-        if (!root.confirm('지금 사용 중인 컴퓨터가 BCO1 PC인가요?\n이 브라우저를 매일 00·04·08·12·16·20시 자동조회용으로 지정합니다. 기존 지정은 해제됩니다.')) return;
-        try { await controller.register({confirmedPhysicalBco1:true}); } catch (error) { showError(error); }
+      const readDraft = () => timingValue({
+        intervalHours: Number(byId('blowerScheduleInterval')?.value),
+        startTime: byId('blowerScheduleTime')?.value
       });
+      const draftChanged = () => {
+        if (!controller || settingsPending) return;
+        const snapshot = controller.snapshot(), status = snapshot.status || {};
+        if (!readIdentity() || snapshot.busy || status.version !== VERSION ||
+            !(status.thisDevice === true || status.revision === 0)) return;
+        draft = {intervalHours: Number(byId('blowerScheduleInterval')?.value), startTime: byId('blowerScheduleTime')?.value || ''};
+        draftDirty = !sameTiming(timingValue(draft), timingValue(status.timing));
+        settingsNotice = '';
+        render(snapshot);
+      };
+      for (const id of ['blowerScheduleInterval', 'blowerScheduleTime']) {
+        byId(id)?.addEventListener('input', draftChanged);
+        byId(id)?.addEventListener('change', draftChanged);
+      }
+      async function saveTiming(register) {
+        const snapshot = controller?.snapshot(), status = snapshot?.status || {};
+        if (!readIdentity() || !controller || snapshot.busy || settingsPending || status.version !== VERSION) return;
+        const selected = readDraft();
+        if (!selected || (!register && status.thisDevice !== true)) return;
+        if (register && !root.confirm(`지금 사용 중인 컴퓨터가 BCO1 PC인가요?\n${timingText(selected).summary}\n${timingText(selected).preview}\n이 브라우저를 자동조회용으로 지정합니다. 기존 지정은 해제됩니다.`)) return;
+        const owner = draftOwner;
+        settingsPending = true; settingsNotice = '자동조회 설정을 저장 중입니다.';
+        render(snapshot);
+        try {
+          if (register) await controller.register({confirmedPhysicalBco1: true, timing: selected});
+          else await controller.configure(selected);
+          const currentIdentity = readIdentity();
+          if (owner !== draftOwner || !currentIdentity || `${currentIdentity.employeeNo}\n${currentIdentity.token}` !== owner) throw accessError();
+          const updated = controller.snapshot();
+          if (updated.status?.version !== VERSION || !sameTiming(timingValue(updated.status.timing), selected) ||
+              updated.status.thisDevice !== true || (register && updated.status.enabled !== true)) {
+            throw new Error('설정 저장 결과를 확인하지 못했습니다. 현재 설정을 다시 확인해 주세요.');
+          }
+          draft = {...selected}; draftDirty = false;
+          settingsNotice = register ? 'BCO1 지정 완료 · 다음 예약부터 자동조회합니다.' :
+            updated.status.enabled ? '설정 저장 완료 · 다음 예약부터 적용됩니다.' : '설정 저장 완료 · 자동조회는 꺼진 상태로 유지됩니다.';
+        } catch (error) {
+          if (owner === draftOwner && readIdentity() && `${readIdentity().employeeNo}\n${readIdentity().token}` === owner) {
+            draftDirty = true;
+            settingsNotice = error?.message || '자동조회 설정을 저장하지 못했습니다.';
+          }
+        } finally {
+          settingsPending = false;
+          render(controller.snapshot());
+        }
+      }
+      byId('blowerScheduleRegister')?.addEventListener('click', () => saveTiming(true));
+      byId('blowerScheduleSave')?.addEventListener('click', () => saveTiming(false));
       byId('blowerScheduleDisable')?.addEventListener('click', async () => {
-        if (!readIdentity() || !controller) return;
+        if (!readIdentity() || !controller || settingsPending || controller.snapshot().busy) return;
         try { await controller.disable(); } catch (error) { showError(error); }
       });
       document.addEventListener('click', event => {
@@ -177,5 +281,5 @@
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ready, {once:true});
     else ready();
   }
-  return {identity, createApi, formatKst, install};
+  return {identity, createApi, formatKst, timingValue, timingText, install};
 });

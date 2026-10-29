@@ -3,11 +3,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const {identity, createApi, formatKst, install} = require('../maintenance/blower-schedule-browser-v1.js');
+const {identity, createApi, formatKst, timingValue, timingText, install} = require('../maintenance/blower-schedule-browser-v1.js');
 const AUTH_KEY = 'gsShiftLog.currentUser';
 
 class Target {
-  constructor() { this.listeners = new Map(); this.hidden = false; this.disabled = false; this.textContent = ''; }
+  constructor() { this.listeners = new Map(); this.hidden = false; this.disabled = false; this.textContent = ''; this.value = ''; }
   addEventListener(name, fn, options) {
     const listeners = this.listeners.get(name) || [];
     listeners.push({fn, capture: options === true || options?.capture === true});
@@ -24,7 +24,8 @@ function browser(options = {}) {
   const elements = new Map();
   for (const id of ['appShell', 'loginScreen', 'blowerSchedulePanel', 'blowerScheduleState',
     'blowerScheduleNext', 'blowerScheduleProgress', 'blowerScheduleLast', 'blowerScheduleRegister',
-    'blowerScheduleDisable', 'blowerScheduleMenuStatus']) elements.set(id, new Target());
+    'blowerScheduleDisable', 'blowerScheduleMenuStatus', 'blowerScheduleCadence', 'blowerScheduleInterval',
+    'blowerScheduleTime', 'blowerSchedulePreview', 'blowerScheduleSave', 'blowerScheduleDraftStatus']) elements.set(id, new Target());
   elements.get('loginScreen').hidden = true;
   document.getElementById = id => elements.get(id) || null;
   document.documentElement = {dataset: options.blower ? {shiftLogPage: 'blower-history'} : {}};
@@ -71,19 +72,33 @@ function pendingFetch(root) {
 
 function controllerBrowser(options = {}) {
   const f = browser(options);
-  const calls = {ticks: [], register: [], disable: 0, stop: 0, controllers: []};
-  let state = {busy: false, status: {version: 'blower-schedule-v1', enabled: false, thisDevice: false}};
+  const calls = {ticks: [], register: [], configure: [], disable: 0, stop: 0, controllers: []};
+  let state = {busy: false, status: {version: 'blower-schedule-v2', enabled: false, thisDevice: false, revision: 0,
+    timing: {intervalHours: 24, startTime: '00:00', timeZone: 'Asia/Seoul'}}};
   f.root.BlowerScheduleV1 = {createController(io) {
     calls.controllers.push(io);
     return {
       tick() { calls.ticks.push(io.identity()); return Promise.resolve(); },
       snapshot: () => state,
-      register(value) { calls.register.push(value); return Promise.resolve(); },
+      register(value) {
+        calls.register.push(value);
+        state = {...state, status: {...state.status, enabled: true, thisDevice: true, revision: state.status.revision + 1,
+          timing: {...value.timing, timeZone: 'Asia/Seoul'}}};
+        io.onState(state); return Promise.resolve(state);
+      },
+      async configure(value) {
+        calls.configure.push(value);
+        if (calls.configureHandler) await calls.configureHandler(value, io);
+        if (calls.configureError) throw new Error(calls.configureError);
+        state = {...state, status: {...state.status, revision: state.status.revision + 1,
+          timing: {...value, timeZone: 'Asia/Seoul'}}};
+        io.onState(state); return state;
+      },
       disable() { calls.disable += 1; return Promise.resolve(); },
       stop() { calls.stop += 1; }
     };
   }};
-  return {...f, calls, setState(value) { state = value; }};
+  return {...f, calls, setState(value) { state = value; }, state: () => state};
 }
 
 test('main page requires visible application, hidden login screen, and complete authenticated identity', () => {
@@ -210,7 +225,7 @@ test('BCO1 role never registers the browser automatically; designation requires 
   assert.equal(f.calls.register.length, 0);
   f.root.confirmResult = true;
   await f.elements.get('blowerScheduleRegister').emit('click');
-  assert.deepEqual(f.calls.register, [{confirmedPhysicalBco1: true}]);
+  assert.deepEqual(f.calls.register, [{confirmedPhysicalBco1: true, timing: {intervalHours: 24, startTime: '00:00'}}]);
   assert.match(f.root.confirmations[1], /BCO1 PC/);
   install(f.root);
   assert.equal(f.calls.controllers.length, 1, 'repeated install must not attach another scheduler');
@@ -266,7 +281,8 @@ test('main login visibility, mobile switch, and page lifecycle promptly update s
 
 test('next and last server slot times render in KST including midnight rollover', () => {
   const f = controllerBrowser(); install(f.root);
-  const snapshot = {busy: false, status: {version: 'blower-schedule-v1', enabled: true, thisDevice: true,
+  const snapshot = {busy: false, status: {version: 'blower-schedule-v2', enabled: true, thisDevice: true, revision: 1,
+    timing: {intervalHours: 24, startTime: '00:00', timeZone: 'Asia/Seoul'},
     nextSlotAt: '2026-09-15T15:00:00.000Z', latestSlot: {slotKey: '2026-09-15T11:00:00.000Z', state: 'complete', completedCount: 20}}};
   f.calls.controllers[0].onState(snapshot);
   assert.match(formatKst(snapshot.status.nextSlotAt), /09\D+16\D+00:00/);
@@ -286,7 +302,8 @@ test('both pages load scheduling scripts once; Blower owns the designation panel
     assert.ok(scripts.indexOf(dependencies[0]) < scripts.indexOf(dependencies[1]), `${relative}: core before controller`);
     assert.ok(scripts.indexOf(dependencies[1]) < scripts.indexOf(dependencies[2]), `${relative}: controller before adapter`);
     if (relative === 'maintenance/blower-history.html') {
-      for (const id of ['blowerSchedulePanel', 'blowerScheduleRegister', 'blowerScheduleDisable', 'blowerScheduleNext']) {
+      for (const id of ['blowerSchedulePanel', 'blowerScheduleRegister', 'blowerScheduleDisable', 'blowerScheduleNext',
+        'blowerScheduleCadence', 'blowerScheduleInterval', 'blowerScheduleTime', 'blowerSchedulePreview', 'blowerScheduleSave']) {
         assert.equal([...html.matchAll(new RegExp(`\\bid\\s*=\\s*['"]${id}['"]`, 'g'))].length, 1, `${relative}: ${id} once`);
       }
     } else {
@@ -297,4 +314,178 @@ test('both pages load scheduling scripts once; Blower owns the designation panel
       assert.match(blowerLink, /\bid\s*=\s*['"]blowerScheduleMenuStatus['"]/);
     }
   }
+});
+
+function designatedState(f, enabled = true) {
+  const value = {...f.state(), status: {...f.state().status, revision: 4, thisDevice: true, enabled,
+    nextSlotAt: '2026-10-29T15:00:00.000Z'}};
+  f.setState(value);
+  return value;
+}
+async function chooseTiming(f, intervalHours, startTime) {
+  f.elements.get('blowerScheduleInterval').value = String(intervalHours);
+  await f.elements.get('blowerScheduleInterval').emit('change');
+  f.elements.get('blowerScheduleTime').value = startTime;
+  await f.elements.get('blowerScheduleTime').emit('input');
+}
+
+test('default midnight cadence is visible when settings are collapsed and controls are accessible', () => {
+  const f = controllerBrowser(); install(f.root);
+  assert.equal(f.elements.get('blowerScheduleCadence').textContent, '매일 00:00 · 1회');
+  assert.equal(f.elements.get('blowerScheduleInterval').value, '24');
+  assert.equal(f.elements.get('blowerScheduleTime').value, '00:00');
+  assert.equal(f.elements.get('blowerScheduleInterval').disabled, false);
+  assert.equal(f.elements.get('blowerScheduleSave').hidden, true);
+  assert.match(f.elements.get('blowerSchedulePreview').textContent, /00:00.*한국시간/);
+  const html = fs.readFileSync(path.join(__dirname, '..', 'maintenance/blower-history.html'), 'utf8');
+  assert.ok(html.indexOf('id="blowerScheduleCadence"') < html.indexOf('id="blowerScheduleDetails"'));
+  assert.match(html, /<summary[^>]*자동조회 시간과 주기 설정[^>]*>설정<\/summary>/);
+  assert.match(html, /<label for="blowerScheduleTime">조회 기준시각/);
+  assert.match(html, /id="blowerScheduleTime" type="time" value="00:00" step="60"/);
+  assert.doesNotMatch(html, /매일 00 · 04 · 08 · 12 · 16 · 20시/);
+  for (const entry of ['index.html', 'maintenance/blower-history.html']) {
+    const text = fs.readFileSync(path.join(__dirname, '..', entry), 'utf8');
+    assert.equal((text.match(/blower-schedule-(?:browser-)?v1\.(?:js|css)\?v=20261029-settings-v2/g) || []).length, 3);
+    assert.equal((text.match(/blower-unified-refresh\.js\?v=20261029-settings-v2/g) || []).length, 1,
+      `${entry}: refresh dependency uses the same release cache key`);
+  }
+});
+
+test('cadence preview matches KST slots anchored to the selected minute, with bounded frequent-slot text', () => {
+  assert.deepEqual(timingValue({intervalHours: 24, startTime: '23:59'}), {intervalHours: 24, startTime: '23:59'});
+  assert.equal(timingValue({intervalHours: '24', startTime: '00:00'}), null);
+  for (const startTime of ['', '24:00', '12:60', '9:30', '12:30:00']) assert.equal(timingValue({intervalHours: 24, startTime}), null);
+  assert.equal(timingValue({intervalHours: 5, startTime: '00:00'}), null);
+  assert.deepEqual(timingText({intervalHours: 4, startTime: '09:15'}), {
+    summary: '매일 4시간 간격 · 6회', preview: '실행 시각 · 01:15 · 05:15 · 09:15 · 13:15 · 17:15 · 21:15 (한국시간)'
+  });
+  assert.equal(timingText({intervalHours: 1, startTime: '09:30'}).preview, '매일 00:30부터 1시간 간격 (23:30까지) · 한국시간');
+});
+
+test('new designation confirms and saves the selected daily time without starting a query directly', async () => {
+  const f = controllerBrowser(); install(f.root);
+  await chooseTiming(f, 24, '06:35');
+  assert.match(f.elements.get('blowerScheduleDraftStatus').textContent, /저장 전/);
+  assert.equal(f.elements.get('blowerScheduleCadence').textContent, '매일 00:00 · 1회');
+  f.root.confirmResult = true;
+  await f.elements.get('blowerScheduleRegister').emit('click');
+  assert.deepEqual(f.calls.register, [{confirmedPhysicalBco1: true, timing: {intervalHours: 24, startTime: '06:35'}}]);
+  assert.match(f.root.confirmations[0], /06:35.*한국시간/s);
+  assert.equal(f.calls.configure.length, 0);
+  assert.equal(f.calls.ticks.length, 1);
+  assert.equal(f.elements.get('blowerScheduleCadence').textContent, '매일 06:35 · 1회');
+  assert.match(f.elements.get('blowerScheduleDraftStatus').textContent, /지정 완료.*다음 예약/);
+});
+
+test('dirty timing edits survive status ticks while confirmed cadence remains truthful until save', async () => {
+  const f = controllerBrowser(); designatedState(f); install(f.root);
+  await chooseTiming(f, 6, '02:20');
+  const current = {...f.state(), status: {...f.state().status, nextSlotAt: '2026-10-30T15:00:00.000Z'}};
+  f.setState(current);
+  f.calls.controllers[0].onState(current);
+  assert.equal(f.elements.get('blowerScheduleInterval').value, '6');
+  assert.equal(f.elements.get('blowerScheduleTime').value, '02:20');
+  assert.equal(f.elements.get('blowerScheduleCadence').textContent, '매일 00:00 · 1회');
+  assert.equal(f.elements.get('blowerScheduleSave').disabled, false);
+  await f.elements.get('blowerScheduleSave').emit('click');
+  assert.deepEqual(f.calls.configure, [{intervalHours: 6, startTime: '02:20'}]);
+  assert.equal(f.elements.get('blowerScheduleCadence').textContent, '매일 6시간 간격 · 4회');
+  assert.match(f.elements.get('blowerScheduleDraftStatus').textContent, /저장 완료.*다음 예약/);
+  assert.equal(f.elements.get('blowerScheduleSave').disabled, true);
+  assert.equal(f.calls.register.length, 0);
+  assert.equal(f.calls.ticks.length, 1);
+});
+
+test('saving an owned disabled schedule preserves the off state', async () => {
+  const f = controllerBrowser(); designatedState(f, false); install(f.root);
+  assert.equal(f.elements.get('blowerScheduleTime').disabled, false);
+  await chooseTiming(f, 24, '00:15');
+  await f.elements.get('blowerScheduleSave').emit('click');
+  assert.equal(f.state().status.enabled, false);
+  assert.equal(f.elements.get('blowerScheduleState').textContent, '자동조회 꺼짐');
+  assert.match(f.elements.get('blowerScheduleDraftStatus').textContent, /꺼진 상태로 유지/);
+  assert.equal(f.calls.register.length, 0);
+});
+
+test('failed setting save preserves the draft and old confirmed cadence across further ticks', async () => {
+  const f = controllerBrowser(); designatedState(f); install(f.root);
+  await chooseTiming(f, 24, '13:45');
+  f.calls.configureError = '설정 버전이 변경됐습니다.';
+  await f.elements.get('blowerScheduleSave').emit('click');
+  f.calls.controllers[0].onState(f.state());
+  assert.equal(f.elements.get('blowerScheduleTime').value, '13:45');
+  assert.equal(f.elements.get('blowerScheduleCadence').textContent, '매일 00:00 · 1회');
+  assert.equal(f.elements.get('blowerScheduleDraftStatus').textContent, '설정 버전이 변경됐습니다.');
+  assert.equal(f.elements.get('blowerScheduleSave').disabled, false);
+  assert.doesNotMatch(f.elements.get('blowerScheduleDraftStatus').textContent, /저장 완료/);
+});
+
+test('another browser can read timing but cannot edit or save it', async () => {
+  const f = controllerBrowser();
+  f.setState({...f.state(), status: {...f.state().status, revision: 4, enabled: true, thisDevice: false,
+    timing: {intervalHours: 12, startTime: '03:10', timeZone: 'Asia/Seoul'}}});
+  install(f.root);
+  assert.equal(f.elements.get('blowerScheduleTime').disabled, true);
+  assert.equal(f.elements.get('blowerScheduleInterval').disabled, true);
+  assert.equal(f.elements.get('blowerScheduleSave').hidden, true);
+  assert.equal(f.elements.get('blowerScheduleCadence').textContent, '매일 12시간 간격 · 2회');
+  await chooseTiming(f, 1, '00:00');
+  await f.elements.get('blowerScheduleSave').emit('click');
+  assert.equal(f.calls.configure.length, 0);
+  assert.match(f.elements.get('blowerScheduleDraftStatus').textContent, /지정된 BCO1 브라우저/);
+});
+
+test('invalid minute input and an active query cannot save settings', async () => {
+  const f = controllerBrowser(); designatedState(f); install(f.root);
+  await chooseTiming(f, 24, '24:00');
+  assert.equal(f.elements.get('blowerScheduleSave').disabled, true);
+  await f.elements.get('blowerScheduleSave').emit('click');
+  assert.equal(f.calls.configure.length, 0);
+  await chooseTiming(f, 24, '03:40');
+  const busy = {...f.state(), busy: true}; f.setState(busy); f.calls.controllers[0].onState(busy);
+  assert.equal(f.elements.get('blowerScheduleTime').disabled, true);
+  await f.elements.get('blowerScheduleSave').emit('click');
+  assert.equal(f.calls.configure.length, 0);
+});
+
+test('pending setting save disables controls and absorbs repeated save clicks', async () => {
+  const f = controllerBrowser(); designatedState(f); install(f.root);
+  await chooseTiming(f, 8, '01:55');
+  let resume;
+  f.calls.configureHandler = () => new Promise(resolve => { resume = resolve; });
+  const pending = f.elements.get('blowerScheduleSave').emit('click');
+  assert.equal(f.elements.get('blowerScheduleTime').disabled, true);
+  assert.equal(f.elements.get('blowerScheduleSave').disabled, true);
+  await f.elements.get('blowerScheduleSave').emit('click');
+  assert.equal(f.calls.configure.length, 1);
+  assert.match(f.elements.get('blowerScheduleDraftStatus').textContent, /저장 중/);
+  resume(); await pending;
+  assert.equal(f.elements.get('blowerScheduleTime').disabled, false);
+  assert.equal(f.elements.get('blowerScheduleCadence').textContent, '매일 8시간 간격 · 3회');
+});
+
+test('old protocol status cannot enable timing controls or registration', async () => {
+  const f = controllerBrowser();
+  f.setState({...f.state(), status: {...f.state().status, version: 'blower-schedule-v1'}});
+  install(f.root);
+  assert.equal(f.elements.get('blowerScheduleInterval').disabled, true);
+  assert.equal(f.elements.get('blowerScheduleTime').disabled, true);
+  assert.equal(f.elements.get('blowerScheduleRegister').disabled, true);
+  f.root.confirmResult = true;
+  await f.elements.get('blowerScheduleRegister').emit('click');
+  assert.equal(f.calls.register.length, 0);
+});
+
+test('identity change during save cannot show the previous session save as confirmed', async () => {
+  const f = controllerBrowser(); designatedState(f); install(f.root);
+  await chooseTiming(f, 24, '05:45');
+  let resume;
+  f.calls.configureHandler = () => new Promise(resolve => { resume = resolve; });
+  const pending = f.elements.get('blowerScheduleSave').emit('click');
+  f.saved.set(AUTH_KEY, JSON.stringify({employeeNo: 'employee-b', sessionToken: 'token-b'}));
+  await f.root.emit('storage', {key: AUTH_KEY});
+  resume(); await pending;
+  assert.doesNotMatch(f.elements.get('blowerScheduleDraftStatus').textContent, /저장 완료/);
+  assert.doesNotMatch(f.elements.get('blowerScheduleDraftStatus').textContent, /로그인 상태가 변경/,
+    'the former session error must not be pinned into the new user draft');
 });

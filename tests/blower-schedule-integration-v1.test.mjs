@@ -83,7 +83,7 @@ async function authenticatedPost(handler, database, route, body, {
 
 function schedule(database, operation, body = {}, options) {
   return authenticatedPost(historyPost, database, 'blower-history', {
-    action: 'scheduled_refresh', operation, ...body
+    action: 'scheduled_refresh', scheduleVersion: 2, operation, ...(operation === 'claim' ? { expectedRevision: 1 } : {}), ...body
   }, options);
 }
 
@@ -99,7 +99,8 @@ function successful(response, status = 200) {
 
 async function registerAndClaim(database) {
   const registered = successful(await schedule(database, 'register', {
-    deviceKey: DEVICE_KEY, confirmedPhysicalBco1: true, expectedRevision: 0
+    deviceKey: DEVICE_KEY, confirmedPhysicalBco1: true, expectedRevision: 0,
+    timing: { intervalHours: 4, startTime: '00:00' }
   }));
   assert.equal(registered.thisDevice, true);
   assert.equal(registered.enabled, true);
@@ -330,7 +331,7 @@ test('slot receipt survives disable and re-enable so a second registration canno
     successful(await schedule(database, 'register', {
       deviceKey: DEVICE_KEY, confirmedPhysicalBco1: true, expectedRevision: 2
     }));
-    const afterRegistration = successful(await schedule(database, 'claim', metadata({ runToken: 'f'.repeat(64) })));
+    const afterRegistration = successful(await schedule(database, 'claim', metadata({ runToken: 'f'.repeat(64), expectedRevision: 3 })));
     assert.equal(afterRegistration.acquired, false);
     assert.equal(sqlite.prepare('SELECT COUNT(*) AS count FROM blower_schedule_slots_v1').get().count, 1);
     const staleAuthorization = await scheduledCreate(database, batchBody(sqlite));

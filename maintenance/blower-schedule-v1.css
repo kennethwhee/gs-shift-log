@@ -80,3 +80,17 @@
   margin-top: 8px;
   overflow-wrap: anywhere;
 }
+
+/* Timing stays visible while the settings controls are collapsed. */
+.blower-schedule-cadence { color: #466981; font-size: 12px; line-height: 1.5; }
+.blower-schedule-fields { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 8px 12px; }
+.blower-schedule-fields label { display: flex; flex-direction: column; gap: 4px; color: #466981; font-size: 12px; }
+.blower-schedule-fields select, .blower-schedule-fields input {
+  min-height: 32px; box-sizing: border-box; border: 1px solid #b3cce2; border-radius: 6px;
+  background: white; color: #173954; padding: 5px 8px; font: inherit; font-size: 13px;
+}
+.blower-schedule-fields select { min-width: 130px; }
+.blower-schedule-fields input { min-width: 112px; }
+.blower-schedule-fields select:disabled, .blower-schedule-fields input:disabled { background: #eef3f7; color: #657c8c; }
+.blower-schedule-fields select:focus-visible, .blower-schedule-fields input:focus-visible { outline: 2px solid #1976d2; outline-offset: 2px; }
+.blower-schedule-draft-status { color: #466981; font-size: 12px; }
