@@ -194,12 +194,15 @@
     return payload.counts.organic;
   }
 
-// GS_MORNING_ORGANIC_RECEIPT_SILO_RECOVERY_V7_20261029
+// GS_MORNING_ORGANIC_RECEIPT_SILO_RECOVERY_V8_20261029
 // Read-only recovery for every date and silo. Never creates Agent requests.
 // The saved co-firing calculation accepts GOOD samples up to five minutes before
 // the closing boundary. Keep the existing exclusive +1-minute padding limit.
 const ORGANIC_END_LOOKBACK_MS = 5 * 60 * 1000;
 const ORGANIC_END_PADDING_MS = 60 * 1000;
+// Preserve V5's normal one-minute boundary window. Only V6's extended lookback
+// substitutes an older observation for a missing recent boundary sample.
+const ORGANIC_END_NORMAL_LOOKBACK_MS = 60 * 1000;
 function recoveryNextDate(date) {
   if (!dateValid(date)) return '';
   const next = new Date(date + 'T00:00:00Z');
@@ -341,13 +344,14 @@ async function recoverOrganicForDate(date, headers, closed, fetchJson) {
       const sample = samples.find(row => row?.key === key);
       const sampledMs = Date.parse(sample.endTime);
       const sampledAt = new Date(sampledMs + 9 * 3600000).toISOString().slice(0, 19).replace('T', ' ');
-      const approximate = sampledMs !== Date.parse(end + ':00+09:00');
-      // GOOD describes the observation quality, not an exact midnight stock.
-      // Keep the raw quantity; mark a different-time observation as an approximation.
+      const approximate = sampledMs < Date.parse(end + ':00+09:00') - ORGANIC_END_NORMAL_LOOKBACK_MS;
+      // A routine GOOD sample need not fall on the exact millisecond of midnight.
+      // Mark only the extended recovery window, per silo; whole-day/start errors
+      // do not make an otherwise normal ending sample approximate.
       if (approximate) boundaryApproximateKeys.push(key);
       fieldNotes[key] = end.replace('T', ' ') +
-        (approximate ? ' 기준 근사 재고(≈) · ' : ' 기준 종료재고 · ') + sourceLabel +
-        (approximate ? ' 정상 계측값을 대체 사용 · 실제 계측 ' : ' 정상 계측값 · 실제 계측 ') + sampledAt + ' KST';
+        (approximate ? ' 기준 근사 재고(≈) · 최근 1분 내 종료 계측 미확인 · ' : ' 기준 종료재고 · ') + sourceLabel +
+        (approximate ? ' 이전 정상 계측값을 대체 사용 · 실제 계측 ' : ' 정상 계측값 · 실제 계측 ') + sampledAt + ' KST';
       sourceRefs[key] = response.saved.id;
       hasIndependent = true;
     }
@@ -894,6 +898,6 @@ value === null ? '해당 시각의 확인된 계측값이 없습니다.' : date 
     doc.addEventListener('visibilitychange', refreshCofiringOnActivation);
     sync();
   }
-  root.morningMeetingClosedCofiring = Object.freeze({version: '20261029-organic-readonly-recovery-v7', targetDate, isBlocked, load, loadSavedForWorkbook, peek, state, refresh, refreshOrganicFromClosing, renderOrganic, valuesForWorkbook});
+  root.morningMeetingClosedCofiring = Object.freeze({version: '20261029-organic-readonly-recovery-v8', targetDate, isBlocked, load, loadSavedForWorkbook, peek, state, refresh, refreshOrganicFromClosing, renderOrganic, valuesForWorkbook});
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', initialize, {once: true}); else initialize();
 })(typeof window !== 'undefined' ? window : null);

@@ -233,18 +233,20 @@ function recoveryBrowserFetch(date, primary, provisional, pinned) {
     return {ok:true,json:async()=>data};
   };
 }
-test('browser fills missing Oct24 B from saved calculation source and displays measured total',async()=>{
-  const date='2026-10-24',h=harness(recoveryBrowserFetch(date,recoveryEnvelope(date,[8.099,32.144,null]),
-    recoveryProvisional(date),recoveryEnvelope(date,[8.099,32.144,57.839],recoveryId)));
+test('browser keeps recent GOOD B from saved calculation source and its measured total plain',async()=>{
+  const date='2026-10-24',pinned=recoveryEnvelope(date,[8.099,32.144,57.839],recoveryId);
+  pinned.result.report.organicInventorySamples[2].endTime='2026-10-24T23:59:48+09:00';
+  const h=harness(recoveryBrowserFetch(date,recoveryEnvelope(date,[8.099,32.144,null]),recoveryProvisional(date),pinned));
   h.date(date);await h.api.load(date);
   const p='efficiencyMorningMeetingAutoDaily';
   assert.equal(h.node(p+'OrganicStorageSiloB').textContent,'57.84 t');
   assert.equal(h.node(p+'OrganicSiloTotal').textContent,'98.08 t');
+  assert.equal(h.node(p+'SludgeStatus').textContent,'입고/재고 조회');
   assert.match(h.node(p+'OrganicStorageSiloB').title,/저장된 혼소율 계산 원본/);
   assert.match(h.node(p+'SludgeCard').title,/2026-10-25 00:00/);
   assert.equal(h.calls.filter(x=>x.url.includes('sourceRequestId=')).length,1);
 });
-test('browser marks Oct24 B sampled at23:56:12 as approximate57.84 with the actual time and midnight criterion',async()=>{
+test('browser keeps normal Oct24 Day and A plain while recovered B at23:56:12 and total are approximate',async()=>{
   const date='2026-10-24', primary=recoveryEnvelope(date,[8.099,32.144,57.83935546875]);
   const samples=primary.result.report.organicInventorySamples;
   samples[0].endTime='2026-10-24T23:59:48+09:00';
@@ -258,42 +260,53 @@ test('browser marks Oct24 B sampled at23:56:12 as approximate57.84 with the actu
   h.date(date);await h.api.load(date);
   const p='efficiencyMorningMeetingAutoDaily', b=h.node(p+'OrganicStorageSiloB');
   assert.equal(b.textContent,'≈57.84 t');
-  assert.equal(h.node(p+'OrganicDaySilo').textContent,'≈8.10 t');
-  assert.equal(h.node(p+'OrganicStorageSiloA').textContent,'≈32.14 t');
+  assert.equal(h.node(p+'OrganicDaySilo').textContent,'8.10 t');
+  assert.equal(h.node(p+'OrganicStorageSiloA').textContent,'32.14 t');
   assert.equal(h.node(p+'OrganicSiloTotal').textContent,'≈98.08 t');
   assert.equal(h.api.state(date).organicRecovery.organic.organicSiloTotal,8.099+32.144+57.83935546875);
   assert.match(b.title,/2026-10-24 23:56:12 KST/);
   assert.match(b.title,/2026-10-25 00:00/);
   assert.match(b.title,/근사|대체/);
+  assert.match(b.title,/최근 1분 내 종료 계측 미확인/);
+  assert.doesNotMatch(h.node(p+'OrganicDaySilo').title,/근사|대체|≈/);
+  assert.doesNotMatch(h.node(p+'OrganicStorageSiloA').title,/근사|대체|≈/);
   assert.equal(h.node(p+'SludgeStatus').textContent,'추정 포함 · 재확인');
   assert.ok(!h.node(p+'SludgeStatus').className.includes('is-complete'));
   assert.equal(h.calls.filter(x=>x.url.includes('sourceRequestId=')).length,0);
 });
-test('browser keeps two decimals for off-boundary readings and three for stored19.143 estimates',async()=>{
+test('browser keeps normal Oct23 Day and A plain while stored19.143 estimate and total retain three decimals',async()=>{
   const date='2026-10-23', primary=recoveryEnvelope(date,[10,20,null]);
-  primary.result.report.organicInventorySamples[0].endTime='2026-10-23T23:59:59+09:00';
+  primary.result.report.organicInventorySamples[0].endTime='2026-10-23T23:59:48+09:00';
+  primary.result.report.organicInventorySamples[1].endTime='2026-10-23T23:59:46+09:00';
   const h=harness(recoveryBrowserFetch(date,primary,recoveryProvisional(date,{organicStorageSiloB:19.143},currentRecoveryId),null));
   h.date(date);await h.api.load(date);
   const p='efficiencyMorningMeetingAutoDaily';
-  assert.equal(h.node(p+'OrganicDaySilo').textContent,'≈10.00 t');
+  assert.equal(h.node(p+'OrganicDaySilo').textContent,'10.00 t');
   assert.equal(h.node(p+'OrganicStorageSiloA').textContent,'20.00 t');
   assert.equal(h.node(p+'OrganicStorageSiloB').textContent,'≈19.143 t');
   assert.equal(h.node(p+'OrganicSiloTotal').textContent,'≈49.143 t');
   assert.equal(h.node(p+'SludgeStatus').textContent,'추정 포함 · 재확인');
 });
-test('browser distinguishes a GOOD zero one second before midnight from an exact UTC midnight zero',async()=>{
+test('browser marks GOOD zero only when recovered from earlier than the normal one-minute window',async()=>{
   const date='2027-02-09';
-  for(const [time,prefix,status] of [['2027-02-09T23:59:59+09:00','≈','추정 포함 · 재확인'],['2027-02-09T15:00:00Z','','입고/재고 조회']]){
+  for(const [time,prefix] of [
+    ['2027-02-09T23:59:59.999+09:00',''],
+    ['2027-02-09T15:00:00Z',''],
+    ['2027-02-10T00:00:59.999+09:00',''],
+    ['2027-02-09T23:59:00+09:00',''],
+    ['2027-02-09T23:58:59.999+09:00','≈'],
+    ['2027-02-09T14:58:59.999Z','≈']
+  ]){
     const primary=recoveryEnvelope(date,[1,2,0]);primary.result.report.organicInventorySamples[2].endTime=time;
     const h=harness(recoveryBrowserFetch(date,primary,{ok:true,item:null},null));
     h.date(date);await h.api.load(date);
     const p='efficiencyMorningMeetingAutoDaily';
     assert.equal(h.node(p+'OrganicStorageSiloB').textContent,prefix+'0.00 t');
     assert.equal(h.node(p+'OrganicSiloTotal').textContent,prefix+'3.00 t');
-    assert.equal(h.node(p+'SludgeStatus').textContent,status);
+    assert.equal(h.node(p+'SludgeStatus').textContent,prefix?'추정 포함 · 재확인':'입고/재고 조회');
   }
 });
-test('browser also marks a pinned-source off-boundary reading without changing the measured number',async()=>{
+test('browser also marks an earlier recovered pinned-source reading without changing the measured number',async()=>{
   const date='2027-02-09',pinned=recoveryEnvelope(date,[1,2,57.83935546875],recoveryId);
   pinned.result.report.organicInventorySamples[2].endTime='2027-02-09T23:56:12+09:00';
   const h=harness(recoveryBrowserFetch(date,recoveryEnvelope(date,[1,2,null]),recoveryProvisional(date),pinned));
@@ -304,6 +317,35 @@ test('browser also marks a pinned-source off-boundary reading without changing t
   assert.equal(h.node(p+'SludgeStatus').textContent,'추정 포함 · 재확인');
   assert.match(h.node(p+'OrganicStorageSiloB').title,/2027-02-09 23:56:12 KST/);
   assert.equal(h.calls.filter(x=>x.url.includes('sourceRequestId=')).length,1);
+});
+test('browser keeps all normal end readings and total plain despite unavailable starts and incomplete whole-day coverage',async()=>{
+  const date='2027-02-09',primary=recoveryEnvelope(date,[0,12.5,26.75]);
+  primary.result.report.organicInventorySamples.forEach((sample,i)=>Object.assign(sample,{
+    endTime:['2027-02-09T23:59:48+09:00','2027-02-09T23:59:46+09:00','2027-02-09T15:00:59.999Z'][i],
+    startValue:null,startQuality:'Bad',startTime:null,boundaryValid:false,dataComplete:false,
+    durationGoodSeconds:600,durationBadSeconds:85800,durationCoverageValid:false
+  }));
+  const h=harness(recoveryBrowserFetch(date,primary,{ok:true,item:null},null));
+  h.date(date);await h.api.load(date);
+  const p='efficiencyMorningMeetingAutoDaily';
+  for(const [key,text] of [['OrganicDaySilo','0.00 t'],['OrganicStorageSiloA','12.50 t'],['OrganicStorageSiloB','26.75 t'],['OrganicSiloTotal','39.25 t']]){
+    assert.equal(h.node(p+key).textContent,text);
+    assert.doesNotMatch(h.node(p+key).title,/근사|대체|≈/);
+  }
+  assert.equal(h.node(p+'SludgeStatus').textContent,'입고/재고 조회');
+});
+test('browser applies the recovered-value approximation to all three silos on a generic date with two decimals',async()=>{
+  const date='2027-02-09',primary=recoveryEnvelope(date,[0,12.5,26.75]);
+  primary.result.report.organicInventorySamples.forEach((sample,i)=>{
+    sample.endTime=['2027-02-09T23:56:12+09:00','2027-02-09T23:55:00+09:00','2027-02-09T23:58:59.999+09:00'][i];
+  });
+  const h=harness(recoveryBrowserFetch(date,primary,{ok:true,item:null},null));
+  h.date(date);await h.api.load(date);
+  const p='efficiencyMorningMeetingAutoDaily';
+  for(const [key,text] of [['OrganicDaySilo','≈0.00 t'],['OrganicStorageSiloA','≈12.50 t'],['OrganicStorageSiloB','≈26.75 t'],['OrganicSiloTotal','≈39.25 t']]){
+    assert.equal(h.node(p+key).textContent,text);
+  }
+  assert.equal(h.node(p+'SludgeStatus').textContent,'추정 포함 · 재확인');
 });
 test('browser marks generic-date estimates for all three silos and total',async()=>{
   const date='2026-11-02',h=harness(recoveryBrowserFetch(date,recoveryEnvelope(date,[null,null,null]),

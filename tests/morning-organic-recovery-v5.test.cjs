@@ -246,7 +246,7 @@ test('sample time accepts five minutes preceding midnight and retains the exclus
   }
 });
 
-test('Oct24 GOOD B observed 228 seconds before midnight retains its number and is marked as a midnight approximation', async () => {
+test('Oct24 recent Day and A remain plain while B recovered 228 seconds before midnight is approximate', async () => {
   const date = '2026-10-24', current = raw(date, [8.099, 32.144, 57.83935546875]);
   const samples = current.result.report.organicInventorySamples;
   samples[0].endTime = '2026-10-24T23:59:48+09:00';
@@ -259,14 +259,16 @@ test('Oct24 GOOD B observed 228 seconds before midnight retains its number and i
   assert.equal(value.organic.organicSiloTotal, 8.099 + 32.144 + 57.83935546875);
   assert.notEqual(value.organic.organicSiloTotal, 999);
   assert.deepEqual(value.estimatedKeys, []);
-  assert.deepEqual(value.boundaryApproximateKeys, [...KEYS, 'organicSiloTotal']);
-  assert.deepEqual(value.approximateKeys, [...KEYS, 'organicSiloTotal']);
+  assert.deepEqual(value.boundaryApproximateKeys, ['organicStorageSiloB', 'organicSiloTotal']);
+  assert.deepEqual(value.approximateKeys, ['organicStorageSiloB', 'organicSiloTotal']);
   assert.deepEqual(value.missingKeys, []);
   assert.equal(value.sourceRefs.organicStorageSiloB, CURRENT_ID);
   assert.equal(h.fallbacks().length, 0);
   assert.match(value.fieldNotes.organicStorageSiloB, /2026-10-25 00:00/);
   assert.match(value.fieldNotes.organicStorageSiloB, /2026-10-24 23:56:12 KST/);
   assert.match(value.fieldNotes.organicStorageSiloB, /근사|대체/);
+  assert.match(value.fieldNotes.organicStorageSiloB, /최근 1분 내 종료 계측 미확인/);
+  for (const key of KEYS.slice(0, 2)) assert.doesNotMatch(value.fieldNotes[key], /근사|대체|≈/);
   assert.deepEqual(current, before);
 });
 
@@ -309,15 +311,20 @@ test('five-minute preceding rule and actual-time notes apply to all three silos 
   assert.deepEqual(value.missingKeys, []);
 });
 
-test('same absolute midnight in UTC is exact while even one millisecond either side is approximate', async () => {
+test('normal one-minute window stays plain including UTC and GOOD zero while earlier recovered samples are approximate', async () => {
   const date = '2026-10-24';
   for (const [time, approximate] of [
     ['2026-10-25T00:00:00+09:00', false],
     ['2026-10-24T15:00:00Z', false],
     ['2026-10-25T00:00:00.000+09:00', false],
-    ['2026-10-24T23:59:59.999+09:00', true],
-    ['2026-10-25T00:00:00.001+09:00', true],
-    ['2026-10-25T00:00:59.999+09:00', true]
+    ['2026-10-24T23:59:59.999+09:00', false],
+    ['2026-10-25T00:00:00.001+09:00', false],
+    ['2026-10-25T00:00:59.999+09:00', false],
+    ['2026-10-24T23:59:00+09:00', false],
+    ['2026-10-24T14:59:00Z', false],
+    ['2026-10-24T23:58:59.999+09:00', true],
+    ['2026-10-24T14:58:59.999Z', true],
+    ['2026-10-24T23:55:00+09:00', true]
   ]) {
     const current = raw(date, [1, 2, 0]);
     current.result.report.organicInventorySamples[2].endTime = time;
@@ -330,31 +337,82 @@ test('same absolute midnight in UTC is exact while even one millisecond either s
   }
 });
 
-test('ready inventory and pinned-source readings use the same approximation classification', async () => {
+test('ready inventory and pinned-source readings use the same normal and recovered-sample classification', async () => {
   const date = '2026-10-24';
-  for (const mode of ['ready', 'pinned']) {
+  for (const mode of ['ready', 'pinned']) for (const [time, approximate] of [
+    ['2026-10-24T23:59:48+09:00', false],
+    ['2026-10-24T23:59:00+09:00', false],
+    ['2026-10-24T23:58:59.999+09:00', true],
+    ['2026-10-24T23:56:12+09:00', true]
+  ]) {
     const source = mode === 'ready' ? readyRaw(date, [1, 2, 3]) : raw(date, [1, 2, 3], SOURCE_ID);
     const samples = mode === 'ready' ? source.result.report.organicInventory.samples : source.result.report.organicInventorySamples;
-    samples[2].endTime = '2026-10-24T23:56:12+09:00';
+    samples[2].endTime = time;
     const {value} = await recover(date, mode === 'ready' ? {current: source} :
       {current: raw(date, [1, 2, null]), provisional: saved(date, {}), source});
     assert.equal(value.organic.organicStorageSiloB, 3, mode);
     assert.equal(value.organic.organicSiloTotal, 6, mode);
     assert.deepEqual(value.estimatedKeys, [], mode);
-    assert.deepEqual(value.boundaryApproximateKeys, ['organicStorageSiloB', 'organicSiloTotal'], mode);
-    assert.deepEqual(value.approximateKeys, ['organicStorageSiloB', 'organicSiloTotal'], mode);
+    const expected = approximate ? ['organicStorageSiloB', 'organicSiloTotal'] : [];
+    assert.deepEqual(value.boundaryApproximateKeys, expected, mode + ' ' + time);
+    assert.deepEqual(value.approximateKeys, expected, mode + ' ' + time);
   }
 });
 
-test('stored estimate and off-boundary sample remain distinct while both make a derived total approximate', async () => {
+test('stored estimate and earlier recovered sample remain distinct while both make a derived total approximate', async () => {
   const date = '2026-10-23', current = raw(date, [10, 20, null]);
-  current.result.report.organicInventorySamples[0].endTime = '2026-10-23T23:59:59+09:00';
+  current.result.report.organicInventorySamples[0].endTime = '2026-10-23T23:58:00+09:00';
   const {value} = await recover(date, {current, provisional: saved(date, {organicStorageSiloB: 19.143}, CURRENT_ID)});
   assert.equal(value.organic.organicSiloTotal, 49.143);
   assert.deepEqual(value.estimatedKeys, ['organicStorageSiloB', 'organicSiloTotal']);
   assert.deepEqual(value.boundaryApproximateKeys, ['organicDaySilo', 'organicSiloTotal']);
   assert.deepEqual(new Set(value.approximateKeys), new Set(['organicDaySilo', 'organicStorageSiloB', 'organicSiloTotal']));
   assert.equal(value.approximateKeys.length, 3);
+});
+
+test('Oct23 normal Day and A remain plain beside a stored B estimate', async () => {
+  const date = '2026-10-23', current = raw(date, [10, 20, null]);
+  current.result.report.organicInventorySamples[0].endTime = '2026-10-23T23:59:48+09:00';
+  current.result.report.organicInventorySamples[1].endTime = '2026-10-23T23:59:46+09:00';
+  const {value} = await recover(date, {current, provisional: saved(date, {organicStorageSiloB: 19.143}, CURRENT_ID)});
+  assert.equal(value.organic.organicSiloTotal, 49.143);
+  assert.deepEqual(value.estimatedKeys, ['organicStorageSiloB', 'organicSiloTotal']);
+  assert.deepEqual(value.boundaryApproximateKeys, []);
+  assert.deepEqual(value.approximateKeys, ['organicStorageSiloB', 'organicSiloTotal']);
+});
+
+test('each silo uses the same normal versus recovery threshold on a generic date', async () => {
+  const date = '2027-02-09';
+  for (const [i, key] of KEYS.entries()) for (const [time, approximate] of [
+    ['2027-02-09T23:59:00+09:00', false],
+    ['2027-02-09T23:58:59.999+09:00', true]
+  ]) {
+    const current = raw(date, [0, 12.5, 26.75]);
+    current.result.report.organicInventorySamples[i].endTime = time;
+    const {value} = await recover(date, {current});
+    assert.equal(value.organic[key], [0, 12.5, 26.75][i]);
+    assert.equal(value.organic.organicSiloTotal, 39.25);
+    const expected = approximate ? [key, 'organicSiloTotal'] : [];
+    assert.deepEqual(value.approximateKeys, expected, key + ' ' + time);
+    assert.deepEqual(value.boundaryApproximateKeys, expected, key + ' ' + time);
+    assert.deepEqual(value.estimatedKeys, []);
+  }
+});
+
+test('normal ending readings stay plain despite unavailable start or incomplete whole-day coverage', async () => {
+  const date = '2027-02-09', current = raw(date, [0, 12.5, 26.75]);
+  current.result.report.organicInventorySamples.forEach((sample, i) => Object.assign(sample, {
+    endTime: ['2027-02-09T23:59:48+09:00', '2027-02-09T23:59:46+09:00', '2027-02-09T15:00:59.999Z'][i],
+    startValue: null, startQuality: 'Bad', startTime: null, boundaryValid: false,
+    dataComplete: false, durationGoodSeconds: 600, durationBadSeconds: 85800, durationCoverageValid: false
+  }));
+  const {value} = await recover(date, {current, provisional: saved(date, {}, CURRENT_ID)});
+  assert.equal(value.organic.organicSiloTotal, 39.25);
+  assert.deepEqual(value.estimatedKeys, []);
+  assert.deepEqual(value.boundaryApproximateKeys, []);
+  assert.deepEqual(value.approximateKeys, []);
+  assert.deepEqual(value.missingKeys, []);
+  for (const key of KEYS) assert.doesNotMatch(value.fieldNotes[key], /근사|대체|≈/);
 });
 
 test('an existing official total remains unmarked when an individual missing silo uses an approximate boundary sample', async () => {
