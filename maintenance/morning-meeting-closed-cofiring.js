@@ -194,7 +194,7 @@
     return payload.counts.organic;
   }
 
-// GS_MORNING_ORGANIC_RECEIPT_SILO_RECOVERY_V8_20261029
+// GS_MORNING_ORGANIC_RECEIPT_SILO_RECOVERY_V9_20261029
 // Read-only recovery for every date and silo. Never creates Agent requests.
 // The saved co-firing calculation accepts GOOD samples up to five minutes before
 // the closing boundary. Keep the existing exclusive +1-minute padding limit.
@@ -734,12 +734,29 @@ cache.set(date, {status: item ? 'complete' : 'missing', item, organicRecovery});
     try { fallback.render?.(date); return true; }
     catch (error) { console.warn('오전회의 유기성 기존 저장값 표시 실패:', error); return false; }
   }
+  function syncOrganicEstimateHighlight() {
+    // Follow the visible approximation marker, including restored/saved values.
+    // Never change quantities or decide whether a sample should be approximate.
+    for (const key of ['organicDaySilo', 'organicStorageSiloA', 'organicStorageSiloB', 'organicSiloTotal']) {
+      const element = byId(ORGANIC_IDS[key]);
+      if (!element) continue;
+      if (/^\s*≈/.test(element.textContent || '')) {
+        if (element.dataset.organicEstimateHighlight !== 'true') element.dataset.organicEstimateHighlight = 'true';
+      } else if ('organicEstimateHighlight' in element.dataset) {
+        delete element.dataset.organicEstimateHighlight;
+      }
+    }
+  }
   function renderOrganic() {
     const savedFirstDate = targetDate();
-    if (shouldPreserveExistingOrganic(savedFirstDate)) return;
+    if (shouldPreserveExistingOrganic(savedFirstDate)) {
+      syncOrganicEstimateHighlight();
+      return;
+    }
 
     const date = targetDate(), entry = state(date), saved = peek(date), recovery = entry.organicRecovery || null;
     if (!saved && !recovery && date && !isBlocked(date) && renderLegacySavedOrganic(date)) {
+      syncOrganicEstimateHighlight();
       const fallbackButton = byId(PREFIX + 'SludgeRefreshButton');
       if (fallbackButton) {
         fallbackButton.disabled = !session || entry.status === 'loading';
@@ -764,6 +781,7 @@ cache.set(date, {status: item ? 'complete' : 'missing', item, organicRecovery});
       if (element) element.title = recovery?.fieldNotes?.[key] || (key === 'sludgeTruckCount' ? saved?.receiptCountNote || '마감자료 없음' :
 value === null ? '해당 시각의 확인된 계측값이 없습니다.' : date + ' 마감자료');
     }
+    syncOrganicEstimateHighlight();
     const countLabel = byId(ORGANIC_IDS.sludgeTruckCount)?.parentElement?.querySelector('span');
     setText(countLabel, '입고 건수');
     const badge = byId(PREFIX + 'SludgeStatus');
@@ -884,10 +902,16 @@ value === null ? '해당 시각의 확인된 계측값이 없습니다.' : date 
 
     const relevant = [PANEL, PREFIX + 'SludgeCard', 'efficiencyMorningMeetingAutoCofiringCard'];
     const observer = new MutationObserver(mutations => {
+      // Other saved-value renderers can replace text without calling renderOrganic.
+      // Observe text changes only for styling; marker attributes are not observed.
+      if (mutations.some(m => {
+        const element = m.target?.nodeType === 3 ? m.target.parentElement : m.target;
+        return element?.closest?.('#' + PREFIX + 'SludgeCard');
+      })) syncOrganicEstimateHighlight();
       if (mutations.some(m => m.type === 'attributes' || [...m.addedNodes].some(node =>
         relevant.includes(node.id) || relevant.some(id => node.querySelector?.('#' + id))))) scheduleSync();
     });
-    if (doc.body) observer.observe(doc.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['data-morning-meeting-auto-base-date']});
+    if (doc.body) observer.observe(doc.body, {subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['data-morning-meeting-auto-base-date']});
     doc.addEventListener('efficiencyMorningMeetingSteamStatusLoaded', scheduleSync);
     doc.addEventListener('morningMeetingSelectedDateResetStateChanged', onReset);
     doc.addEventListener('morningMeetingResetStateChanged', onReset);
@@ -898,6 +922,6 @@ value === null ? '해당 시각의 확인된 계측값이 없습니다.' : date 
     doc.addEventListener('visibilitychange', refreshCofiringOnActivation);
     sync();
   }
-  root.morningMeetingClosedCofiring = Object.freeze({version: '20261029-organic-readonly-recovery-v8', targetDate, isBlocked, load, loadSavedForWorkbook, peek, state, refresh, refreshOrganicFromClosing, renderOrganic, valuesForWorkbook});
+  root.morningMeetingClosedCofiring = Object.freeze({version: '20261029-organic-readonly-recovery-v9', targetDate, isBlocked, load, loadSavedForWorkbook, peek, state, refresh, refreshOrganicFromClosing, renderOrganic, valuesForWorkbook});
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', initialize, {once: true}); else initialize();
 })(typeof window !== 'undefined' ? window : null);

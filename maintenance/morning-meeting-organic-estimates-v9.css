@@ -1,0 +1,8 @@
+/* Match the co-firing estimate palette; highlight only marked inventory values. */
+#efficiencyTeamModal #efficiencyMorningMeetingAutoDailySludgeCard
+strong[data-organic-estimate-highlight="true"] {
+  background: #fff9e5;
+  color: #8c5a07;
+  border-radius: 4px;
+  padding: 1px 5px;
+}
