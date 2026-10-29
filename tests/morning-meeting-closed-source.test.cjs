@@ -244,7 +244,7 @@ test('browser fills missing Oct24 B from saved calculation source and displays m
   assert.match(h.node(p+'SludgeCard').title,/2026-10-25 00:00/);
   assert.equal(h.calls.filter(x=>x.url.includes('sourceRequestId=')).length,1);
 });
-test('browser displays Oct24 B sampled at23:56:12 as measured57.84 with the actual time and midnight criterion',async()=>{
+test('browser marks Oct24 B sampled at23:56:12 as approximate57.84 with the actual time and midnight criterion',async()=>{
   const date='2026-10-24', primary=recoveryEnvelope(date,[8.099,32.144,57.83935546875]);
   const samples=primary.result.report.organicInventorySamples;
   samples[0].endTime='2026-10-24T23:59:48+09:00';
@@ -257,16 +257,53 @@ test('browser displays Oct24 B sampled at23:56:12 as measured57.84 with the actu
   const h=harness(recoveryBrowserFetch(date,primary,provisional,null));
   h.date(date);await h.api.load(date);
   const p='efficiencyMorningMeetingAutoDaily', b=h.node(p+'OrganicStorageSiloB');
-  assert.equal(b.textContent,'57.84 t');
-  assert.ok(!b.textContent.includes('≈'));
-  assert.equal(h.node(p+'OrganicDaySilo').textContent,'8.10 t');
-  assert.equal(h.node(p+'OrganicStorageSiloA').textContent,'32.14 t');
-  assert.equal(h.node(p+'OrganicSiloTotal').textContent,'98.08 t');
+  assert.equal(b.textContent,'≈57.84 t');
+  assert.equal(h.node(p+'OrganicDaySilo').textContent,'≈8.10 t');
+  assert.equal(h.node(p+'OrganicStorageSiloA').textContent,'≈32.14 t');
+  assert.equal(h.node(p+'OrganicSiloTotal').textContent,'≈98.08 t');
   assert.equal(h.api.state(date).organicRecovery.organic.organicSiloTotal,8.099+32.144+57.83935546875);
   assert.match(b.title,/2026-10-24 23:56:12 KST/);
   assert.match(b.title,/2026-10-25 00:00/);
-  assert.equal(h.node(p+'SludgeStatus').textContent,'입고/재고 조회');
+  assert.match(b.title,/근사|대체/);
+  assert.equal(h.node(p+'SludgeStatus').textContent,'추정 포함 · 재확인');
+  assert.ok(!h.node(p+'SludgeStatus').className.includes('is-complete'));
   assert.equal(h.calls.filter(x=>x.url.includes('sourceRequestId=')).length,0);
+});
+test('browser keeps two decimals for off-boundary readings and three for stored19.143 estimates',async()=>{
+  const date='2026-10-23', primary=recoveryEnvelope(date,[10,20,null]);
+  primary.result.report.organicInventorySamples[0].endTime='2026-10-23T23:59:59+09:00';
+  const h=harness(recoveryBrowserFetch(date,primary,recoveryProvisional(date,{organicStorageSiloB:19.143},currentRecoveryId),null));
+  h.date(date);await h.api.load(date);
+  const p='efficiencyMorningMeetingAutoDaily';
+  assert.equal(h.node(p+'OrganicDaySilo').textContent,'≈10.00 t');
+  assert.equal(h.node(p+'OrganicStorageSiloA').textContent,'20.00 t');
+  assert.equal(h.node(p+'OrganicStorageSiloB').textContent,'≈19.143 t');
+  assert.equal(h.node(p+'OrganicSiloTotal').textContent,'≈49.143 t');
+  assert.equal(h.node(p+'SludgeStatus').textContent,'추정 포함 · 재확인');
+});
+test('browser distinguishes a GOOD zero one second before midnight from an exact UTC midnight zero',async()=>{
+  const date='2027-02-09';
+  for(const [time,prefix,status] of [['2027-02-09T23:59:59+09:00','≈','추정 포함 · 재확인'],['2027-02-09T15:00:00Z','','입고/재고 조회']]){
+    const primary=recoveryEnvelope(date,[1,2,0]);primary.result.report.organicInventorySamples[2].endTime=time;
+    const h=harness(recoveryBrowserFetch(date,primary,{ok:true,item:null},null));
+    h.date(date);await h.api.load(date);
+    const p='efficiencyMorningMeetingAutoDaily';
+    assert.equal(h.node(p+'OrganicStorageSiloB').textContent,prefix+'0.00 t');
+    assert.equal(h.node(p+'OrganicSiloTotal').textContent,prefix+'3.00 t');
+    assert.equal(h.node(p+'SludgeStatus').textContent,status);
+  }
+});
+test('browser also marks a pinned-source off-boundary reading without changing the measured number',async()=>{
+  const date='2027-02-09',pinned=recoveryEnvelope(date,[1,2,57.83935546875],recoveryId);
+  pinned.result.report.organicInventorySamples[2].endTime='2027-02-09T23:56:12+09:00';
+  const h=harness(recoveryBrowserFetch(date,recoveryEnvelope(date,[1,2,null]),recoveryProvisional(date),pinned));
+  h.date(date);await h.api.load(date);
+  const p='efficiencyMorningMeetingAutoDaily';
+  assert.equal(h.node(p+'OrganicStorageSiloB').textContent,'≈57.84 t');
+  assert.equal(h.node(p+'OrganicSiloTotal').textContent,'≈60.84 t');
+  assert.equal(h.node(p+'SludgeStatus').textContent,'추정 포함 · 재확인');
+  assert.match(h.node(p+'OrganicStorageSiloB').title,/2027-02-09 23:56:12 KST/);
+  assert.equal(h.calls.filter(x=>x.url.includes('sourceRequestId=')).length,1);
 });
 test('browser marks generic-date estimates for all three silos and total',async()=>{
   const date='2026-11-02',h=harness(recoveryBrowserFetch(date,recoveryEnvelope(date,[null,null,null]),

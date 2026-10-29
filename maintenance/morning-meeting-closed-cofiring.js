@@ -194,7 +194,7 @@
     return payload.counts.organic;
   }
 
-// GS_MORNING_ORGANIC_RECEIPT_SILO_RECOVERY_V6_20261029
+// GS_MORNING_ORGANIC_RECEIPT_SILO_RECOVERY_V7_20261029
 // Read-only recovery for every date and silo. Never creates Agent requests.
 // The saved co-firing calculation accepts GOOD samples up to five minutes before
 // the closing boundary. Keep the existing exclusive +1-minute padding limit.
@@ -320,7 +320,7 @@ async function recoverOrganicForDate(date, headers, closed, fetchJson) {
   const definitions = organicRecoveryDefinitions(), stockKeys = Object.keys(definitions);
   const receipt = organicRecoveryReceipt(date, responses[0]);
   const organic = {...emptyOrganic(), ...(closed?.organic || {})};
-  const fieldNotes = {}, estimatedKeys = [], sourceRefs = {};
+  const fieldNotes = {}, estimatedKeys = [], boundaryApproximateKeys = [], sourceRefs = {};
   let hasIndependent = false;
   if (receipt) {
     if (closed?.receiptInputMode !== 'manual' || number(organic.sludgeTotal) === null) {
@@ -339,9 +339,15 @@ async function recoverOrganicForDate(date, headers, closed, fetchJson) {
     for (const key of stockKeys) if (number(organic[key]) === null && number(measured[key]) !== null) {
       organic[key] = measured[key];
       const sample = samples.find(row => row?.key === key);
-      const sampledAt = new Date(Date.parse(sample.endTime) + 9 * 3600000).toISOString().slice(0, 19).replace('T', ' ');
-      fieldNotes[key] = end.replace('T', ' ') + ' 기준 종료재고 · ' + sourceLabel +
-        ' 정상 계측값 · 실제 계측 ' + sampledAt + ' KST';
+      const sampledMs = Date.parse(sample.endTime);
+      const sampledAt = new Date(sampledMs + 9 * 3600000).toISOString().slice(0, 19).replace('T', ' ');
+      const approximate = sampledMs !== Date.parse(end + ':00+09:00');
+      // GOOD describes the observation quality, not an exact midnight stock.
+      // Keep the raw quantity; mark a different-time observation as an approximation.
+      if (approximate) boundaryApproximateKeys.push(key);
+      fieldNotes[key] = end.replace('T', ' ') +
+        (approximate ? ' 기준 근사 재고(≈) · ' : ' 기준 종료재고 · ') + sourceLabel +
+        (approximate ? ' 정상 계측값을 대체 사용 · 실제 계측 ' : ' 정상 계측값 · 실제 계측 ') + sampledAt + ' KST';
       sourceRefs[key] = response.saved.id;
       hasIndependent = true;
     }
@@ -369,9 +375,10 @@ async function recoverOrganicForDate(date, headers, closed, fetchJson) {
     const sum = stockKeys.reduce((total, key) => total + organic[key], 0);
     if (number(organic.organicSiloTotal) === null) {
       organic.organicSiloTotal = sum;
-      if (estimatedKeys.length) {
-        estimatedKeys.push('organicSiloTotal');
-        fieldNotes.organicSiloTotal = '동일 종료시각 Day Silo + Storage A + Storage B · 추정 포함 · 재확인 필요';
+      if (estimatedKeys.length || boundaryApproximateKeys.length) {
+        if (estimatedKeys.length) estimatedKeys.push('organicSiloTotal');
+        if (boundaryApproximateKeys.length) boundaryApproximateKeys.push('organicSiloTotal');
+        fieldNotes.organicSiloTotal = '00:00 기준 Day Silo + Storage A + Storage B · 대체값 또는 저장 추정 포함(≈) · 재확인 필요';
       } else fieldNotes.organicSiloTotal = '동일 종료 기준 3개 Silo 정상 계측 재고 합계 · 실제 계측시각은 항목별 확인';
       hasIndependent = true;
     } else if (Math.abs(organic.organicSiloTotal - sum) > 0.01) {
@@ -381,11 +388,12 @@ async function recoverOrganicForDate(date, headers, closed, fetchJson) {
     fieldNotes.organicSiloTotal = missingKeys.map(key => definitions[key].label).join(', ') + ' 종료재고 미확인 · 합계 미산출';
   }
   if (!hasIndependent) return null;
+  const approximateKeys = [...new Set([...estimatedKeys, ...boundaryApproximateKeys])];
   const note = end.replace('T', ' ') + ' 기준 · ' +
     (missingKeys.length ? missingKeys.map(key => definitions[key].label).join(', ') + ' 종료재고 미확인. ' : '') +
-    (estimatedKeys.length ? '저장된 종료재고 추정 포함 · 실제 계측값이 아니므로 재확인 필요. ' : '') +
-    '입고량·건수는 완료 하역기록, 재고는 같은 종료시각의 저장 근거로 보완합니다.';
-  return {targetDate: date, organic, fieldNotes, estimatedKeys, missingKeys, sourceRefs, note};
+    (approximateKeys.length ? '00:00 기준 대체값 또는 저장 추정 포함(≈) · 실제 계측시각과 근거는 항목별 확인. ' : '') +
+    '입고량·건수는 완료 하역기록, 재고는 같은 종료 기준의 저장 근거로 보완합니다.';
+  return {targetDate: date, organic, fieldNotes, estimatedKeys, boundaryApproximateKeys, approximateKeys, missingKeys, sourceRefs, note};
 }
 if (typeof module === 'object' && module.exports) module.exports = {normalizeItem, matchingReceiptCount, organicRecoveryReceipt, organicRecoverySilos, organicRecoveryEstimatedBoundary, organicRecoveryEstimatedSilos, recoverOrganicForDate};
   if (!root?.document || root.morningMeetingClosedCofiring) return;
@@ -737,6 +745,7 @@ cache.set(date, {status: item ? 'complete' : 'missing', item, organicRecovery});
       return;
     }
     const data = recovery?.organic || saved?.organic || emptyOrganic();
+    const approximateKeys = recovery?.approximateKeys || recovery?.estimatedKeys || [];
     const card = byId(PREFIX + 'SludgeCard');
     if (card) {
   card.dataset.source = saved ? 'cofiring-closed-history' : recovery ? 'organic-recovery-v2' : 'cofiring-closed-history';
@@ -745,7 +754,7 @@ cache.set(date, {status: item ? 'complete' : 'missing', item, organicRecovery});
     setText(byId(PREFIX + 'SludgeDate'), date ? date + (saved?.inventoryCorrected ? ' · 마감자료 · 확인 보완' : saved ? ' · 마감자료' : recovery ? ' · 저장자료 복구' : ' · 마감자료') : '-');
     for (const [key, id] of Object.entries(ORGANIC_IDS)) {
       const value = data[key], element = byId(id);
-      setText(element, value === null ? '-' : (recovery?.estimatedKeys?.includes(key) ? '≈' : '') + value.toLocaleString('ko-KR', {
+      setText(element, value === null ? '-' : (approximateKeys.includes(key) ? '≈' : '') + value.toLocaleString('ko-KR', {
         minimumFractionDigits: key === 'sludgeTruckCount' ? 0 : recovery?.estimatedKeys?.includes(key) ? 3 : 2, maximumFractionDigits: key === 'sludgeTruckCount' ? 0 : recovery?.estimatedKeys?.includes(key) ? 3 : 2
       }) + (key === 'sludgeTruckCount' ? ' 건' : ' t'));
       if (element) element.title = recovery?.fieldNotes?.[key] || (key === 'sludgeTruckCount' ? saved?.receiptCountNote || '마감자료 없음' :
@@ -757,12 +766,12 @@ value === null ? '해당 시각의 확인된 계측값이 없습니다.' : date 
     if (badge) {
       const status = entry.status;
       setText(badge, !date || isBlocked(date) ? '조회 대기' : status === 'loading' ? '조회 중' : status === 'error' ? '조회 실패' :
-        recovery?.missingKeys?.length ? (recovery.estimatedKeys.length ? '추정 포함 · 재고 확인' : '재고 확인 필요') :
-        status === 'complete' ? (recovery?.estimatedKeys?.length ? '추정 포함 · 재확인' : saved?.inventoryCorrected ? '마감값 · 확인 보완' : '마감값') :
-        recovery?.estimatedKeys?.length ? '추정 포함 · 재확인' : recovery ? '입고/재고 조회' : status === 'missing' ? '마감자료 없음' : '조회 대기');
+        recovery?.missingKeys?.length ? (approximateKeys.length ? '추정 포함 · 재고 확인' : '재고 확인 필요') :
+        status === 'complete' ? (approximateKeys.length ? '추정 포함 · 재확인' : saved?.inventoryCorrected ? '마감값 · 확인 보완' : '마감값') :
+        approximateKeys.length ? '추정 포함 · 재확인' : recovery ? '입고/재고 조회' : status === 'missing' ? '마감자료 없음' : '조회 대기');
       badge.className = 'efficiency-morning-meeting-auto-card__badge' +
         (['loading','error'].includes(status) ? ' is-' + status :
-          recovery?.missingKeys?.length || recovery?.estimatedKeys?.length ? '' : status === 'complete' ? ' is-complete' : '');
+          recovery?.missingKeys?.length || approximateKeys.length ? '' : status === 'complete' ? ' is-complete' : '');
       badge.title = recovery?.note || entry.error || (saved ? (saved.inventoryCorrected?'마감 당시 확인한 재고 보완값을 포함합니다. 당시 근거는 혼소율 마감 상세에서 확인하세요. ':'')+'혼소율 메뉴의 저장된 마감값입니다. 입고 건수는 별도 입고기록 기준입니다.' : '혼소율 메뉴에서 해당 날짜를 계산하고 마감 저장해 주세요.');
     }
     const button = byId(PREFIX + 'SludgeRefreshButton');
@@ -885,6 +894,6 @@ value === null ? '해당 시각의 확인된 계측값이 없습니다.' : date 
     doc.addEventListener('visibilitychange', refreshCofiringOnActivation);
     sync();
   }
-  root.morningMeetingClosedCofiring = Object.freeze({version: '20261029-organic-readonly-recovery-v6', targetDate, isBlocked, load, loadSavedForWorkbook, peek, state, refresh, refreshOrganicFromClosing, renderOrganic, valuesForWorkbook});
+  root.morningMeetingClosedCofiring = Object.freeze({version: '20261029-organic-readonly-recovery-v7', targetDate, isBlocked, load, loadSavedForWorkbook, peek, state, refresh, refreshOrganicFromClosing, renderOrganic, valuesForWorkbook});
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', initialize, {once: true}); else initialize();
 })(typeof window !== 'undefined' ? window : null);
