@@ -244,6 +244,30 @@ test('browser fills missing Oct24 B from saved calculation source and displays m
   assert.match(h.node(p+'SludgeCard').title,/2026-10-25 00:00/);
   assert.equal(h.calls.filter(x=>x.url.includes('sourceRequestId=')).length,1);
 });
+test('browser displays Oct24 B sampled at23:56:12 as measured57.84 with the actual time and midnight criterion',async()=>{
+  const date='2026-10-24', primary=recoveryEnvelope(date,[8.099,32.144,57.83935546875]);
+  const samples=primary.result.report.organicInventorySamples;
+  samples[0].endTime='2026-10-24T23:59:48+09:00';
+  samples[1].endTime='2026-10-24T23:59:46+09:00';
+  samples[2].endTime='2026-10-24T23:56:12+09:00';
+  const provisional=recoveryProvisional(date,{},currentRecoveryId);
+  provisional.item.estimation.boundaries=[{silo:'organicStorageSiloB',side:'start',boundaryLocal:date+'T00:00',tons:19.143}];
+  provisional.item.record={targetDate:date,sourceRequestId:currentRecoveryId,recordKind:'hypothesis',verificationStatus:'unverified',officialClose:false,
+    period:{startLocal:date+'T00:00',endLocal:'2026-10-25T00:00',stepUnit:'minute',stepValue:1},scenario:{endTotal:999}};
+  const h=harness(recoveryBrowserFetch(date,primary,provisional,null));
+  h.date(date);await h.api.load(date);
+  const p='efficiencyMorningMeetingAutoDaily', b=h.node(p+'OrganicStorageSiloB');
+  assert.equal(b.textContent,'57.84 t');
+  assert.ok(!b.textContent.includes('≈'));
+  assert.equal(h.node(p+'OrganicDaySilo').textContent,'8.10 t');
+  assert.equal(h.node(p+'OrganicStorageSiloA').textContent,'32.14 t');
+  assert.equal(h.node(p+'OrganicSiloTotal').textContent,'98.08 t');
+  assert.equal(h.api.state(date).organicRecovery.organic.organicSiloTotal,8.099+32.144+57.83935546875);
+  assert.match(b.title,/2026-10-24 23:56:12 KST/);
+  assert.match(b.title,/2026-10-25 00:00/);
+  assert.equal(h.node(p+'SludgeStatus').textContent,'입고/재고 조회');
+  assert.equal(h.calls.filter(x=>x.url.includes('sourceRequestId=')).length,0);
+});
 test('browser marks generic-date estimates for all three silos and total',async()=>{
   const date='2026-11-02',h=harness(recoveryBrowserFetch(date,recoveryEnvelope(date,[null,null,null]),
     recoveryProvisional(date,{organicDaySilo:1.25,organicStorageSiloA:2.5,organicStorageSiloB:3.75},currentRecoveryId),null));

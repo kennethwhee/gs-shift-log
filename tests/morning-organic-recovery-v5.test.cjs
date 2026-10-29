@@ -219,18 +219,93 @@ for (const [name, mutate] of [
   assert.equal(measured.organicDaySilo, 10);
 });
 
-test('sample time uses absolute timezone and enforces one-minute window', () => {
+test('sample time accepts five minutes preceding midnight and retains the exclusive one-minute upper bound', () => {
   const date = '2026-10-24', value = raw(date, [1, 2, 3]), b = value.result.report.organicInventorySamples[2];
-  b.endTime = '2026-10-24T15:00:00Z';
+  for (const [time, expected] of [
+    ['2026-10-24T23:56:12+09:00', 3],
+    ['2026-10-24T23:55:00+09:00', 3],
+    ['2026-10-24T23:54:59.999+09:00', undefined],
+    ['2026-10-24T23:58:00+09:00', 3],
+    ['2026-10-24T14:56:12Z', 3],
+    ['2026-10-24T15:00:00Z', 3],
+    ['2026-10-25T00:00:59.999+09:00', 3],
+    ['2026-10-25T00:01:00+09:00', undefined],
+    ['2026-10-25T00:01:01+09:00', undefined],
+    ['2026-10-24T23:56:12', undefined],
+    ['2026-10-24T23:56:12Z', undefined]
+  ]) {
+    b.endTime = time;
+    assert.equal(organicRecoverySilos(date, value).organicStorageSiloB, expected, time);
+  }
+});
+
+test('Oct24 GOOD B observed 228 seconds before midnight is measured and retains its actual timestamp', async () => {
+  const date = '2026-10-24', current = raw(date, [8.099, 32.144, 57.83935546875]);
+  const samples = current.result.report.organicInventorySamples;
+  samples[0].endTime = '2026-10-24T23:59:48+09:00';
+  samples[1].endTime = '2026-10-24T23:59:46+09:00';
+  samples[2].endTime = '2026-10-24T23:56:12+09:00';
+  const before = clone(current), provisional = saved(date, {}, CURRENT_ID);
+  provisional.item.record = {...fullRecord(date, CURRENT_ID), scenario: {endTotal: 999}};
+  const {value, h} = await recover(date, {current, provisional});
+  assert.equal(value.organic.organicStorageSiloB, 57.83935546875);
+  assert.equal(value.organic.organicSiloTotal, 8.099 + 32.144 + 57.83935546875);
+  assert.notEqual(value.organic.organicSiloTotal, 999);
+  assert.deepEqual(value.estimatedKeys, []);
+  assert.deepEqual(value.missingKeys, []);
+  assert.equal(value.sourceRefs.organicStorageSiloB, CURRENT_ID);
+  assert.equal(h.fallbacks().length, 0);
+  assert.match(value.fieldNotes.organicStorageSiloB, /2026-10-25 00:00/);
+  assert.match(value.fieldNotes.organicStorageSiloB, /2026-10-24 23:56:12 KST/);
+  assert.deepEqual(current, before);
+});
+
+test('228-second window retains GOOD zero but never accepts BAD, null, or a different silo tag', () => {
+  const date = '2026-10-24', value = raw(date, [1, 2, 0]);
+  const b = value.result.report.organicInventorySamples[2];
+  b.endTime = '2026-10-24T23:56:12+09:00';
+  assert.equal(organicRecoverySilos(date, value).organicStorageSiloB, 0);
+  b.endQuality = 'Raw, Bad';
+  assert.equal(organicRecoverySilos(date, value).organicStorageSiloB, undefined);
+  b.endQuality = 'Raw, Good'; b.endValue = null;
+  assert.equal(organicRecoverySilos(date, value).organicStorageSiloB, undefined);
+  b.endValue = 0; b.tag = TAGS[0];
+  assert.equal(organicRecoverySilos(date, value).organicStorageSiloB, undefined);
+});
+
+test('ready inventory uses the same five-minute sample checks without trusting its aggregate', () => {
+  const date = '2026-10-24', value = readyRaw(date, [1, 2, 3]);
+  const b = value.result.report.organicInventory.samples[2];
+  b.endTime = '2026-10-24T23:56:12+09:00';
   assert.equal(organicRecoverySilos(date, value).organicStorageSiloB, 3);
-  b.endTime = '2026-10-25T00:01:01+09:00';
+  b.endTime = '2026-10-24T23:54:59.999+09:00';
   assert.equal(organicRecoverySilos(date, value).organicStorageSiloB, undefined);
-  b.endTime = '2026-10-24T23:58:59+09:00';
-  assert.equal(organicRecoverySilos(date, value).organicStorageSiloB, undefined);
-  b.endTime = '2026-10-24T23:59:00+09:00';
-  assert.equal(organicRecoverySilos(date, value).organicStorageSiloB, 3);
-  b.endTime = '2026-10-25T00:01:00+09:00';
-  assert.equal(organicRecoverySilos(date, value).organicStorageSiloB, undefined);
+});
+
+test('five-minute preceding rule and actual-time notes apply to all three silos on another date', async () => {
+  const date = '2027-02-09', current = raw(date, [0, 12.5, 26.75]);
+  const times = ['2027-02-09T23:56:12+09:00', '2027-02-09T23:55:00+09:00', '2027-02-09T23:57:00+09:00'];
+  current.result.report.organicInventorySamples.forEach((sample, i) => {sample.endTime = times[i];});
+  const {value} = await recover(date, {current, provisional: saved(date, {}, CURRENT_ID)});
+  for (const [i, key] of KEYS.entries()) {
+    assert.equal(value.organic[key], [0, 12.5, 26.75][i]);
+    assert.match(value.fieldNotes[key], /2027-02-10 00:00/);
+    assert.ok(value.fieldNotes[key].includes(times[i].slice(0, 19).replace('T', ' ')));
+  }
+  assert.equal(value.organic.organicSiloTotal, 39.25);
+  assert.deepEqual(value.estimatedKeys, []);
+  assert.deepEqual(value.missingKeys, []);
+});
+
+test('outside five minutes cannot reuse the Oct24 start estimate as Oct25 ending stock', async () => {
+  const date = '2026-10-24', current = raw(date, [8.099, 32.144, 57.83935546875]);
+  current.result.report.organicInventorySamples[2].endTime = '2026-10-24T23:54:59.999+09:00';
+  const {value, h} = await recover(date, {current, provisional: saved(date, {}, CURRENT_ID)});
+  assert.equal(value.organic.organicStorageSiloB, null);
+  assert.equal(value.organic.organicSiloTotal, null);
+  assert.deepEqual(value.estimatedKeys, []);
+  assert.ok(value.missingKeys.includes('organicStorageSiloB'));
+  assert.equal(h.fallbacks().length, 0);
 });
 
 test('duplicate sample identity rejects its affected silo without suppressing independent silos', () => {

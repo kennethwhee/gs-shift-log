@@ -194,8 +194,12 @@
     return payload.counts.organic;
   }
 
-// GS_MORNING_ORGANIC_RECEIPT_SILO_RECOVERY_V5_20261029
+// GS_MORNING_ORGANIC_RECEIPT_SILO_RECOVERY_V6_20261029
 // Read-only recovery for every date and silo. Never creates Agent requests.
+// The saved co-firing calculation accepts GOOD samples up to five minutes before
+// the closing boundary. Keep the existing exclusive +1-minute padding limit.
+const ORGANIC_END_LOOKBACK_MS = 5 * 60 * 1000;
+const ORGANIC_END_PADDING_MS = 60 * 1000;
 function recoveryNextDate(date) {
   if (!dateValid(date)) return '';
   const next = new Date(date + 'T00:00:00Z');
@@ -253,7 +257,7 @@ function organicRecoverySilos(date, response, expectedSourceId = '') {
     const at = /(?:Z|[+-]\d{2}:\d{2})$/i.test(time) ? Date.parse(time) : NaN;
     if (sample.tag !== definition.tag || !['good', 'raw,good', 'good,raw'].includes(quality) ||
         number(sample.endValue) === null || sample.endValue > 1e6 || !Number.isFinite(at) ||
-        at < endMs - 60000 || at >= endMs + 60000) continue;
+        at < endMs - ORGANIC_END_LOOKBACK_MS || at >= endMs + ORGANIC_END_PADDING_MS) continue;
     values[key] = sample.endValue;
   }
   return values;
@@ -331,9 +335,13 @@ async function recoverOrganicForDate(date, headers, closed, fetchJson) {
   }
   const fillMeasured = (response, expectedId, sourceLabel) => {
     const measured = organicRecoverySilos(date, response, expectedId);
+    const samples = organicRecoverySamples(date, response, expectedId);
     for (const key of stockKeys) if (number(organic[key]) === null && number(measured[key]) !== null) {
       organic[key] = measured[key];
-      fieldNotes[key] = end.replace('T', ' ') + ' 종료재고 · ' + sourceLabel + ' 정상 계측값';
+      const sample = samples.find(row => row?.key === key);
+      const sampledAt = new Date(Date.parse(sample.endTime) + 9 * 3600000).toISOString().slice(0, 19).replace('T', ' ');
+      fieldNotes[key] = end.replace('T', ' ') + ' 기준 종료재고 · ' + sourceLabel +
+        ' 정상 계측값 · 실제 계측 ' + sampledAt + ' KST';
       sourceRefs[key] = response.saved.id;
       hasIndependent = true;
     }
@@ -364,7 +372,7 @@ async function recoverOrganicForDate(date, headers, closed, fetchJson) {
       if (estimatedKeys.length) {
         estimatedKeys.push('organicSiloTotal');
         fieldNotes.organicSiloTotal = '동일 종료시각 Day Silo + Storage A + Storage B · 추정 포함 · 재확인 필요';
-      } else fieldNotes.organicSiloTotal = '동일 종료시각 3개 Silo 정상 계측 재고 합계';
+      } else fieldNotes.organicSiloTotal = '동일 종료 기준 3개 Silo 정상 계측 재고 합계 · 실제 계측시각은 항목별 확인';
       hasIndependent = true;
     } else if (Math.abs(organic.organicSiloTotal - sum) > 0.01) {
       fieldNotes.organicSiloTotal = '마감 저장 재고 합계와 개별 Silo 합계가 다릅니다. 수치를 재확인하세요.';
@@ -877,6 +885,6 @@ value === null ? '해당 시각의 확인된 계측값이 없습니다.' : date 
     doc.addEventListener('visibilitychange', refreshCofiringOnActivation);
     sync();
   }
-  root.morningMeetingClosedCofiring = Object.freeze({version: '20261029-organic-readonly-recovery-v5', targetDate, isBlocked, load, loadSavedForWorkbook, peek, state, refresh, refreshOrganicFromClosing, renderOrganic, valuesForWorkbook});
+  root.morningMeetingClosedCofiring = Object.freeze({version: '20261029-organic-readonly-recovery-v6', targetDate, isBlocked, load, loadSavedForWorkbook, peek, state, refresh, refreshOrganicFromClosing, renderOrganic, valuesForWorkbook});
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', initialize, {once: true}); else initialize();
 })(typeof window !== 'undefined' ? window : null);
