@@ -135,18 +135,101 @@ function verifiedManualBoundaryAppendBase(asset, rows, dataParcTag) {
   return null;
 }
 
+/* BLOWER_INCREMENTAL_AUTO_BOUNDARY_V1
+ * Shift-log changeovers only move the state/anchor of measured Blowers. They do
+ * not measure any additional RUN seconds. Recover the last immutable DataPARC
+ * receipt only when the current owner and every later boundary are unchanged,
+ * server-generated changeover events carrying exactly the same stored total.
+ * Query from that receipt's observedAt, never from the changeover timestamp.
+ * Keep the manual path separate: an unknown/mixed/edited history fails closed.
+ */
+function automaticBoundaryState(row) {
+  if (row?.source_type !== 'shift_log_operation_auto') return '';
+  const kind = row.event_type === 'operation_start' ? 'start'
+    : row.event_type === 'operation_stop' ? 'stop' : '';
+  if (!kind || !new RegExp(`^operation-auto:[0-9a-f]{8}:${kind}$`).test(String(row.id || '')) ||
+      row.action_type !== (kind === 'start' ? '교체운전 자동 기동' : '교체운전 자동 정지') ||
+      typeof row.source_log_id !== 'string' || !row.source_log_id.trim()) return '';
+  const at = instant(row.event_date), created = instant(row.created_at);
+  if (!Number.isFinite(at) || !Number.isFinite(created) || created < at ||
+      row.updated_at !== row.created_at) return '';
+  return kind === 'start' ? 'running' : 'stopped';
+}
+
+function verifiedAutomaticBoundaryAppendBase(asset, rows, dataParcTag) {
+  const assetTag = String(asset?.tag_number || '');
+  if (!/^(?:(?:104|204)(?:HHL(?:60AP|10AN)(?:611|621|631)|ETG30AN60[12]|SDF01AN00[12])|104ETH03AN60[12]|204LMDF01AN001)$/.test(assetTag) ||
+      !['legacy','started'].includes(asset.cycle_start_state || 'legacy') ||
+      typeof asset.cycle_runtime_revision !== 'string' || !asset.cycle_runtime_revision.trim()) return null;
+  const rawNumber = value => typeof value === 'number' || (typeof value === 'string' && value.trim()) ? number(value) : NaN;
+  const replacement = instant(asset.last_replacement_at), anchor = instant(asset.cycle_runtime_anchor_at);
+  const stored = rawNumber(asset.cycle_runtime_hours);
+  if (!Number.isFinite(replacement) || !Number.isFinite(anchor) || anchor <= replacement ||
+      !Number.isFinite(stored) || stored < 0) return null;
+  const relevant = (Array.isArray(rows) ? rows : []).filter(row => row?.tag_number === assetTag &&
+    ['runtime_correction','startup','operation_start','operation_stop'].includes(row.event_type));
+  // Unknown event times cannot establish a continuous, unmodified interval.
+  if (relevant.some(row => !Number.isFinite(instant(row.event_date)))) return null;
+  const cycleRows = relevant.filter(row => instant(row.event_date) >= replacement);
+  if (cycleRows.some(row => instant(row.event_date) > anchor)) return null;
+  const owner = cycleRows.filter(row => instant(row.event_date) === anchor).sort(eventOrder)[0];
+  const state = automaticBoundaryState(owner);
+  if (!state || state !== asset.cycle_runtime_state || rawNumber(owner.runtime_hours) !== stored) return null;
+
+  // Do not skip a newer invalid DataPARC receipt and borrow an older equal total.
+  const row = cycleRows.filter(item => item.source_type === 'dataparc_runtime' && item.event_type === 'runtime_correction')
+    .sort((a,b) => instant(b.event_date) - instant(a.event_date) || eventOrder(a,b))[0];
+  if (!row) return null;
+  const observed = instant(row.event_date), created = instant(row.created_at);
+  if (observed >= anchor || !Number.isFinite(created) || created < observed ||
+      row.updated_at !== row.created_at || rawNumber(row.runtime_hours) !== stored) return null;
+  let source; try { source = JSON.parse(row.source_text); } catch { return null; }
+  if (!source || typeof source !== 'object' || Array.isArray(source) ||
+      source.manualOverride === true || Boolean(source.manualOverride?.changedAt) ||
+      source.replacementEdit || source.requiresRunRefresh ||
+      instant(source.observedAt || source.endAt) !== observed) return null;
+  const base = strictVerifiedAppendBase({ ...asset,
+    cycle_runtime_hours: row.runtime_hours,
+    cycle_runtime_anchor_at: row.event_date,
+    cycle_runtime_state: source.endState
+  }, [row], dataParcTag);
+  if (!base || base.runtimeHours !== stored) return null;
+  if (asset.cycle_start_state === 'started' &&
+      (!Number.isFinite(instant(asset.cycle_started_at)) || instant(base.startAt) < instant(asset.cycle_started_at))) return null;
+  // A newer edit of an earlier boundary or a competing base owner is ambiguous.
+  if (cycleRows.some(item => {
+    if (item.id === row.id || instant(item.event_date) > observed) return false;
+    if (instant(item.event_date) === observed) return true;
+    const itemCreated = instant(item.created_at), itemUpdated = instant(item.updated_at);
+    return !Number.isFinite(itemCreated) || !Number.isFinite(itemUpdated) ||
+      itemUpdated < itemCreated || Math.max(itemCreated, itemUpdated) > created;
+  })) return null;
+  const overlays = cycleRows.filter(item => instant(item.event_date) > observed);
+  if (!overlays.length || !overlays.every(item => automaticBoundaryState(item) && rawNumber(item.runtime_hours) === stored)) return null;
+  const statesByTime = new Map();
+  for (const item of overlays) {
+    const at = instant(item.event_date), boundaryState = automaticBoundaryState(item);
+    if (statesByTime.has(at) && statesByTime.get(at) !== boundaryState) return null;
+    statesByTime.set(at, boundaryState);
+  }
+  return { ...base, cycleRuntimeRevision: asset.cycle_runtime_revision };
+}
+
 export function verifiedAppendBase(asset, rows, dataParcTag) {
   return strictVerifiedAppendBase(asset, rows, dataParcTag) ||
-    verifiedManualBoundaryAppendBase(asset, rows, dataParcTag);
+    verifiedManualBoundaryAppendBase(asset, rows, dataParcTag) ||
+    verifiedAutomaticBoundaryAppendBase(asset, rows, dataParcTag);
 }
 
 export async function loadAppendBase(database, asset, dataParcTag) {
-  // Read the current Cycle beyond its runtime anchor: a manual boundary can sit
+  // Read the current Cycle beyond its runtime anchor: an operation boundary can sit
   // after the last DataPARC success while preserving its RUN total. Older Cycles
   // are unrelated and can make this hot-path history scan grow without bound.
+  // Keep malformed dates visible so automatic recovery cannot ignore a boundary.
   const result = await database.prepare(`SELECT * FROM blower_history_events
     WHERE tag_number = ? AND event_type IN ('runtime_correction','startup','operation_start','operation_stop')
-      AND datetime(event_date) >= datetime(?)
+      AND (datetime(event_date) >= datetime(?) OR datetime(event_date) IS NULL
+        OR NOT (event_date GLOB '*Z' OR event_date GLOB '*[+-][0-9][0-9]:[0-9][0-9]'))
     ORDER BY event_date DESC, updated_at DESC, created_at DESC, id DESC`)
     .bind(asset.tag_number, asset.last_replacement_at).all();
   return verifiedAppendBase(asset, result.results || [], dataParcTag);
