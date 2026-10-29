@@ -72,16 +72,14 @@ test('All 4 DataPARC source candidates are exact, distinct and exclude /PLOT', (
   assert.doesNotMatch(mapping, /\/PLOT|104HRJ01AN|204HRJ01AN/);
   assert.equal(new Set(limestone.map(x => x[3])).size, 4);
 });
-test('Candidate signals not passed as a confirmed DataPARC signal or newly permitted RUN 1/0', () => {
-  const sync = server.slice(server.indexOf('const DATAPARC_RUNTIME_SYNC_ASSET_TAGS'), server.indexOf('const DATAPARC_RUNTIME_SYNC_SOURCE_TYPE'));
-  const clientSync = client.slice(client.indexOf('const DATAPARC_RUNTIME_ASSET_TAGS'), client.indexOf('const DATAPARC_RUNTIME_KNOWN_SOURCE'));
-  for (const [tag] of limestone) {
-    assert.doesNotMatch(sync, new RegExp(tag));
-    assert.doesNotMatch(clientSync, new RegExp(tag));
-  }
-  assert.match(server, /limestoneSignalCandidate: LIMESTONE_RUN_SIGNAL_CANDIDATES\[asset\.tag_number\]/);
-  assert.doesNotMatch(server, /dataParcTag: LIMESTONE_RUN_SIGNAL_CANDIDATES/);
+test('RUN probes are restricted to four exact Limestone equipment mappings', () => {
+  const sync=server.slice(server.indexOf('const DATAPARC_RUNTIME_SYNC_ASSET_TAGS'),server.indexOf('const DATAPARC_RUNTIME_SYNC_SOURCE_TYPE'));
+  const clientSync=client.slice(client.indexOf('const DATAPARC_RUNTIME_ASSET_TAGS'),client.indexOf('const DATAPARC_RUNTIME_KNOWN_SOURCE'));
+  assert.match(sync,/"limestone"/);
+  for(const [tag] of limestone)assert.match(clientSync,new RegExp(tag));
+  assert.match(server,/LIMESTONE_RUN_SIGNAL_CANDIDATES\[assetTag\]/);
 });
+
 test('Limestone runtime never accumulates by wall-clock time while RUN is unverified', () => {
   const context = { normalizeText: x => String(x ?? '').trim(), DATAPARC_RUNTIME_SYNC_ASSET_TAGS: [], isIntermittentBlower: () => false };
   vm.runInNewContext(`${extractFunction('usesMeasuredBlowerRuntime')}\nresult = usesMeasuredBlowerRuntime({blower_type:'limestone',tag_number:'103HRJ01AN601'});`, context);
@@ -96,7 +94,7 @@ test('Safe additive DB readiness: 6 types and 10 sentinels', () => {
 test('Limestone view is distinct and source is flagged as confirmation pending', () => {
   assert.match(client, /limestone: "Limestone Blower"/);
   assert.match(client, /"seal_pot", "limestone"/);
-  assert.match(client, /asset\.limestoneSignalCandidate \?/);
+  assert.match(client, /asset\.limestoneSignalCandidate && !asset\.dataParcRuntimeBasis \?/);
   assert.match(client, /RUN 신호 확인 대기/);
-  assert.match(html, /blower-history\.js\?v=20261029-limestone-tags-v2/);
+  assert.match(html, /blower-history\.js\?v=20261029-limestone-run-v4/);
 });

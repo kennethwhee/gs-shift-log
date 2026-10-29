@@ -40,6 +40,10 @@
   DP_TAGS.add("204HHL10AN611");
   DP_TAGS.add("204HHL10AN621");
   DP_TAGS.add("204HHL10AN631");
+DP_TAGS.add("103HRJ01AN601");
+DP_TAGS.add("103HRJ01AN602");
+DP_TAGS.add("203HRJ01AN601");
+DP_TAGS.add("203HRJ01AN602");
   const bridges = Object.create(null);
   const time = value => value ? Date.parse(value) : NaN;
   const day = value => { const n = value instanceof Date ? value.getTime() : time(value); return Number.isFinite(n) ? new Date(n + 9 * 3600000).toISOString().slice(0,10) : ''; };
@@ -96,11 +100,24 @@
     for (const a of assets || []) {
       if (a.enabled === false || a.enabled === 0) continue;
       const skip = reason => skipped.push({ tagNumber: a.tagNumber, displayName: a.displayName || a.tagNumber, status: 'skipped', message: reason });
-      const replacement = time(a.lastReplacementAt);
+      if (a.blowerType === 'limestone') {
+  const anchorTime = Date.parse(a.lastReplacementAt || '');
+  // A 00:00 date-only storage placeholder is not an accurate belt completion time.
+  const unresolvedDay = ['103HRJ01AN602','203HRJ01AN602'].includes(a.tagNumber) &&
+    anchorTime === Date.parse('2026-09-22T00:00:00+09:00');
+  // 2A's 9/19 work order conflicts with an actual completion; do not count across it.
+  const unresolved2A = a.tagNumber === '203HRJ01AN601' &&
+    (!Number.isFinite(anchorTime) || anchorTime < Date.parse('2026-09-19T00:00:00+09:00'));
+  if (unresolvedDay || unresolved2A) {
+    skip(unresolvedDay ? '9/22 교체시각 미확정 · 실제 시각 등록 전 RUN 적산 보류' : '2호기 #A 9/19 교체 완료 근거 충돌 · RUN 적산 보류');
+    continue;
+  }
+}
+const replacement = time(a.lastReplacementAt);
       if (!Number.isFinite(replacement)) { skip('교체일 등록 필요 · 이력 보기 / V-Belt 교체 등록'); continue; }
       if (replacement >= end) { skip('교체일이 현재 시각 이후입니다.'); continue; }
       if (!DP_TAGS.has(a.tagNumber)) { skip('연결된 운전시간 조회 방식이 없습니다.'); continue; }
-      const dataParcTag = a.tagNumber === '104ETH03AN602' ? SIGNAL : String(a.dataParcTag || '').trim();
+      const dataParcTag = a.tagNumber === '104ETH03AN602' ? SIGNAL : String(a.dataParcTag || (a.blowerType === 'limestone' ? a.limestoneSignalCandidate : '') || '').trim();
       if (!/^GSPOGE\.ABB_DCS\.[A-Z0-9][A-Z0-9._-]*$/.test(dataParcTag) || dataParcTag.length > 200 || (a.tagNumber !== '104ETH03AN602' && dataParcTag === SIGNAL)) {
         skip('RUN TAG 설정 필요 · 이력 보기 → 조회 기준·상세'); continue;
       }
@@ -210,7 +227,7 @@
     // publishes all new queue rows in one D1 transaction.  Never fall back to
     // per-asset POSTs: the one-second Agent poll could observe a partial set
     // and split one Latest click across several hidden-Excel startups.
-    if (source.length > 24) throw error('Blower 일괄 조회는 한 번에 최대 24대까지 가능합니다.', 'CREATE_BATCH_TOO_LARGE');
+    if (source.length > 27) throw error('Blower 일괄 조회는 한 번에 최대 27대까지 가능합니다.', 'CREATE_BATCH_TOO_LARGE');
     const sourceTags = source.map(task => String(task.snapshot.tagNumber));
     if (new Set(sourceTags).size !== sourceTags.length) throw error('같은 Blower가 일괄 조회에 중복 포함되었습니다.', 'CREATE_BATCH_DUPLICATE_ASSET');
 

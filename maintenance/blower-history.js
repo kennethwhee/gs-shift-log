@@ -20,7 +20,8 @@
   "104HHL60AP611", "104HHL60AP621", "104HHL60AP631",
   "204HHL60AP611", "204HHL60AP621", "204HHL60AP631",
   "104HHL10AN611", "104HHL10AN621", "104HHL10AN631",
-  "204HHL10AN611", "204HHL10AN621", "204HHL10AN631"
+  "204HHL10AN611", "204HHL10AN621", "204HHL10AN631",
+"103HRJ01AN601", "103HRJ01AN602", "203HRJ01AN601", "203HRJ01AN602"
   ]);
   const DATAPARC_RUNTIME_KNOWN_SOURCE = "GSPOGE.ABB_DCS.003ETH03AN602XB04";
 
@@ -1766,7 +1767,7 @@
         data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(overviewOperationState)}" data-operation-mode="${view.intermittent ? "intermittent" : "standard"}"
         aria-label="${escapeHtml(`${position} 이력 보기`)}">
         <span class="all-overview-card-head">
-          <span class="all-overview-identity"><strong>${escapeHtml(position)}</strong><small>${escapeHtml(asset.tagNumber)}</small>${asset.limestoneSignalCandidate ?     `<small title="${escapeHtml(asset.limestoneSignalCandidate)} / RUN=1·0 신호 실측 확인 전">RUN 신호 확인 대기</small>` : ""}</span>
+          <span class="all-overview-identity"><strong>${escapeHtml(position)}</strong><small>${escapeHtml(asset.tagNumber)}</small>${asset.limestoneSignalCandidate && !asset.dataParcRuntimeBasis ?     `<small title="${escapeHtml(asset.limestoneSignalCandidate)} / RUN=1·0 신호 실측 확인 전">RUN 신호 확인 대기</small>` : ""}</span>
           <span class="all-overview-status-badges">
             ${view.intermittent ? '<span class="operation-mode-pill intermittent">간헐운전</span>' : ''}
             ${showOperationStateBadge ? `<span class="operation-pill ${escapeHtml(view.state)}">${escapeHtml(view.label)}</span>` : ''}
@@ -1915,7 +1916,7 @@
       const saved = JSON.parse(raw), value = saved?.checkpoint;
       const owner = String(state.data?.user?.employeeNo || "");
       if (!owner || saved.owner !== owner || value?.version !== 1 || !Array.isArray(value.tasks) ||
-          !value.tasks.length || value.tasks.length > 24 || !Array.isArray(value.createdBatch?.results) ||
+          !value.tasks.length || value.tasks.length > 27 || !Array.isArray(value.createdBatch?.results) ||
           value.createdBatch.results.length !== value.tasks.length ||
           value.tasks.some(task => !task?.snapshot?.tagNumber || !task.asset?.displayName)) return;
       // A stored success is never trusted: reread server status and use the

@@ -184,7 +184,7 @@ function insertPendingProbe(sqlite, { id, requestedAt, owner = 'batch-owner' }) 
     VALUES (?,'blower_runtime_probe',?,'pending',?,'queue test',?,NULL,NULL,'',NULL,'',?,?)`).run(
       id, `v1|${assetTag}|${startAt}|${endAt}`, owner, requestedAt, '2026-09-13T00:00:00.000Z', requestedAt
     );
-  sqlite.prepare(`INSERT INTO blower_runtime_probe_intents_v4
+  sqlite.prepare(`INSERT INTO blower_runtime_probe_intents_v5
     (request_id,reuse_key,schema_version,asset_tag,dataparc_tag,window_start,window_end,chunk_days,chunk_count,
      expected_last_replacement_at,expected_cycle_start_state,expected_cycle_started_at,expected_cycle_start_revision,
      expected_cycle_runtime_revision,created_at,updated_at)
@@ -312,7 +312,7 @@ test('valid create bodies become visible together with one timestamp and repeat 
 
     const rows = f.sqlite.prepare(`SELECT request.requested_at, intent.asset_tag, intent.window_end
       FROM ois_data_requests AS request
-      JOIN blower_runtime_probe_intents_v4 AS intent ON intent.request_id = request.id
+      JOIN blower_runtime_probe_intents_v5 AS intent ON intent.request_id = request.id
       WHERE request.request_type = 'blower_runtime_probe'
       ORDER BY intent.asset_tag`).all();
     assert.equal(rows.length, 2);
@@ -321,7 +321,7 @@ test('valid create bodies become visible together with one timestamp and repeat 
     const atomicPublish = batchCalls.find(sql => sql.some(value => /INSERT INTO ois_data_requests/.test(value) && /json_each/.test(value)));
     assert.ok(atomicPublish, 'expected one D1 batch containing the bulk queue publish');
     assert.ok(atomicPublish.length <= 6, 'asset CAS plus bulk JSON statements must stay bounded for the full 24-item batch');
-    assert.ok(atomicPublish.some(value => /INSERT INTO blower_runtime_probe_intents_v4/.test(value)));
+    assert.ok(atomicPublish.some(value => /INSERT INTO blower_runtime_probe_intents_v5/.test(value)));
 
     const processingId = created.body.results[0].item.id;
     f.sqlite.prepare("UPDATE ois_data_requests SET status='processing', agent_id='already-running' WHERE id=?").run(processingId);
@@ -488,7 +488,7 @@ test('asset snapshot change between preparation and publish aborts retirement an
     assert.equal(rejected.body.code, 'BLOWER_RUNTIME_CREATE_BATCH_SNAPSHOT_CONFLICT');
     assert.equal(injected, true);
     assert.equal(f.sqlite.prepare('SELECT status FROM ois_data_requests WHERE id=?').get(old.body.item.id).status, 'pending');
-    assert.ok(f.sqlite.prepare('SELECT reuse_key FROM blower_runtime_probe_intents_v4 WHERE request_id=?')
+    assert.ok(f.sqlite.prepare('SELECT reuse_key FROM blower_runtime_probe_intents_v5 WHERE request_id=?')
       .get(old.body.item.id).reuse_key);
     assert.equal(f.sqlite.prepare("SELECT COUNT(*) count FROM ois_data_requests WHERE request_type='blower_runtime_probe'").get().count, 1);
     assert.equal(f.sqlite.prepare('SELECT cycle_runtime_revision FROM blower_history_assets WHERE tag_number=?').get(TAG_A).cycle_runtime_revision,
@@ -585,7 +585,7 @@ test('a changed member replaces and retires its entire prior durable group', asy
     assert.ok(newIds.every(id => !oldIds.includes(id)));
     assert.equal(f.sqlite.prepare(`SELECT COUNT(*) count FROM ois_data_requests
       WHERE id IN (?,?) AND status='failed'`).get(...oldIds).count, 2);
-    assert.equal(f.sqlite.prepare(`SELECT COUNT(*) count FROM blower_runtime_probe_intents_v4
+    assert.equal(f.sqlite.prepare(`SELECT COUNT(*) count FROM blower_runtime_probe_intents_v5
       WHERE request_id IN (?,?) AND reuse_key IS NOT NULL`).get(...oldIds).count, 0);
     const staleFail = await agentPost(f.database, {
       action: 'fail', requestId: oldIds[1], errorMessage: 'late stale worker failure'
@@ -619,7 +619,7 @@ test('a partial refresh retires every pending member of the prior durable group'
     assert.match(replacement.body.results[0].item.id, /^brb1_[0-9a-f-]{36}_01_00$/);
     assert.equal(f.sqlite.prepare(`SELECT COUNT(*) count FROM ois_data_requests
       WHERE id IN (?,?) AND status='failed'`).get(...oldIds).count, 2);
-    assert.equal(f.sqlite.prepare(`SELECT COUNT(*) count FROM blower_runtime_probe_intents_v4
+    assert.equal(f.sqlite.prepare(`SELECT COUNT(*) count FROM blower_runtime_probe_intents_v5
       WHERE request_id IN (?,?) AND reuse_key IS NOT NULL`).get(...oldIds).count, 0);
   } finally {
     f.database.close();
@@ -653,7 +653,7 @@ test('partial unchanged reuse preserves its complete pending durable group', asy
     assert.equal(item.probe.dataParcTag, SIGNAL_A);
     assert.equal(f.sqlite.prepare(`SELECT COUNT(*) count FROM ois_data_requests
       WHERE id IN (?,?) AND status='pending'`).get(...oldIds).count, 2);
-    assert.equal(f.sqlite.prepare(`SELECT COUNT(*) count FROM blower_runtime_probe_intents_v4
+    assert.equal(f.sqlite.prepare(`SELECT COUNT(*) count FROM blower_runtime_probe_intents_v5
       WHERE request_id IN (?,?) AND reuse_key IS NOT NULL`).get(...oldIds).count, 2);
     assert.equal(f.sqlite.prepare("SELECT COUNT(*) count FROM ois_data_requests WHERE request_type='blower_runtime_probe'").get().count, 2);
   } finally {
@@ -683,7 +683,7 @@ test('new work absorbs a selected pending legacy singleton into one durable grou
     assert.ok(newIds.every(id => /^brb1_[0-9a-f-]{36}_02_0[01]$/.test(id)));
     assert.equal(f.sqlite.prepare('SELECT status FROM ois_data_requests WHERE id=?')
       .get(legacy.body.item.id).status, 'failed');
-    assert.equal(f.sqlite.prepare('SELECT reuse_key FROM blower_runtime_probe_intents_v4 WHERE request_id=?')
+    assert.equal(f.sqlite.prepare('SELECT reuse_key FROM blower_runtime_probe_intents_v5 WHERE request_id=?')
       .get(legacy.body.item.id).reuse_key, null);
   } finally {
     f.database.close();
@@ -715,7 +715,7 @@ test('processing legacy singleton blocks regroup and sibling publication atomica
         .get(legacy.body.item.id)},
       {status: 'processing', agent_id: 'legacy-processing-agent'}
     );
-    assert.ok(f.sqlite.prepare('SELECT reuse_key FROM blower_runtime_probe_intents_v4 WHERE request_id=?')
+    assert.ok(f.sqlite.prepare('SELECT reuse_key FROM blower_runtime_probe_intents_v5 WHERE request_id=?')
       .get(legacy.body.item.id).reuse_key);
     assert.equal(f.sqlite.prepare("SELECT COUNT(*) count FROM ois_data_requests WHERE request_type='blower_runtime_probe'")
       .get().count, 1);
@@ -762,7 +762,7 @@ test('an unrelated fresh complete reuse does not regroup an unchanged active gro
     assert.equal(reused.body.results[1].item.id, completeC.body.item.id);
     assert.equal(f.sqlite.prepare(`SELECT COUNT(*) count FROM ois_data_requests
       WHERE id IN (?,?) AND status='pending'`).get(...activeIds).count, 2);
-    assert.equal(f.sqlite.prepare(`SELECT COUNT(*) count FROM blower_runtime_probe_intents_v4
+    assert.equal(f.sqlite.prepare(`SELECT COUNT(*) count FROM blower_runtime_probe_intents_v5
       WHERE request_id IN (?,?) AND reuse_key IS NOT NULL`).get(...activeIds).count, 2);
   } finally {
     f.database.close();
@@ -784,7 +784,7 @@ test('stale-group conversion reaches a global regroup fixpoint for every selecte
     ]);
     assert.equal(firstGroup.status, 201, JSON.stringify(firstGroup.body));
     const firstIds = firstGroup.body.results.map(result => result.item.id);
-    const staleBReuseKey = f.sqlite.prepare('SELECT reuse_key FROM blower_runtime_probe_intents_v4 WHERE request_id=?')
+    const staleBReuseKey = f.sqlite.prepare('SELECT reuse_key FROM blower_runtime_probe_intents_v5 WHERE request_id=?')
       .get(firstIds[1]).reuse_key;
 
     f.sqlite.prepare('UPDATE blower_history_assets SET cycle_runtime_revision=? WHERE tag_number=?')
@@ -800,7 +800,7 @@ test('stale-group conversion reaches a global regroup fixpoint for every selecte
     f.sqlite.prepare(`UPDATE ois_data_requests SET status='pending',started_at=NULL,completed_at=NULL,
       agent_id='',result_json=NULL,error_message='',updated_at=? WHERE id=?`)
       .run('2026-09-12T07:10:48.500Z', firstIds[1]);
-    f.sqlite.prepare('UPDATE blower_runtime_probe_intents_v4 SET reuse_key=?,updated_at=? WHERE request_id=?')
+    f.sqlite.prepare('UPDATE blower_runtime_probe_intents_v5 SET reuse_key=?,updated_at=? WHERE request_id=?')
       .run(staleBReuseKey, '2026-09-12T07:10:48.500Z', firstIds[1]);
 
     const secondGroup = await batchCreate(f.database, [
@@ -825,11 +825,11 @@ test('stale-group conversion reaches a global regroup fixpoint for every selecte
     const retiredIds = [...firstIds, ...secondIds];
     assert.equal(f.sqlite.prepare(`SELECT COUNT(*) count FROM ois_data_requests
       WHERE id IN (?,?,?,?) AND status='failed'`).get(...retiredIds).count, 4);
-    assert.equal(f.sqlite.prepare(`SELECT COUNT(*) count FROM blower_runtime_probe_intents_v4
+    assert.equal(f.sqlite.prepare(`SELECT COUNT(*) count FROM blower_runtime_probe_intents_v5
       WHERE request_id IN (?,?,?,?) AND reuse_key IS NOT NULL`).get(...retiredIds).count, 0);
     assert.equal(f.sqlite.prepare('SELECT status FROM ois_data_requests WHERE id=?')
       .get(freshCompleteB.body.item.id).status, 'complete');
-    assert.ok(f.sqlite.prepare('SELECT reuse_key FROM blower_runtime_probe_intents_v4 WHERE request_id=?')
+    assert.ok(f.sqlite.prepare('SELECT reuse_key FROM blower_runtime_probe_intents_v5 WHERE request_id=?')
       .get(freshCompleteB.body.item.id).reuse_key);
   } finally {
     f.database.close();
@@ -861,7 +861,7 @@ test('new work regroups a selected durable member and retires omitted old siblin
     assert.ok(newIds.every(id => /^brb1_[0-9a-f-]{36}_02_0[01]$/.test(id)));
     assert.equal(f.sqlite.prepare(`SELECT COUNT(*) count FROM ois_data_requests
       WHERE id IN (?,?) AND status='failed'`).get(...activeIds).count, 2);
-    assert.equal(f.sqlite.prepare(`SELECT COUNT(*) count FROM blower_runtime_probe_intents_v4
+    assert.equal(f.sqlite.prepare(`SELECT COUNT(*) count FROM blower_runtime_probe_intents_v5
       WHERE request_id IN (?,?) AND reuse_key IS NOT NULL`).get(...activeIds).count, 0);
   } finally {
     f.database.close();
@@ -928,7 +928,7 @@ test('browser regroup never retires a durable group already processing on the Ag
       {status: 'pending', count: 1}, {status: 'processing', count: 1}
     ]);
     assert.equal(f.sqlite.prepare("SELECT COUNT(*) count FROM ois_data_requests WHERE request_type='blower_runtime_probe'").get().count, 2);
-    assert.equal(f.sqlite.prepare(`SELECT COUNT(*) count FROM blower_runtime_probe_intents_v4
+    assert.equal(f.sqlite.prepare(`SELECT COUNT(*) count FROM blower_runtime_probe_intents_v5
       WHERE request_id IN (?,?) AND reuse_key IS NOT NULL`).get(...oldIds).count, 2);
   } finally {
     f.database.close();
@@ -969,7 +969,7 @@ test('a complete seed cannot hide its processing durable sibling from retirement
       ]
     );
     assert.equal(f.sqlite.prepare("SELECT COUNT(*) count FROM ois_data_requests WHERE request_type='blower_runtime_probe'").get().count, 2);
-    assert.equal(f.sqlite.prepare(`SELECT COUNT(*) count FROM blower_runtime_probe_intents_v4
+    assert.equal(f.sqlite.prepare(`SELECT COUNT(*) count FROM blower_runtime_probe_intents_v5
       WHERE request_id IN (?,?) AND reuse_key IS NOT NULL`).get(completeId, processingId).count, 2);
   } finally {
     f.database.close();
@@ -1016,7 +1016,7 @@ test('claim lookahead leaves a 23-request atomic group whole behind older single
   try {
     const bootstrap = await browserCreate(f.database, createBody(f.sqlite, TAG_A, SIGNAL_A));
     assert.equal(bootstrap.status, 201, JSON.stringify(bootstrap.body));
-    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v4; DELETE FROM ois_data_requests;');
+    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v5; DELETE FROM ois_data_requests;');
     insertPendingProbe(f.sqlite, { id: 'older-1', requestedAt: '2026-09-12T06:00:00.000Z' });
     insertPendingProbe(f.sqlite, { id: 'older-2', requestedAt: '2026-09-12T06:00:01.000Z' });
     const uuid = '11111111-1111-4111-8111-111111111111';
@@ -1056,7 +1056,7 @@ test('two next-lanes Agents cannot split one create group and the winner claims 
   try {
     const bootstrap = await browserCreate(f.database, createBody(f.sqlite, TAG_A, SIGNAL_A));
     assert.equal(bootstrap.status, 201, JSON.stringify(bootstrap.body));
-    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v4; DELETE FROM ois_data_requests;');
+    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v5; DELETE FROM ois_data_requests;');
     const uuid = '22222222-2222-4222-8222-222222222222';
     for (let index = 0; index < 3; index += 1) insertPendingProbe(f.sqlite, {
       id: groupedRequestId(uuid, 3, index), requestedAt: '2026-09-12T06:05:00.000Z'
@@ -1091,7 +1091,7 @@ test('a sibling state race rolls the whole additional claim back', async () => {
   try {
     const bootstrap = await browserCreate(f.database, createBody(f.sqlite, TAG_A, SIGNAL_A));
     assert.equal(bootstrap.status, 201, JSON.stringify(bootstrap.body));
-    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v4; DELETE FROM ois_data_requests;');
+    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v5; DELETE FROM ois_data_requests;');
     const uuid = '33333333-3333-4333-8333-333333333333';
     for (let index = 0; index < 3; index += 1) insertPendingProbe(f.sqlite, {
       id: groupedRequestId(uuid, 3, index), requestedAt: '2026-09-12T06:10:00.000Z'
@@ -1119,7 +1119,7 @@ test('a sibling state race rolls the whole additional claim back', async () => {
     assert.deepEqual(states.map(row => ({ status: row.status, count: row.count })), [
       { status: 'failed', count: 3 }
     ]);
-    assert.equal(f.sqlite.prepare(`SELECT COUNT(*) count FROM blower_runtime_probe_intents_v4
+    assert.equal(f.sqlite.prepare(`SELECT COUNT(*) count FROM blower_runtime_probe_intents_v5
       WHERE request_id LIKE ? AND reuse_key IS NOT NULL`).get(`brb1_${uuid}_03_%`).count, 0);
   } finally {
     f.database.close();
@@ -1132,7 +1132,7 @@ test('additional claim retry replays already-owned siblings after response loss'
   const f = await fixture(TAG_A, true);
   try {
     const bootstrap = await browserCreate(f.database, createBody(f.sqlite, TAG_A, SIGNAL_A));
-    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v4; DELETE FROM ois_data_requests;');
+    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v5; DELETE FROM ois_data_requests;');
     const uuid = '44444444-4444-4444-8444-444444444444';
     for (let index = 0; index < 3; index += 1) insertPendingProbe(f.sqlite, {
       id: groupedRequestId(uuid, 3, index), requestedAt: '2026-09-12T06:11:00.000Z'
@@ -1158,7 +1158,7 @@ test('a newer primary binds additional claim and replay to its exact group', asy
   try {
     const bootstrap = await browserCreate(f.database, createBody(f.sqlite, TAG_A, SIGNAL_A));
     assert.equal(bootstrap.status, 201, JSON.stringify(bootstrap.body));
-    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v4; DELETE FROM ois_data_requests;');
+    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v5; DELETE FROM ois_data_requests;');
     const staleUuid = '45454545-4545-4454-8454-454545454545';
     const currentUuid = '46464646-4646-4464-8464-464646464646';
     for (let index = 0; index < 3; index += 1) insertPendingProbe(f.sqlite, {
@@ -1204,7 +1204,7 @@ test('concurrent polls sharing one Agent ID cannot start two durable primaries',
   try {
     const bootstrap = await browserCreate(f.database, createBody(f.sqlite, TAG_A, SIGNAL_A));
     assert.equal(bootstrap.status, 201, JSON.stringify(bootstrap.body));
-    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v4; DELETE FROM ois_data_requests;');
+    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v5; DELETE FROM ois_data_requests;');
     const uuids = [
       '47474747-4747-4474-8474-474747474747',
       '48484848-4848-4484-8484-484848484848'
@@ -1233,7 +1233,7 @@ test('a shared Agent ID cannot mix a legacy primary with a durable group', async
   try {
     const bootstrap = await browserCreate(f.database, createBody(f.sqlite, TAG_A, SIGNAL_A));
     assert.equal(bootstrap.status, 201, JSON.stringify(bootstrap.body));
-    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v4; DELETE FROM ois_data_requests;');
+    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v5; DELETE FROM ois_data_requests;');
     insertPendingProbe(f.sqlite, {id: 'legacy-shared-primary', requestedAt: '2026-09-12T06:11:45.000Z'});
     const uuid = '49494949-4949-4494-8494-494949494949';
     for (let index = 0; index < 2; index += 1) insertPendingProbe(f.sqlite, {
@@ -1260,7 +1260,7 @@ test('same-owner same-millisecond batches retain distinct durable groups', async
   const f = await fixture(TAG_A, true);
   try {
     const bootstrap = await browserCreate(f.database, createBody(f.sqlite, TAG_A, SIGNAL_A));
-    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v4; DELETE FROM ois_data_requests;');
+    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v5; DELETE FROM ois_data_requests;');
     const uuids = [
       '55555555-5555-4555-8555-555555555555',
       '66666666-6666-4666-8666-666666666666'
@@ -1289,7 +1289,7 @@ test('legacy action=next cannot claim a durable batch member', async () => {
   const f = await fixture(TAG_A, true);
   try {
     const bootstrap = await browserCreate(f.database, createBody(f.sqlite, TAG_A, SIGNAL_A));
-    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v4; DELETE FROM ois_data_requests;');
+    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v5; DELETE FROM ois_data_requests;');
     const uuid = '77777777-7777-4777-8777-777777777777';
     for (let index = 0; index < 2; index += 1) insertPendingProbe(f.sqlite, {
       id: groupedRequestId(uuid, 2, index), requestedAt: '2026-09-12T06:13:00.000Z'
@@ -1309,13 +1309,13 @@ test('malformed reserved durable IDs stay excluded from every generic claim', as
   const f = await fixture(TAG_A, true);
   try {
     await browserCreate(f.database, createBody(f.sqlite, TAG_A, SIGNAL_A));
-    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v4; DELETE FROM ois_data_requests;');
+    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v5; DELETE FROM ois_data_requests;');
     const validUuid = '78787878-7878-4787-8787-787878787878';
     const malformedIds = [
       groupedRequestId('gggggggg-gggg-4ggg-8ggg-gggggggggggg', 2, 0),
       groupedRequestId('gggggggg-gggg-4ggg-8ggg-gggggggggggg', 2, 1),
       groupedRequestId('70707070-7070-4070-8070-707070707070', 0, 0),
-      groupedRequestId('71717171-7171-4171-8171-717171717171', 25, 0),
+      groupedRequestId('71717171-7171-4171-8171-717171717171', 28, 0),
       groupedRequestId(validUuid, 2, 2)
     ];
     for (const id of malformedIds) insertPendingProbe(f.sqlite, {
@@ -1354,7 +1354,7 @@ test('owned leader siblings take priority over older legacy backlog', async () =
   const f = await fixture(TAG_A, true);
   try {
     const bootstrap = await browserCreate(f.database, createBody(f.sqlite, TAG_A, SIGNAL_A));
-    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v4; DELETE FROM ois_data_requests;');
+    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v5; DELETE FROM ois_data_requests;');
     insertPendingProbe(f.sqlite, { id: 'older-legacy', requestedAt: '2026-09-12T05:00:00.000Z' });
     const uuid = '88888888-8888-4888-8888-888888888888';
     for (let index = 0; index < 3; index += 1) insertPendingProbe(f.sqlite, {
@@ -1378,9 +1378,9 @@ test('invalid older intent is failed before a valid durable group is claimed', a
   const f = await fixture(TAG_A, true);
   try {
     const bootstrap = await browserCreate(f.database, createBody(f.sqlite, TAG_A, SIGNAL_A));
-    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v4; DELETE FROM ois_data_requests;');
+    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v5; DELETE FROM ois_data_requests;');
     insertPendingProbe(f.sqlite, { id: 'invalid-older', requestedAt: '2026-09-12T05:10:00.000Z' });
-    f.sqlite.prepare('DELETE FROM blower_runtime_probe_intents_v4 WHERE request_id=?').run('invalid-older');
+    f.sqlite.prepare('DELETE FROM blower_runtime_probe_intents_v5 WHERE request_id=?').run('invalid-older');
     const uuid = '99999999-9999-4999-8999-999999999999';
     for (let index = 0; index < 3; index += 1) insertPendingProbe(f.sqlite, {
       id: groupedRequestId(uuid, 3, index), requestedAt: '2026-09-12T06:15:00.000Z'
@@ -1403,7 +1403,7 @@ test('preclaim intent read failure leaves every group member pending', async () 
   const f = await fixture(TAG_A, true);
   try {
     const bootstrap = await browserCreate(f.database, createBody(f.sqlite, TAG_A, SIGNAL_A));
-    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v4; DELETE FROM ois_data_requests;');
+    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v5; DELETE FROM ois_data_requests;');
     const uuid = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     for (let index = 0; index < 2; index += 1) insertPendingProbe(f.sqlite, {
       id: groupedRequestId(uuid, 2, index), requestedAt: '2026-09-12T06:16:00.000Z'
@@ -1412,7 +1412,7 @@ test('preclaim intent read failure leaves every group member pending', async () 
     let failedRead = false;
     f.database.prepare = sql => {
       const statement = originalPrepare(sql);
-      if (/FROM blower_runtime_probe_intents_v4\s+WHERE request_id = \?/s.test(sql)) {
+      if (/FROM blower_runtime_probe_intents_v5\s+WHERE request_id = \?/s.test(sql)) {
         statement.first = async () => {
           failedRead = true;
           throw new Error('injected intent read failure');
@@ -1438,7 +1438,7 @@ test('next-lanes performs no fallible intent SELECT after claiming the leader', 
   const f = await fixture(TAG_A, true);
   try {
     const bootstrap = await browserCreate(f.database, createBody(f.sqlite, TAG_A, SIGNAL_A));
-    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v4; DELETE FROM ois_data_requests;');
+    f.sqlite.exec('DELETE FROM blower_runtime_probe_intents_v5; DELETE FROM ois_data_requests;');
     const uuid = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
     for (let index = 0; index < 2; index += 1) insertPendingProbe(f.sqlite, {
       id: groupedRequestId(uuid, 2, index), requestedAt: '2026-09-12T06:17:00.000Z'
@@ -1448,7 +1448,7 @@ test('next-lanes performs no fallible intent SELECT after claiming the leader', 
     let intentReads = 0;
     f.database.prepare = sql => {
       const statement = originalPrepare(sql);
-      if (/FROM blower_runtime_probe_intents_v4\s+WHERE request_id = \?/s.test(sql)) {
+      if (/FROM blower_runtime_probe_intents_v5\s+WHERE request_id = \?/s.test(sql)) {
         const originalFirst = statement.first.bind(statement);
         statement.first = async (...args) => {
           intentReads += 1;
@@ -1540,7 +1540,7 @@ test('failing a grouped leader retires active siblings and permits a fresh group
     assert.equal(failed.status, 200, JSON.stringify(failed.body));
     assert.equal(f.sqlite.prepare(`SELECT COUNT(*) count FROM ois_data_requests
       WHERE id IN (?,?) AND status IN ('pending','processing')`).get(...oldIds).count, 0);
-    assert.equal(f.sqlite.prepare(`SELECT COUNT(*) count FROM blower_runtime_probe_intents_v4
+    assert.equal(f.sqlite.prepare(`SELECT COUNT(*) count FROM blower_runtime_probe_intents_v5
       WHERE request_id IN (?,?) AND reuse_key IS NOT NULL`).get(...oldIds).count, 0);
 
     const fresh = await batchCreate(f.database, requests);
@@ -1581,7 +1581,7 @@ test('only the owning Agent can fail a nonleader and completed siblings stay pre
     assert.deepEqual({...f.sqlite.prepare('SELECT status,agent_id FROM ois_data_requests WHERE id=?').get(extras[0].id)}, {
       status: 'processing', agent_id: owner
     });
-    assert.ok(f.sqlite.prepare('SELECT reuse_key FROM blower_runtime_probe_intents_v4 WHERE request_id=?')
+    assert.ok(f.sqlite.prepare('SELECT reuse_key FROM blower_runtime_probe_intents_v5 WHERE request_id=?')
       .get(extras[0].id).reuse_key);
 
     const owned = await agentPost(f.database, {
@@ -1590,9 +1590,9 @@ test('only the owning Agent can fail a nonleader and completed siblings stay pre
     assert.equal(owned.status, 200, JSON.stringify(owned.body));
     assert.equal(f.sqlite.prepare('SELECT status FROM ois_data_requests WHERE id=?').get(primary.id).status, 'complete');
     assert.equal(f.sqlite.prepare('SELECT status FROM ois_data_requests WHERE id=?').get(extras[0].id).status, 'failed');
-    assert.ok(f.sqlite.prepare('SELECT reuse_key FROM blower_runtime_probe_intents_v4 WHERE request_id=?')
+    assert.ok(f.sqlite.prepare('SELECT reuse_key FROM blower_runtime_probe_intents_v5 WHERE request_id=?')
       .get(primary.id).reuse_key);
-    assert.equal(f.sqlite.prepare('SELECT reuse_key FROM blower_runtime_probe_intents_v4 WHERE request_id=?')
+    assert.equal(f.sqlite.prepare('SELECT reuse_key FROM blower_runtime_probe_intents_v5 WHERE request_id=?')
       .get(extras[0].id).reuse_key, null);
   } finally {
     f.database.close();
@@ -1623,7 +1623,7 @@ test('a rejected item prevents valid siblings and stale-request retirement from 
     const oldRow = f.sqlite.prepare('SELECT status FROM ois_data_requests WHERE id = ?').get(old.body.item.id);
     assert.equal(oldRow.status, 'pending', 'prevalidated sibling must not retire the old row on whole-batch rejection');
     assert.equal(f.sqlite.prepare("SELECT COUNT(*) AS count FROM ois_data_requests WHERE request_type='blower_runtime_probe'").get().count, 1);
-    assert.ok(f.sqlite.prepare('SELECT reuse_key FROM blower_runtime_probe_intents_v4 WHERE request_id = ?').get(old.body.item.id).reuse_key);
+    assert.ok(f.sqlite.prepare('SELECT reuse_key FROM blower_runtime_probe_intents_v5 WHERE request_id = ?').get(old.body.item.id).reuse_key);
   } finally {
     f.database.close();
     globalThis.Date = realDate;
@@ -1636,11 +1636,11 @@ test('a bulk insert failure rolls stale retirement back with the new queue rows'
   try {
     const old = await browserCreate(f.database, createBody(f.sqlite, TAG_A, SIGNAL_A));
     assert.equal(old.status, 201, JSON.stringify(old.body));
-    const oldReuseKey = f.sqlite.prepare('SELECT reuse_key FROM blower_runtime_probe_intents_v4 WHERE request_id=?')
+    const oldReuseKey = f.sqlite.prepare('SELECT reuse_key FROM blower_runtime_probe_intents_v5 WHERE request_id=?')
       .get(old.body.item.id).reuse_key;
     f.sqlite.prepare('UPDATE blower_history_assets SET cycle_runtime_revision=? WHERE tag_number=?')
       .run('rollback-runtime-r2', TAG_A);
-    f.sqlite.exec(`CREATE TRIGGER reject_atomic_batch BEFORE INSERT ON blower_runtime_probe_intents_v4
+    f.sqlite.exec(`CREATE TRIGGER reject_atomic_batch BEFORE INSERT ON blower_runtime_probe_intents_v5
       WHEN NEW.request_id <> '${old.body.item.id}' BEGIN SELECT RAISE(ABORT,'atomic batch insertion rejected'); END;`);
 
     const failed = await batchCreate(f.database, [createBody(f.sqlite, TAG_A, SIGNAL_A)]);
@@ -1648,7 +1648,7 @@ test('a bulk insert failure rolls stale retirement back with the new queue rows'
     assert.match(failed.body.message, /atomic batch insertion rejected/);
     const oldRow = f.sqlite.prepare('SELECT status FROM ois_data_requests WHERE id=?').get(old.body.item.id);
     assert.equal(oldRow.status, 'pending');
-    assert.equal(f.sqlite.prepare('SELECT reuse_key FROM blower_runtime_probe_intents_v4 WHERE request_id=?')
+    assert.equal(f.sqlite.prepare('SELECT reuse_key FROM blower_runtime_probe_intents_v5 WHERE request_id=?')
       .get(old.body.item.id).reuse_key, oldReuseKey);
     assert.equal(f.sqlite.prepare("SELECT COUNT(*) count FROM ois_data_requests WHERE request_type='blower_runtime_probe'").get().count, 1);
   } finally {
@@ -1686,7 +1686,7 @@ test('atomic batch preserves one append receipt per created incremental request'
     const receipts = f.sqlite.prepare(`SELECT * FROM blower_runtime_append_v1 WHERE request_id IN (${placeholders}) ORDER BY request_id`).all(...requestIds);
     assert.equal(receipts.length, 2);
     assert.ok(receipts.every(receipt => receipt.base_event_id && receipt.base_observed_at && receipt.coverage_start_at));
-    const intents = f.sqlite.prepare(`SELECT expected_cycle_runtime_revision FROM blower_runtime_probe_intents_v4 WHERE request_id IN (${placeholders})`).all(...requestIds);
+    const intents = f.sqlite.prepare(`SELECT expected_cycle_runtime_revision FROM blower_runtime_probe_intents_v5 WHERE request_id IN (${placeholders})`).all(...requestIds);
     assert.equal(intents.length, 2);
     assert.ok(intents.every(intent => intent.expected_cycle_runtime_revision.startsWith('append-v1:')));
   } finally {

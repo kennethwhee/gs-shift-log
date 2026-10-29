@@ -109,7 +109,7 @@ function validMetadata(metadata) {
 }
 function receiptValue(receipt) {
   if (!receipt || receipt.version !== 1 || !Number.isSafeInteger(receipt.requestedCount) ||
-      receipt.requestedCount < 0 || receipt.requestedCount > 24 || !Array.isArray(receipt.items) ||
+      receipt.requestedCount < 0 || receipt.requestedCount > 27 || !Array.isArray(receipt.items) ||
       !Array.isArray(receipt.upToDateTags) || receipt.items.length + receipt.upToDateTags.length !== receipt.requestedCount) {
     throw error('invalid_batch_receipt', '자동조회 요청 기록이 올바르지 않습니다.', 400);
   }

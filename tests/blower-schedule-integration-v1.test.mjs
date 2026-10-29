@@ -205,7 +205,7 @@ test('configuration revision race at the real transaction boundary leaves no rec
     assert.equal(injected, true);
     assert.equal(storedReceipt(sqlite), null);
     assert.deepEqual(queue(sqlite), []);
-    assert.equal(sqlite.prepare('SELECT COUNT(*) AS count FROM blower_runtime_probe_intents_v4').get().count, 0);
+    assert.equal(sqlite.prepare('SELECT COUNT(*) AS count FROM blower_runtime_probe_intents_v5').get().count, 0);
   });
 });
 
@@ -217,7 +217,7 @@ test('asset cycle race rolls back the scheduled receipt, prior-request retiremen
       .run('prepared-schedule-runtime-r2', TAG_A);
     const body = batchBody(sqlite);
     const beforeQueue = queue(sqlite);
-    const beforeIntent = sqlite.prepare('SELECT * FROM blower_runtime_probe_intents_v4 WHERE request_id=?').get(manual.item.id);
+    const beforeIntent = sqlite.prepare('SELECT * FROM blower_runtime_probe_intents_v5 WHERE request_id=?').get(manual.item.id);
     const originalBatch = database.batch.bind(database);
     let injected = false;
     database.batch = async statements => {
@@ -235,8 +235,8 @@ test('asset cycle race rolls back the scheduled receipt, prior-request retiremen
     assert.equal(injected, true);
     assert.equal(storedReceipt(sqlite), null, 'receipt written earlier in the batch must roll back too');
     assert.deepEqual(queue(sqlite), beforeQueue);
-    assert.deepEqual(sqlite.prepare('SELECT * FROM blower_runtime_probe_intents_v4 WHERE request_id=?').get(manual.item.id), beforeIntent);
-    assert.equal(sqlite.prepare('SELECT COUNT(*) AS count FROM blower_runtime_probe_intents_v4').get().count, 1);
+    assert.deepEqual(sqlite.prepare('SELECT * FROM blower_runtime_probe_intents_v5 WHERE request_id=?').get(manual.item.id), beforeIntent);
+    assert.equal(sqlite.prepare('SELECT COUNT(*) AS count FROM blower_runtime_probe_intents_v5').get().count, 1);
     assert.equal(sqlite.prepare('SELECT cycle_runtime_revision FROM blower_history_assets WHERE tag_number=?').get(TAG_A).cycle_runtime_revision,
       'newer-schedule-runtime-r3');
   });

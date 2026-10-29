@@ -63,7 +63,7 @@
   }
   function validateBatchReceipt(value) {
     if (!value || value.version !== 1 || !Number.isInteger(value.requestedCount) ||
-        value.requestedCount < 0 || value.requestedCount > 24 ||
+        value.requestedCount < 0 || value.requestedCount > 27 ||
         !Array.isArray(value.items) || !Array.isArray(value.upToDateTags) ||
         value.items.length + value.upToDateTags.length !== value.requestedCount) {
       throw fail('SCHEDULE_RECEIPT_INVALID', '자동조회 요청 기록을 확인할 수 없습니다.');

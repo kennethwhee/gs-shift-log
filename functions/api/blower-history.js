@@ -272,7 +272,7 @@ const DATAPARC_RUNTIME_PROBE_REQUEST_TYPE = "blower_runtime_probe";
 const DATAPARC_RUNTIME_SYNC_ASSET_TAG = "104ETH03AN602";
 const DATAPARC_RUNTIME_SYNC_SOURCE_TAG = "GSPOGE.ABB_DCS.003ETH03AN602XB04";
 const DATAPARC_RUNTIME_SYNC_ASSET_TAGS = Object.freeze(
-  ASSET_SEEDS.filter(seed => ["fbhe", "seal_pot", "organic_fuel", "flyash_bag", "flyash_silo"].includes(seed[1]))
+  ASSET_SEEDS.filter(seed => ["fbhe", "seal_pot", "organic_fuel", "flyash_bag", "flyash_silo", "limestone"].includes(seed[1]))
     .map(seed => seed[0])
 );
 const DATAPARC_RUNTIME_SYNC_SOURCE_TYPE = "dataparc_runtime";
@@ -2286,6 +2286,7 @@ function isDataParcRuntimeNumber(value) {
 }
 
 function isSupportedDataParcRuntimePair(assetTag, dataParcTag) {
+  if (LIMESTONE_RUN_SIGNAL_CANDIDATES[assetTag] && dataParcTag !== LIMESTONE_RUN_SIGNAL_CANDIDATES[assetTag]) return false;
   return (
     typeof assetTag === "string" && DATAPARC_RUNTIME_SYNC_ASSET_TAGS.includes(assetTag) &&
     typeof dataParcTag === "string" && dataParcTag.length <= 200 &&
@@ -7004,7 +7005,7 @@ function dataParcRuntimeSyncSuccessResponse(probe, replayed) {
 async function loadDataParcRuntimeSyncIntent(database, requestId) {
   // V2 has a database-level fixed 602 pair constraint. A missing V3 row can be
   // an already-completed pilot request created before the V3 queue migration.
-  for (const table of ["blower_runtime_probe_intents_v4", "blower_runtime_probe_intents_v3", "blower_runtime_probe_intents_v2"]) {
+  for (const table of ["blower_runtime_probe_intents_v5", "blower_runtime_probe_intents_v4", "blower_runtime_probe_intents_v3", "blower_runtime_probe_intents_v2"]) {
     let intent;
     try {
       intent = await database.prepare(`SELECT * FROM ${table} WHERE request_id = ? LIMIT 1`)

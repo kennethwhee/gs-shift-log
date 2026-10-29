@@ -88,10 +88,19 @@ const BLOWER_RUNTIME_PROBE_ALLOWED_ASSET_TAGS = Object.freeze([
   "104HHL60AP611", "104HHL60AP621", "104HHL60AP631",
   "204HHL60AP611", "204HHL60AP621", "204HHL60AP631",
   "104HHL10AN611", "104HHL10AN621", "104HHL10AN631",
-  "204HHL10AN611", "204HHL10AN621", "204HHL10AN631"
+  "204HHL10AN611", "204HHL10AN621", "204HHL10AN631",
+"103HRJ01AN601", "103HRJ01AN602", "203HRJ01AN601", "203HRJ01AN602"
 ]);
 
+// The four source tags are pinned to the corresponding equipment identities.
+const LIMESTONE_RUNTIME_EXACT_PAIR_V4 = Object.freeze({
+  '103HRJ01AN601':'GSPOGE.ABB_DCS.103HRJ01AN601XB04',
+  '103HRJ01AN602':'GSPOGE.ABB_DCS.103HRJ01AN602XB04',
+  '203HRJ01AN601':'GSPOGE.ABB_DCS.203HRJ01AN601XB04',
+  '203HRJ01AN602':'GSPOGE.ABB_DCS.203HRJ01AN602XB04'
+});
 function isValidBlowerRuntimeProbeMapping(assetTag, dataParcTag) {
+  if (LIMESTONE_RUNTIME_EXACT_PAIR_V4[assetTag] && dataParcTag !== LIMESTONE_RUNTIME_EXACT_PAIR_V4[assetTag]) return false;
   return typeof assetTag === "string" &&
     BLOWER_RUNTIME_PROBE_ALLOWED_ASSET_TAGS.includes(assetTag) &&
     typeof dataParcTag === "string" && dataParcTag.length <= 200 &&
@@ -3617,17 +3626,6 @@ async function ensureBlowerRuntimeProbeSchema(
           FROM blower_runtime_probe_intents
         `),
 
-        database.prepare(`
-          CREATE INDEX IF NOT EXISTS
-            idx_blower_runtime_probe_intents_v2_asset_revision
-
-          ON blower_runtime_probe_intents_v2 (
-            asset_tag,
-            expected_cycle_start_revision,
-            expected_cycle_runtime_revision,
-            created_at DESC
-          )
-        `),
 
         // V3 snapshots the selected asset and explicitly confirmed RUN signal.
         database.prepare(`
@@ -3666,13 +3664,6 @@ async function ensureBlowerRuntimeProbeSchema(
           SELECT * FROM blower_runtime_probe_intents_v2
         `),
 
-        database.prepare(`
-          CREATE INDEX IF NOT EXISTS idx_blower_runtime_probe_intents_v3_asset_revision
-          ON blower_runtime_probe_intents_v3 (
-            asset_tag, expected_cycle_start_revision,
-            expected_cycle_runtime_revision, created_at DESC
-          )
-        `),
 
         // V4 adds FBHE/Seal Pot equipment without rebuilding or dropping the V3 table.
         database.prepare(`
@@ -3712,9 +3703,43 @@ async function ensureBlowerRuntimeProbeSchema(
           SELECT * FROM blower_runtime_probe_intents_v3
         `),
 
+        database.prepare(`CREATE TABLE IF NOT EXISTS blower_runtime_probe_intents_v5 (
+            request_id TEXT PRIMARY KEY NOT NULL,
+            reuse_key TEXT UNIQUE,
+            schema_version INTEGER NOT NULL,
+            asset_tag TEXT NOT NULL,
+            dataparc_tag TEXT NOT NULL,
+            window_start TEXT NOT NULL,
+            window_end TEXT NOT NULL,
+            chunk_days INTEGER NOT NULL,
+            chunk_count INTEGER NOT NULL,
+            expected_last_replacement_at TEXT NOT NULL,
+            expected_cycle_start_state TEXT NOT NULL,
+            expected_cycle_started_at TEXT NOT NULL,
+            expected_cycle_start_revision TEXT NOT NULL,
+            expected_cycle_runtime_revision TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            CHECK(schema_version = 1),
+            CHECK(asset_tag IN ('104ETH03AN601', '104ETH03AN602', '104ETG30AN601', '104ETG30AN602', '204ETG30AN601', '204ETG30AN602', '104SDF01AN001', '104SDF01AN002', '204SDF01AN001', '204SDF01AN002', '204LMDF01AN001', '104HHL60AP611', '104HHL60AP621', '104HHL60AP631', '204HHL60AP611', '204HHL60AP621', '204HHL60AP631', '104HHL10AN611', '104HHL10AN621', '104HHL10AN631', '204HHL10AN611', '204HHL10AN621', '204HHL10AN631', '103HRJ01AN601', '103HRJ01AN602', '203HRJ01AN601', '203HRJ01AN602')),
+            CHECK(length(dataparc_tag) BETWEEN 16 AND 200),
+            CHECK(substr(dataparc_tag, 1, 15) = 'GSPOGE.ABB_DCS.'),
+            CHECK(substr(dataparc_tag, 16, 1) GLOB '[A-Z0-9]'),
+            CHECK(dataparc_tag NOT GLOB '*[^A-Z0-9._-]*'),
+            CHECK(asset_tag <> '104ETH03AN602' OR dataparc_tag = 'GSPOGE.ABB_DCS.003ETH03AN602XB04'),
+            CHECK(dataparc_tag <> 'GSPOGE.ABB_DCS.003ETH03AN602XB04' OR asset_tag = '104ETH03AN602'),
+            CHECK(expected_cycle_start_state IN ('legacy', 'started')),
+            CHECK(chunk_days = 31),
+            CHECK(chunk_count >= 1)
+          )
+        `),
         database.prepare(`
-          CREATE INDEX IF NOT EXISTS idx_blower_runtime_probe_intents_v4_asset_revision
-          ON blower_runtime_probe_intents_v4 (
+          INSERT OR IGNORE INTO blower_runtime_probe_intents_v5
+          SELECT * FROM blower_runtime_probe_intents_v4
+        `),
+        database.prepare(`
+          CREATE INDEX IF NOT EXISTS idx_blower_runtime_probe_intents_v5_asset_revision
+          ON blower_runtime_probe_intents_v5 (
             asset_tag, expected_cycle_start_revision,
             expected_cycle_runtime_revision, created_at DESC
           )
@@ -3842,7 +3867,7 @@ async function findBlowerRuntimeProbeIntent(
     await database
       .prepare(`
         SELECT *
-        FROM blower_runtime_probe_intents_v4
+        FROM blower_runtime_probe_intents_v5
         WHERE request_id = ?
         LIMIT 1
       `)
@@ -8560,7 +8585,7 @@ async function createAuxiliaryMaterialBatchRequest(
 ========================================================= */
 
 const MAXIMUM_STATUS_BATCH_IDS =
-  24;
+  27;
 
 
 function parseStatusBatchRequestIds(
@@ -8605,7 +8630,7 @@ function parseStatusBatchRequestIds(
   ) {
     return {
       error:
-        "OIS 요청 상태는 한 번에 최대 24건까지 조회할 수 있습니다."
+        "OIS 요청 상태는 한 번에 최대 27건까지 조회할 수 있습니다."
     };
   }
 
@@ -9134,7 +9159,7 @@ async function ensureOisQueuePerformanceIndexes(
 ========================================================= */
 
 const MAXIMUM_BLOWER_RUNTIME_PROBE_BATCH_CLAIMS =
-  23;
+  26;
 
 
 const MAXIMUM_BLOWER_RUNTIME_PROBE_BATCH_CLAIM_ATTEMPTS =
@@ -9384,7 +9409,7 @@ async function findPendingBlowerRuntimeProbeRows(
             END AS probe_create_group_id
 
           FROM ois_data_requests AS request
-          INNER JOIN blower_runtime_probe_intents_v4 AS intent
+          INNER JOIN blower_runtime_probe_intents_v5 AS intent
             ON intent.request_id = request.id
           CROSS JOIN queue_poll
 
@@ -9866,7 +9891,7 @@ function prepareBlowerRuntimeProbeBatchClaimGuard(
           NOT EXISTS (
             SELECT 1
             FROM ois_data_requests AS request
-            INNER JOIN blower_runtime_probe_intents_v4 AS intent
+            INNER JOIN blower_runtime_probe_intents_v5 AS intent
               ON intent.request_id = request.id
             WHERE request.id = plan.request_id
               AND request.request_type = '${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
@@ -9949,7 +9974,7 @@ function prepareBlowerRuntimeProbeBatchClaimGuard(
         LIMIT 1
       )
 
-      INSERT INTO blower_runtime_probe_intents_v4 (
+      INSERT INTO blower_runtime_probe_intents_v5 (
         request_id,
         reuse_key,
         schema_version,
@@ -10033,7 +10058,7 @@ async function findBlowerRuntimeProbeIntentsByRequestIds(
       .prepare(
         [
           "SELECT *",
-          "FROM blower_runtime_probe_intents_v4",
+          "FROM blower_runtime_probe_intents_v5",
           "WHERE request_id IN (" +
             placeholders +
             ")"
@@ -10137,7 +10162,7 @@ async function claimBlowerRuntimeProbeBatchRound(
     error
   ) {
     if (
-      /NOT NULL constraint failed:\s*blower_runtime_probe_intents_v4\.dataparc_tag/i.test(
+      /NOT NULL constraint failed:\s*blower_runtime_probe_intents_v5\.dataparc_tag/i.test(
         String(
           error?.message ||
           error
@@ -10437,7 +10462,7 @@ async function findReplayableBlowerRuntimeProbeBatch(
         INNER JOIN replay_group
           ON replay_group.probe_create_group_id = request.probe_create_group_id
           AND replay_group.requested_by_id = request.requested_by_id
-        INNER JOIN blower_runtime_probe_intents_v4 AS intent
+        INNER JOIN blower_runtime_probe_intents_v5 AS intent
           ON intent.request_id = request.id
         ORDER BY request.probe_create_group_index ASC
       `)
@@ -11575,7 +11600,7 @@ async function failInvalidBlowerRuntimeProbeClaimCandidate(
         ),
       database
         .prepare(`
-          UPDATE blower_runtime_probe_intents_v4
+          UPDATE blower_runtime_probe_intents_v5
           SET
             reuse_key = NULL,
             updated_at = ?
@@ -11737,7 +11762,7 @@ async function claimOisAgentLaneCandidate(
       BLOWER_RUNTIME_PROBE_REQUEST_TYPE
       ? `AND EXISTS (
           SELECT 1
-          FROM blower_runtime_probe_intents_v4 AS intent
+          FROM blower_runtime_probe_intents_v5 AS intent
           WHERE intent.request_id = ois_data_requests.id
             AND intent.schema_version = ?
             AND intent.asset_tag = ?
@@ -18359,7 +18384,7 @@ async function findActiveBlowerRuntimeProbeRequest(
       .prepare(`
         SELECT request.*
         FROM ois_data_requests AS request
-        INNER JOIN blower_runtime_probe_intents_v4 AS intent
+        INNER JOIN blower_runtime_probe_intents_v5 AS intent
           ON intent.request_id = request.id
         WHERE request.request_type = ?
           AND request.requested_by_id = ?
@@ -18408,7 +18433,7 @@ async function retireStaleActiveBlowerRuntimeProbeRequests(
           AND status IN ('pending', 'processing')
           AND id IN (
             SELECT request_id
-            FROM blower_runtime_probe_intents_v4
+            FROM blower_runtime_probe_intents_v5
             WHERE asset_tag = ?
               AND (
                 COALESCE(reuse_key, '') <> ?
@@ -18429,7 +18454,7 @@ async function retireStaleActiveBlowerRuntimeProbeRequests(
 
     database
       .prepare(`
-        UPDATE blower_runtime_probe_intents_v4
+        UPDATE blower_runtime_probe_intents_v5
         SET reuse_key = NULL,
             updated_at = ?
         WHERE asset_tag = ?
@@ -18440,7 +18465,7 @@ async function retireStaleActiveBlowerRuntimeProbeRequests(
           AND EXISTS (
             SELECT 1
             FROM ois_data_requests
-            WHERE id = blower_runtime_probe_intents_v4.request_id
+            WHERE id = blower_runtime_probe_intents_v5.request_id
               AND requested_by_id = ?
               AND status = 'failed'
           )
@@ -18467,7 +18492,7 @@ async function findCompleteBlowerRuntimeProbeRequest(
       .prepare(`
         SELECT request.*
         FROM ois_data_requests AS request
-        INNER JOIN blower_runtime_probe_intents_v4 AS intent
+        INNER JOIN blower_runtime_probe_intents_v5 AS intent
           ON intent.request_id = request.id
         WHERE request.request_type = ?
           AND request.requested_by_id = ?
@@ -19299,7 +19324,7 @@ async function createBlowerRuntimeProbeRequest(
 
   await database
     .prepare(`
-      UPDATE blower_runtime_probe_intents_v4
+      UPDATE blower_runtime_probe_intents_v5
       SET reuse_key = NULL,
           updated_at = ?
       WHERE reuse_key = ?
@@ -19307,7 +19332,7 @@ async function createBlowerRuntimeProbeRequest(
           EXISTS (
             SELECT 1
             FROM ois_data_requests
-            WHERE id = blower_runtime_probe_intents_v4.request_id
+            WHERE id = blower_runtime_probe_intents_v5.request_id
               AND status = 'failed'
           )
           OR (
@@ -19315,7 +19340,7 @@ async function createBlowerRuntimeProbeRequest(
             AND EXISTS (
               SELECT 1
               FROM ois_data_requests
-              WHERE id = blower_runtime_probe_intents_v4.request_id
+              WHERE id = blower_runtime_probe_intents_v5.request_id
                 AND status = 'complete'
             )
           )
@@ -19360,7 +19385,7 @@ async function createBlowerRuntimeProbeRequest(
 
       database
         .prepare(`
-          INSERT INTO blower_runtime_probe_intents_v4 (
+          INSERT INTO blower_runtime_probe_intents_v5 (
             request_id,
             reuse_key,
             schema_version,
@@ -19406,7 +19431,7 @@ async function createBlowerRuntimeProbeRequest(
     error
   ) {
     if (
-      /UNIQUE constraint failed: blower_runtime_probe_intents_v4\.reuse_key/i.test(
+      /UNIQUE constraint failed: blower_runtime_probe_intents_v5\.reuse_key/i.test(
         String(
           error?.message ||
           error
@@ -19569,7 +19594,7 @@ async function loadBlowerRuntimeProbeBatchReuseRequests(
   if (!reuseKeys.length && !assetTags.length) return new Map();
   const requestedReuseKeys = new Set(reuseKeys);
   const result = await database.prepare(`SELECT intent.*,request.*
-    FROM blower_runtime_probe_intents_v4 AS intent
+    FROM blower_runtime_probe_intents_v5 AS intent
     INNER JOIN ois_data_requests AS request ON request.id=intent.request_id
     WHERE (intent.reuse_key IN (SELECT value FROM json_each(?))
       OR (intent.asset_tag IN (SELECT value FROM json_each(?))
@@ -19647,7 +19672,7 @@ function blowerRuntimeProbeBatchMutationStatements(database, preparedItems, requ
     // A mismatched row selects one deliberately invalid request_id. V4 declares
     // it NOT NULL, so D1 aborts this entire batch before any retirement/insert.
     database.prepare(`/* BLOWER_RUNTIME_BATCH_ASSET_CAS_V1 */
-      INSERT INTO blower_runtime_probe_intents_v4
+      INSERT INTO blower_runtime_probe_intents_v5
         (request_id,reuse_key,schema_version,asset_tag,dataparc_tag,window_start,window_end,chunk_days,chunk_count,
          expected_last_replacement_at,expected_cycle_start_state,expected_cycle_started_at,expected_cycle_start_revision,
          expected_cycle_runtime_revision,created_at,updated_at)
@@ -19671,7 +19696,7 @@ function blowerRuntimeProbeBatchMutationStatements(database, preparedItems, requ
     ["reused_active", "reused_complete"].includes(item.kind) || item.reusedActiveGuard === true);
   if (guardedReuse.length) statements.push(
     database.prepare(`/* BLOWER_RUNTIME_BATCH_QUEUE_CAS_V1 */
-      INSERT INTO blower_runtime_probe_intents_v4
+      INSERT INTO blower_runtime_probe_intents_v5
         (request_id,reuse_key,schema_version,asset_tag,dataparc_tag,window_start,window_end,chunk_days,chunk_count,
          expected_last_replacement_at,expected_cycle_start_state,expected_cycle_started_at,expected_cycle_start_revision,
          expected_cycle_runtime_revision,created_at,updated_at)
@@ -19684,7 +19709,7 @@ function blowerRuntimeProbeBatchMutationStatements(database, preparedItems, requ
       FROM json_each(?) AS plan
       WHERE json_extract(plan.value,'$.queueGuardKind') IN ('reused_active','reused_complete')
         AND NOT EXISTS (SELECT 1 FROM ois_data_requests AS request
-          INNER JOIN blower_runtime_probe_intents_v4 AS intent ON intent.request_id=request.id
+          INNER JOIN blower_runtime_probe_intents_v5 AS intent ON intent.request_id=request.id
           WHERE request.id=json_extract(plan.value,'$.itemId') AND request.request_type=?
             AND request.requested_by_id=? AND intent.asset_tag=json_extract(plan.value,'$.assetTag')
             AND intent.reuse_key=json_extract(plan.value,'$.reuseKey')
@@ -19704,7 +19729,7 @@ function blowerRuntimeProbeBatchMutationStatements(database, preparedItems, requ
           FROM json_each(?)
         ), initial_retire_ids AS (
           SELECT intent.request_id
-          FROM blower_runtime_probe_intents_v4 AS intent
+          FROM blower_runtime_probe_intents_v5 AS intent
           JOIN ois_data_requests AS request ON request.id=intent.request_id
           JOIN plans ON plans.asset_tag=intent.asset_tag
           WHERE request.request_type=? AND request.requested_by_id=?
@@ -19737,7 +19762,7 @@ function blowerRuntimeProbeBatchMutationStatements(database, preparedItems, requ
                   retire_group.group_id
                 AND active_group.status='processing')
         )
-        INSERT INTO blower_runtime_probe_intents_v4
+        INSERT INTO blower_runtime_probe_intents_v5
           (request_id,reuse_key,schema_version,asset_tag,dataparc_tag,window_start,window_end,chunk_days,chunk_count,
            expected_last_replacement_at,expected_cycle_start_state,expected_cycle_started_at,expected_cycle_start_revision,
            expected_cycle_runtime_revision,created_at,updated_at)
@@ -19759,7 +19784,7 @@ function blowerRuntimeProbeBatchMutationStatements(database, preparedItems, requ
                CAST(json_extract(value,'$.createNew') AS INTEGER) create_new FROM json_each(?)
       ), initial_retire_ids AS (
         SELECT intent.request_id
-        FROM blower_runtime_probe_intents_v4 intent
+        FROM blower_runtime_probe_intents_v5 intent
         JOIN ois_data_requests request ON request.id=intent.request_id
         JOIN plans ON plans.asset_tag=intent.asset_tag
         WHERE request.request_type=? AND request.requested_by_id=?
@@ -19801,7 +19826,7 @@ function blowerRuntimeProbeBatchMutationStatements(database, preparedItems, requ
                CAST(json_extract(value,'$.createNew') AS INTEGER) create_new FROM json_each(?)
       ), initial_retire_ids AS (
         SELECT intent.request_id
-        FROM blower_runtime_probe_intents_v4 intent
+        FROM blower_runtime_probe_intents_v5 intent
         JOIN ois_data_requests request ON request.id=intent.request_id
         JOIN plans ON plans.asset_tag=intent.asset_tag
         WHERE request.request_type=? AND request.requested_by_id=?
@@ -19828,10 +19853,10 @@ function blowerRuntimeProbeBatchMutationStatements(database, preparedItems, requ
                 AND ${blowerRuntimeProbeCreateGroupSql("grouped.id")}
           AND substr(grouped.id,1,${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH})=retire_groups.group_id
         WHERE grouped.request_type='${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
-      ) UPDATE blower_runtime_probe_intents_v4 SET reuse_key=NULL,updated_at=?
+      ) UPDATE blower_runtime_probe_intents_v5 SET reuse_key=NULL,updated_at=?
       WHERE request_id IN (SELECT request.id
         FROM ois_data_requests request
-        INNER JOIN blower_runtime_probe_intents_v4 intent ON intent.request_id=request.id
+        INNER JOIN blower_runtime_probe_intents_v5 intent ON intent.request_id=request.id
         WHERE request.requested_by_id=? AND (
           (request.status='failed' AND (request.id IN (SELECT request_id FROM retire_ids)
             OR EXISTS (SELECT 1 FROM plans WHERE plans.create_new=1 AND intent.reuse_key=plans.reuse_key)))
@@ -19859,7 +19884,7 @@ function blowerRuntimeProbeBatchMutationStatements(database, preparedItems, requ
     expectedLastReplacementAt:item.expectedLastReplacementAt,expectedCycleStartState:item.probeExpectedCycleStartState,
     expectedCycleStartedAt:item.probeExpectedCycleStartedAt,expectedCycleStartRevision:item.probeExpectedCycleStartRevision,
     expectedCycleRuntimeRevision:item.probeExpectedCycleRuntimeRevision,requestedAt:item.requestedAt})));
-  statements.push(database.prepare(`INSERT INTO blower_runtime_probe_intents_v4
+  statements.push(database.prepare(`INSERT INTO blower_runtime_probe_intents_v5
       (request_id,reuse_key,schema_version,asset_tag,dataparc_tag,window_start,window_end,chunk_days,chunk_count,
        expected_last_replacement_at,expected_cycle_start_state,expected_cycle_started_at,expected_cycle_start_revision,
        expected_cycle_runtime_revision,created_at,updated_at)
@@ -19897,7 +19922,7 @@ async function createBlowerRuntimeProbeBatchRequest(context, body) {
       bodyBytes > MAXIMUM_BLOWER_RUNTIME_CREATE_BATCH_BYTES || !requests.length ||
       requests.length > MAXIMUM_BLOWER_RUNTIME_CREATE_BATCH_ITEMS) {
     return jsonResponse({ok:false,code:"BLOWER_RUNTIME_CREATE_BATCH_INVALID",
-      message:"Blower 최신화 요청은 한 번에 1~24대의 일괄 요청으로 보내 주세요."}, 400);
+      message:"Blower 최신화 요청은 한 번에 1~27대의 일괄 요청으로 보내 주세요."}, 400);
   }
   const invalidIndex = requests.findIndex(item => !isPlainJsonObject(item) ||
     item.action !== "create_blower_runtime_probe" || item.unifiedRefresh !== true || item.incrementalRefresh !== true ||
@@ -20176,11 +20201,11 @@ async function createBlowerRuntimeProbeBatchRequest(context, body) {
     } catch (error) {
       if (isScheduledBatchConflict(error)) return jsonResponse({ok:false,code:"SCHEDULE_BATCH_CONFLICT",
         message:"다른 탭에서 이미 실행했거나 자동조회 설정이 변경되어 중복 요청을 등록하지 않았습니다."}, 409);
-      const assetSnapshotRace = /NOT NULL constraint failed:\s*blower_runtime_probe_intents_v4\.request_id/i
+      const assetSnapshotRace = /NOT NULL constraint failed:\s*blower_runtime_probe_intents_v5\.request_id/i
         .test(String(error?.message || error));
       if (assetSnapshotRace) return jsonResponse({ok:false,code:"BLOWER_RUNTIME_CREATE_BATCH_SNAPSHOT_CONFLICT",
         message:"최신화 요청 등록 중 Blower 교체·운전 이력이 변경되어 아무 요청도 등록하지 않았습니다. 다시 최신화해 주세요."}, 409);
-      const queueStateRace = /NOT NULL constraint failed:\s*blower_runtime_probe_intents_v4\.asset_tag/i
+      const queueStateRace = /NOT NULL constraint failed:\s*blower_runtime_probe_intents_v5\.asset_tag/i
         .test(String(error?.message || error));
       if (queueStateRace && attempt === 0) {
         queueGuardRetrySignature = preparedSignature;
@@ -20188,7 +20213,7 @@ async function createBlowerRuntimeProbeBatchRequest(context, body) {
       }
       if (queueStateRace) return jsonResponse({ok:false,code:"BLOWER_RUNTIME_CREATE_BATCH_QUEUE_CONFLICT",
         message:"최신화 요청 등록 중 기존 Blower 조회 상태가 변경되어 아무 요청도 등록하지 않았습니다. 다시 최신화해 주세요."}, 409);
-      const reuseRace = /UNIQUE constraint failed:\s*blower_runtime_probe_intents_v4\.reuse_key/i.test(String(error?.message || error));
+      const reuseRace = /UNIQUE constraint failed:\s*blower_runtime_probe_intents_v5\.reuse_key/i.test(String(error?.message || error));
       if (reuseRace && attempt === 0) continue;
       if (reuseRace) return jsonResponse({ok:false,code:"BLOWER_RUNTIME_CREATE_BATCH_CONFLICT",
         message:"다른 화면의 Blower 최신화 요청과 겹쳐 일괄 등록하지 않았습니다. 잠시 후 다시 최신화해 주세요."}, 409);
@@ -23602,7 +23627,7 @@ async function failActiveBlowerRuntimeProbeCreateGroup(
         ),
       database
         .prepare(`
-          UPDATE blower_runtime_probe_intents_v4
+          UPDATE blower_runtime_probe_intents_v5
           SET
             reuse_key = NULL,
             updated_at = ?
