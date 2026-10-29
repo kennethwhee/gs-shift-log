@@ -937,13 +937,15 @@
       seal_pot: "Seal Pot",
       organic_fuel: "유기성",
       flyash_bag: "BAG",
-      flyash_silo: "SILO"
+      flyash_silo: "SILO",
+      limestone: "Limestone"
     };
 
     const displayLabels = {
       all: "전체 현황",
       fbhe: "FBHE Blower", seal_pot: "Seal Pot Blower", organic_fuel: "유기성 Blower",
-      flyash_bag: "Fly Ash Bag Filter", flyash_silo: "Fly Ash Silo"
+      flyash_bag: "Fly Ash Bag Filter", flyash_silo: "Fly Ash Silo",
+      limestone: "Limestone Blower"
     };
     const types = [{ key: "all", label: "전체 Blower 현황", important: true }, ...(state.data.types || [])];
     elements.typeTabs.innerHTML = types
@@ -1562,7 +1564,7 @@
   }
 
   function usesUnitRows(blowerType) {
-    return ["fbhe", "seal_pot"].includes(String(blowerType || ""));
+    return ["fbhe", "seal_pot", "limestone"].includes(String(blowerType || ""));
   }
 
   function unitRowLabel(unitNo, items) {
@@ -1764,7 +1766,7 @@
         data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(overviewOperationState)}" data-operation-mode="${view.intermittent ? "intermittent" : "standard"}"
         aria-label="${escapeHtml(`${position} 이력 보기`)}">
         <span class="all-overview-card-head">
-          <span class="all-overview-identity"><strong>${escapeHtml(position)}</strong><small>${escapeHtml(asset.tagNumber)}</small></span>
+          <span class="all-overview-identity"><strong>${escapeHtml(position)}</strong><small>${escapeHtml(asset.tagNumber)}</small>${asset.limestoneSignalCandidate ?     `<small title="${escapeHtml(asset.limestoneSignalCandidate)} / RUN=1·0 신호 실측 확인 전">RUN 신호 확인 대기</small>` : ""}</span>
           <span class="all-overview-status-badges">
             ${view.intermittent ? '<span class="operation-mode-pill intermittent">간헐운전</span>' : ''}
             ${showOperationStateBadge ? `<span class="operation-pill ${escapeHtml(view.state)}">${escapeHtml(view.label)}</span>` : ''}

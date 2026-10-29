@@ -81,7 +81,7 @@ test("confirmed manure asset seeds once as unit 2 with unknown state and no inve
     await api.ensureSchema(database);
     const sqlite = database.raw();
     let row = sqlite.prepare("SELECT * FROM blower_history_assets WHERE tag_number = ?").get(TAG);
-    assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM blower_history_assets").get().n, 23);
+    assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM blower_history_assets").get().n, 27);
     assert.equal(row.blower_type, "organic_fuel");
     assert.equal(row.asset_group, "manure");
     assert.equal(row.unit_no, "2");
@@ -121,7 +121,7 @@ test("schema readiness adds the newly confirmed asset to an established 22-asset
     const existing = JSON.stringify(sqlite.prepare("SELECT * FROM blower_history_assets ORDER BY tag_number").all());
     const settings = JSON.stringify(sqlite.prepare("SELECT * FROM blower_history_settings ORDER BY blower_type").all());
     await api.ensureBlowerHistorySchemaReady(database);
-    assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM blower_history_assets").get().n, 23);
+    assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM blower_history_assets").get().n, 27);
     assert.equal(JSON.stringify(sqlite.prepare("SELECT * FROM blower_history_assets WHERE tag_number <> ? ORDER BY tag_number").all(TAG)), existing);
     assert.equal(JSON.stringify(sqlite.prepare("SELECT * FROM blower_history_settings ORDER BY blower_type").all()), settings);
     const state = JSON.stringify(sqlite.prepare("SELECT * FROM blower_history_assets ORDER BY tag_number").all());

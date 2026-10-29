@@ -36,6 +36,12 @@ const TYPE_DEFINITIONS = [
     label: "Fly Ash Silo Aeration Blower",
     important: false,
     expected: { shared: 2 }
+  },
+  {
+    key: "limestone",
+    label: "Limestone Blower",
+    important: false,
+    expected: { "1": 2, "2": 2 }
   }
 ];
 
@@ -69,9 +75,21 @@ const ASSET_SEEDS = [
   ["204ETG30AN602", "flyash_bag", "2", "#B", "#2 Fly Ash Bag Filter Aeration Blower #B", 552],
 
   ["104ETH03AN601", "flyash_silo", "shared", "#A", "Fly Ash Silo Aeration Blower #A", 601],
-  ["104ETH03AN602", "flyash_silo", "shared", "#B", "Fly Ash Silo Aeration Blower #B", 602]
+  ["104ETH03AN602", "flyash_silo", "shared", "#B", "Fly Ash Silo Aeration Blower #B", 602],
+  ["103HRJ01AN601", "limestone", "1", "#A", "#1 Limestone Blower #A", 701],
+  ["103HRJ01AN602", "limestone", "1", "#B", "#1 Limestone Blower #B", 702],
+  ["203HRJ01AN601", "limestone", "2", "#A", "#2 Limestone Blower #A", 751],
+  ["203HRJ01AN602", "limestone", "2", "#B", "#2 Limestone Blower #B", 752]
 ];
 
+// Recorded instrument candidates supplied by the operator; not a verified binary RUN feed.
+// /PLOT is the trend URL suffix and must never enter runtime sample requests.
+const LIMESTONE_RUN_SIGNAL_CANDIDATES = Object.freeze({
+  "103HRJ01AN601": "GSPOGE.ABB_DCS.103HRJ01AN601XB04",
+  "103HRJ01AN602": "GSPOGE.ABB_DCS.103HRJ01AN602XB04",
+  "203HRJ01AN601": "GSPOGE.ABB_DCS.203HRJ01AN601XB04",
+  "203HRJ01AN602": "GSPOGE.ABB_DCS.203HRJ01AN602XB04"
+});
 const ASSET_SEED_TAG_SET = new Set(ASSET_SEEDS.map(seed => seed[0]));
 const ASSET_SEED_TAG_ASSETS = ASSET_SEEDS.map(seed => ({ tag_number: seed[0] }));
 
@@ -832,7 +850,8 @@ async function ensureSchema(database) {
     ["seal_pot", null, null, null],
     ["organic_fuel", null, null, null],
     ["flyash_bag", null, null, null],
-    ["flyash_silo", null, null, null]
+    ["flyash_silo", null, null, null],
+    ["limestone", null, null, null]
   ];
 
   for (const [type, cycleDays, warningDays, criticalDays] of settingSeeds) {
@@ -983,7 +1002,7 @@ async function ensureBlowerHistorySchemaReady(database) {
         (
           SELECT COUNT(*)
           FROM blower_history_settings
-          WHERE blower_type IN ('fbhe', 'seal_pot', 'organic_fuel', 'flyash_bag', 'flyash_silo')
+          WHERE blower_type IN ('fbhe', 'seal_pot', 'organic_fuel', 'flyash_bag', 'flyash_silo', 'limestone')
         ) AS setting_count,
         (
           SELECT COUNT(*)
@@ -994,7 +1013,9 @@ async function ensureBlowerHistorySchemaReady(database) {
             '204SDF01AN002',
             '204ETG30AN602',
             '104ETH03AN602',
-            '204LMDF01AN001'
+            '204LMDF01AN001',
+              '103HRJ01AN601', '103HRJ01AN602',
+              '203HRJ01AN601', '203HRJ01AN602'
           )
         ) AS sentinel_asset_count
     `).first();
@@ -1034,8 +1055,8 @@ async function ensureBlowerHistorySchemaReady(database) {
       .first();
 
     if (
-      Number(ready?.setting_count || 0) >= 5 &&
-      Number(ready?.sentinel_asset_count || 0) >= 6 &&
+      Number(ready?.setting_count || 0) >= 6 &&
+      Number(ready?.sentinel_asset_count || 0) >= 10 &&
       Number(uninitializedCycleRuntime?.count || 0) === 0 &&
       atomicGuardTable?.name === "blower_history_atomic_guard" &&
       activeSlotIndex?.name === "idx_blower_history_assets_active_slot" &&
@@ -1128,7 +1149,9 @@ function isIntermittentBlower(asset) {
 /* BLOWER_ALL_RUN_SIGNAL_V1 — measured RUN durations, never a live wall-clock estimate. */
 function usesMeasuredBlowerRuntime(asset) {
   const tag = normalizeText(asset?.tag_number || asset?.tagNumber);
-  return DATAPARC_RUNTIME_SYNC_ASSET_TAGS.includes(tag) || isIntermittentBlower(asset);
+  return DATAPARC_RUNTIME_SYNC_ASSET_TAGS.includes(tag) ||
+    normalizeText(asset?.blower_type || asset?.blowerType) === "limestone" ||
+    isIntermittentBlower(asset);
 }
 
 function currentRuntimeHours(asset, now = new Date()) {
@@ -1872,7 +1895,9 @@ async function loadAssetStates(database, settings, options = {}) {
       now
     ), ...(initialBasis || { cycleBasisKind: asset.last_replacement_at ? "replacement" : "uninitialized",
       initialStartedAt: "", actualLastReplacementAt: normalizeText(asset.last_replacement_at) }),
-      dataParcTag: latestSuccessfulDataParcTag(asset.tag_number, runtimeRows) || configuredManureRunSignal(asset), dataParcRuntimeBasis: runtimeBasis,
+      dataParcTag: latestSuccessfulDataParcTag(asset.tag_number, runtimeRows) || configuredManureRunSignal(asset),
+      limestoneSignalCandidate: LIMESTONE_RUN_SIGNAL_CANDIDATES[asset.tag_number] || "",
+      dataParcRuntimeBasis: runtimeBasis,
       ...(runRuntime ? { runRuntime } : {}),
       // A lightweight plan must not turn an unverified saved result into a
       // fresh full-range query merely because event-list fallback was removed.
