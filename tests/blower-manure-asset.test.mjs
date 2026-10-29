@@ -102,7 +102,8 @@ test("confirmed manure asset seeds once as unit 2 with unknown state and no inve
     assert.equal(manure.operationState, "unknown");
     assert.equal(manure.cycleElapsedHours, null);
     assert.equal(manure.severity, "uninitialized");
-    assert.equal(manure.dataParcTag, "");
+    // The operator confirmed this RUN signal; a configured tag is not a measured result.
+    assert.equal(manure.dataParcTag, "GSPOGE.ABB_DCS.204LMDF01AN001XB04");
     assert.ok(!api.buildMissingTagSummary(states).some(item => item.groupKey === "manure"));
   } finally { database.close(); }
 });

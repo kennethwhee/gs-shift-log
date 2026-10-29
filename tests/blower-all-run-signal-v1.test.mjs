@@ -78,7 +78,8 @@ test('additive V4 copies all eleven legacy intents intact and never restores ret
 test('a failed log scan is visibly partial and refresh/history paths do not call OIS bridges',()=>{
  const s=readFileSync(new URL('../maintenance/blower-history.js',import.meta.url),'utf8');
  const refresh=s.slice(s.indexOf('  async function refreshAllBlowers()'),s.indexOf('  async function refreshFbheForUnified('));
- assert.match(refresh,/core\.refreshLogsForRuntime/);assert.match(refresh,/phase = "조회 계획";\s*await io.reload\(\);\s*const planned = core.plan/);
+ // Planning already uses bounded server pages; do not require the retired full reload.
+ assert.match(refresh,/core\.refreshLogsForRuntime/);assert.match(refresh,/phase = "조회 계획";\s*setUnifiedRefreshPhase\(phase\);\s*planned = await readUnifiedRefreshPlan\(core, io\)/);
  assert.doesNotMatch(refresh,/executeOis|create_fbhe_vibration_batch|create_seal_pot_runtime_batch/);assert.match(refresh,/업무일지 확인 미완료/);assert.match(refresh,/partial \? "partial"/);
  const details=s.slice(s.indexOf('if (action === "runtime_query_settings")'),s.indexOf('if (action === "history_event_delete")'));
  assert.match(details,/openDataParcRuntimeDialog/);assert.doesNotMatch(details,/handleFbheVibrationQuery|BlowerSealPotDetails/);

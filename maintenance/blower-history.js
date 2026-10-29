@@ -39,6 +39,29 @@
     return isDataParcRuntimeAsset(asset) && isDataParcRunSignalTag(saved) && saved !== DATAPARC_RUNTIME_KNOWN_SOURCE ? saved : "";
   }
 
+  // The legacy cycle anchor can represent a confirmed first startup. Keep that
+  // explicit provenance visible instead of inventing a V-Belt replacement.
+  function isInitialStartupBasis(asset) {
+    return asset?.tagNumber === "204LMDF01AN001" && asset.cycleBasisKind === "initial_startup" &&
+      Number.isFinite(Date.parse(asset.initialStartedAt || "")) &&
+      Date.parse(asset.initialStartedAt) === Date.parse(asset.lastReplacementAt || "");
+  }
+
+  function cycleReferenceLabel(asset, short = false) {
+    return isInitialStartupBasis(asset) ? "최초 기동" : short ? "최근 교체" : "최근 V-Belt 교체";
+  }
+
+  function cycleReferenceDisplay(asset) {
+    return isInitialStartupBasis(asset) ? formatKstDateTimeDisplay(asset.initialStartedAt) : formatDate(asset.lastReplacementAt);
+  }
+
+  function initialStartupEvidence(asset) {
+    if (!isInitialStartupBasis(asset)) return null;
+    return getAssetEvents(asset.tagNumber).find(event => event.eventType === "startup" &&
+      event.sourceType === "initial_startup_confirmed" &&
+      Date.parse(event.eventDate) === Date.parse(asset.initialStartedAt)) || null;
+  }
+
   const state = {
     data: null,
     activeType: "all",
@@ -1168,6 +1191,7 @@
   }
 
   function isAssetAwaitingBackfill(asset) {
+    if (isInitialStartupBasis(asset)) return false;
     if (!shouldHideAutomaticData()) return false;
 
     const latestRecordedReplacement = asset?.lastReplacementAt
@@ -1212,6 +1236,9 @@
     if (sourceType === "ois_runtime_refresh") return { label: "OIS 최신화", className: "dataparc" };
     if (sourceType === "dataparc_runtime") {
       return { label: "DataPARC 조회", className: "dataparc" };
+    }
+    if (sourceType === "initial_startup_confirmed") {
+      return { label: "확인된 최초 기동", className: "manual" };
     }
     if (sourceType === "manual") {
       return { label: "수동 등록", className: "manual" };
@@ -1310,7 +1337,8 @@
     const intermittent = asset.blowerType === "organic_fuel" || asset.assetGroup === "manure";
     const cycleDays = Number(setting?.cycleDays);
     const cycleElapsedHours = roundHours(asset.cycleElapsedHours);
-    const replacementEvent = asset.lastReplacementAt ? getLatestReplacementEvent(asset) : null;
+    const replacementEvent = isInitialStartupBasis(asset) ? initialStartupEvidence(asset)
+      : asset.lastReplacementAt ? getLatestReplacementEvent(asset) : null;
     const awaitingBackfill = isAssetAwaitingBackfill(asset);
     const confirmed = Boolean(asset.lastReplacementAt) && !awaitingBackfill;
     const cycleStartState = String(asset.cycleStartState || "legacy");
@@ -1351,7 +1379,9 @@
         : formatRemainingDday(nextReplacementAt))
       : "-";
     const remainingDetail = cycleHours ? formatSignedRemaining(asset) : "교체주기 미설정";
-    const evidenceText = fullEvidence || emptyEvidenceMessage(replacementEvent);
+    const evidenceText = fullEvidence || (isInitialStartupBasis(asset)
+      ? `${cycleReferenceDisplay(asset)} 최초 기동을 RUN 조회 시작 기준으로 사용합니다.`
+      : emptyEvidenceMessage(replacementEvent));
     const cardPosition = formatCardPosition(asset);
     const unitAttribute = ["1", "2", "shared"].includes(String(asset.unitNo || ""))
       ? ` data-unit="${escapeHtml(asset.unitNo)}"`
@@ -1436,7 +1466,7 @@
             </div>
           ` : (effectiveStartupPending && cycleHours ? `<div class="cycle-progress-block is-placeholder" aria-hidden="true"><div class="progress-track"></div></div>` : "")}
 
-          ${intermittent ? `<div class="cycle-date-line"><span><em>최근 교체</em><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></span></div>` : runView ? `
+          ${intermittent ? `<div class="cycle-date-line"><span><em>${escapeHtml(cycleReferenceLabel(asset, true))}</em><strong>${escapeHtml(cycleReferenceDisplay(asset))}</strong></span></div>` : runView ? `
             <div class="cycle-date-line run-cycle-date"><span><em>최근 교체</em><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></span>
               ${cycleHours ? `<span title="조회 시점부터 연속 운전한다고 가정한 예상일입니다."><em>예상</em><strong>${escapeHtml(nextReplacementAt)}</strong></span><small>기준 ${cycleBasisLabel}</small>` : ""}
             </div>` : actualStarted || startupPending ? `
@@ -1456,7 +1486,7 @@
 
           <details class="asset-evidence${evidence ? "" : " is-empty"}">
             <summary class="evidence-heading">
-              <span>교체 등록 근거</span>
+              <span>${isInitialStartupBasis(asset) ? "최초 기동 등록 근거" : "교체 등록 근거"}</span>
               <em class="evidence-source-badge ${escapeHtml(evidenceMeta.className)}">${escapeHtml(evidenceMeta.label)}</em>
             </summary>
             <p>${escapeHtml(evidenceText)}</p>
@@ -1725,7 +1755,7 @@
     const severity = displaySeverity(asset);
     const position = formatCardPosition(asset);
     const replacement = asset.lastReplacementAt && !isAssetAwaitingBackfill(asset)
-      ? formatDate(asset.lastReplacementAt) : "미확인";
+      ? cycleReferenceDisplay(asset) : "미확인";
     const intermittentInstantState = view.intermittent && ["running", "stopped"].includes(view.state);
     const overviewOperationState = intermittentInstantState ? "intermittent" : view.state;
     const showOperationStateBadge = !intermittentInstantState;
@@ -1742,7 +1772,7 @@
         </span>
         <span class="all-overview-metrics">
           <span><small>누적 기동시간</small><strong>${escapeHtml(view.runtime)}</strong></span>
-          <span><small>최근 V-Belt 교체</small><strong>${escapeHtml(replacement)}</strong></span>
+          <span><small>${escapeHtml(cycleReferenceLabel(asset))}</small><strong>${escapeHtml(replacement)}</strong></span>
         </span>
         <span class="all-overview-query-period">
           <small>데이터 조회 기간</small>
@@ -1948,6 +1978,20 @@
     if (elements.unifiedRefreshStatus) { elements.unifiedRefreshStatus.hidden = false; elements.unifiedRefreshStatus.dataset.state = status; }
     if (elements.unifiedRefreshDiagnosticText) elements.unifiedRefreshDiagnosticText.textContent = String(details || "");
     if (elements.unifiedRefreshDiagnostics) elements.unifiedRefreshDiagnostics.hidden = !details;
+  }
+  async function initializeConfirmedManureRun(io, logResult) {
+    if (logResult?.complete !== true) return null;
+    const asset = (state.data?.assets || []).find(item => item.tagNumber === "204LMDF01AN001");
+    if (!asset || asset.enabled === false || asset.enabled === 0 || asset.lastReplacementAt) return null;
+    io.assertWritable();
+    io.progress("축분 Blower 최초 기동 기준 확인 중");
+    const result = await io.api({ method: "POST", body: { action: "initialize_manure_run", unifiedRefresh: true } });
+    io.assertWritable();
+    if (result?.ok !== true || result.tagNumber !== asset.tagNumber ||
+        !["initialized", "already_initialized", "existing_cycle"].includes(result.disposition)) {
+      throw new Error("축분 Blower 최초 기동 기준의 저장 결과를 확인하지 못했습니다. 새로고침 후 확인해 주세요.");
+    }
+    return result;
   }
   async function readUnifiedRefreshPlan(core, io) {
     let cursor = "", snapshot = null;
@@ -2303,7 +2347,7 @@
     elements.historyCycleSummary.innerHTML = asset.lastReplacementAt && !awaitingBackfill
       ? `
         <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(severityLabel(severity))}</span>
-        <div><span>최근 V-Belt 교체</span><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></div>
+        <div><span>${escapeHtml(cycleReferenceLabel(asset))}</span><strong>${escapeHtml(cycleReferenceDisplay(asset))}</strong></div>
         ${runView ? `<div><span>확인 상태</span><strong>${escapeHtml(runView.stateLabel)}</strong></div>` : asset.runtimeAccumulationMode === "measured_only" || asset.blowerType === "organic_fuel" ? "" : `<div><span>현재 운전상태</span><strong>${startupPending ? "기동 대기" : asset.cycleRuntimeState === "unknown" ? "확인 필요" : asset.isRunning ? "기동중" : "정지중"}</strong></div>`}
         <div><span>${runView || asset.blowerType === "organic_fuel" ? "누적 기동시간" : "누적 운전시간"}</span><strong>${runView ? escapeHtml(runView.primary) : startupPending ? "0시간" : asset.cycleRuntimeState === "unknown" || asset.measurementRequired ? "최신화 필요" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
       `
@@ -2460,6 +2504,8 @@
   // [BLOWER-MANUAL-HISTORY-DELETE-V1]
   function canEditAnyHistoryEvent(asset, event) {
     return Boolean(hasAuthenticatedWriteAccess() && !isMobileMonitoringView() && asset && event &&
+      event.sourceType !== "initial_startup_confirmed" &&
+      (!isInitialStartupBasis(asset) || event.eventType === "problem") &&
       event.tagNumber === asset.tagNumber && event.id && event.updatedAt);
   }
 
@@ -9703,7 +9749,7 @@
     elements.dataparcRuntimeStartAt.min = minimumInput;
     elements.dataparcRuntimeStartAt.max = formatKstDateTimeInput();
     elements.dataparcRuntimeMinimum.textContent = minimumInput
-      ? `현재 V-Belt 교체 이후(${formatKstDateTimeDisplay(asset.lastReplacementAt)})의 시각만 선택할 수 있습니다.`
+      ? `현재 ${isInitialStartupBasis(asset) ? "최초 기동" : "V-Belt 교체"} 이후(${formatKstDateTimeDisplay(asset.lastReplacementAt)})의 시각만 선택할 수 있습니다.`
       : "현재 V-Belt 교체 이후의 시각을 선택해 주세요.";
     elements.dataparcRuntimePreviousBasis.hidden = !previousBasis;
     elements.dataparcRuntimePreviousBasis.textContent = previousBasis
@@ -9721,6 +9767,8 @@
     elements.dataparcRuntimeConfirmField.hidden = fixedSignal;
     elements.dataparcRuntimeSourceHelp.textContent = fixedSignal
       ? "Silo #B에서 확인된 운전 신호입니다."
+      : isInitialStartupBasis(asset)
+        ? "확인된 최초 기동 시각부터 실제 RUN=1 구간만 합산합니다. 최초 조회에 성공하면 통합조회에서 마지막 성공 시각 이후를 이어서 조회합니다."
       : window.BlowerUnifiedRefresh?.fbheSealRunAsset(asset)
         ? "현재 설비 TAG는 이력의 식별번호입니다. 임의로 AP/AN 또는 XB04를 바꾸지 말고 실제 1=기동·0=정지 RUN 전체 TAG를 입력해 주세요. 첫 조회는 확인된 실제 기동일이 있으면 그 시각부터, 없으면 교체일부터 RUN=1 구간만 합산합니다. 성공 후에는 [최신화]만 사용합니다."
         : "DataPARC에서 해당 설비의 RUN 신호 전체 TAG를 복사해 주세요. 조회·저장에 성공하면 다음부터 자동 입력됩니다.";
@@ -9751,7 +9799,7 @@
         selectedTime < replacementTime
       )
     ) {
-      showToast("DataPARC 조회 시작은 현재 V-Belt 교체 이후로 선택해 주세요.", "error");
+      showToast(`DataPARC 조회 시작은 현재 ${isInitialStartupBasis(asset) ? "최초 기동" : "V-Belt 교체"} 이후로 선택해 주세요.`, "error");
       elements.dataparcRuntimeStartAt.focus();
       return;
     }
@@ -10842,6 +10890,8 @@
           logNote = logResult.complete
             ? `업무일지 신규·변경분 확인 · 확정 V-Belt 교체 자동반영 포함 · 감지 ${Number(logResult.totals.insertedCount || 0)}건 · 교체운전 ${Number(logResult.totals.appliedStateChanges || 0)}건`
             : `업무일지 확인 미완료 · ${logResult.warning} · 운전시간은 저장된 교체 기준`;
+          const initialManure = await initializeConfirmedManureRun(io, logResult);
+          if (initialManure?.initialized === true) logNote += " · 축분 최초 기동 기준 등록";
           phase = "조회 계획";
           setUnifiedRefreshPhase(phase);
           planned = await readUnifiedRefreshPlan(core, io);

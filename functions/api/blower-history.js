@@ -1,5 +1,8 @@
 import { handleBlowerSchedule } from "../_shared/blower-schedule-v1.js";
 import { incrementalEvidence, verifiedAppendBase, loadAppendBase, loadAppendIntent, combineAppendProbe } from "../_shared/blower-incremental.js";
+import { MANURE_INITIAL_RUN_CONFIG, initializeManureInitialRun, manureInitialRunBasis,
+  manureInitialRunProjection, loadManureInitialAudit, configuredManureRunSignal,
+  isProtectedManureInitialEvent } from "../_shared/blower-manure-initial-run-v1.js";
 
 const FORCED_SUPER_ADMIN_EMPLOYEE_NO = "2014081";
 
@@ -1811,6 +1814,9 @@ async function loadAssetStates(database, settings, options = {}) {
   }
   const now = new Date();
 
+  const initialRunAudit = assets.some(asset => asset.tag_number === MANURE_INITIAL_RUN_CONFIG.tagNumber)
+    ? await loadManureInitialAudit(database) : null;
+
   return assets.map(asset => {
     const runtimeRows = runtimeByTag.get(asset.tag_number) || [];
     const replacementAt = asset.last_replacement_at ? new Date(asset.last_replacement_at) : null;
@@ -1857,13 +1863,16 @@ async function loadAssetStates(database, settings, options = {}) {
       asset.runtime_measured_at = manual && (!runtimeBasis || Date.parse(manual.event_date) > Date.parse(runtimeBasis.observedAt))
         ? manual.event_date : runtimeBasis?.observedAt || "";
     }
+    const initialBasis = manureInitialRunProjection(asset, runtimeRows, initialRunAudit);
     return { ...buildAssetState(
       asset,
       settings[asset.blower_type],
       latestProblem,
       latestReference,
       now
-    ), dataParcTag: latestSuccessfulDataParcTag(asset.tag_number, runtimeRows), dataParcRuntimeBasis: runtimeBasis,
+    ), ...(initialBasis || { cycleBasisKind: asset.last_replacement_at ? "replacement" : "uninitialized",
+      initialStartedAt: "", actualLastReplacementAt: normalizeText(asset.last_replacement_at) }),
+      dataParcTag: latestSuccessfulDataParcTag(asset.tag_number, runtimeRows) || configuredManureRunSignal(asset), dataParcRuntimeBasis: runtimeBasis,
       ...(runRuntime ? { runRuntime } : {}),
       // A lightweight plan must not turn an unverified saved result into a
       // fresh full-range query merely because event-list fallback was removed.
@@ -5544,6 +5553,10 @@ function historyDeleteRestoreBeforeSnapshot(event, replacement, now) {
   };
 }
 function historyMutationProjection(asset, activeEvents, beforeEvent, afterEvent = null) {
+  // Problem notes do not change a commissioning cycle. The legacy rebuild below
+  // assumes a replacement row exists and would otherwise erase this baseline.
+  if (asset.tag_number === MANURE_INITIAL_RUN_CONFIG.tagNumber && beforeEvent?.event_type === "problem" &&
+      (!afterEvent || afterEvent.event_type === "problem")) return null;
   const currentReplacementTime = historyDeleteTime(asset.last_replacement_at);
   const replacements = (activeEvents || []).filter(event => event.event_type === "replacement").sort(historyDeleteOrder);
   const latestReplacement = replacements[0] || null;
@@ -5590,11 +5603,25 @@ function historyMutationProjection(asset, activeEvents, beforeEvent, afterEvent 
     is_running: 0
   };
 }
+function manureInitialHistoryMutationBlocked(asset, events, selected, nextEventType = "", initialAudit = null) {
+  if (isProtectedManureInitialEvent(selected)) return true;
+  if (!events.some(isProtectedManureInitialEvent) && !initialAudit) return false;
+  const boundaries = ["replacement", "startup", "operation_start", "operation_stop", "runtime_correction"];
+  if (manureInitialRunProjection(asset, events, initialAudit) &&
+      (boundaries.includes(selected.event_type) || boundaries.includes(nextEventType))) return true;
+  // The existing generic rebuild understands genuine replacement events only.
+  // Do not let deleting/retyping the first real replacement discard the retained
+  // commissioning baseline. A dedicated reviewed transition is required instead.
+  return selected.event_type === "replacement" && nextEventType !== "replacement" &&
+    !events.some(event => event.id !== selected.id && event.event_type === "replacement");
+}
 function planManualHistoryDeletion(asset, events, eventId, options = {}) {
   const now = options.now instanceof Date && Number.isFinite(options.now.getTime()) ? options.now : new Date();
   const fail = (message, code = "HISTORY_DELETE_BLOCKED", status = 409, extra = {}) => ({ ok: false, message, code, status, ...extra });
   const selected = events.find(event => event.id === eventId && event.event_type !== HISTORY_HIDDEN_EVENT_TYPE);
   if (!selected) return fail("삭제할 이력을 찾을 수 없습니다. 이력을 다시 열어 주세요.", "HISTORY_DELETE_NOT_FOUND", 404);
+  if (manureInitialHistoryMutationBlocked(asset, events, selected, "", options.initialAudit)) return fail(
+    "최초 기동 기준을 보존해야 하므로 이 운전 이력은 일반 삭제로 변경할 수 없습니다. 실제 V-Belt 교체는 교체 등록을 사용해 주세요.", "INITIAL_STARTUP_BASIS_PROTECTED");
   if (selected.tag_number !== asset.tag_number || !selected.updated_at || !Number.isFinite(historyDeleteTime(selected.event_date))) {
     return fail("이력의 TAG·일시·수정정보를 확인할 수 없어 삭제하지 않았습니다.");
   }
@@ -5640,7 +5667,8 @@ async function prepareManualHistoryDeletion(database, body, options = {}) {
       normalizeText(body.expectedCycleRuntimeRevision) !== normalizeText(asset.cycle_runtime_revision)) {
     return fail("교체 또는 운전 이력이 변경되었습니다. 이력을 다시 열고 삭제해 주세요.");
   }
-  const plan = planManualHistoryDeletion(asset, events, eventId, options);
+  const initialAudit = tagNumber === MANURE_INITIAL_RUN_CONFIG.tagNumber ? await loadManureInitialAudit(database) : null;
+  const plan = planManualHistoryDeletion(asset, events, eventId, { ...options, initialAudit });
   if (!plan.ok) return plan;
   const snapshot = JSON.stringify({ asset, events, eventId });
   if (new TextEncoder().encode(snapshot).length > 1200000) return fail("이 설비의 이력량이 커서 안전한 삭제 범위를 넘었습니다. 삭제하지 않았습니다.");
@@ -5744,6 +5772,9 @@ async function editAnyHistoryEvent(database, user, body, options = {}) {
   const events = Array.isArray(result.results) ? result.results : [];
   const selected = events.find(event => event.id === eventId);
   if (!selected) return fail("수정할 이력을 찾을 수 없습니다.", 404, "HISTORY_EDIT_NOT_FOUND");
+  const initialAudit = tagNumber === MANURE_INITIAL_RUN_CONFIG.tagNumber ? await loadManureInitialAudit(database) : null;
+  if (manureInitialHistoryMutationBlocked(asset, events, selected, normalizeText(body.eventType), initialAudit)) return fail(
+    "최초 기동 기준을 보존해야 하므로 이 운전 이력은 일반 수정으로 변경할 수 없습니다. 실제 V-Belt 교체는 교체 등록을 사용해 주세요.", 409, "INITIAL_STARTUP_BASIS_PROTECTED");
   if (normalizeText(selected.updated_at) !== expectedEventUpdatedAt) {
     return fail("선택한 이력이 이미 변경되었습니다. 이력을 다시 열어 주세요.", 409, "HISTORY_EDIT_STALE");
   }
@@ -14634,6 +14665,10 @@ async function handlePost(context, user, body) {
     }, 403);
   }
 
+  if (action === "initialize_manure_run") {
+    return initializeManureInitialRun(database, user, body);
+  }
+
   if (action === "settings") {
     return updateSettings(database, user, body);
   }
@@ -14824,6 +14859,9 @@ export async function onRequestPost(context) {
 
 /* Node 회귀 테스트에서 V13 복구와 Cycle 상태 경계를 실제 SQLite로 검증한다. */
 export const __blowerHistoryTest = {
+  MANURE_INITIAL_RUN_CONFIG, initializeManureInitialRun, manureInitialRunBasis, manureInitialRunProjection,
+  loadManureInitialAudit, configuredManureRunSignal,
+  isProtectedManureInitialEvent, manureInitialHistoryMutationBlocked,
   buildRefreshState, buildRefreshStatePage, handleGet,
   isFbheSealRunAsset, fbheSealRunProvenance, historyDeleteRestoreBoundary, historyDeleteRestoreBeforeSnapshot,
   ensureIncrementalLogSchema, loadIncrementalLogPage, storeIncrementalLogReceipts,
