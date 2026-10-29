@@ -247,18 +247,18 @@
     </section>
 
     <nav class="tabs" aria-label="고형연료 관리 보기">
-      <button class="tab is-active" type="button" data-tab="trouble">
-        Trouble 내역
-        <span id="troubleTabCount">0</span>
-      </button>
-
-      <button class="tab" type="button" data-tab="unload">
+      <button class="tab is-active" type="button" data-tab="unload">
         하역 기록
         <span id="unloadTabCount">0</span>
       </button>
+
+      <button class="tab" type="button" data-tab="trouble">
+        Trouble 내역
+        <span id="troubleTabCount">0</span>
+      </button>
     </nav>
 
-    <section class="sheet tab-panel is-active" id="troublePanel" data-tab-panel="trouble">
+    <section class="sheet tab-panel" id="troublePanel" data-tab-panel="trouble" hidden>
       <header class="sheet-head">
         <div>
           <strong>Trouble 발생 내역</strong>
@@ -289,7 +289,7 @@
       </div>
     </section>
 
-    <section class="sheet tab-panel" id="unloadPanel" data-tab-panel="unload" hidden>
+    <section class="sheet tab-panel is-active" id="unloadPanel" data-tab-panel="unload">
       <header class="sheet-head">
         <div>
           <strong>하역시간 기록</strong>
@@ -637,7 +637,7 @@
   </div>
 
   <script src="/maintenance/shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
-  <script src="/maintenance/solid-fuel-trouble.js?v=20261022-emergency-contacts-v1" defer></script>
+  <script src="/maintenance/solid-fuel-trouble.js?v=20261029-unload-default-v1" defer></script>
   <script src="/maintenance/solid-fuel-native-redesign-v21.js?v=20260925-solid-fuel-stable-v1" defer></script>
 </body>
 </html>

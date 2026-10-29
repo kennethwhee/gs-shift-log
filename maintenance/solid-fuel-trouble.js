@@ -5,7 +5,7 @@
   const API="/api/solid-fuel-trouble",AUTH="gsShiftLog.currentUser";
   const MOBILE_READ_ONLY_QUERY="(max-width: 760px)";
   const SILO_OPTIONS=[["","선택 안 함"],["#A","Storage #A"],["#B","Storage #B"],["Day","Day Silo"]];
-  const state={troubles:[],unloads:[],companies:[],filterCompanies:[],companyDirectory:[],user:null,permissions:{canCreate:false,canEdit:false,canDelete:false,canUploadPhoto:false,canManageUnloading:false,canManageCompanies:false},loading:false,saving:false,mode:"month",tab:"trouble",photoScale:1};
+  const state={troubles:[],unloads:[],companies:[],filterCompanies:[],companyDirectory:[],user:null,permissions:{canCreate:false,canEdit:false,canDelete:false,canUploadPhoto:false,canManageUnloading:false,canManageCompanies:false},loading:false,saving:false,mode:"month",tab:"unload",photoScale:1};
   const contactsState={rows:[],companies:[],loading:false,saving:false,loaded:false,failed:false,canManage:false,editingId:"",version:0,conflict:false,opener:null};
   const $=id=>document.getElementById(id);
   const e={
@@ -787,7 +787,7 @@
     setMode("month");
     syncAccessMode();
     bind();
-    if(new URLSearchParams(location.search).get("embed")==="cofiring")switchTab("unload");
+    switchTab("unload");
     const mobileMedia=window.matchMedia?.(MOBILE_READ_ONLY_QUERY);
     const handleAccessChange=()=>{
       if(state.loading)syncAccessMode();
