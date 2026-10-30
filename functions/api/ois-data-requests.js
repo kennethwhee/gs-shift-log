@@ -1,6 +1,6 @@
 import dailyOperationQueryContract from "../../daily-operation/daily-operation-query-contract.js";
 import { prepareScheduledBatch, scheduledBatchStatements, isScheduledBatchConflict } from "../_shared/blower-schedule-v1.js";
-import { loadAppendBase, verifiedAppendBase, ensureAppendSchema, appendIntentStatement } from "../_shared/blower-incremental.js";
+import { loadAppendBase, verifiedAppendBase, ensureAppendSchema, appendIntentStatement, BLOWER_LIMESTONE_INCREMENTAL_VERSION } from "../_shared/blower-incremental.js";
 import bedAshMinuteContract from "../../efficiency/bed-ash-minute-contract.js";
 
 "use strict";
@@ -10682,6 +10682,7 @@ async function handleAgentNextBlowerRuntimeProbeBatch(
         ok:
           false,
         code: "BLOWER_LIMIT_VALIDATION_V7",
+        limestoneIncrementalVersion: BLOWER_LIMESTONE_INCREMENTAL_VERSION,
         queueRecoveryVersion: 7,
         maxAdditionalClaims: MAXIMUM_BLOWER_RUNTIME_PROBE_BATCH_CLAIMS,
         maxCompletionItems: MAXIMUM_BLOWER_RUNTIME_PROBE_BATCH_COMPLETIONS,

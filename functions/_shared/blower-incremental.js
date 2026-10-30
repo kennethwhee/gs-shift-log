@@ -3,6 +3,11 @@
  * interval; only this server may attach that interval to a verified predecessor.
  * A request CAS revision and the existing atomic history guard prevent double-adds.
  */
+export const BLOWER_LIMESTONE_INCREMENTAL_VERSION = 8;
+// Keep pending signal-only cycles and verified automatic boundaries on the same
+// exact asset allowlist. Limestone still requires an existing verified receipt;
+// this does not supply a missing replacement time or create measured RUN hours.
+const SUPPORTED_BINARY_RUN_ASSET = /^(?:(?:104|204)(?:HHL(?:60AP|10AN)(?:611|621|631)|ETG30AN60[12]|SDF01AN00[12])|104ETH03AN60[12]|204LMDF01AN001|(?:103|203)HRJ01AN60[12])$/;
 const instant = v => typeof v === 'string' && /(?:Z|[+-]\d{2}:\d{2})$/.test(v) ? Date.parse(v) : NaN;
 const number = v => v !== null && v !== undefined && v !== '' && typeof v !== 'boolean' && Number.isFinite(Number(v)) ? Number(v) : NaN;
 const near = (a, b) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) < 0.000001;
@@ -21,7 +26,7 @@ export function incrementalEvidence(source) {
 function strictVerifiedAppendBase(asset, rows, dataParcTag) {
   if (!asset?.last_replacement_at) return null;
   const assetTag = String(asset.tag_number || '').trim().toUpperCase();
-  const supportedBinaryRun = /^(?:(?:104|204)(?:HHL(?:60AP|10AN)(?:611|621|631)|ETG30AN60[12]|SDF01AN00[12])|104ETH03AN60[12]|204LMDF01AN001)$/.test(assetTag);
+  const supportedBinaryRun = SUPPORTED_BINARY_RUN_ASSET.test(assetTag);
   if (asset.cycle_start_state === 'pending' && !supportedBinaryRun) return null;
   const stored = number(asset.cycle_runtime_hours), anchor = instant(asset.cycle_runtime_anchor_at);
   if (!Number.isFinite(stored) || stored < 0 || !Number.isFinite(anchor)) return null;
@@ -158,7 +163,7 @@ function automaticBoundaryState(row) {
 
 function verifiedAutomaticBoundaryAppendBase(asset, rows, dataParcTag) {
   const assetTag = String(asset?.tag_number || '');
-  if (!/^(?:(?:104|204)(?:HHL(?:60AP|10AN)(?:611|621|631)|ETG30AN60[12]|SDF01AN00[12])|104ETH03AN60[12]|204LMDF01AN001)$/.test(assetTag) ||
+  if (!SUPPORTED_BINARY_RUN_ASSET.test(assetTag) ||
       !['legacy','started'].includes(asset.cycle_start_state || 'legacy') ||
       typeof asset.cycle_runtime_revision !== 'string' || !asset.cycle_runtime_revision.trim()) return null;
   const rawNumber = value => typeof value === 'number' || (typeof value === 'string' && value.trim()) ? number(value) : NaN;
