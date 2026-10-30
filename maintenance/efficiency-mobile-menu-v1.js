@@ -77,13 +77,13 @@
     const value = (number, digits, approximate = estimated) => (approximate && finite(number) !== null ? '≈ ' : '') + format(number, digits);
     const estimatedClass = estimated ? ' gsm-estimated' : '';
     const period = item.snapshot?.period || item.record?.period;
-    return `<div class="gsm-record-meta"><strong class="gsm-badge${estimatedClass}">${estimated ? '추정 저장 · 미확정' : '마감 저장'}</strong>
+    return `<div class="gsm-total${estimatedClass}"><span>종합 혼소율</span><strong>${value(summary?.combined?.totalRatio, 2)}${finite(summary?.combined?.totalRatio) === null ? '' : '%'}</strong></div>
+      <div class="gsm-record-meta"><strong class="gsm-badge${estimatedClass}">${estimated ? '추정 저장 · 미확정' : '마감 저장'}</strong>
       ${item.adjustmentApplied || item.adjustment ? '<span>혼소 조정 반영</span>' : ''}</div>
       ${estimated ? '<p class="gsm-note">추정값이 포함되어 있습니다. 공식 마감값이 아닙니다.</p>' : ''}
       <div class="gsm-table-wrap"><table><caption>저장된 연료 사용량 및 혼소율</caption><thead><tr><th scope="col">항목</th><th scope="col">1호기</th><th scope="col">2호기</th></tr></thead>
       <tbody>${FUELS.map(([key, label]) => `<tr><th scope="row">${label} <small>t</small></th>${['unit1','unit2'].map(unit => `<td class="${estimated && key === 'organic' ? estimatedClass : ''}">${value(summary?.[unit]?.[key], 3, estimated && key === 'organic')}</td>`).join('')}</tr>`).join('')}
       ${[['bioRatio','Bio'],['organicGroupRatio','유기성·축분'],['totalRatio','총 혼소율']].map(([key,label]) => `<tr class="gsm-ratio-row"><th scope="row">${label} <small>%</small></th>${['unit1','unit2'].map(unit => `<td class="${estimatedClass}">${value(summary?.[unit]?.[key], 2)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
-      <div class="gsm-total${estimatedClass}"><span>전체 혼소율</span><strong>${value(summary?.combined?.totalRatio, 2)}${finite(summary?.combined?.totalRatio) === null ? '' : '%'}</strong></div>
       ${period ? `<p class="gsm-note">기간 ${escapeHtml(period.startLocal || '')} ~ ${escapeHtml(period.endLocal || '')}</p>` : ''}
       <p class="gsm-note">저장 ${escapeHtml(timeLabel(item.updatedAt || item.savedAt))}${item.savedByName ? ' · ' + escapeHtml(item.savedByName) : ''}</p>`;
   }
@@ -207,7 +207,7 @@
       if (frame) return;
       frame = document.createElement('iframe');
       frame.title = '고형연료 관리'; frame.className = 'gsm-solid-frame';
-      frame.src = '/maintenance/solid-fuel-trouble?embed=efficiency-mobile&v=20261030-mobile-write-v1';
+      frame.src = '/maintenance/solid-fuel-trouble?embed=efficiency-mobile&v=20261030-mobile-compact-v3';
       solid.replaceChildren(frame);
     }
     function focusMenu() {
@@ -217,6 +217,8 @@
       buttons.forEach(button => { button.tabIndex = button === active ? 0 : -1; });
     }
     controller = {selectView(view) {
+      if (mobile.matches && ['cofiring-monitor', 'solid-fuel'].includes(view)) modal.dataset.gsmActiveView = view;
+      else delete modal.dataset.gsmActiveView;
       focusMenu();
       if (view === 'cofiring-monitor' && mobile.matches) void load();
       else { cancel(); if (view === 'solid-fuel' && mobile.matches) openSolid(); }
