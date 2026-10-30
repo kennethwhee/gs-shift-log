@@ -10802,13 +10802,18 @@
     elements.unifiedRefreshText.textContent = state.unifiedRefreshBusy
       ? `${unifiedRefreshPhaseLabel(state.unifiedRefreshPhase)} · 저장된 이력을 볼 수 있습니다.` : text;
     elements.unifiedRefreshDetails.hidden = results.length === 0;
+    /* BLOWER_RESULT_REASON_SPLIT_V1: intentional guards are not runtime failures. */
     const complete = results.filter(x => x.status === "complete").length;
     const failed = results.filter(x => x.status === "failed").length;
     const skipped = results.filter(x => x.status === "skipped").length;
     const waiting = results.filter(x => x.status === "waiting").length;
     const unchanged = results.filter(x => x.status === "complete" && x.unchanged === true).length;
-    elements.unifiedRefreshSummary.textContent = `통합조회 결과 · 반영 ${complete - unchanged}대${unchanged ? ` · 유지 ${unchanged}대` : ""}${waiting ? ` · 확인 대기 ${waiting}대` : ""} · 미반영 ${failed + skipped}대`;
-    elements.unifiedRefreshList.innerHTML = results.map(item => `<div class="unified-refresh-result" data-result="${escapeHtml(item.status)}">
+    elements.unifiedRefreshSummary.textContent = `통합조회 결과 · 반영 ${complete - unchanged}대${unchanged ? ` · 유지 ${unchanged}대` : ""}${waiting ? ` · 확인 대기 ${waiting}대` : ""}${skipped ? ` · 조회 보류 ${skipped}대` : ""}${failed ? ` · 실패 ${failed}대` : ""}`;
+    // Presentation only: keep the original result array, requests, and receipts intact.
+    // Surface true failures above protected skipped assets, with stable order inside groups.
+    const priority = { failed: 0, waiting: 1, skipped: 2, complete: 3 };
+    const displayResults = [...results].sort((a, b) => (priority[a.status] ?? 4) - (priority[b.status] ?? 4));
+    elements.unifiedRefreshList.innerHTML = displayResults.map(item => `<div class="unified-refresh-result" data-result="${escapeHtml(item.status)}">
       <strong>${escapeHtml(item.displayName || item.tagNumber)}<small class="refresh-result-tag">${escapeHtml(item.tagNumber || "")}</small></strong><span>${escapeHtml(item.message)}</span></div>`).join("");
   }
 
@@ -10933,16 +10938,25 @@
         const counts = state.unifiedRefreshResults;
         const failures = counts.filter(x => x.status !== "complete").length;
         const waitingCount = counts.filter(x => x.status === "waiting").length;
+        const failedCount = counts.filter(x => x.status === "failed").length;
+        const skippedCount = counts.filter(x => x.status === "skipped").length;
+        const issueSummary = [skippedCount ? `조회 보류 ${skippedCount}대` : "", failedCount ? `실패 ${failedCount}대` : ""].filter(Boolean).join(" · ");
         const unchanged = counts.filter(x => x.status === "complete" && x.unchanged === true).length;
         const completion = `${formatKstDateTimeDisplay(currentServerDate().toISOString())} · 반영 ${counts.length - failures - unchanged}대${unchanged ? ` · 유지 ${unchanged}대` : ""} / 전체 ${planned.targetCount}대`;
         partial = partial || failures > 0;
         setOverviewRefreshProcessed(planned.targetCount - waitingCount, planned.targetCount, waitingCount ? "조회 결과 확인 대기" : partial ? "부분 완료 · 결과 확인" : "통합조회 완료");
-        renderUnifiedRefreshProgress(`${partial ? "부분 통합조회" : "통합조회 완료"} · ${completion} · ${logNote}${failures ? " · 미반영 설비는 결과 확인" : ""}`);
+        renderUnifiedRefreshProgress(`${partial ? "부분 통합조회" : "통합조회 완료"} · ${completion} · ${logNote}${issueSummary ? ` · ${issueSummary}` : ""}`);
         renderUnifiedRefreshOutcome(partial ? "partial" : "complete",
           waitingCount ? `${waitingCount}대의 결과를 기다리고 있습니다. 저장된 이력을 보면서 ‘조회 결과 다시 확인’을 눌러 주세요.`
-            : partial ? "일부 조회가 완료되지 않았습니다. 상세 결과를 확인해 주세요." : "Blower 조회가 완료됐습니다.",
-          `${completion}\n${logNote}${failures ? "\n미반영 설비는 결과 목록을 확인해 주세요." : ""}`);
-        showToast(waitingCount ? "조회 결과 확인 대기 · 기존 이력은 확인할 수 있습니다." : partial ? "일부 조회 미완료 · 상세 결과를 확인해 주세요." : "전체 Blower 통합조회를 완료했습니다.");
+            : failedCount ? "일부 설비 조회에 실패했습니다. 상세 결과의 실패 항목을 먼저 확인해 주세요."
+            : skippedCount ? "교체 기준 등의 근거가 미확정인 설비는 조회를 보류했습니다. 기존 값은 유지됩니다."
+            : partial ? "업무일지 확인이 완료되지 않았습니다. 상세 결과를 확인해 주세요."
+            : "Blower 조회가 완료됐습니다.",
+          `${completion}\n${logNote}${issueSummary ? "\n" + issueSummary + " · 상세 결과를 확인해 주세요." : ""}`);
+        showToast(waitingCount ? "조회 결과 확인 대기 · 기존 이력은 확인할 수 있습니다."
+          : failedCount ? "실패 설비가 있습니다. 상세 결과 맨 위를 확인해 주세요."
+          : skippedCount ? "근거 미확정 설비 조회 보류 · 기존 값 유지"
+          : partial ? "업무일지 확인 미완료 · 상세 결과 확인" : "전체 Blower 통합조회를 완료했습니다.");
       } catch (e) {
         stopped = true;
         const detail = core?.errorLabel ? core.errorLabel(e) : (e.message || "연결 오류");
