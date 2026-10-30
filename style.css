@@ -121304,3 +121304,17 @@ html body #efficiencyArmRollTab.efficiency-team-tab .icon {
   }
 }
 /* GS_MAIN_LOG_ROLE_BOUNDARY_V4_END */
+
+/* GS_MAIN_LOG_ROLE_BOUNDARY_FIX_V5_START */
+/* Paint separators inside cells: collapsed borders can disappear at reduced zoom. */
+@media screen and (min-width: 769px) {
+  #statusView #logTableBody > tr.log-row:not(:last-child) > td {
+    border-bottom: 0 !important;
+    box-shadow: inset 0 -2px 0 #9fb3c8 !important;
+  }
+
+  #statusView #logTableBody > tr.log-row + tr.log-row > td {
+    border-top: 0 !important;
+  }
+}
+/* GS_MAIN_LOG_ROLE_BOUNDARY_FIX_V5_END */
