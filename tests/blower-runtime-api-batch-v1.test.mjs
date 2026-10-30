@@ -308,7 +308,7 @@ class MockStatement {
 
     if (
       this.sql.includes(
-        "FROM blower_runtime_probe_intents_v4"
+        "FROM blower_runtime_probe_intents_v5"
       ) &&
       this.sql.includes(
         "request_id IN ("
@@ -675,7 +675,7 @@ class MockStatement {
   async first() {
     if (
       this.sql.includes(
-        "FROM blower_runtime_probe_intents_v4"
+        "FROM blower_runtime_probe_intents_v5"
       )
     ) {
       return this.database.intents.get(
@@ -1166,22 +1166,22 @@ test(
 
     assert.match(
       apiSource,
-      /const MAXIMUM_STATUS_BATCH_IDS\s*=\s*24\s*;/
+      /const MAXIMUM_STATUS_BATCH_IDS\s*=\s*27\s*;/
     );
 
     assert.match(
       apiSource,
-      /상태는 한 번에 최대 24건까지 조회할 수 있습니다\./
+      /상태는 한 번에 최대 27건까지 조회할 수 있습니다\./
     );
 
     assert.match(
       apiSource,
-      /const MAXIMUM_BLOWER_RUNTIME_PROBE_BATCH_CLAIMS\s*=\s*23\s*;/
+      /const MAXIMUM_BLOWER_RUNTIME_PROBE_BATCH_CLAIMS\s*=\s*26\s*;/
     );
 
     assert.match(
       apiSource,
-      /const MAXIMUM_BLOWER_RUNTIME_PROBE_BATCH_COMPLETIONS\s*=\s*24\s*;/
+      /const MAXIMUM_BLOWER_RUNTIME_PROBE_BATCH_COMPLETIONS\s*=\s*27\s*;/
     );
 
     assert.match(
@@ -1191,7 +1191,7 @@ test(
 
     assert.match(
       apiSource,
-      /FROM ois_data_requests AS request[\s\S]*?INNER JOIN blower_runtime_probe_intents_v4 AS intent[\s\S]*?ON intent\.request_id = request\.id/
+      /FROM ois_data_requests AS request[\s\S]*?INNER JOIN blower_runtime_probe_intents_v5 AS intent[\s\S]*?ON intent\.request_id = request\.id/
     );
 
     assert.match(
@@ -1206,7 +1206,7 @@ test(
 
     assert.match(
       apiSource,
-      /FROM blower_runtime_probe_intents_v4[\s\S]*?WHERE request_id IN \(/
+      /FROM blower_runtime_probe_intents_v5[\s\S]*?WHERE request_id IN \(/
     );
 
     const claimRoundSource =
@@ -1450,7 +1450,7 @@ test(
 
 
 test(
-  "GET batch defaults to 23, rejects an explicit out-of-range limit, and retries CAS competition at most three times",
+  "GET batch defaults to 26, rejects an explicit out-of-range limit, and retries CAS competition at most three times",
   async () => {
     assert.equal(
       __oisDataRequestsTest
@@ -1460,7 +1460,7 @@ test(
           )
         )
         .limit,
-      23
+      26
     );
 
     const invalidFixture =
@@ -1475,7 +1475,7 @@ test(
       await onRequestGet({
         request:
           new Request(
-            "https://example.test/api/ois-data-requests?action=next_blower_batch&limit=24",
+            "https://example.test/api/ois-data-requests?action=next_blower_batch&limit=27",
             {
               headers:
                 agentHeaders()
@@ -2429,7 +2429,7 @@ test(
 
       const insertIntent =
         sqlite.prepare(`
-          INSERT INTO blower_runtime_probe_intents_v4 (
+          INSERT INTO blower_runtime_probe_intents_v5 (
             request_id, reuse_key, schema_version, asset_tag,
             dataparc_tag, window_start, window_end, chunk_days,
             chunk_count, expected_last_replacement_at,

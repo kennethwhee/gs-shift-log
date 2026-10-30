@@ -388,7 +388,7 @@ test("changing one asset signal or cycle retires only that asset and source-spec
     assert.notEqual(sourceChange.body.item.id, first.id);
     assert.equal(f.sqlite.prepare("SELECT status FROM ois_data_requests WHERE id=?").get(first.id).status, "failed");
     assert.equal(f.sqlite.prepare("SELECT status FROM ois_data_requests WHERE id=?").get(other.id).status, "pending");
-    assert.equal(f.sqlite.prepare("SELECT dataparc_tag FROM blower_runtime_probe_intents_v4 WHERE request_id=?").get(first.id).dataparc_tag, testSignal(tag));
+    assert.equal(f.sqlite.prepare("SELECT dataparc_tag FROM blower_runtime_probe_intents_v5 WHERE request_id=?").get(first.id).dataparc_tag, testSignal(tag));
     f.sqlite.prepare("UPDATE blower_history_assets SET cycle_runtime_revision='changed' WHERE tag_number=?").run(tag);
     const revisionChange = await browserCreate(f.database, createBody(tag, { dataParcTag: "GSPOGE.ABB_DCS.TEST_ONLY_REPLACED_SIGNAL" }));
     assert.equal(revisionChange.status, 201);
@@ -444,7 +444,7 @@ test("V2 migration preserves existing B intent exactly, retains old tables, and 
   const f = createFixture();
   try {
     const old = (await browserCreate(f.database)).body.item;
-    f.sqlite.exec("INSERT INTO blower_runtime_probe_intents_v2 SELECT * FROM blower_runtime_probe_intents_v4; DROP TABLE blower_runtime_probe_intents_v4;");
+    f.sqlite.exec("INSERT INTO blower_runtime_probe_intents_v2 SELECT * FROM blower_runtime_probe_intents_v5; DROP TABLE blower_runtime_probe_intents_v4;");
     const oldRow = f.sqlite.prepare("SELECT * FROM blower_runtime_probe_intents_v2 WHERE request_id=?").get(old.id);
     const freshDatabase = { prepare: f.database.prepare, batch: f.database.batch };
     await __oisDataRequestsTest.ensureBlowerRuntimeProbeSchema(freshDatabase);
@@ -498,10 +498,11 @@ test("FBHE pending cycles queue on V4 using the Agent-compatible legacy wire sna
     assert.equal(probe.expectedCycleStartedAt, '');
     assert.equal(probe.expectedCycleStartRevision, 'signal-only-v1:pending-start-r1');
     assert.equal(probe.expectedCycleRuntimeRevision, 'pending-runtime-r1');
-    const intent = f.sqlite.prepare(`SELECT * FROM blower_runtime_probe_intents_v4 WHERE request_id=?`).get(created.body.item.id);
+    const intent = f.sqlite.prepare(`SELECT * FROM blower_runtime_probe_intents_v5 WHERE request_id=?`).get(created.body.item.id);
     assert.equal(intent.expected_cycle_start_state, 'legacy');
     assert.equal(intent.expected_cycle_start_revision, 'signal-only-v1:pending-start-r1');
-    assert.throws(() => f.sqlite.prepare(`SELECT * FROM blower_runtime_probe_intents_v5`).all(), /no such table/i);
+    assert.equal(f.sqlite.prepare(`SELECT COUNT(*) AS n FROM blower_runtime_probe_intents_v4 WHERE request_id=?`).get(created.body.item.id).n, 0,
+      'new requests must use V5 without overwriting the legacy V4 table');
 
     const claimed = await agentClaim(f.database);
     assert.equal(claimed.status, 200);

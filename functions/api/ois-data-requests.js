@@ -8579,7 +8579,7 @@ async function createAuxiliaryMaterialBatchRequest(
     ?action=status_batch
     &ids=요청ID1,요청ID2,...
 
-  - 한 번에 최대 24건
+  - 한 번에 최대 27건
   - 사용자 인증은 묶음 전체에서 한 번만 수행
   - 전달받은 요청 중 실제 만료된 활성 요청만 정리
 ========================================================= */
@@ -8848,6 +8848,89 @@ async function expireSelectedActiveRequests(
 }
 
 
+/* BLOWER_QUEUE_RECOVERY_V7: retire only selected, owner-matched pending
+   followers of a complete leader. These cannot be claimed by the grouped
+   queue. Never requeue a completed result or touch a processing request. */
+async function retireSelectedIncompleteBlowerGroups(database, rows, user) {
+  const owner = normalizeEmployeeNo(user?.employeeNo);
+  if (!owner) return false;
+  const blockedGroups = new Set();
+  for (const row of rows) {
+    const group = parseBlowerRuntimeProbeCreateGroupRequestId(row?.id);
+    if (group && (row.status === "processing" ||
+        (group.itemIndex === 0 && row.status !== "complete"))) {
+      blockedGroups.add(group.groupId);
+    }
+  }
+  const ids = rows.filter(row => {
+    const group = parseBlowerRuntimeProbeCreateGroupRequestId(row?.id);
+    return row.request_type === BLOWER_RUNTIME_PROBE_REQUEST_TYPE &&
+      row.status === "pending" && row.requested_by_id === owner &&
+      group && group.itemIndex > 0 && !blockedGroups.has(group.groupId);
+  }).map(row => row.id);
+  if (!ids.length) return false;
+  // A status read must not migrate historical databases just to retire a group.
+  const intentTable = await database.prepare(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'blower_runtime_probe_intents_v5'"
+  ).first();
+  if (!intentTable) return false;
+
+  const now = new Date().toISOString();
+  const message = "BLOWER_GROUP_RETRY_REQUIRED: 이전 묶음의 남은 대기를 종료했습니다. 기존 운전시간은 유지됩니다. 최신 조회를 다시 실행해 주세요.";
+  const selectedIds = JSON.stringify(ids);
+  const results = await database.batch([
+    database.prepare(`
+      UPDATE ois_data_requests AS pending
+      SET status = 'failed', error_message = ?, completed_at = ?, updated_at = ?
+      WHERE pending.id IN (SELECT value FROM json_each(?))
+        AND pending.request_type = '${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+        AND pending.requested_by_id = ?
+        AND pending.status = 'pending'
+        AND pending.started_at IS NULL
+        AND COALESCE(pending.agent_id, '') = ''
+        AND ${blowerRuntimeProbeCreateGroupSql("pending.id")}
+        AND CAST(substr(pending.id, 46, 2) AS INTEGER) > 0
+        AND EXISTS (
+          SELECT 1 FROM ois_data_requests AS leader
+          WHERE leader.id = substr(pending.id, 1, ${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH}) || '00'
+            AND leader.request_type = '${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+            AND leader.requested_by_id = pending.requested_by_id
+            AND leader.status = 'complete'
+        )
+        AND CAST(substr(pending.id, 43, 2) AS INTEGER) = (
+          SELECT COUNT(*) FROM ois_data_requests AS member
+          WHERE member.id >= substr(pending.id, 1, ${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH})
+            AND member.id < substr(pending.id, 1, ${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH - 1}) || char(96)
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM ois_data_requests AS member
+          WHERE member.id >= substr(pending.id, 1, ${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH})
+            AND member.id < substr(pending.id, 1, ${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH - 1}) || char(96)
+            AND (member.request_type <> '${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+              OR member.requested_by_id <> pending.requested_by_id
+              OR NOT ${blowerRuntimeProbeCreateGroupSql("member.id")}
+              OR member.status NOT IN ('pending', 'complete', 'failed'))
+        )
+    `).bind(message, now, now, selectedIds, owner),
+    database.prepare(`
+      UPDATE blower_runtime_probe_intents_v5
+      SET reuse_key = NULL, updated_at = ?
+      WHERE request_id IN (SELECT value FROM json_each(?))
+        AND EXISTS (
+          SELECT 1 FROM ois_data_requests AS retired
+          WHERE retired.id = blower_runtime_probe_intents_v5.request_id
+            AND retired.request_type = '${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+            AND retired.requested_by_id = ?
+            AND retired.status = 'failed'
+            AND retired.error_message = ?
+            AND retired.completed_at = ?
+        )
+    `).bind(now, selectedIds, owner, message, now)
+  ]);
+  return Number(results?.[0]?.meta?.changes) > 0;
+}
+
+
 async function handleStatusBatchGet(
   context,
   requestUrl
@@ -8898,6 +8981,10 @@ async function handleStatusBatchGet(
     );
 
 
+  const retiredBlowerAny = await retireSelectedIncompleteBlowerGroups(
+    context.env.DB, rows, authentication.user
+  );
+
   const expiredAny =
     await expireSelectedActiveRequests(
       context.env.DB,
@@ -8906,7 +8993,7 @@ async function handleStatusBatchGet(
 
 
   if (
-    expiredAny
+    expiredAny || retiredBlowerAny
   ) {
     rows =
       await findRequestsByIds(
@@ -9150,9 +9237,9 @@ async function ensureOisQueuePerformanceIndexes(
 
   GET /api/ois-data-requests
     ?action=next_blower_batch
-    &limit=1..23
+    &limit=1..26
 
-  - limit 생략 시 23건
+  - limit 생략 시 26건
   - Blower read-only 요청만 오래된 순서로 claim
   - 조건부 UPDATE와 restart guard는 단건 claim과 동일
   - 다른 Agent와의 경쟁은 최대 3회 재조회
@@ -9312,13 +9399,13 @@ function parseBlowerRuntimeProbeBatchLimit(
 
 
   if (
-    !/^(?:[1-9]|1[0-9]|2[0-3])$/.test(
+    !/^(?:[1-9]|1[0-9]|2[0-6])$/.test(
       limitText
     )
   ) {
     return {
       error:
-        "DataPARC Blower 묶음 요청 limit은 1 이상 23 이하 정수여야 합니다."
+        "DataPARC Blower 묶음 요청 limit은 1 이상 26 이하 정수여야 합니다."
     };
   }
 
@@ -10594,6 +10681,10 @@ async function handleAgentNextBlowerRuntimeProbeBatch(
       {
         ok:
           false,
+        code: "BLOWER_LIMIT_VALIDATION_V7",
+        queueRecoveryVersion: 7,
+        maxAdditionalClaims: MAXIMUM_BLOWER_RUNTIME_PROBE_BATCH_CLAIMS,
+        maxCompletionItems: MAXIMUM_BLOWER_RUNTIME_PROBE_BATCH_COMPLETIONS,
         message:
           parsedLimit.error
       },
@@ -22237,7 +22328,7 @@ async function rebuildSolarHistoryOverridesFromDailyData(
 
 
 const MAXIMUM_BLOWER_RUNTIME_PROBE_BATCH_COMPLETIONS =
-  24;
+  27;
 
 
 function parseBlowerRuntimeProbeCompletionBatch(
@@ -22259,7 +22350,7 @@ function parseBlowerRuntimeProbeCompletionBatch(
   ) {
     return {
       error:
-        "DataPARC Blower 완료 결과는 한 번에 1건 이상 24건 이하로 보내 주세요."
+        "DataPARC Blower 완료 결과는 한 번에 1건 이상 27건 이하로 보내 주세요."
     };
   }
 
