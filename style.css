@@ -121265,3 +121265,29 @@ html body #efficiencyArmRollTab.efficiency-team-tab .icon {
   }
 }
 /* GS_MAIN_LOG_SPACING_COMPACT_V2_END */
+
+/* GS_MAIN_LOG_DIVIDER_SPACING_COMPACT_V3_START */
+/* Main desktop work-log only: tighten space around category/role divider lines. */
+@media screen and (min-width: 769px) {
+  #logTableBody .log-preview .log-preview__group.is-section-start {
+    margin-top: 2px !important;
+    padding-top: 3px !important;
+  }
+
+  #logTableBody .log-preview .log-preview__group.is-section-start:first-child {
+    margin-top: 0 !important;
+    padding-top: 1px !important;
+  }
+
+  #logTableBody .log-preview .log-preview__role-section {
+    height: 3px !important;
+    min-height: 3px !important;
+    margin-top: 2px !important;
+    padding-top: 2px !important;
+  }
+
+  #logTableBody .log-preview .log-preview__role-section .log-preview__role-divider {
+    top: 2px !important;
+  }
+}
+/* GS_MAIN_LOG_DIVIDER_SPACING_COMPACT_V3_END */
