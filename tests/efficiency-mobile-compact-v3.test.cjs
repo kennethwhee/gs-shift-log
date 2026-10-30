@@ -12,8 +12,9 @@ test('combined ratio appears before detailed rows without changing zero, missing
     };
     const before = JSON.stringify(record);
     const markup = recordMarkup(record);
-    const total = markup.match(/^<div class="gsm-total([^"]*)"><span>종합 혼소율<\/span><strong>(.*?)<\/strong><\/div>/);
+    const total = markup.match(/^<div class="gsm-total([^"]*)">.*?<strong>(.*?)<\/strong><\/div>/);
     assert.ok(total, 'summary is first in document order');
+    assert.ok(total[0].includes('종합 혼소율'));
     assert.equal(total[2], expected);
     assert.equal(total[1].includes('gsm-estimated'), estimated);
     assert.ok(markup.indexOf('<table>') > total[0].length);

@@ -71,15 +71,32 @@
     return Number.isFinite(time.getTime()) ? time.toLocaleString('ko-KR', {timeZone:'Asia/Seoul', hour12:false}) : '—';
   }
   const empty = message => `<p class="gsm-empty">${escapeHtml(message)}</p>`;
+  function adjustmentState(item) {
+    // The API flag includes the latest saved adjustment/CLEAR revision. An old
+    // snapshot or a merely present adjustment object must not override false.
+    if (typeof item?.adjustmentApplied === 'boolean') return item.adjustmentApplied;
+    const result = item?.effectiveResult || item?.snapshot?.result;
+    if (typeof result?.adjustment?.applied === 'boolean') return result.adjustment.applied;
+    return null;
+  }
+  function sourceBadge(record) {
+    const adjusted = adjustmentState(record.item);
+    if (record.estimated && adjusted !== true) return '';
+    const kind = adjusted === true ? 'adjusted' : adjusted === false ? 'original' : 'unknown';
+    const label = adjusted === true ? '조정' : adjusted === false ? '원본' : '상태 미확인';
+    return `<span class="gsm-source-badge gsm-source-badge--${kind}">${label}</span>`;
+  }
+  function historyMarkup(records) {
+    return records.length ? `<div class="gsm-history-list">${records.map(record => `<button type="button" data-gsm-open-date="${escapeHtml(record.item.targetDate)}" class="gsm-history-item${record.estimated ? ' gsm-estimated' : ''}${adjustmentState(record.item) === true ? ' gsm-history-adjusted' : ''}"><strong>${escapeHtml(record.item.targetDate)}</strong><span class="gsm-history-meta">${record.estimated ? '추정 · 미확정' : '마감'} ${sourceBadge(record)}</span><span>상세 보기 ›</span></button>`).join('')}</div>` : empty('이 달에 저장된 마감·추정 자료가 없습니다.');
+  }
   function recordMarkup(record) {
     if (!record) return empty('이 날짜에 저장된 계산 결과가 없습니다.');
     const {item, summary, estimated} = record;
     const value = (number, digits, approximate = estimated) => (approximate && finite(number) !== null ? '≈ ' : '') + format(number, digits);
     const estimatedClass = estimated ? ' gsm-estimated' : '';
     const period = item.snapshot?.period || item.record?.period;
-    return `<div class="gsm-total${estimatedClass}"><span>종합 혼소율</span><strong>${value(summary?.combined?.totalRatio, 2)}${finite(summary?.combined?.totalRatio) === null ? '' : '%'}</strong></div>
-      <div class="gsm-record-meta"><strong class="gsm-badge${estimatedClass}">${estimated ? '추정 저장 · 미확정' : '마감 저장'}</strong>
-      ${item.adjustmentApplied || item.adjustment ? '<span>혼소 조정 반영</span>' : ''}</div>
+    return `<div class="gsm-total${estimatedClass}"><span class="gsm-total-label">종합 혼소율 ${sourceBadge(record)}</span><strong>${value(summary?.combined?.totalRatio, 2)}${finite(summary?.combined?.totalRatio) === null ? '' : '%'}</strong></div>
+      <div class="gsm-record-meta"><strong class="gsm-badge${estimatedClass}">${estimated ? '추정 저장 · 미확정' : '마감 저장'}</strong></div>
       ${estimated ? '<p class="gsm-note">추정값이 포함되어 있습니다. 공식 마감값이 아닙니다.</p>' : ''}
       <div class="gsm-table-wrap"><table><caption>저장된 연료 사용량 및 혼소율</caption><thead><tr><th scope="col">항목</th><th scope="col">1호기</th><th scope="col">2호기</th></tr></thead>
       <tbody>${FUELS.map(([key, label]) => `<tr><th scope="row">${label} <small>t</small></th>${['unit1','unit2'].map(unit => `<td class="${estimated && key === 'organic' ? estimatedClass : ''}">${value(summary?.[unit]?.[key], 3, estimated && key === 'organic')}</td>`).join('')}</tr>`).join('')}
@@ -95,7 +112,7 @@
       ${table(payload.settings)}<p class="gsm-note">${payload.source === 'saved' ? '저장 ' + escapeHtml(timeLabel(payload.updatedAt)) : '선택일 이전에 저장된 적용값이 없어 기본값을 표시합니다.'}</p>
       <details class="gsm-settings-history"><summary>발열량 저장 이력</summary>${Array.isArray(history.items) && history.items.length ? history.items.map(item => `<details><summary>${escapeHtml(item.effectiveDate)} 적용</summary>${table(item.settings)}<p class="gsm-note">저장 ${escapeHtml(timeLabel(item.updatedAt))}</p></details>`).join('') : empty('저장된 발열량 이력이 없습니다.')}</details>`;
   }
-  const exported = {validDate, shiftDate, savedSummary, chooseRecord, mergeHistory, recordMarkup, settingsMarkup};
+  const exported = {validDate, shiftDate, savedSummary, chooseRecord, mergeHistory, adjustmentState, historyMarkup, recordMarkup, settingsMarkup};
   if (typeof module === 'object' && module.exports) module.exports = exported;
   if (!root.document) return;
 
@@ -167,7 +184,7 @@
         else if (tab === 'settings') body.innerHTML = settingsMarkup(data[0], data[1], date);
         else {
           const records = mergeHistory(data[0].items, data[1].items, month);
-          body.innerHTML = records.length ? `<div class="gsm-history-list">${records.map(record => `<button type="button" data-gsm-open-date="${record.item.targetDate}" class="gsm-history-item${record.estimated ? ' gsm-estimated' : ''}"><strong>${record.item.targetDate}</strong><span>${record.estimated ? '추정 · 미확정' : '마감'}${record.item.adjustmentApplied ? ' · 조정' : ''}</span><span>상세 보기 ›</span></button>`).join('')}</div>` : empty('이 달에 저장된 마감·추정 자료가 없습니다.');
+          body.innerHTML = historyMarkup(records);
         }
         status.textContent = '저장 자료 조회 완료'; loadedKey = key;
       } catch (error) {
@@ -207,7 +224,7 @@
       if (frame) return;
       frame = document.createElement('iframe');
       frame.title = '고형연료 관리'; frame.className = 'gsm-solid-frame';
-      frame.src = '/maintenance/solid-fuel-trouble?embed=efficiency-mobile&v=20261030-mobile-compact-v3';
+      frame.src = '/maintenance/solid-fuel-trouble?embed=efficiency-mobile&v=20261030-mobile-detail-v4';
       solid.replaceChildren(frame);
     }
     function focusMenu() {
