@@ -322,157 +322,174 @@
   html:not(.main-floating-notification-mobile-client) #statusView #dateQuickNavigation > button { min-width: 49px !important; padding-inline: 7px !important; }
 }
 
-/* GS_DATE_NAVIGATION_DESIGN_V1_START */
-/* Main desktop date toolbar. The existing calendar overlay and events remain intact. */
+/* GS_DATE_NAVIGATION_CENTERED_V2_START */
+/* Desktop toolbar: one centered group, with the date as the primary element. */
 @media screen and (min-width: 901px) {
   html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section {
     display: grid !important;
-    grid-template-columns: 36px max-content 36px minmax(0, 1fr) !important;
+    grid-template-columns: 54px 54px 34px max-content 34px 54px 54px 54px !important;
+    grid-template-rows: 40px !important;
+    grid-template-areas: none !important;
+    justify-content: center !important;
     align-items: center !important;
-    gap: 0 !important;
-    min-height: 58px !important;
-    padding: 8px 12px !important;
+    gap: 8px !important;
+    min-height: 62px !important;
+    padding: 10px 16px !important;
     margin-bottom: 14px;
     border: 1px solid #dbe4ee;
     border-radius: 10px;
     background: #fff;
-    box-shadow: 0 1px 3px #203c5806;
+    box-shadow: none;
   }
 
   html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section .date-navigation__center {
-    height: 40px;
-    min-width: 0;
-    flex-direction: column !important;
-    align-items: flex-start !important;
+    grid-column: 4 !important;
+    grid-row: 1 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
     justify-content: center !important;
     gap: 0 !important;
-    padding: 2px 12px;
-    border-top: 1px solid #dce6f0;
-    border-bottom: 1px solid #dce6f0;
-    background: #f6f9fc;
+    min-width: 0;
+    height: 40px;
+    padding: 0;
+    border: 0;
+    background: transparent;
   }
 
   html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section .date-navigation__label {
-    margin: 0;
-    color: #5d7188;
-    font-size: 10px;
-    font-weight: 500;
-    line-height: 12px;
-    letter-spacing: 0;
+    display: none !important;
   }
 
   html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #selectedDateButton {
-    min-height: 22px;
-    gap: 9px;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 36px;
     padding: 0;
-    border-radius: 4px;
+    border-radius: 5px;
     white-space: nowrap;
   }
 
+  html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #selectedDateButton::after {
+    display: none;
+  }
+
   html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #selectedDateText {
-    font-size: 15px;
-    font-weight: 750;
-    line-height: 22px;
-    letter-spacing: -.35px;
-    color: #183b60;
+    color: #173653;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 26px;
+    letter-spacing: -.4px;
     font-variant-numeric: tabular-nums;
   }
 
   html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #selectedShiftBadge {
-    min-width: 34px;
-    min-height: 20px;
+    min-width: 35px;
+    min-height: 24px;
     padding: 0 6px;
-    border: 1px solid #cfe0f2;
+    border: 1px solid #d7e7f7;
     border-radius: 5px;
-    background: #e9f2fc;
-    color: #1d5e9b;
+    background: #edf4fc;
+    color: #286caf;
     font-size: 11px;
-    font-weight: 750;
-    line-height: 18px;
+    font-weight: 650;
+    line-height: 22px;
   }
 
   html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #previousDateButton,
   html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #nextDateButton {
-    width: 36px !important;
-    min-width: 36px !important;
-    max-width: 36px !important;
-    height: 40px !important;
-    min-height: 40px !important;
-    max-height: 40px !important;
+    grid-row: 1 !important;
+    width: 34px !important;
+    min-width: 34px !important;
+    max-width: 34px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    max-height: 36px !important;
     margin: 0 !important;
     padding: 0 !important;
-    border: 1px solid #dce6f0;
-    border-radius: 8px 0 0 8px;
-    background: #f6f9fc;
-    color: #365f87;
-    font-size: 25px !important;
-    font-weight: 600 !important;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #173653;
+    font-size: 26px !important;
+    font-weight: 500 !important;
     line-height: 1 !important;
     box-shadow: none;
   }
 
-  html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #nextDateButton {
-    border-radius: 0 8px 8px 0;
+  html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #previousDateButton {
+    grid-column: 3 !important;
   }
 
-  html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #dateQuickNavigation {
-    display: flex !important;
-    align-items: center;
-    justify-content: center;
-    justify-self: end;
-    gap: 0 !important;
-    width: auto !important;
-    margin: 0 0 0 20px !important;
-    padding: 3px;
-    border: 1px solid #e1e8ef;
-    border-radius: 9px;
-    background: #f6f8fb;
+  html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #nextDateButton {
+    grid-column: 5 !important;
+  }
+
+  html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #dateQuickNavigation:not([hidden]) {
+    display: contents !important;
+  }
+
+  html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #dateQuickNavigation[hidden] {
+    display: none !important;
   }
 
   html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #dateQuickNavigation > button {
-    width: auto !important;
-    min-width: 59px !important;
-    height: 32px !important;
-    min-height: 32px !important;
-    max-height: 32px !important;
+    grid-row: 1 !important;
+    width: 54px !important;
+    min-width: 54px !important;
+    max-width: 54px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
     margin: 0 !important;
-    padding: 0 10px !important;
+    padding: 0 4px !important;
     border: 1px solid transparent !important;
     border-radius: 6px !important;
     background: transparent !important;
-    color: #486078 !important;
+    color: #61748a !important;
     font-size: 12px !important;
-    font-weight: 600 !important;
+    font-weight: 500 !important;
     line-height: 1 !important;
     box-shadow: none !important;
     transform: none !important;
   }
 
+  html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #dateQuickNavigation > [data-date-jump-days="-30"] {
+    grid-column: 1 !important;
+  }
+
+  html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #dateQuickNavigation > [data-date-jump-days="-7"] {
+    grid-column: 2 !important;
+  }
+
+  html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #dateQuickNavigation > [data-date-jump-days="7"] {
+    grid-column: 6 !important;
+  }
+
+  html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #dateQuickNavigation > [data-date-jump-days="30"] {
+    grid-column: 7 !important;
+  }
+
   html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #dateQuickNavigation #todayButton {
-    min-width: 58px !important;
-    background: #1d67ac !important;
-    color: #fff !important;
-    border-color: #1d67ac !important;
-    font-weight: 750 !important;
+    grid-column: 8 !important;
+    min-width: 54px !important;
+    width: 54px !important;
+    border-color: #d7e7f7 !important;
+    background: #fff !important;
+    color: #286caf !important;
+    font-weight: 600 !important;
   }
 
   html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #previousDateButton:hover:not(:disabled),
   html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #nextDateButton:hover:not(:disabled),
   html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #dateQuickNavigation > button:hover:not(:disabled) {
-    background: #e7f0fa !important;
-    color: #195b98 !important;
-  }
-
-  html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #dateQuickNavigation #todayButton:hover:not(:disabled) {
-    background: #17568f !important;
-    color: #fff !important;
-    border-color: #17568f !important;
+    background: #f0f5fa !important;
+    color: #286caf !important;
   }
 
   html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section button:focus-visible,
   html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #selectedDateButton:focus-within {
-    position: relative;
-    z-index: 1;
     outline: 2px solid #277cc8 !important;
     outline-offset: 2px !important;
   }
@@ -482,4 +499,4 @@
     cursor: wait !important;
   }
 }
-/* GS_DATE_NAVIGATION_DESIGN_V1_END */
+/* GS_DATE_NAVIGATION_CENTERED_V2_END */
