@@ -121291,3 +121291,16 @@ html body #efficiencyArmRollTab.efficiency-team-tab .icon {
   }
 }
 /* GS_MAIN_LOG_DIVIDER_SPACING_COMPACT_V3_END */
+
+/* GS_MAIN_LOG_ROLE_BOUNDARY_V4_START */
+/* Main desktop work-log only: clear full-width separators between role rows. */
+@media screen and (min-width: 769px) {
+  #statusView #logTableBody > tr.log-row:not(:last-child) > td {
+    box-shadow: none !important;
+  }
+
+  #statusView #logTableBody > tr.log-row + tr.log-row > td {
+    border-top: 2px solid #9fb3c8 !important;
+  }
+}
+/* GS_MAIN_LOG_ROLE_BOUNDARY_V4_END */
