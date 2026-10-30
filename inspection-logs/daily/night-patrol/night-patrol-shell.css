@@ -930,3 +930,43 @@
     border-radius: 0 !important;
   }
 }
+/* GS_INSPECTION_MANUAL_COMPLETE_V1_START */
+#inspectionRoleTodayModal .inspection-role-today-item__actions {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+#inspectionRoleTodayModal .inspection-role-today-complete-button {
+  border-color: #2469ad;
+  background: #2469ad;
+  color: #fff;
+  font-size: 11px;
+}
+
+#inspectionRoleTodayModal .inspection-role-today-complete-button:hover:not(:disabled) {
+  border-color: #18568f;
+  background: #18568f;
+}
+
+#inspectionRoleTodayModal .inspection-role-today-complete-button:disabled {
+  cursor: wait;
+  opacity: .65;
+}
+
+#inspectionRoleTodayModal .inspection-role-today-manual-error {
+  grid-column: 2 / -1;
+  margin: 0;
+  color: #a92d2d;
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 768px) {
+  #inspectionRoleTodayModal .inspection-role-today-item__actions button {
+    flex: 1 1 120px;
+    width: auto;
+    min-height: 44px;
+  }
+}
+/* GS_INSPECTION_MANUAL_COMPLETE_V1_END */

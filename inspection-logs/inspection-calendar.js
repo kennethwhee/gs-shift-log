@@ -11,6 +11,7 @@
 function initializeInspectionCalendarDashboard() {
   const STATUS_API = "/api/inspection-schedule-status";
   const TRACKING_START_DATE = "2026-08-04";
+  let roleTodaySummaryRequestSequence = 0;
 
   const dashboard = document.getElementById("inspectionScheduleDashboard");
   const calendarTitle = document.getElementById("inspectionCalendarTitle");
@@ -1189,6 +1190,8 @@ async function publishRoleTodaySummary() {
 
   const context =
     getRoleTodayShiftContext();
+  const summaryRequestedAt = Date.now();
+  const requestSequence = ++roleTodaySummaryRequestSequence;
 
 
   try {
@@ -1208,6 +1211,7 @@ async function publishRoleTodaySummary() {
       await loadRoleTodayCompletionMap(
         context.workDate
       );
+    if (requestSequence !== roleTodaySummaryRequestSequence) return;
 
 
     const scheduleResult =
@@ -1634,6 +1638,7 @@ async function publishRoleTodaySummary() {
         /*
           메인 script.js의 기존 업무일지 재검사에도 사용
         */
+        summaryRequestedAt,
         scheduleOccurrences,
 
         roles
@@ -1645,6 +1650,7 @@ async function publishRoleTodaySummary() {
   } catch (
     error
   ) {
+    if (requestSequence !== roleTodaySummaryRequestSequence) return;
     console.error(
       "보직별 오늘 점검 현황 조회 실패:",
       error
@@ -1674,6 +1680,7 @@ async function publishRoleTodaySummary() {
             ? error.message
             : "오늘 점검 현황을 불러오지 못했습니다.",
 
+        summaryRequestedAt,
         scheduleOccurrences:
           [],
 

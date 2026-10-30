@@ -99,6 +99,11 @@
   let observedShiftMemberGrid = null;
   let renderQueued = false;
 
+  // Manual completion uses the exact schedule occurrence, never its displayed title.
+  const roleManualRequests = new Set();
+  const roleManualErrors = new Map();
+  const roleManualSaveBarriers = new Map();
+
   function escapeHtml(value) {
     return String(value ?? "")
       .replaceAll("&", "&amp;")
@@ -672,7 +677,7 @@
           </button>
         </header>
 
-        <div class="inspection-role-today-summary" id="inspectionRoleTodaySummary">
+        <div class="inspection-role-today-summary" id="inspectionRoleTodaySummary" aria-live="polite" aria-atomic="true">
         </div>
 
         <div class="inspection-role-today-list" id="inspectionRoleTodayList">
@@ -719,6 +724,15 @@
       if (event.target === modal) {
         closeRoleTodayModal();
       }
+    });
+
+    modal.addEventListener("click", event => {
+      const target = event.target instanceof Element ? event.target : null;
+      const completeButton = target?.closest("[data-complete-role-today-inspection]");
+      if (!completeButton || !modal.contains(completeButton)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void completeRoleTodayInspection(completeButton);
     });
 
     modal.addEventListener("click", event => {
@@ -913,6 +927,7 @@
   }
 
   function formatCompletedAt(value) {
+    if (!value) return "";
     const date = new Date(value || 0);
 
     if (Number.isNaN(date.getTime())) {
@@ -920,10 +935,126 @@
     }
 
     return new Intl.DateTimeFormat("ko-KR", {
+      timeZone: "Asia/Seoul",
       hour: "2-digit",
       minute: "2-digit",
       hour12: false
     }).format(date);
+  }
+
+  function getRoleCompletionTarget(item) {
+    const completionId = String(item?.completionScheduleId || "").trim();
+    const scheduleId = completionId || String(item?.scheduleId || "").trim();
+    const dueDate = String(item?.dueDate || "").trim();
+    const rawShift = String(item?.shift || "").trim().toUpperCase().replaceAll("/", "");
+    const shift = rawShift === "D" ? "DS" : rawShift === "N" ? "NS" : rawShift;
+    if (!scheduleId || !/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || !["", "DS", "NS"].includes(shift)) return null;
+    const date = new Date(`${dueDate}T00:00:00.000Z`);
+    if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== dueDate) return null;
+    if (item?.unitSeparated === true || [1, 2].includes(Number(item?.unitNo))) {
+      if (!completionId || ![1, 2].includes(Number(item.unitNo)) || !completionId.endsWith(`::unit${Number(item.unitNo)}`)) return null;
+    }
+    return { scheduleId, dueDate, shift, key: JSON.stringify([scheduleId, dueDate, shift]) };
+  }
+
+  function refreshOpenRoleTodayModal() {
+    const modal = getRoleModal();
+    if (modal?.classList.contains("is-open")) {
+      const active = document.activeElement;
+      const restoreFocus = modal.contains(active);
+      const activeKey = active?.dataset?.completeRoleTodayInspection;
+      const activeId = active?.id;
+      openRoleTodayModal(modal.dataset.roleTodayRole, { focus: false });
+      if (restoreFocus) {
+        const replacement = activeKey
+          ? [...modal.querySelectorAll("[data-complete-role-today-inspection]")].find(button => button.dataset.completeRoleTodayInspection === activeKey)
+          : activeId ? document.getElementById(activeId) : null;
+        (replacement && !replacement.disabled ? replacement : document.getElementById("inspectionRoleTodayCloseButton"))?.focus();
+      }
+    }
+  }
+
+  function recountRoleTodaySummary() {
+    roleTodaySummary.roles.forEach(role => {
+      role.totalCount = role.items.length;
+      role.completedCount = role.items.filter(item => item.completed === true).length;
+      role.pendingCount = role.totalCount - role.completedCount;
+    });
+  }
+
+  function refreshPersistedRoleCompletion(target) {
+    const message = {
+      type: "gs-shift-log:refresh-inspection-schedule",
+      reason: "manual-completion",
+      workDate: target.dueDate,
+      shift: target.shift,
+      timestamp: Date.now()
+    };
+    const send = () => getFrame()?.contentWindow?.postMessage(message, window.location.origin);
+    send();
+    window.setTimeout(send, 200);
+    window.setTimeout(send, 600);
+  }
+
+  async function completeRoleTodayInspection(button) {
+    if (button.disabled || !canCurrentUserUseInspectionLogs()) return;
+    const modal = getRoleModal();
+    const role = getRoleSummary(modal?.dataset.roleTodayRole);
+    const key = String(button.dataset.completeRoleTodayInspection || "");
+    const item = role?.items.find(candidate => getRoleCompletionTarget(candidate)?.key === key);
+    const target = getRoleCompletionTarget(item);
+    if (!target || item.completed || roleManualRequests.has(key)) return;
+    const summaryContextKey = JSON.stringify([roleTodaySummary.workDate, roleTodaySummary.shift]);
+    const title = [1, 2].includes(item.unitNo) && !new RegExp(`^${item.unitNo}\\s*호기`).test(item.title)
+      ? `${item.unitNo}호기 ${item.title}` : item.title;
+    const shiftLabel = target.shift === "DS" ? "D/S" : target.shift === "NS" ? "N/S" : "근무 공통";
+    if (!window.confirm(`실제 점검을 마쳤다면 완료로 기록하시겠습니까?\n\n${title}\n점검일: ${target.dueDate}\n근무: ${shiftLabel}`)) return;
+    roleManualRequests.add(key);
+    roleManualErrors.delete(key);
+    refreshOpenRoleTodayModal();
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 20000);
+    try {
+      const user = getCurrentUser();
+      const headers = typeof window.getShiftLogAuthHeaders === "function"
+        ? window.getShiftLogAuthHeaders({ "Content-Type": "application/json; charset=utf-8", Accept: "application/json" })
+        : {
+            "Content-Type": "application/json; charset=utf-8", Accept: "application/json",
+            Authorization: `Bearer ${String(user?.sessionToken || user?.session_token || "")}`
+          };
+      const response = await fetch("/api/inspection-schedule-status", {
+        method: "POST", headers, cache: "no-store", signal: controller.signal,
+        body: JSON.stringify({ scheduleId: target.scheduleId, dueDate: target.dueDate, shift: target.shift,
+          scheduleTitle: title, note: "오늘 점검 팝업 수동 완료" })
+      });
+      let result;
+      try { result = await response.json(); }
+      catch { throw new Error("완료 저장 결과를 확인하지 못했습니다. 새로고침 후 상태를 확인해 주세요."); }
+      if (!response.ok || result?.ok !== true) {
+        throw new Error(result?.message || result?.error || `점검 완료 저장에 실패했습니다. (HTTP ${response.status})`);
+      }
+      const saved = result.item;
+      if (getRoleCompletionTarget(saved)?.key !== key || saved?.status !== "완료" || saved?.completionSource !== "manual") {
+        throw new Error("완료 기록을 확인하지 못했습니다. 새로고침 후 상태를 확인해 주세요.");
+      }
+      roleManualSaveBarriers.set(summaryContextKey, Date.now());
+      roleTodaySummary.roles.forEach(summary => summary.items.forEach(candidate => {
+        if (getRoleCompletionTarget(candidate)?.key !== key) return;
+        Object.assign(candidate, { completed: true, completionSource: "manual", isAutomatic: false,
+          completedByName: String(saved.completedByName || ""), completedAt: String(saved.completedAt || "") });
+      }));
+      recountRoleTodaySummary();
+      queueRoleButtonRender();
+      refreshPersistedRoleCompletion(target);
+    } catch (error) {
+      roleManualErrors.set(key, error?.name === "AbortError"
+        ? "저장 응답이 지연되고 있습니다. 새로고침 후 완료 여부를 확인해 주세요."
+        : error instanceof Error ? error.message : "점검 완료 저장에 실패했습니다. 다시 시도해 주세요.");
+    } finally {
+      window.clearTimeout(timeoutId);
+      roleManualRequests.delete(key);
+      refreshOpenRoleTodayModal();
+    }
   }
 
   function createRoleInspectionItemHtml(item) {
@@ -935,11 +1066,14 @@
         ? "is-conditional"
         : "is-pending";
     const stateLabel = completed
-      ? "완료"
+      ? item.completionSource === "manual" ? "수동 완료" : "완료"
       : conditional
         ? "조건 확인"
         : "미완료";
     const completedAt = formatCompletedAt(item.completedAt);
+    const target = getRoleCompletionTarget(item);
+    const saving = target && roleManualRequests.has(target.key);
+    const error = target && roleManualErrors.get(target.key);
 
     return `
       <article class="inspection-role-today-item ${stateClass}">
@@ -974,6 +1108,13 @@
         </div>
 
         <div class="inspection-role-today-item__actions">
+          ${!completed && target ? `
+            <button type="button" class="inspection-role-today-complete-button"
+              data-complete-role-today-inspection="${escapeHtml(target.key)}"
+              aria-label="${escapeHtml(item.title)} 점검완료" ${saving ? 'disabled aria-busy="true"' : ""}>
+              ${saving ? "저장 중…" : "점검완료"}
+            </button>
+          ` : ""}
           ${item.canOpenLog ? `
             <button
               type="button"
@@ -983,11 +1124,13 @@
             </button>
           ` : ""}
         </div>
+        ${error && !completed ? `<p class="inspection-role-today-manual-error" role="alert">${escapeHtml(error)}</p>` : ""}
       </article>
     `;
   }
 
-  function openRoleTodayModal(roleValue) {
+  function openRoleTodayModal(roleValue, options = {}) {
+    if (!canCurrentUserUseInspectionLogs()) return;
     const role = normalizeRole(roleValue);
     const summary = getRoleSummary(role);
 
@@ -1002,6 +1145,7 @@
     createRoleTodayModal();
 
     const modal = getRoleModal();
+    modal.dataset.roleTodayRole = role;
     const titleElement = document.getElementById("inspectionRoleTodayTitle");
     const contextElement = document.getElementById("inspectionRoleTodayContext");
     const summaryElement = document.getElementById("inspectionRoleTodaySummary");
@@ -1044,9 +1188,11 @@
     modal?.setAttribute("aria-hidden", "false");
     syncBodyModalState();
 
-    window.setTimeout(() => {
-      document.getElementById("inspectionRoleTodayCloseButton")?.focus();
-    }, 0);
+    if (options.focus !== false) {
+      window.setTimeout(() => {
+        document.getElementById("inspectionRoleTodayCloseButton")?.focus();
+      }, 0);
+    }
   }
 
   function postOpenScheduleMessage(scheduleId) {
@@ -1115,6 +1261,9 @@
 
           return {
             scheduleId: String(item?.scheduleId || "").trim(),
+            completionScheduleId: String(item?.completionScheduleId || "").trim(),
+            unitSeparated: item?.unitSeparated === true,
+            unitNo: [1, 2].includes(Number(item?.unitNo)) ? Number(item.unitNo) : 0,
             title: String(item?.title || "점검 일정").trim(),
             category,
             categoryLabel: categoryLabels[category] || "기타",
@@ -1126,6 +1275,7 @@
             note: String(item?.note || "").trim(),
             conditional: item?.conditional === true,
             completed: item?.completed === true,
+            completionSource: String(item?.completionSource || "").trim(),
             completedByName: String(item?.completedByName || "").trim(),
             completedAt: String(item?.completedAt || "").trim(),
             canOpenLog: item?.canOpenLog === true
@@ -1173,8 +1323,13 @@
     }
 
     if (messageType === "gs-shift-log:inspection-role-today-summary") {
+      // Reject snapshots whose database read began before a confirmed manual save.
+      const contextKey = JSON.stringify([String(event.data?.workDate || "").trim(), String(event.data?.shift || "").trim()]);
+      const savedAfter = roleManualSaveBarriers.get(contextKey);
+      if (savedAfter && !(Number(event.data?.summaryRequestedAt) > savedAfter)) return;
       roleTodaySummary = normalizeRoleTodaySummary(event.data);
       queueRoleButtonRender();
+      refreshOpenRoleTodayModal();
       return;
     }
 
@@ -1219,6 +1374,8 @@
     getMainModal()?.remove();
     getRoleModal()?.remove();
     unwrapRoleTopActions();
+    roleManualErrors.clear();
+    roleManualSaveBarriers.clear();
 
     roleTodaySummary = {
       available: false,
