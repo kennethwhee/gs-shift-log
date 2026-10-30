@@ -1080,8 +1080,8 @@ body{
 /* =========================================================
   SOLID-FUEL-PUBLIC-READONLY-V1
 
-  Anonymous visitors and mobile screens keep every lookup,
-  filter and photo-viewing control while all mutations stay hidden.
+  Anonymous visitors keep every lookup, filter and photo-viewing control.
+  Server permissions govern mutations on both mobile and desktop.
 ========================================================= */
 
 body.solid-fuel-no-row-actions .data-table .actions{
@@ -1099,19 +1099,7 @@ body.solid-fuel-readonly #companyModal{
   display:none!important;
 }
 
-@media(max-width:760px){
-  #createRecordBtn,
-  #companyManageBtn,
-  .data-table .actions,
-  .photo-delete,
-  [data-company-action],
-  #recordModal,
-  #troubleModal,
-  #unloadModal,
-  #companyModal{
-    display:none!important;
-  }
-}
+/* GS_EFFICIENCY_MOBILE_MENU_V1: use the authenticated access classes above at every width. */
 
 
 /* SOLID_FUEL_RECEIPT_LINK_V1 */

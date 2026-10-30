@@ -3,7 +3,7 @@
 /* SOLID_FUEL_RECEIPT_LINK_V1 */
 (function(){
   const API="/api/solid-fuel-trouble",AUTH="gsShiftLog.currentUser";
-  const MOBILE_READ_ONLY_QUERY="(max-width: 760px)";
+  // GS_EFFICIENCY_MOBILE_MENU_V1: screen width does not remove authenticated server permissions.
   const SILO_OPTIONS=[["","선택 안 함"],["#A","Storage #A"],["#B","Storage #B"],["Day","Day Silo"]];
   const state={troubles:[],unloads:[],companies:[],filterCompanies:[],companyDirectory:[],user:null,permissions:{canCreate:false,canEdit:false,canDelete:false,canUploadPhoto:false,canManageUnloading:false,canManageCompanies:false},loading:false,saving:false,mode:"month",tab:"unload",photoScale:1};
   const contactsState={rows:[],companies:[],loading:false,saving:false,loaded:false,failed:false,canManage:false,editingId:"",version:0,conflict:false,opener:null};
@@ -77,9 +77,8 @@
   }
   function setText(el,v){if(el)el.textContent=String(v??"")}
   function setEditorStatus(el,msg,show=true){if(!el)return;delete el.dataset.timeError;el.textContent=msg||"";el.hidden=!show}
-  function isMobileReadOnly(){return Boolean(window.matchMedia?.(MOBILE_READ_ONLY_QUERY).matches)}
   function isAnonymous(){return !state.user}
-  function hasPermission(name){return !isMobileReadOnly()&&!isAnonymous()&&state.permissions?.[name]===true}
+  function hasPermission(name){return !isAnonymous()&&state.permissions?.[name]===true}
   function canCreateRecord(){return hasPermission("canCreate")}
   function canEditTrouble(){return hasPermission("canEdit")}
   function canEditUnloading(){return hasPermission("canEdit")&&hasPermission("canManageUnloading")}
@@ -98,12 +97,12 @@
     }
   }
   function syncAccessMode(){
-    const mobile=isMobileReadOnly(),anonymous=isAnonymous();
+    const anonymous=isAnonymous();
     const rowActions=canEditTrouble()||canEditUnloading()||canDeleteRecord();
     const mutationAccess=canCreateRecord()||rowActions||canUploadPhoto()||canManageCompanies();
-    const readOnly=mobile||anonymous||!mutationAccess;
+    const readOnly=anonymous||!mutationAccess;
     document.body.classList.toggle("solid-fuel-readonly",readOnly);
-    document.body.classList.toggle("solid-fuel-mobile-readonly",mobile);
+    document.body.classList.remove("solid-fuel-mobile-readonly");
     document.body.classList.toggle("solid-fuel-anonymous",anonymous);
     document.body.classList.toggle("solid-fuel-no-row-actions",!rowActions);
     e.createRecord.hidden=!canCreateRecord();
@@ -788,13 +787,6 @@
     syncAccessMode();
     bind();
     switchTab("unload");
-    const mobileMedia=window.matchMedia?.(MOBILE_READ_ONLY_QUERY);
-    const handleAccessChange=()=>{
-      if(state.loading)syncAccessMode();
-      else render()
-    };
-    if(mobileMedia?.addEventListener)mobileMedia.addEventListener("change",handleAccessChange);
-    else mobileMedia?.addListener?.(handleAccessChange);
     await load()
   }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();

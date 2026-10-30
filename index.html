@@ -244,7 +244,7 @@
 <script src="maintenance/efficiency-daily-work-expanded-mode.js?v=20260927-structure-v15" defer></script>
 <script src="maintenance/shift-log-search-matched-items.js?v=20260927-structure-v14" defer></script>
 <script
-  src="script.js?v=20260927-structure-v15&amp;limestone=20260925-v1&amp;closedcards=20260927-v1&amp;toNightPower=20260928-v1-r6-state1&amp;mmNoDailyDataExcel=20260928-v12&amp;structure16=20260927-v1&amp;longHolidayCofiring=20260928-v1&amp;organicMiniExplicit=20260928-v4-r4&amp;longHolidayLayout=20260928-v3&amp;finalWorkbookCurrentSources=20260928-v9-correct-owner&amp;finalHistoryAlign=20260929-v10&amp;autoHistoryCurrentSources=20261002-v3&amp;auxToolbarLayout=20261005-v1&amp;savedWorkbook=20261005-v2&amp;holidaySaved=20261005-v1&amp;holidayNoFill=20261005-v1&amp;waterEndDate=20261006-v1&amp;limestoneDateSync=20261014-v1&amp;dailyOperation=20261018-v1&amp;weekendTeamDate=20261019-v1&amp;partialPower=20261019-v2&amp;morningExport=20261019-v3&amp;xlsxCompat=20261019-v1&amp;mechanicalOutsource=20261020-single-divider-v1"
+  src="script.js?v=20260927-structure-v15&amp;limestone=20260925-v1&amp;closedcards=20260927-v1&amp;toNightPower=20260928-v1-r6-state1&amp;mmNoDailyDataExcel=20260928-v12&amp;structure16=20260927-v1&amp;longHolidayCofiring=20260928-v1&amp;organicMiniExplicit=20260928-v4-r4&amp;longHolidayLayout=20260928-v3&amp;finalWorkbookCurrentSources=20260928-v9-correct-owner&amp;finalHistoryAlign=20260929-v10&amp;autoHistoryCurrentSources=20261002-v3&amp;auxToolbarLayout=20261005-v1&amp;savedWorkbook=20261005-v2&amp;holidaySaved=20261005-v1&amp;holidayNoFill=20261005-v1&amp;waterEndDate=20261006-v1&amp;limestoneDateSync=20261014-v1&amp;dailyOperation=20261018-v1&amp;weekendTeamDate=20261019-v1&amp;partialPower=20261019-v2&amp;morningExport=20261019-v3&amp;xlsxCompat=20261019-v1&amp;mechanicalOutsource=20261020-single-divider-v1&amp;efficiencyMobile=20261030-v1"
   defer
 ></script>
 <script src="maintenance/efficiency-daily-work-worklog-picker-v1.js?v=20260920-11"></script>
@@ -407,6 +407,9 @@
   <link rel="stylesheet" href="/maintenance/cofiring-adjustment-design-v16.css?v=20261021-dialog-design-zero-v1&amp;maxButton=20261022-max-button-v1&amp;dialogPolish=20261022-dialog-polish-v2">
 <!-- GS_HEADER_MENU_DESIGN_V1_CSS -->
 <link rel="stylesheet" href="/assets/header-menu-design-v1.css?v=20261020-v1">
+<!-- GS_EFFICIENCY_MOBILE_MENU_V1 -->
+<link rel="stylesheet" href="/maintenance/efficiency-mobile-menu-v1.css?v=20261030-v1">
+<script src="/maintenance/efficiency-mobile-menu-v1.js?v=20261030-v1" defer></script>
 </head>
 
 <body>
@@ -5151,6 +5154,20 @@
     </span>
   </button>
 
+  <!-- GS_EFFICIENCY_MOBILE_MENU_V1: mobile saved-data reader + writable solid fuel -->
+  <button type="button" class="efficiency-team-tab" id="efficiencyCofiringMonitorTab"
+    data-efficiency-tab="cofiring-monitor" role="tab" aria-selected="false"
+    aria-controls="efficiencyCofiringMonitorView" tabindex="-1">
+    <span class="efficiency-team-tab__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 20V12M12 20V4M18 20V8M3 20h18" /></svg></span>
+    <span class="efficiency-team-tab__label">혼소율</span>
+  </button>
+  <button type="button" class="efficiency-team-tab" id="efficiencySolidFuelTab"
+    data-efficiency-tab="solid-fuel" role="tab" aria-selected="false"
+    aria-controls="efficiencySolidFuelView" tabindex="-1">
+    <span class="efficiency-team-tab__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m3 7 9-5 9 5-9 5zM3 12l9 5 9-5M3 17l9 5 9-5" /></svg></span>
+    <span class="efficiency-team-tab__label">고형연료</span>
+  </button>
+
   <!-- 부재료 -->
   <button
     type="button"
@@ -5214,7 +5231,7 @@
     </span>
 
     <span class="efficiency-team-tab__label">
-      ARM ROLL BOX
+      <span class="gsm-arm-desktop">ARM ROLL BOX</span><span class="gsm-arm-mobile">Arm Roll</span>
     </span>
 
   </button>
@@ -5225,6 +5242,13 @@
   효율팀 메뉴별 내용
 ==================================================== -->
 <section class="efficiency-team-workspace">
+
+<section class="efficiency-team-view" id="efficiencyCofiringMonitorView"
+  data-efficiency-view="cofiring-monitor" role="tabpanel"
+  aria-labelledby="efficiencyCofiringMonitorTab" aria-hidden="true" hidden></section>
+<section class="efficiency-team-view" id="efficiencySolidFuelView"
+  data-efficiency-view="solid-fuel" role="tabpanel"
+  aria-labelledby="efficiencySolidFuelTab" aria-hidden="true" hidden></section>
 
 <section class="efficiency-team-view" id="efficiencyCofiringDraftView"
   data-efficiency-view="cofiring-draft" role="tabpanel"
@@ -5247,8 +5271,8 @@
   </strong>
 
   <p>
-    왼쪽 메뉴에서 원하는 항목을 선택하면
-    해당 자료가 표시됩니다.
+    <span class="gsm-empty-desktop">왼쪽 메뉴에서 원하는 항목을 선택하면 해당 자료가 표시됩니다.</span>
+    <span class="gsm-empty-mobile">위 메뉴를 누르면 해당 자료가 표시됩니다.</span>
   </p>
 </div>
 

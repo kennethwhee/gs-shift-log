@@ -86076,6 +86076,10 @@ function switchEfficiencyTeamView(
 
       "cofiring-draft",
 
+      "cofiring-monitor",
+
+      "solid-fuel",
+
       "limestone",
 
       "auxiliary-materials",
@@ -86312,6 +86316,8 @@ function switchEfficiencyTeamView(
       )
     );
   }
+  // GS_EFFICIENCY_MOBILE_MENU_V1: dedicated GET-only reader; lazy solid-fuel frame.
+  window.GSEfficiencyMobileV1?.selectView(selectedView);
 }
 
 /* =====================================================
