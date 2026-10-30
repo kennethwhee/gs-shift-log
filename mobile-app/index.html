@@ -378,7 +378,7 @@
               tagName === "SCRIPT" &&
               (
                 source.includes(
-                  "/mobile-app/mobile-runtime-v14.js?v=20260928-limestone-core-edit-delete-v3"
+                  "/mobile-app/mobile-runtime-v14.js?v=20260928-limestone-core-edit-delete-v3&efficiencyMobile=20261030-entry-fix-v2"
                 ) ||
                 source.includes(
                   "/maintenance/shift-log-navigation.js"
@@ -983,7 +983,7 @@
   <link rel="stylesheet" href="/maintenance/bed-ash-mobile-week-month-nav-v1.css?v=20260903-v1">
   <link
     rel="preload"
-    href="/mobile-app/mobile-runtime-v14.js?v=20260928-limestone-core-edit-delete-v3"
+    href="/mobile-app/mobile-runtime-v14.js?v=20260928-limestone-core-edit-delete-v3&amp;efficiencyMobile=20261030-entry-fix-v2"
     as="script"
   >
 
@@ -1101,6 +1101,9 @@
   <link rel="stylesheet" href="/maintenance/mobile-limestone-actions-v11.css?v=20260928-v11">
 <!-- GS_MOBILE_MENU_COMPACT_V1_CSS -->
 <link rel="stylesheet" href="/assets/mobile-menu-compact-v1.css?v=20261021-v1">
+<!-- GS_EFFICIENCY_MOBILE_ENTRY_FIX_V2: actual authenticated mobile entry -->
+<link rel="stylesheet" href="/maintenance/efficiency-mobile-menu-v1.css?v=20261030-v1">
+<script src="/maintenance/efficiency-mobile-menu-v1.js?v=20261030-v1" defer></script>
 </head>
 
 <body>
@@ -6008,6 +6011,20 @@
     </span>
   </button>
 
+  <!-- 모바일 혼소율 모니터링 / 고형연료 -->
+  <button type="button" class="efficiency-team-tab" id="efficiencyCofiringMonitorTab"
+    data-efficiency-tab="cofiring-monitor" role="tab" aria-selected="false"
+    aria-controls="efficiencyCofiringMonitorView" tabindex="-1">
+    <span class="efficiency-team-tab__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 20V12M12 20V4M18 20V8M3 20h18" /></svg></span>
+    <span class="efficiency-team-tab__label">혼소율</span>
+  </button>
+  <button type="button" class="efficiency-team-tab" id="efficiencySolidFuelTab"
+    data-efficiency-tab="solid-fuel" role="tab" aria-selected="false"
+    aria-controls="efficiencySolidFuelView" tabindex="-1">
+    <span class="efficiency-team-tab__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m3 7 9-5 9 5-9 5zM3 12l9 5 9-5M3 17l9 5 9-5" /></svg></span>
+    <span class="efficiency-team-tab__label">고형연료</span>
+  </button>
+
   <!-- 부재료 -->
   <button
     type="button"
@@ -6071,7 +6088,7 @@
     </span>
 
     <span class="efficiency-team-tab__label">
-      ARM ROLL BOX
+      <span class="gsm-arm-desktop">ARM ROLL BOX</span><span class="gsm-arm-mobile">Arm Roll</span>
     </span>
 
   </button>
@@ -6082,6 +6099,13 @@
   효율팀 메뉴별 내용
 ==================================================== -->
 <section class="efficiency-team-workspace">
+
+<section class="efficiency-team-view" id="efficiencyCofiringMonitorView"
+  data-efficiency-view="cofiring-monitor" role="tabpanel"
+  aria-labelledby="efficiencyCofiringMonitorTab" aria-hidden="true" hidden></section>
+<section class="efficiency-team-view" id="efficiencySolidFuelView"
+  data-efficiency-view="solid-fuel" role="tabpanel"
+  aria-labelledby="efficiencySolidFuelTab" aria-hidden="true" hidden></section>
 
 <!-- =================================================
   효율팀 최초 안내 화면
@@ -6098,8 +6122,8 @@
   </strong>
 
   <p>
-    왼쪽 메뉴에서 원하는 항목을 선택하면
-    해당 자료가 표시됩니다.
+    <span class="gsm-empty-desktop">왼쪽 메뉴에서 원하는 항목을 선택하면 해당 자료가 표시됩니다.</span>
+    <span class="gsm-empty-mobile">위 메뉴를 누르면 해당 자료가 표시됩니다.</span>
   </p>
 </div>
 
@@ -15861,7 +15885,7 @@
 </script>
 
 <script
-  src="/mobile-app/mobile-runtime-v14.js?v=20260928-limestone-core-edit-delete-v3"
+  src="/mobile-app/mobile-runtime-v14.js?v=20260928-limestone-core-edit-delete-v3&amp;efficiencyMobile=20261030-entry-fix-v2"
   onload="window.__markMobileAppBootResourceV13?.('sharedScript',true)"
   onerror="window.__setMobileAppBootStageV13?.('shared-script-error','업무일지 프로그램을 불러오지 못했습니다.');window.__showMobileAppBootRecoveryV13?.('업무일지 프로그램을 불러오지 못했습니다. 다시 시도해 주세요.')"
 ></script>
