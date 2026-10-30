@@ -500,3 +500,51 @@
   }
 }
 /* GS_DATE_NAVIGATION_CENTERED_V2_END */
+
+/* GS_DATE_NAVIGATION_KEYCAP_V3_START */
+/* Desktop shift navigation: pale keycaps with a shallow base and press feedback. */
+@media screen and (min-width: 901px) {
+  html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section {
+    grid-template-columns: 54px 54px 38px max-content 38px 54px 54px 54px !important;
+  }
+
+  html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #previousDateButton,
+  html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #nextDateButton {
+    width: 38px !important;
+    min-width: 38px !important;
+    max-width: 38px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+    margin: 0 0 3px !important;
+    border: 1px solid #cddff3 !important;
+    border-radius: 7px !important;
+    background: linear-gradient(#fff, #eff4fa) !important;
+    color: #2469ad !important;
+    font-weight: 600 !important;
+    box-shadow: 0 3px 0 #bdcddd, 0 4px 5px #1a568a26 !important;
+    transform: none !important;
+    transition: border-color .16s ease, box-shadow .12s ease, transform .12s ease;
+  }
+
+  html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #previousDateButton:hover:not(:disabled),
+  html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #nextDateButton:hover:not(:disabled) {
+    border-color: #2469ad !important;
+    background: linear-gradient(#fff, #eff4fa) !important;
+    color: #2469ad !important;
+  }
+
+  html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #previousDateButton:active:not(:disabled),
+  html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #nextDateButton:active:not(:disabled) {
+    transform: translateY(2px) !important;
+    box-shadow: 0 1px 0 #bdcddd !important;
+  }
+}
+
+@media screen and (min-width: 901px) and (prefers-reduced-motion: reduce) {
+  html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #previousDateButton,
+  html:not(.main-floating-notification-mobile-client) body #statusView > .date-navigation-section #nextDateButton {
+    transition: none !important;
+  }
+}
+/* GS_DATE_NAVIGATION_KEYCAP_V3_END */
