@@ -121318,3 +121318,43 @@ html body #efficiencyArmRollTab.efficiency-team-tab .icon {
   }
 }
 /* GS_MAIN_LOG_ROLE_BOUNDARY_FIX_V5_END */
+
+/* GS_ADMIN_EMPLOYEE_POSITION_V1_START */
+/* Employee list: saved position, account permission, account status. */
+@media screen {
+  #employeeManagementModal #employeeManagementList > .employee-management-item {
+    grid-template-columns: minmax(0, 1fr) auto auto auto auto !important;
+  }
+
+  #employeeManagementModal #employeeManagementList .employee-management-position-badge {
+    box-sizing: border-box;
+    display: block;
+    justify-self: start;
+    min-width: 42px;
+    max-width: 84px;
+    min-height: 21px;
+    padding: 0 7px;
+    overflow: hidden;
+    border: 1px solid #d7e7f7;
+    border-radius: 5px;
+    background: #edf4fc;
+    color: #286caf;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 19px;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media screen and (max-width: 600px) {
+  #employeeManagementModal #employeeManagementList > .employee-management-item {
+    grid-template-columns: minmax(0, 1fr) auto auto auto !important;
+  }
+
+  #employeeManagementModal #employeeManagementList > .employee-management-item > .employee-management-item__person {
+    grid-column: 1 / -1;
+  }
+}
+/* GS_ADMIN_EMPLOYEE_POSITION_V1_END */

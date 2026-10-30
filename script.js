@@ -1756,6 +1756,17 @@ function renderEmployeeManagementUsers(
               )
             );
 
+          const positionLabel =
+            escapeEmployeeManagementHtml(
+              String(
+                user.position ||
+                user.jobPosition ||
+                user.job_position ||
+                user.duty ||
+                ""
+              ).trim() || "미지정"
+            );
+
           const isActive =
             user.isActive === true ||
             Number(
@@ -1780,6 +1791,15 @@ function renderEmployeeManagementUsers(
                 </span>
 
               </div>
+
+
+              <span
+                class="employee-management-position-badge"
+                title="보직: ${positionLabel}"
+                aria-label="보직: ${positionLabel}"
+              >
+                ${positionLabel}
+              </span>
 
 
               <span
