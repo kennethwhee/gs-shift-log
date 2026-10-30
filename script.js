@@ -52536,7 +52536,7 @@ if (
       최신 날짜 우선
 
       같은 날짜:
-      D/S → N/S
+      N/S → D/S
 
       같은 근무:
       파트장 → TGO → BCO1 → BCO2 → TO → BO1 → BO2
@@ -52592,10 +52592,10 @@ if (
 
         const shiftOrder = {
           DS:
-            1,
+            2,
 
           NS:
-            2
+            1
         };
 
 
@@ -214528,10 +214528,10 @@ function renderTeamApprovalCard(
   };
 
   const SHIFT_ORDER = {
-    DS: 1,
+    DS: 3,
     D: 1,
     A: 2,
-    NS: 3,
+    NS: 1,
     N: 3
   };
 
@@ -215532,7 +215532,7 @@ function renderTeamApprovalCard(
     조회 결과 정렬
 
     2교대:
-    DS → NS
+    NS → DS
 
     3교대:
     D → A → N
