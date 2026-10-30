@@ -121189,3 +121189,30 @@ html body #efficiencyArmRollTab.efficiency-team-tab .icon {
 }
 
 /* DAILY_WORK_FORMAL_SERVICE_RECOVERY_V1 END */
+
+/* GS_LOG_ROW_SPACING_COMPACT_V1_START */
+/* Desktop work-log lists: tighten item spacing without changing font sizes. */
+@media screen and (min-width: 769px) {
+  #logTableBody .log-preview,
+  #searchResultBody .search-result-log-preview {
+    row-gap: 3px !important;
+  }
+
+  #logTableBody .log-preview .log-preview__group:not(.is-section-start),
+  #searchResultBody .search-result-log-preview .log-preview__group:not(.is-section-start) {
+    padding-top: 2px !important;
+    padding-bottom: 2px !important;
+  }
+
+  #logTableBody .log-preview .log-preview__content,
+  #logTableBody .log-preview .log-preview__entry-number,
+  #logTableBody .log-preview .log-preview__entry-time,
+  #logTableBody .log-preview .log-preview__text,
+  #searchResultBody .search-result-log-preview .log-preview__content,
+  #searchResultBody .search-result-log-preview .log-preview__entry-number,
+  #searchResultBody .search-result-log-preview .log-preview__entry-time,
+  #searchResultBody .search-result-log-preview .log-preview__text {
+    line-height: 1.55 !important;
+  }
+}
+/* GS_LOG_ROW_SPACING_COMPACT_V1_END */
