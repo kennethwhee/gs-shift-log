@@ -93,7 +93,7 @@ DP_TAGS.add("203HRJ01AN602");
     const left = snapshot(a), right = snapshot(b);
     return Object.keys(left).every(k => left[k] === right[k]);
   }
-  function plan(assets, now, basisFor = () => null) {
+  function plan(assets, now, basisFor = () => null, limestoneTrackingFor = () => null) {
     const end = now instanceof Date ? now.getTime() : time(now), today = day(new Date(end));
     if (!Number.isFinite(end)) throw new Error('서버 기준시각을 확인할 수 없습니다.');
     const tasks = [], skipped = [];
@@ -124,10 +124,27 @@ DP_TAGS.add("203HRJ01AN602");
         // An absolute last-24h window is independent of a disputed historical
         // maintenance reset. The existing read-only probe can safely observe
         // RUN=0/1; it must NEVER call dataparc_runtime_sync for this task.
+        const storedTrack = limestoneTrackingFor(a.tagNumber) || null;
+        // Use the confirmed server-owned endpoint, not the last-24h window,
+        // for the second and every subsequent RUN tracking segment.
+        if (storedTrack && (storedTrack.tagNumber !== a.tagNumber ||
+            storedTrack.dataParcTag !== dataParcTag ||
+            time(storedTrack.lastReplacementAt) !== replacement ||
+            storedTrack.cycleStartRevision !== (a.cycleStartRevision || '') ||
+            !Number.isSafeInteger(storedTrack.totalRunningSeconds) || storedTrack.totalRunningSeconds < 0 ||
+            !Number.isFinite(time(storedTrack.observedAt)) ||
+            time(storedTrack.observedAt) < replacement)) {
+          skip('저장된 RUN 추적 기준이 현재 교체 Cycle과 다릅니다 · 자동 초기화 금지'); continue;
+        }
         const firstStart = a.cycleStartState === 'started' ? time(a.cycleStartedAt) : NaN;
-        const previewStart = Math.max(end - DAY, replacement, Number.isFinite(firstStart) ? firstStart : replacement);
+        const previewStart = storedTrack ? time(storedTrack.observedAt)
+          : Math.max(end - DAY, replacement, Number.isFinite(firstStart) ? firstStart : replacement);
         if (!Number.isFinite(previewStart) || previewStart >= end) {
-          skip('RUN 단기조회 시작시각을 확인할 수 없습니다 · 기존 누적시간 유지'); continue;
+          skipped.push({ tagNumber: a.tagNumber, displayName: a.displayName || a.tagNumber,
+            status: 'complete', unchanged: true, message: '새 RUN 추적 구간 없음 · 저장된 확인값 유지' }); continue;
+        }
+        if (end - previewStart > 366 * DAY) {
+          skip('RUN 추적 공백이 366일을 초과합니다 · 기존 추적값 유지'); continue;
         }
         const startAt = new Date(previewStart).toISOString();
         tasks.push({ kind: 'dataparc', asset: a, snapshot: snapshot(a), startAt,
@@ -218,7 +235,9 @@ DP_TAGS.add("203HRJ01AN602");
   function dataParcCreateBody(task) {
     const s = task.snapshot;
     return {
-      action: 'create_blower_runtime_probe', unifiedRefresh: true, incrementalRefresh: true,
+      action: 'create_blower_runtime_probe', unifiedRefresh: true,
+      incrementalRefresh: task.previewOnly !== true,
+      ...(task.previewOnly === true ? { limestoneTrackingOnly: true } : {}),
       requireIncrementalAppend: task.incremental === true, assetTag: s.tagNumber,
       dataParcTag: task.dataParcTag, confirmRunSignal: true, startAt: task.startAt,
       expectedLastReplacementAt: s.lastReplacementAt, expectedCycleStartState: s.cycleStartState,
@@ -395,16 +414,33 @@ DP_TAGS.add("203HRJ01AN602");
               const reply = await io.api({ url: `/api/ois-data-requests?id=${encodeURIComponent(entry.item.id)}`, timeoutMs: 20000 });
               io.assertWritable?.();
               const preview = verifiedLimestonePreview(reply, task, entry.item.id);
+              const saved = await io.api({ method: 'POST', timeoutMs: 30000,
+                body: { action: 'limestone_run_track_apply', requestId: entry.item.id } });
+              io.assertWritable?.();
+              if (saved?.ok !== true || saved.tagNumber !== s.tagNumber ||
+                  saved.requestId !== entry.item.id ||
+                  !Number.isSafeInteger(saved.totalRunningSeconds) ||
+                  Date.parse(saved.observedAt) !== Date.parse(preview.observedAt)) {
+                throw error('RUN 추적 저장 결과가 조회 원본과 일치하지 않습니다.', 'LIMESTONE_TRACK_SAVE_INVALID');
+              }
               const stateText = preview.state === 'running' ? 'RUN=1 (기동)' : 'RUN=0 (정지)';
               return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber,
                 status: 'complete', unchanged: true, previewOnly: true,
                 previewState: preview.state, previewHours: preview.runningHours,
                 previewStartAt: preview.startAt, previewObservedAt: preview.observedAt,
-                message: `RUN 단기조회 ${stateText} · 최근 구간 ${preview.runningHours.toFixed(1)}시간 · ${task.holdReason} · V-Belt 누적시간 미반영` };
+                trackedHours: saved.totalRunningSeconds / 3600,
+                trackedStartAt: saved.coverageStartAt, trackedObservedAt: saved.observedAt,
+                message: `RUN 단기조회 ${stateText} · 신규 ${preview.runningHours.toFixed(1)}시간 · 검증구간 누적 ${(saved.totalRunningSeconds / 3600).toFixed(1)}시간 저장 · ${task.holdReason} · V-Belt 누적시간 미반영` };
             } catch (cause) {
               if ([401, 403].includes(Number(cause?.status)) || cause?.code === 'WRITE_ACCESS_CHANGED') throw cause;
+              if ([0, 429, 502, 503, 504].includes(Number(cause?.status || 0)) &&
+                  cause?.code !== 'LIMESTONE_PREVIEW_UNVERIFIED') {
+                return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber,
+                  requestId: entry.item.id, status: 'waiting',
+                  message: 'RUN 저장 확인 대기 · 같은 요청 ID로만 확인 · 기존 누적시간 유지' };
+              }
               return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber,
-                status: 'failed', message: `RUN 조회 결과 확인 실패 · ${cause?.code || '자료 불일치'} · 기존 누적시간 유지` };
+                status: 'failed', message: `RUN 조회·저장 결과 확인 실패 · ${cause?.code || '자료 불일치'} · 기존 누적시간 유지` };
             }
           }
         try {

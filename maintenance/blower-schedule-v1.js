@@ -386,7 +386,7 @@
               actual.status !== 'complete' || actual.probe?.requestId !== expected.id || actual.probe?.assetTag !== expected.assetTag) {
             throw fail('SCHEDULE_REQUEST_MISMATCH', '자동조회 결과의 설비가 등록 기록과 일치하지 않습니다.');
           }
-          verified.push(expected);
+          verified.push({ ...expected, limestoneTrackingOnly: actual.probe?.limestoneTrackingOnly === true });
         }
       };
       await Promise.all(Array.from({ length: Math.min(4, validated.items.length) }, () => worker().catch(error => { fatal ||= error; })));
@@ -397,7 +397,9 @@
         while (!fatal && cursor < verified.length) {
           const expected = verified[cursor++];
           try {
-            const applied = await request(ctx, { method: 'POST', body: { action: 'dataparc_runtime_sync', requestId: expected.id } });
+            const applied = await request(ctx, { method: 'POST', body: {
+              action: expected.limestoneTrackingOnly === true ? 'limestone_run_track_apply' : 'dataparc_runtime_sync',
+              requestId: expected.id } });
             if (applied?.ok !== true) throw fail('SCHEDULE_APPLY_INVALID', '자동조회 결과 저장을 확인할 수 없습니다.');
             completedCount += 1;
           } catch (cause) {
@@ -473,7 +475,9 @@
         if (!Array.isArray(data?.assets) || !Number.isFinite(time(data.generatedAt))) {
           throw fail('SCHEDULE_ASSETS_INVALID', 'Blower 조회 기준을 확인할 수 없습니다.');
         }
-        const plan = core.plan(data.assets, new Date(data.generatedAt));
+        const track = new Map((data.limestoneRunTracking || []).map(item => [item.tagNumber, item]));
+        const plan = core.plan(data.assets, new Date(data.generatedAt), () => null,
+          tag => track.get(tag) || null);
         const results = await core.executeDataParcBatch(plan.tasks, io);
         // The shared foreground workflow can return waiting results after a
         // bounded poll. Keep the durable schedule receipt until those exact

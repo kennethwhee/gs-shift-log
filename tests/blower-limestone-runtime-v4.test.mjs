@@ -94,7 +94,7 @@ test('27 device receipts and browser checkpoint can be re-read',()=>{
  assert.match(scheduleApi,/receipt\.requestedCount > 27/);
  assert.match(ui,/value\.tasks\.length > 27/);
  assert.match(ui,/"103HRJ01AN601"/);
- assert.match(html,/blower-unified-refresh\.js\?v=20261031-limestone-preview-v3f/);
+ assert.match(html,/blower-unified-refresh\.js\?v=20261031-limestone-ledger-v3g/);
 });
 test('status reads remain paged at 24 IDs: no increased single HTTP status payload',()=>{
  assert.match(read('maintenance/blower-unified-refresh.js'),/ids\.length; index \+= 24/);

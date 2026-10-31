@@ -35,6 +35,10 @@ function fakeIo(t, task, tamper) {
         results:[{ok:true,assetTag:t,item:{id,status:'complete',requestType:'blower_runtime_probe',probe:{assetTag:t,requestId:id}}}]};
     }
     if (options.url?.startsWith('/api/ois-data-requests?id=')) return reply(t,task,id,tamper || {});
+    if (options.body?.action === 'limestone_run_track_apply') {
+      return {ok:true,tagNumber:t,requestId:id,totalRunningSeconds:3600,
+        coverageStartAt:task.startAt,observedAt:end.toISOString()};
+    }
     throw new Error('dataparc_runtime_sync is prohibited for a Limestone preview');
   } } };
 }
@@ -54,8 +58,11 @@ for(const tag of tags) {
     assert.equal(result[0].status,'complete');assert.equal(result[0].unchanged,true);
     assert.equal(result[0].previewState,'stopped');assert.equal(result[0].previewHours,1);
     assert.match(result[0].message,/누적시간 미반영/);
-    assert.equal(f.calls.length,2);
+    assert.equal(f.calls.length,3);
     assert.equal(f.calls[0].body.requests[0].requireIncrementalAppend,false);
+    assert.equal(f.calls[0].body.requests[0].incrementalRefresh,false);
+    assert.equal(f.calls[0].body.requests[0].limestoneTrackingOnly,true);
+    assert.equal(f.calls[2].body.action,'limestone_run_track_apply');
     assert.equal(f.calls[1].method,undefined);
     assert.equal(f.calls.filter(x=>x.body?.action==='dataparc_runtime_sync').length,0);
   });
@@ -115,6 +122,6 @@ test('server denies disputed V-Belt cycle write before asset and event SQL trans
 });
 test('HTML cache keys force the new core and UI into production',()=>{
   const html=fs.readFileSync(new URL('../maintenance/blower-history.html',import.meta.url),'utf8');
-  assert.match(html,/blower-unified-refresh\.js\?v=20261031-limestone-preview-v3f/);
-  assert.match(html,/blower-history\.js\?v=20261031-limestone-preview-v3f/);
+  assert.match(html,/blower-unified-refresh\.js\?v=20261031-limestone-ledger-v3g/);
+  assert.match(html,/blower-history\.js\?v=20261031-limestone-ledger-v3g/);
 });

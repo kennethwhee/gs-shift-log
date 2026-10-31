@@ -1398,6 +1398,9 @@
     const isDataparcRuntimeAsset = isDataParcRuntimeAsset(asset);
     const dataparcRuntimeBasis = isDataparcRuntimeAsset ? getLatestDataParcRuntimeBasis(asset.tagNumber) : null;
     const preview = state.limestoneRunPreviews?.[asset.tagNumber];
+    const tracked = (state.data?.limestoneRunTracking || []).find(item => item.tagNumber === asset.tagNumber);
+    const trackingDetail = tracked && Number.isSafeInteger(tracked.totalRunningSeconds)
+      ? `<div class="dataparc-runtime-row" data-limestone-run-tracking="true"><div class="dataparc-runtime-basis"><span>확인된 RUN 구간 누적 (V-Belt 공식 누적과 별도)</span><strong>${escapeHtml((tracked.totalRunningSeconds / 3600).toFixed(1))}시간 · ${escapeHtml(tracked.endState === 'running' ? '기동' : '정지')}</strong><small>${escapeHtml(formatKstDateTimeDisplay(tracked.coverageStartAt))} → ${escapeHtml(formatKstDateTimeDisplay(tracked.observedAt))} · 구간 ${escapeHtml(String(tracked.segmentCount))}건 · 조회 성공 구간만 저장</small></div></div>` : '';
     const previewDetail = preview?.previewOnly === true && ['running','stopped'].includes(preview.previewState)
       ? `<div class="dataparc-runtime-row" data-limestone-run-preview="true"><div class="dataparc-runtime-basis"><span>최근 RUN 확인 · 누적 미반영</span><strong>${escapeHtml(preview.previewState === 'running' ? 'RUN=1 · 기동' : 'RUN=0 · 정지')} · ${escapeHtml(formatKstDateTimeDisplay(preview.previewObservedAt))}</strong><small>조회 구간 ${escapeHtml(formatKstDateTimeDisplay(preview.previewStartAt))} → ${escapeHtml(formatKstDateTimeDisplay(preview.previewObservedAt))} · RUN=1 합 ${escapeHtml(Number(preview.previewHours).toFixed(1))}h · 실제 교체시각 확인 전 누적시간에 더하지 않음</small></div></div>`
       : '';
@@ -1442,6 +1445,7 @@
         </div>
 
         ${dataparcRuntimeBasisLine}
+        ${trackingDetail}
         ${previewDetail}
 
         ${confirmed ? `
@@ -1769,6 +1773,9 @@
     const overviewOperationState = intermittentInstantState ? "intermittent" : view.state;
     const showOperationStateBadge = !intermittentInstantState;
     const preview = state.limestoneRunPreviews?.[asset.tagNumber];
+    const tracked = (state.data?.limestoneRunTracking || []).find(item => item.tagNumber === asset.tagNumber);
+    const trackingLine = tracked && Number.isSafeInteger(tracked.totalRunningSeconds)
+      ? `<span class="all-overview-query-period" data-limestone-run-tracking="true"><small>RUN 확인 누적 (V-Belt 누적과 별도)</small><strong>${escapeHtml((tracked.totalRunningSeconds / 3600).toFixed(1))}시간 · ${escapeHtml(formatKstDateTimeDisplay(tracked.observedAt))}</strong></span>` : '';
     const previewLine = preview?.previewOnly === true && ['running','stopped'].includes(preview.previewState)
       ? `<span class="all-overview-query-period" data-limestone-run-preview="true"><small>최근 RUN 확인 (누적 미반영)</small><strong>${escapeHtml(preview.previewState === 'running' ? 'RUN=1 · 기동' : 'RUN=0 · 정지')} · ${escapeHtml(formatKstDateTimeDisplay(preview.previewObservedAt))} · 구간 ${escapeHtml(Number(preview.previewHours).toFixed(1))}h</strong></span>`
       : '';
@@ -1791,6 +1798,7 @@
           <small>데이터 조회 기간</small>
           <strong>${escapeHtml(allOverviewBasisText(view.basis))}</strong>
         </span>
+        ${trackingLine}
         ${previewLine}
       </button>`;
   }
@@ -2042,12 +2050,46 @@
     // RUN probe even when the server does not trust their old cumulative basis.
     const isPreviewCandidate = asset => asset.blowerType === 'limestone' &&
       ['103HRJ01AN602', '203HRJ01AN601', '203HRJ01AN602'].includes(asset.tagNumber);
-    const blocked = snapshot.assets.filter(asset => asset.hasUnverifiedDataParcHistory && !isPreviewCandidate(asset));
-    const planned = core.plan(snapshot.assets.filter(asset => !asset.hasUnverifiedDataParcHistory || isPreviewCandidate(asset)),
-      new Date(snapshot.generatedAt), tag => basis.get(tag) || null);
+    // V3-G R2: Only held Limestone assets need the separate ledger read.
+    // Do not inject this API call into the ordinary 24-asset refresh path:
+    // it changes accepted-request timing and error/resume semantics.
+    // When the held assets ARE present, fetch the fresh server-owned ledger
+    // rather than trusting an old browser snapshot. Final apply still uses
+    // the D1 compare-and-swap guard to prevent duplicate/overlapping RUN.
+    let tracked = new Map(), ledgerWarning = '';
+    if (snapshot.assets.some(isPreviewCandidate)) {
+      try {
+        const ledger = await core.readWithRetry(() => io.api({
+          url: API_URL + '?action=limestone_run_tracking', timeoutMs: Math.max(1, Math.min(20000, deadline - Date.now()))
+        }), io, '저장된 Limestone RUN 추적 기준 확인', { deadline });
+        if (ledger?.ok !== true || ledger.version !== 'limestone-run-ledger-v1' ||
+            !Array.isArray(ledger.items) || ledger.items.length > 3 ||
+            ledger.items.some(item => !item || !['103HRJ01AN602','203HRJ01AN601','203HRJ01AN602'].includes(item.tagNumber)) ||
+            new Set(ledger.items.map(item => item.tagNumber)).size !== ledger.items.length) {
+          throw new Error('Limestone RUN 저장 기준을 검증할 수 없습니다. 기존 값은 유지합니다.');
+        }
+        tracked = new Map(ledger.items.map(item => [item.tagNumber, item]));
+      } catch (cause) {
+        // A Limestone-specific ledger outage must not stop the other
+        // twenty-four already-protected runtime updates. Fail closed for
+        // only those three assets, unless access/identity was revoked.
+        if ([401, 403].includes(Number(cause?.status || 0)) ||
+            cause?.code === 'WRITE_ACCESS_CHANGED' || cause?.code === 'READ_DEADLINE') throw cause;
+        ledgerWarning = 'RUN 추적 저장 기준 확인 실패 · 기존 누적시간 유지 · 이번 조회 보류';
+      }
+    }
+    const blocked = snapshot.assets.filter(asset =>
+      (asset.hasUnverifiedDataParcHistory && !isPreviewCandidate(asset)) ||
+      (ledgerWarning && isPreviewCandidate(asset)));
+    const planned = core.plan(snapshot.assets.filter(asset =>
+      (!asset.hasUnverifiedDataParcHistory || isPreviewCandidate(asset)) &&
+      !(ledgerWarning && isPreviewCandidate(asset))),
+      new Date(snapshot.generatedAt), tag => basis.get(tag) || null,
+      tag => tracked.get(tag) || null);
     planned.skipped.push(...blocked.map(asset => ({ tagNumber: asset.tagNumber,
       displayName: asset.displayName || asset.tagNumber, status: "skipped",
-      message: "기존 조회값 보호 · 증분 이어조회 기준 확인 필요 · 전체 재조회하지 않음" })));
+      message: ledgerWarning && isPreviewCandidate(asset) ? ledgerWarning :
+        "기존 조회값 보호 · 증분 이어조회 기준 확인 필요 · 전체 재조회하지 않음" })));
     planned.targetCount += blocked.length;
     return planned;
   }

@@ -3849,7 +3849,9 @@ function convertBlowerRuntimeProbeIntentRow(
       ),
 
     readOnly:
-      true
+      true,
+    ...(normalizeText(row.reuse_key).startsWith('limestone-run-ledger-v1:')
+      ? { limestoneTrackingOnly: true } : {})
   };
 }
 
@@ -18794,8 +18796,14 @@ async function createBlowerRuntimeProbeRequest(
     return jsonResponse({ ok: false, code: mapping.code, message: mapping.error }, 400);
   }
   const { assetTag, dataParcTag } = mapping;
-
-
+  const limestoneTrackingOnly = body.limestoneTrackingOnly === true;
+  if (limestoneTrackingOnly && (
+      body.unifiedRefresh !== true || body.incrementalRefresh !== false ||
+      body.requireIncrementalAppend !== false ||
+      !['103HRJ01AN602', '203HRJ01AN601', '203HRJ01AN602'].includes(assetTag))) {
+    return jsonResponse({ ok: false, code: 'LIMESTONE_TRACK_MODE_INVALID',
+      message: '미확정 Limestone 3대의 RUN 추적은 전용 읽기 요청만 사용할 수 있습니다.' }, 400);
+  }
   const database =
     context.env.DB;
 
@@ -19196,6 +19204,7 @@ async function createBlowerRuntimeProbeRequest(
 
 
   const reuseKey =
+    (limestoneTrackingOnly ? 'limestone-run-ledger-v1:' : '') +
     (appendBase ? "append-v1:" : "") +
     (signalOnlyCycle ? "signal-only-v1:" : "") +
     await hashText(
@@ -20017,7 +20026,12 @@ async function createBlowerRuntimeProbeBatchRequest(context, body) {
       message:"Blower 최신화 요청은 한 번에 1~27대의 일괄 요청으로 보내 주세요."}, 400);
   }
   const invalidIndex = requests.findIndex(item => !isPlainJsonObject(item) ||
-    item.action !== "create_blower_runtime_probe" || item.unifiedRefresh !== true || item.incrementalRefresh !== true ||
+    item.action !== "create_blower_runtime_probe" || item.unifiedRefresh !== true ||
+    (item.limestoneTrackingOnly === true
+      ? (item.incrementalRefresh !== false || item.requireIncrementalAppend !== false ||
+        !['103HRJ01AN602', '203HRJ01AN601', '203HRJ01AN602'].includes(item.assetTag))
+      : item.incrementalRefresh !== true ||
+        (item.limestoneTrackingOnly !== undefined && item.limestoneTrackingOnly !== false)) ||
     typeof item.requireIncrementalAppend !== "boolean" || item.confirmRunSignal !== true);
   if (invalidIndex >= 0) return jsonResponse({ok:false,code:"BLOWER_RUNTIME_CREATE_BATCH_ITEM_INVALID",failedIndex:invalidIndex,
     message:"Blower 최신화 일괄 요청 항목 형식을 확인해 주세요. 개별 요청으로 전환하지 않았습니다."}, 400);

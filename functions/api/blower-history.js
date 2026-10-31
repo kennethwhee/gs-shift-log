@@ -2065,6 +2065,7 @@ async function buildFullData(database, user) {
     recoveryV12,
     missingTags: buildMissingTagSummary(responseAssets),
     missingSlots: buildMissingSlotDetails(responseAssets),
+    limestoneRunTracking: await readLimestoneRunTracking(database),
     generatedAt: new Date().toISOString()
   };
 }
@@ -4258,11 +4259,216 @@ async function loadSealPotRuntimeRawResponse(
 }
 
 
+/* LIMESTONE_RUN_LEDGER_V3G
+ * Three disputed Limestone RUN assets only. This append-only read/observation
+ * ledger is intentionally independent of blower_history_assets runtime and
+ * every V-Belt replacement / history / audit table.
+ * Every segment is backed by one completed, canonical, read-only DataPARC
+ * request created with the server-owned limestone-run-ledger-v1 mode marker.
+ */
+const LIMESTONE_RUN_LEDGER_TAGS = Object.freeze([
+  '103HRJ01AN602', '203HRJ01AN601', '203HRJ01AN602'
+]);
+const LIMESTONE_RUN_LEDGER_TABLE = 'blower_limestone_run_segments_v1';
+function limestoneRunDisputed(asset) {
+  if (!asset || asset.blower_type !== 'limestone' ||
+      !LIMESTONE_RUN_LEDGER_TAGS.includes(asset.tag_number)) return false;
+  const anchor = Date.parse(normalizeText(asset.last_replacement_at));
+  const dateOnlyB = ['103HRJ01AN602','203HRJ01AN602'].includes(asset.tag_number) &&
+    anchor === Date.parse('2026-09-22T00:00:00+09:00');
+  const conflicting2A = asset.tag_number === '203HRJ01AN601' &&
+    (!Number.isFinite(anchor) || anchor < Date.parse('2026-09-19T00:00:00+09:00'));
+  return dateOnlyB || conflicting2A;
+}
+async function ensureLimestoneRunLedgerSchema(database) {
+  await database.prepare(`CREATE TABLE IF NOT EXISTS blower_limestone_run_segments_v1 (
+    request_id TEXT PRIMARY KEY NOT NULL,
+    tag_number TEXT NOT NULL CHECK(tag_number IN ('103HRJ01AN602','203HRJ01AN601','203HRJ01AN602')),
+    data_parc_tag TEXT NOT NULL,
+    start_at TEXT NOT NULL, observed_at TEXT NOT NULL,
+    start_ms INTEGER NOT NULL, end_ms INTEGER NOT NULL,
+    running_seconds INTEGER NOT NULL CHECK(running_seconds >= 0),
+    end_state TEXT NOT NULL CHECK(end_state IN ('running','stopped')),
+    last_replacement_at TEXT NOT NULL,
+    cycle_start_revision TEXT NOT NULL,
+    requested_by_id TEXT NOT NULL,
+    recorded_at TEXT NOT NULL,
+    CHECK(end_ms > start_ms),
+    CHECK(running_seconds * 1000 <= (end_ms - start_ms) + 2000),
+    UNIQUE(tag_number,start_ms), UNIQUE(tag_number,end_ms)
+  )`).run();
+  await database.prepare(`CREATE INDEX IF NOT EXISTS idx_blower_limestone_run_segments_tag_end
+    ON blower_limestone_run_segments_v1(tag_number,end_ms DESC)`).run();
+}
+async function readLimestoneRunTracking(database) {
+  try {
+    const result = await database.prepare(`
+      SELECT s.tag_number,s.first_start_ms,s.last_end_ms,s.total_seconds,s.segment_count,
+        last.data_parc_tag,last.end_state,last.last_replacement_at,last.cycle_start_revision
+      FROM (
+        SELECT tag_number,MIN(start_ms) first_start_ms,MAX(end_ms) last_end_ms,
+          SUM(running_seconds) total_seconds,COUNT(*) segment_count
+        FROM blower_limestone_run_segments_v1 GROUP BY tag_number
+      ) s JOIN blower_limestone_run_segments_v1 last
+        ON last.tag_number=s.tag_number AND last.end_ms=s.last_end_ms
+      ORDER BY s.tag_number
+    `).all();
+    const rows = Array.isArray(result.results) ? result.results : [];
+    return rows.map(row => ({
+      tagNumber: String(row.tag_number), dataParcTag: String(row.data_parc_tag),
+      coverageStartAt: new Date(Number(row.first_start_ms)).toISOString(),
+      observedAt: new Date(Number(row.last_end_ms)).toISOString(),
+      totalRunningSeconds: Number(row.total_seconds), segmentCount: Number(row.segment_count),
+      endState: String(row.end_state), lastReplacementAt: String(row.last_replacement_at),
+      cycleStartRevision: String(row.cycle_start_revision)
+    }));
+  } catch (error) {
+    if (/no such table:\s*blower_limestone_run_segments_v1/i.test(String(error?.message || error))) return [];
+    throw error;
+  }
+}
+async function applyLimestoneRunTrack(database, user, body, options = {}) {
+  const requestId = typeof body?.requestId === 'string' ? body.requestId.trim() : '';
+  const actorId = normalizeEmployeeNo(user?.employeeNo);
+  if (!requestId || requestId.length > 200 || !actorId) {
+    return jsonResponse({ok:false,code:'LIMESTONE_TRACK_REQUEST_INVALID',
+      message:'RUN 추적 저장 요청 식별값을 확인해 주세요.'},400);
+  }
+  let prior;
+  try {
+    prior = await database.prepare(`SELECT * FROM blower_limestone_run_segments_v1
+      WHERE request_id=? LIMIT 1`).bind(requestId).first();
+  } catch (error) {
+    if (!/no such table:\s*blower_limestone_run_segments_v1/i.test(String(error?.message || error))) throw error;
+  }
+  const success = async (tag, applied) => {
+    const tracked = (await readLimestoneRunTracking(database)).find(item => item.tagNumber === tag);
+    if (!tracked) throw new Error('RUN 추적 저장 이후 기준값을 확인하지 못했습니다.');
+    return jsonResponse({ok:true, applied, replayed:!applied, requestId, ...tracked,
+      message:applied ? '확인된 RUN 구간만 별도 누적 저장했습니다. V-Belt 공식 누적시간은 변경하지 않았습니다.'
+        : '이미 저장된 같은 RUN 조회 요청입니다. 중복 추가하지 않았습니다.'});
+  };
+  if (prior) {
+    if (prior.requested_by_id !== actorId && user?.isSuperAdmin !== true)
+      return jsonResponse({ok:false,code:'LIMESTONE_TRACK_FORBIDDEN',message:'해당 RUN 조회 요청의 소유자가 아닙니다.'},403);
+    return success(prior.tag_number,false);
+  }
+  const request = await database.prepare(`SELECT id,request_type,status,requested_by_id,
+      result_json,completed_at FROM ois_data_requests WHERE id=? LIMIT 1`).bind(requestId).first();
+  if (!request || request.status !== 'complete' || request.request_type !== 'blower_runtime_probe' ||
+      !request.result_json) {
+    return jsonResponse({ok:false,code:'LIMESTONE_TRACK_REQUEST_NOT_COMPLETE',
+      message:'완료된 DataPARC RUN 조회만 별도 저장할 수 있습니다.'},409);
+  }
+  if (normalizeEmployeeNo(request.requested_by_id) !== actorId && user?.isSuperAdmin !== true)
+    return jsonResponse({ok:false,code:'LIMESTONE_TRACK_FORBIDDEN',message:'해당 RUN 조회 요청의 소유자가 아닙니다.'},403);
+  const intent = await database.prepare(`SELECT * FROM blower_runtime_probe_intents_v5
+    WHERE request_id=? LIMIT 1`).bind(requestId).first();
+  if (!intent || !String(intent.reuse_key || '').startsWith('limestone-run-ledger-v1:') ||
+      !LIMESTONE_RUN_LEDGER_TAGS.includes(intent.asset_tag) ||
+      intent.dataparc_tag !== LIMESTONE_RUN_SIGNAL_CANDIDATES[intent.asset_tag]) {
+    return jsonResponse({ok:false,code:'LIMESTONE_TRACK_INTENT_INVALID',
+      message:'전용 RUN 추적 요청의 고정된 설비·신호를 확인할 수 없습니다.'},409);
+  }
+  const validation = normalizeDataParcRuntimeProbeResult(request.result_json,requestId,
+    options.now || new Date());
+  if (validation.error || !validation.result ||
+      !isMatchingDataParcRuntimeSyncIntent(intent,validation.result)) {
+    return jsonResponse({ok:false,code:validation.code || 'LIMESTONE_TRACK_RESULT_INVALID',
+      message:'DataPARC 조회 결과의 원본·신호·구간·정수초 검증에 실패했습니다.'},409);
+  }
+  const probe = validation.result;
+  const asset = await findAsset(database,probe.assetTag);
+  const pending = String(asset?.cycle_start_state || '') === 'pending';
+  const expectedStartState = pending ? 'legacy' : String(asset?.cycle_start_state || 'legacy');
+  const expectedStartRevision = pending
+    ? `signal-only-v1:${normalizeText(asset?.cycle_start_revision)}`
+    : normalizeText(asset?.cycle_start_revision);
+  if (!limestoneRunDisputed(asset) || Number(asset?.enabled) !== 1 ||
+      probe.assetTag !== intent.asset_tag ||
+      probe.dataParcTag !== intent.dataparc_tag ||
+      Date.parse(asset.last_replacement_at) !== Date.parse(probe.expectedLastReplacementAt) ||
+      probe.expectedCycleStartState !== expectedStartState ||
+      probe.expectedCycleStartRevision !== expectedStartRevision ||
+      probe.expectedCycleRuntimeRevision !== normalizeText(asset.cycle_runtime_revision) ||
+      (pending ? probe.expectedCycleStartedAt !== '' :
+        probe.expectedCycleStartedAt !== normalizeText(asset.cycle_started_at))) {
+    return jsonResponse({ok:false,code:'LIMESTONE_TRACK_CYCLE_CHANGED',
+      message:'RUN 조회 도중 교체·Cycle 기준이 변경되었습니다. 저장하지 않았습니다.'},409);
+  }
+  const startMs=Date.parse(probe.startAt), endMs=Date.parse(probe.observedAt);
+  if (!Number.isSafeInteger(startMs) || !Number.isSafeInteger(endMs) ||
+      startMs >= endMs || startMs < Date.parse(asset.last_replacement_at) ||
+      endMs - startMs > 366*86400000 ||
+      probe.runningSeconds > (endMs-startMs)/1000 + 2) {
+    return jsonResponse({ok:false,code:'LIMESTONE_TRACK_RANGE_INVALID',
+      message:'RUN 적산 구간이나 운전초가 허용 범위를 벗어났습니다.'},409);
+  }
+  // A rejected RUN observation must not bootstrap D1 schema. Read safely
+  // when the table does not yet exist, then create it only for a valid
+  // first segment (or a valid append to an existing ledger).
+  const ledgerRows = await readLimestoneRunTracking(database);
+  const existingTrack = ledgerRows.find(item => item.tagNumber === probe.assetTag);
+  // The first stored proof starts with one bounded day. Later proof must
+  // extend exactly from the saved server endpoint, regardless of downtime.
+  if (!existingTrack && endMs-startMs > 24*3600000+120000) {
+    return jsonResponse({ok:false,code:'LIMESTONE_TRACK_FIRST_RANGE_TOO_LARGE',
+      message:'최초 RUN 추적 저장은 최근 하루 이내의 확인구간만 허용합니다.'},409);
+  }
+  await ensureLimestoneRunLedgerSchema(database);
+  // One atomic, conditional INSERT: an old or parallel observation cannot
+  // overwrite or overlap a confirmed predecessor; only its exact end extends.
+  let inserted;
+  try {
+    inserted = await database.prepare(`WITH previous AS (
+        SELECT end_ms,data_parc_tag,last_replacement_at,cycle_start_revision
+        FROM blower_limestone_run_segments_v1 WHERE tag_number=?
+        ORDER BY end_ms DESC LIMIT 1
+      )
+      INSERT INTO blower_limestone_run_segments_v1
+        (request_id,tag_number,data_parc_tag,start_at,observed_at,start_ms,end_ms,
+         running_seconds,end_state,last_replacement_at,cycle_start_revision,requested_by_id,recorded_at)
+      SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?
+      WHERE NOT EXISTS (SELECT 1 FROM blower_limestone_run_segments_v1 WHERE request_id=?)
+        AND EXISTS (SELECT 1 FROM blower_history_assets
+          WHERE tag_number=? AND enabled=1 AND last_replacement_at=?
+            AND cycle_start_revision=? AND cycle_runtime_revision=?)
+        AND (NOT EXISTS(SELECT 1 FROM previous) OR EXISTS(SELECT 1 FROM previous
+          WHERE end_ms=? AND data_parc_tag=? AND last_replacement_at=?
+            AND cycle_start_revision=?))
+    `).bind(probe.assetTag,requestId,probe.assetTag,probe.dataParcTag,
+      probe.startAt,probe.observedAt,startMs,endMs,probe.runningSeconds,probe.endState,
+      normalizeText(asset.last_replacement_at),normalizeText(asset.cycle_start_revision),
+      normalizeEmployeeNo(request.requested_by_id),(options.now||new Date()).toISOString(),
+      requestId,probe.assetTag,normalizeText(asset.last_replacement_at),
+      normalizeText(asset.cycle_start_revision),normalizeText(asset.cycle_runtime_revision),
+      startMs,probe.dataParcTag,normalizeText(asset.last_replacement_at),
+      normalizeText(asset.cycle_start_revision)).run();
+  } catch (error) {
+    if (!/UNIQUE constraint failed/i.test(String(error?.message || error))) throw error;
+  }
+  if (Number(inserted?.meta?.changes || 0) !== 1) {
+    const replay = await database.prepare(`SELECT * FROM blower_limestone_run_segments_v1
+      WHERE request_id=? LIMIT 1`).bind(requestId).first();
+    if (replay && replay.tag_number === probe.assetTag && replay.data_parc_tag === probe.dataParcTag)
+      return success(probe.assetTag,false);
+    return jsonResponse({ok:false,code:'LIMESTONE_TRACK_NOT_CONTIGUOUS',
+      message:'이전 확인구간과 겹치거나 저장기준이 변경됐습니다. 중복 합산하지 않았습니다.'},409);
+  }
+  return success(probe.assetTag,true);
+}
+
 async function handleGet(context, user) {
   const database = context.env.DB;
   const url = new URL(context.request.url);
   const action = normalizeText(url.searchParams.get("action")) || "data";
   const permissions = buildPermissions(user);
+
+  if (action === 'limestone_run_tracking') {
+    if (!user) return jsonResponse({ok:false,message:'로그인이 필요합니다.'},401);
+    return jsonResponse({ok:true,version:'limestone-run-ledger-v1',
+      items:await readLimestoneRunTracking(database)});
+  }
 
   if (action === "refresh_state_page") {
     if (!user) return jsonResponse({ ok: false, message: "로그인이 필요합니다.", permissions }, 401);
@@ -14743,6 +14949,10 @@ async function handlePost(context, user, body) {
     return registerProblem(database, user, body);
   }
 
+  if (action === 'limestone_run_track_apply') {
+    return applyLimestoneRunTrack(database,user,body);
+  }
+
   if (action === "dataparc_runtime_sync") {
     return applyDataParcRuntimeSync(database, user, body);
   }
@@ -14922,7 +15132,7 @@ export const __blowerHistoryTest = {
   latestSuccessfulDataParcTag,
   ensureHistoryRecoveryV12Schema,
   normalizeDataParcRuntimeProbeResult,
-  applyDataParcRuntimeSync,
+  applyDataParcRuntimeSync, readLimestoneRunTracking, applyLimestoneRunTrack, limestoneRunDisputed,
   v12ApplyConfirmedEvents,
   operationPositionFromToken,
   operationChangeoverPair,
