@@ -90,6 +90,7 @@
     unifiedRefreshToken: "",
     unifiedRefreshClientMode: "",
     unifiedRefreshResults: [],
+    limestoneRunPreviews: Object.create(null), // Session-only RUN observations; never a V-Belt total.
     unifiedRefreshProgressPct: 0,
     unifiedRefreshProgressText: "통합조회 대기",
     unifiedRefreshProgressTarget: 0,
@@ -1396,6 +1397,10 @@
       : "미설정";
     const isDataparcRuntimeAsset = isDataParcRuntimeAsset(asset);
     const dataparcRuntimeBasis = isDataparcRuntimeAsset ? getLatestDataParcRuntimeBasis(asset.tagNumber) : null;
+    const preview = state.limestoneRunPreviews?.[asset.tagNumber];
+    const previewDetail = preview?.previewOnly === true && ['running','stopped'].includes(preview.previewState)
+      ? `<div class="dataparc-runtime-row" data-limestone-run-preview="true"><div class="dataparc-runtime-basis"><span>최근 RUN 확인 · 누적 미반영</span><strong>${escapeHtml(preview.previewState === 'running' ? 'RUN=1 · 기동' : 'RUN=0 · 정지')} · ${escapeHtml(formatKstDateTimeDisplay(preview.previewObservedAt))}</strong><small>조회 구간 ${escapeHtml(formatKstDateTimeDisplay(preview.previewStartAt))} → ${escapeHtml(formatKstDateTimeDisplay(preview.previewObservedAt))} · RUN=1 합 ${escapeHtml(Number(preview.previewHours).toFixed(1))}h · 실제 교체시각 확인 전 누적시간에 더하지 않음</small></div></div>`
+      : '';
     const dataparcRuntimeBasisLine = runView
       ? `<div class="dataparc-runtime-row run-source-row" data-run-source="${escapeHtml(asset.runRuntime?.source || "unverified")}">
           <div class="dataparc-runtime-basis">
@@ -1437,6 +1442,7 @@
         </div>
 
         ${dataparcRuntimeBasisLine}
+        ${previewDetail}
 
         ${confirmed ? `
           <div class="cycle-overview${effectiveStartupPending ? " is-startup-pending" : ""}${!cycleHours ? " is-policy-unset" : ""}" title="${escapeHtml(remainingDetail)}">
@@ -1762,6 +1768,10 @@
     const intermittentInstantState = view.intermittent && ["running", "stopped"].includes(view.state);
     const overviewOperationState = intermittentInstantState ? "intermittent" : view.state;
     const showOperationStateBadge = !intermittentInstantState;
+    const preview = state.limestoneRunPreviews?.[asset.tagNumber];
+    const previewLine = preview?.previewOnly === true && ['running','stopped'].includes(preview.previewState)
+      ? `<span class="all-overview-query-period" data-limestone-run-preview="true"><small>최근 RUN 확인 (누적 미반영)</small><strong>${escapeHtml(preview.previewState === 'running' ? 'RUN=1 · 기동' : 'RUN=0 · 정지')} · ${escapeHtml(formatKstDateTimeDisplay(preview.previewObservedAt))} · 구간 ${escapeHtml(Number(preview.previewHours).toFixed(1))}h</strong></span>`
+      : '';
     return `
       <button type="button" class="all-overview-card" data-asset-action="history" data-tag="${escapeHtml(asset.tagNumber)}"
         data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(overviewOperationState)}" data-operation-mode="${view.intermittent ? "intermittent" : "standard"}"
@@ -1781,6 +1791,7 @@
           <small>데이터 조회 기간</small>
           <strong>${escapeHtml(allOverviewBasisText(view.basis))}</strong>
         </span>
+        ${previewLine}
       </button>`;
   }
 
@@ -2027,8 +2038,12 @@
     }
     // No cached browser basis may replace an explicitly empty server basis.
     const basis = new Map(snapshot.assets.map(asset => [asset.tagNumber, asset.dataParcRuntimeBasis]));
-    const blocked = snapshot.assets.filter(asset => asset.hasUnverifiedDataParcHistory);
-    const planned = core.plan(snapshot.assets.filter(asset => !asset.hasUnverifiedDataParcHistory),
+    // V3-F: the three disputed Limestone assets may run a bounded, read-only
+    // RUN probe even when the server does not trust their old cumulative basis.
+    const isPreviewCandidate = asset => asset.blowerType === 'limestone' &&
+      ['103HRJ01AN602', '203HRJ01AN601', '203HRJ01AN602'].includes(asset.tagNumber);
+    const blocked = snapshot.assets.filter(asset => asset.hasUnverifiedDataParcHistory && !isPreviewCandidate(asset));
+    const planned = core.plan(snapshot.assets.filter(asset => !asset.hasUnverifiedDataParcHistory || isPreviewCandidate(asset)),
       new Date(snapshot.generatedAt), tag => basis.get(tag) || null);
     planned.skipped.push(...blocked.map(asset => ({ tagNumber: asset.tagNumber,
       displayName: asset.displayName || asset.tagNumber, status: "skipped",
@@ -10807,8 +10822,9 @@
     const failed = results.filter(x => x.status === "failed").length;
     const skipped = results.filter(x => x.status === "skipped").length;
     const waiting = results.filter(x => x.status === "waiting").length;
-    const unchanged = results.filter(x => x.status === "complete" && x.unchanged === true).length;
-    elements.unifiedRefreshSummary.textContent = `통합조회 결과 · 반영 ${complete - unchanged}대${unchanged ? ` · 유지 ${unchanged}대` : ""}${waiting ? ` · 확인 대기 ${waiting}대` : ""}${skipped ? ` · 조회 보류 ${skipped}대` : ""}${failed ? ` · 실패 ${failed}대` : ""}`;
+    const previews = results.filter(x => x.status === 'complete' && x.previewOnly === true).length;
+    const unchanged = results.filter(x => x.status === "complete" && x.unchanged === true && x.previewOnly !== true).length;
+    elements.unifiedRefreshSummary.textContent = `통합조회 결과 · 반영 ${complete - unchanged - previews}대${previews ? ` · RUN 확인(누적 미반영) ${previews}대` : ""}${unchanged ? ` · 유지 ${unchanged}대` : ""}${waiting ? ` · 확인 대기 ${waiting}대` : ""}${skipped ? ` · 조회 보류 ${skipped}대` : ""}${failed ? ` · 실패 ${failed}대` : ""}`;
     // Presentation only: keep the original result array, requests, and receipts intact.
     // Surface true failures above protected skipped assets, with stable order inside groups.
     const priority = { failed: 0, waiting: 1, skipped: 2, complete: 3 };
@@ -10842,6 +10858,7 @@
       state.unifiedRefreshBusy = true;
       state.unifiedRefreshToken = getSessionToken();
       state.unifiedRefreshResults = [];
+      state.limestoneRunPreviews = Object.create(null);
       state.unifiedRefreshProgressPct = 0;
       state.unifiedRefreshProgressTarget = (state.data?.assets || []).filter(asset => asset.enabled !== false && asset.enabled !== 0).length;
       state.unifiedRefreshProgressProcessed = 0;
@@ -10916,6 +10933,11 @@
           try {
             const batchResults = await core.executeDataParcBatch(planned.tasks, io);
             state.unifiedRefreshResults.push(...batchResults);
+            for (const result of batchResults) {
+              if (result.previewOnly === true && result.status === 'complete') {
+                state.limestoneRunPreviews[result.tagNumber] = result;
+              }
+            }
           } catch (e) {
             if ([401,403].includes(Number(e.status)) || e.code === "CREATE_RESULT_UNCONFIRMED") throw e;
             state.unifiedRefreshResults.push(...planned.tasks.map(task => ({
@@ -10941,8 +10963,9 @@
         const failedCount = counts.filter(x => x.status === "failed").length;
         const skippedCount = counts.filter(x => x.status === "skipped").length;
         const issueSummary = [skippedCount ? `조회 보류 ${skippedCount}대` : "", failedCount ? `실패 ${failedCount}대` : ""].filter(Boolean).join(" · ");
-        const unchanged = counts.filter(x => x.status === "complete" && x.unchanged === true).length;
-        const completion = `${formatKstDateTimeDisplay(currentServerDate().toISOString())} · 반영 ${counts.length - failures - unchanged}대${unchanged ? ` · 유지 ${unchanged}대` : ""} / 전체 ${planned.targetCount}대`;
+        const previewCount = counts.filter(x => x.status === 'complete' && x.previewOnly === true).length;
+        const unchanged = counts.filter(x => x.status === "complete" && x.unchanged === true && x.previewOnly !== true).length;
+        const completion = `${formatKstDateTimeDisplay(currentServerDate().toISOString())} · 반영 ${counts.length - failures - unchanged - previewCount}대${previewCount ? ` · RUN 확인 ${previewCount}대(누적 미반영)` : ""}${unchanged ? ` · 유지 ${unchanged}대` : ""} / 전체 ${planned.targetCount}대`;
         partial = partial || failures > 0;
         setOverviewRefreshProcessed(planned.targetCount - waitingCount, planned.targetCount, waitingCount ? "조회 결과 확인 대기" : partial ? "부분 완료 · 결과 확인" : "통합조회 완료");
         renderUnifiedRefreshProgress(`${partial ? "부분 통합조회" : "통합조회 완료"} · ${completion} · ${logNote}${issueSummary ? ` · ${issueSummary}` : ""}`);

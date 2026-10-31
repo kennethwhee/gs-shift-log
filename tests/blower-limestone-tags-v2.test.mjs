@@ -96,5 +96,5 @@ test('Limestone view is distinct and source is flagged as confirmation pending',
   assert.match(client, /"seal_pot", "limestone"/);
   assert.match(client, /asset\.limestoneSignalCandidate && !asset\.dataParcRuntimeBasis \?/);
   assert.match(client, /RUN 신호 확인 대기/);
-  assert.match(html, /blower-history\.js\?v=20261029-limestone-run-v4/);
+  assert.match(html, /blower-history\.js\?v=20261031-limestone-preview-v3f/);
 });

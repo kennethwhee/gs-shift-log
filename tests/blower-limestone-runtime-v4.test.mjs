@@ -57,17 +57,22 @@ test('Agent keeps its existing poll value and 27 read-only Excel request contrac
  assert.equal((agent.match(/"103HRJ01AN601"/g)||[]).length,3);
  assert.match(agent,/(?:const\s+OIS_AGENT_POLL_INTERVAL\s*=\s*\d+|pollInterval)/i);
 });
-test('current source guards a date-only 9/22 replacement and the 2A conflicted 9/19 replacement',()=>{
+test('disputed 9/22 and 9/19 cycles only allow a bounded preview while 1A retains normal sync',()=>{
  const plan=core.plan([
   current('103HRJ01AN601','2026-09-18T14:20:00+09:00'),
   current('103HRJ01AN602','2026-09-22T00:00:00+09:00'),
   current('203HRJ01AN601','2026-02-24T13:45:00+09:00'),
   current('203HRJ01AN602','2026-09-22T00:00:00+09:00')],now);
  assert.equal(plan.targetCount,4);
- assert.deepEqual(plan.tasks.map(t=>t.asset.tagNumber),['103HRJ01AN601']);
+ assert.deepEqual(plan.tasks.map(t=>t.asset.tagNumber),tags);
  assert.equal(plan.tasks[0].dataParcTag,signals['103HRJ01AN601']);
- assert.equal(plan.skipped.length,3);
- assert.ok(plan.skipped.every(x=>/보류|미확정/.test(x.message)));
+ assert.equal(plan.tasks[0].previewOnly,undefined);
+ assert.equal(plan.skipped.length,0);
+ for(const task of plan.tasks.slice(1)) {
+   assert.equal(task.previewOnly,true);
+   assert.equal(task.incremental,false);
+   assert.equal(Date.parse(task.startAt),now.getTime()-86400000);
+ }
 });
 test('once actual replacement moment is corrected, original A/B identities may become eligible',()=>{
  const plan=core.plan([
@@ -89,7 +94,7 @@ test('27 device receipts and browser checkpoint can be re-read',()=>{
  assert.match(scheduleApi,/receipt\.requestedCount > 27/);
  assert.match(ui,/value\.tasks\.length > 27/);
  assert.match(ui,/"103HRJ01AN601"/);
- assert.match(html,/blower-unified-refresh\.js\?v=20261029-limestone-run-v4/);
+ assert.match(html,/blower-unified-refresh\.js\?v=20261031-limestone-preview-v3f/);
 });
 test('status reads remain paged at 24 IDs: no increased single HTTP status payload',()=>{
  assert.match(read('maintenance/blower-unified-refresh.js'),/ids\.length; index \+= 24/);

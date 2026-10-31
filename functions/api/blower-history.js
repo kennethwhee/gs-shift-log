@@ -7225,6 +7225,22 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
     }, 404);
   }
 
+  // V3-F: even a crafted or old client must not certify a V-Belt cycle
+  // from the known date-only Limestone placeholders or disputed 2A repair.
+  // A completed historical sync above remains idempotently readable; a new
+  // sync is rejected before any asset/event/guard transaction is prepared.
+  const replacementTime = Date.parse(normalizeText(asset.last_replacement_at));
+  const heldB = asset.blower_type === 'limestone' &&
+    ['103HRJ01AN602', '203HRJ01AN602'].includes(asset.tag_number) &&
+    replacementTime === Date.parse('2026-09-22T00:00:00+09:00');
+  const held2A = asset.blower_type === 'limestone' &&
+    asset.tag_number === '203HRJ01AN601' &&
+    (!Number.isFinite(replacementTime) || replacementTime < Date.parse('2026-09-19T00:00:00+09:00'));
+  if (heldB || held2A) {
+    return jsonResponse({ ok: false, code: 'LIMESTONE_VBELT_ANCHOR_UNCONFIRMED',
+      message: 'DataPARC RUN 조회 결과는 확인할 수 있지만 실제 V-Belt 교체시각 확정 전에는 누적 운전시간에 반영할 수 없습니다.' }, 409);
+  }
+
   const currentCycleStartState = normalizeText(asset.cycle_start_state);
 
   const currentLastReplacementAt = normalizeText(asset.last_replacement_at);

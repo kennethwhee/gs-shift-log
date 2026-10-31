@@ -100,26 +100,39 @@ DP_TAGS.add("203HRJ01AN602");
     for (const a of assets || []) {
       if (a.enabled === false || a.enabled === 0) continue;
       const skip = reason => skipped.push({ tagNumber: a.tagNumber, displayName: a.displayName || a.tagNumber, status: 'skipped', message: reason });
-      if (a.blowerType === 'limestone') {
-  const anchorTime = Date.parse(a.lastReplacementAt || '');
-  // A 00:00 date-only storage placeholder is not an accurate belt completion time.
-  const unresolvedDay = ['103HRJ01AN602','203HRJ01AN602'].includes(a.tagNumber) &&
-    anchorTime === Date.parse('2026-09-22T00:00:00+09:00');
-  // 2A's 9/19 work order conflicts with an actual completion; do not count across it.
-  const unresolved2A = a.tagNumber === '203HRJ01AN601' &&
-    (!Number.isFinite(anchorTime) || anchorTime < Date.parse('2026-09-19T00:00:00+09:00'));
-  if (unresolvedDay || unresolved2A) {
-    skip(unresolvedDay ? '9/22 교체시각 미확정 · 실제 시각 등록 전 RUN 적산 보류' : '2호기 #A 9/19 교체 완료 근거 충돌 · RUN 적산 보류');
-    continue;
-  }
-}
-const replacement = time(a.lastReplacementAt);
+      // V3-F: read RUN samples for the three disputed Limestone cycles without
+      // certifying their cumulative V-Belt runtime or moving an existing basis.
+      const replacement = time(a.lastReplacementAt);
+      const heldLimestoneTags = ['103HRJ01AN602', '203HRJ01AN601', '203HRJ01AN602'];
+      const candidate = a.blowerType === 'limestone' && heldLimestoneTags.includes(a.tagNumber);
+      const unresolvedDay = candidate && ['103HRJ01AN602', '203HRJ01AN602'].includes(a.tagNumber) &&
+        replacement === Date.parse('2026-09-22T00:00:00+09:00');
+      const unresolved2A = candidate && a.tagNumber === '203HRJ01AN601' &&
+        (!Number.isFinite(replacement) || replacement < Date.parse('2026-09-19T00:00:00+09:00'));
+      const previewOnly = candidate && (unresolvedDay || unresolved2A || a.hasUnverifiedDataParcHistory === true);
+      const holdReason = unresolvedDay ? '9/22 실제 V-Belt 교체시각 미확정'
+        : unresolved2A ? '2호기 #A 9/19 V-Belt 교체 완료 근거 충돌'
+        : '기존 DataPARC 누적 기준 미검증';
       if (!Number.isFinite(replacement)) { skip('교체일 등록 필요 · 이력 보기 / V-Belt 교체 등록'); continue; }
       if (replacement >= end) { skip('교체일이 현재 시각 이후입니다.'); continue; }
       if (!DP_TAGS.has(a.tagNumber)) { skip('연결된 운전시간 조회 방식이 없습니다.'); continue; }
       const dataParcTag = a.tagNumber === '104ETH03AN602' ? SIGNAL : String(a.dataParcTag || (a.blowerType === 'limestone' ? a.limestoneSignalCandidate : '') || '').trim();
       if (!/^GSPOGE\.ABB_DCS\.[A-Z0-9][A-Z0-9._-]*$/.test(dataParcTag) || dataParcTag.length > 200 || (a.tagNumber !== '104ETH03AN602' && dataParcTag === SIGNAL)) {
         skip('RUN TAG 설정 필요 · 이력 보기 → 조회 기준·상세'); continue;
+      }
+      if (previewOnly) {
+        // An absolute last-24h window is independent of a disputed historical
+        // maintenance reset. The existing read-only probe can safely observe
+        // RUN=0/1; it must NEVER call dataparc_runtime_sync for this task.
+        const firstStart = a.cycleStartState === 'started' ? time(a.cycleStartedAt) : NaN;
+        const previewStart = Math.max(end - DAY, replacement, Number.isFinite(firstStart) ? firstStart : replacement);
+        if (!Number.isFinite(previewStart) || previewStart >= end) {
+          skip('RUN 단기조회 시작시각을 확인할 수 없습니다 · 기존 누적시간 유지'); continue;
+        }
+        const startAt = new Date(previewStart).toISOString();
+        tasks.push({ kind: 'dataparc', asset: a, snapshot: snapshot(a), startAt,
+          queryStartAt: startAt, incremental: false, dataParcTag, previewOnly: true, holdReason });
+        continue;
       }
       const previous = a.dataParcRuntimeBasis || basisFor(a.tagNumber);
       // Preserve every already-confirmed result. Once a basis exists, the integrated refresh may
@@ -212,6 +225,41 @@ const replacement = time(a.lastReplacementAt);
       expectedCycleStartedAt: s.cycleStartedAt, expectedCycleStartRevision: s.cycleStartRevision,
       expectedCycleRuntimeRevision: s.cycleRuntimeRevision
     };
+  }
+
+  function verifiedLimestonePreview(reply, task, requestId) {
+    // Status-batch intentionally omits probe result bodies. Read the exact
+    // accepted request after completion and validate its immutable identity.
+    const item = reply?.item, probe = item?.probe, result = item?.result;
+    const s = task?.snapshot || {};
+    const stamp = value => typeof value === 'string' && value.trim() ? Date.parse(value) : NaN;
+    const start = stamp(probe?.startAt), end = stamp(probe?.endAt);
+    const observed = stamp(result?.observedAt);
+    const runningSeconds = result?.runningSeconds;
+    const hours = result?.totalRunningHours;
+    if (!task?.previewOnly || !requestId || reply?.ok !== true ||
+        item?.id !== requestId || item.status !== 'complete' ||
+        item.requestType !== 'blower_runtime_probe' ||
+        probe?.requestId !== requestId || probe?.assetTag !== s.tagNumber ||
+        probe?.dataParcTag !== task.dataParcTag ||
+        stamp(probe?.expectedLastReplacementAt) !== stamp(s.lastReplacementAt) ||
+        result?.ok !== true || result?.readOnly !== true ||
+        result?.requestType !== 'blower_runtime_probe' || result?.requestId !== requestId ||
+        result?.assetTag !== s.tagNumber || result?.dataParcTag !== task.dataParcTag ||
+        !['running', 'stopped'].includes(result?.endState) ||
+        !Number.isFinite(start) || !Number.isFinite(end) || !Number.isFinite(observed) ||
+        start >= end || end !== observed ||
+        stamp(result?.startAt) !== start || stamp(result?.endAt) !== end ||
+        start < stamp(s.lastReplacementAt) || end - start > 366 * DAY ||
+        !Number.isSafeInteger(runningSeconds) || runningSeconds < 0 ||
+        runningSeconds > Math.ceil((end - start) / 1000) ||
+        typeof hours !== 'number' || !Number.isFinite(hours) ||
+        Math.abs(hours * 3600 - runningSeconds) > 0.01) {
+      throw error('RUN 조회 결과의 요청·설비·신호·기간·0/1 상태가 일치하지 않습니다. 누적시간은 변경하지 않았습니다.',
+        'LIMESTONE_PREVIEW_UNVERIFIED');
+    }
+    return { state: result.endState, runningHours: runningSeconds / 3600,
+      startAt: probe.startAt, observedAt: result.observedAt };
   }
 
   async function executeDataParcBatch(tasks, io) {
@@ -342,6 +390,23 @@ const replacement = time(a.lastReplacementAt);
               : request.status === 'processing' ? '회사 PC 처리 중 · 같은 요청으로 결과 확인 가능'
               : '회사 PC 응답 대기 · 같은 요청으로 결과 확인 가능' };
         }
+        if (task.previewOnly === true) {
+            try {
+              const reply = await io.api({ url: `/api/ois-data-requests?id=${encodeURIComponent(entry.item.id)}`, timeoutMs: 20000 });
+              io.assertWritable?.();
+              const preview = verifiedLimestonePreview(reply, task, entry.item.id);
+              const stateText = preview.state === 'running' ? 'RUN=1 (기동)' : 'RUN=0 (정지)';
+              return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber,
+                status: 'complete', unchanged: true, previewOnly: true,
+                previewState: preview.state, previewHours: preview.runningHours,
+                previewStartAt: preview.startAt, previewObservedAt: preview.observedAt,
+                message: `RUN 단기조회 ${stateText} · 최근 구간 ${preview.runningHours.toFixed(1)}시간 · ${task.holdReason} · V-Belt 누적시간 미반영` };
+            } catch (cause) {
+              if ([401, 403].includes(Number(cause?.status)) || cause?.code === 'WRITE_ACCESS_CHANGED') throw cause;
+              return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber,
+                status: 'failed', message: `RUN 조회 결과 확인 실패 · ${cause?.code || '자료 불일치'} · 기존 누적시간 유지` };
+            }
+          }
         try {
           const applied = await io.api({ method: 'POST', timeoutMs: 30000, body: { action: 'dataparc_runtime_sync', requestId: entry.item.id } });
           appliedCount += 1;
