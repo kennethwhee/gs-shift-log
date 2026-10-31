@@ -1029,38 +1029,31 @@ async function ensureBlowerHistorySchemaReady(database) {
     await database
       .prepare(`SELECT id FROM blower_history_asset_history LIMIT 1`)
       .first();
-    const atomicGuardTable = await database
-      .prepare(`
-        SELECT name
-        FROM sqlite_master
-        WHERE type = 'table' AND name = 'blower_history_atomic_guard'
-        LIMIT 1
-      `)
-      .first();
-    const activeSlotIndex = await database
-      .prepare(`
-        SELECT name
-        FROM sqlite_master
-        WHERE type = 'index' AND name = 'idx_blower_history_assets_active_slot'
-        LIMIT 1
-      `)
-      .first();
-    const canonicalTagIndex = await database
-      .prepare(`
-        SELECT name
-        FROM sqlite_master
-        WHERE type = 'index' AND name = 'idx_blower_history_assets_canonical_tag'
-        LIMIT 1
-      `)
-      .first();
+    /* GS_D1_V3_BLOWER_SCHEMA_PRESENCE_3_TO_1
+     * Formerly three independent sqlite_master scans per authenticated request.
+     * Preserve all three exact table/index checks and full migration fallback.
+     * No cross-request cache or persisted changes; missing objects still run ensureSchema.
+     */
+    const schemaPresence = await database.prepare(`
+      SELECT
+        MAX(CASE WHEN type = 'table' AND name = 'blower_history_atomic_guard' THEN 1 ELSE 0 END) AS guard_ready,
+        MAX(CASE WHEN type = 'index' AND name = 'idx_blower_history_assets_active_slot' THEN 1 ELSE 0 END) AS active_slot_ready,
+        MAX(CASE WHEN type = 'index' AND name = 'idx_blower_history_assets_canonical_tag' THEN 1 ELSE 0 END) AS canonical_tag_ready
+      FROM sqlite_master
+      WHERE name IN (
+        'blower_history_atomic_guard',
+        'idx_blower_history_assets_active_slot',
+        'idx_blower_history_assets_canonical_tag'
+      )
+    `).first();
 
     if (
       Number(ready?.setting_count || 0) >= 6 &&
       Number(ready?.sentinel_asset_count || 0) >= 10 &&
       Number(uninitializedCycleRuntime?.count || 0) === 0 &&
-      atomicGuardTable?.name === "blower_history_atomic_guard" &&
-      activeSlotIndex?.name === "idx_blower_history_assets_active_slot" &&
-      canonicalTagIndex?.name === "idx_blower_history_assets_canonical_tag"
+      Number(schemaPresence?.guard_ready) === 1 &&
+      Number(schemaPresence?.active_slot_ready) === 1 &&
+      Number(schemaPresence?.canonical_tag_ready) === 1
     ) {
       return;
     }
