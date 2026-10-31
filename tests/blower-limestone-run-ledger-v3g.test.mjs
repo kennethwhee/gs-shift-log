@@ -119,9 +119,10 @@ test('scheduling handles RUN-only receipts separately without modifying standard
  assert.match(api,/limestone-run-ledger-v1:/);
  assert.match(api,/limestoneTrackingOnly/);
 });
-test('full UI shows saved RUN tracking separately from the V-Belt cycle total',()=>{
+test('full UI uses saved RUN tracking as a single verified display, never writes to V-Belt totals',()=>{
  const ui=fs.readFileSync(new URL('../maintenance/blower-history.js',import.meta.url),'utf8');
- assert.match(ui,/data-limestone-run-tracking/);
+ assert.match(ui,/data-limestone-display/);
+ assert.match(ui,/verifiedLimestoneRunDisplay/);
  assert.match(ui,/state\.data\?\.limestoneRunTracking/);
  assert.match(ui,/if \(snapshot\.assets\.some\(isPreviewCandidate\)\)/);
  assert.match(ui,/API_URL \+ ['"]\?action=limestone_run_tracking/);

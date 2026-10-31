@@ -1333,7 +1333,41 @@
     return text.length > 240 ? `${text.slice(0, 237).trim()}…` : text;
   }
 
+  /* LIMESTONE_VERIFIED_RUN_DISPLAY_V3H: one visual metric, never arithmetic with disputed V-Belt totals. */
+  const LIMESTONE_DISPUTED_RUN_TAGS = new Set(['103HRJ01AN602', '203HRJ01AN601', '203HRJ01AN602']);
+  function verifiedLimestoneRunDisplay(asset) {
+    const tag = String(asset?.tagNumber || '');
+    if (asset?.blowerType !== 'limestone' || !LIMESTONE_DISPUTED_RUN_TAGS.has(tag)) return null;
+    const entries = state.data?.limestoneRunTracking;
+    if (!Array.isArray(entries)) return null;
+    const entry = entries.find(item => item?.tagNumber === tag);
+    if (!entry || entry.dataParcTag !== `GSPOGE.ABB_DCS.${tag}XB04` ||
+        !Number.isSafeInteger(entry.totalRunningSeconds) || entry.totalRunningSeconds < 0 ||
+        !Number.isSafeInteger(entry.segmentCount) || entry.segmentCount < 1 ||
+        !['running', 'stopped'].includes(entry.endState) ||
+        String(entry.cycleStartRevision || '') !== String(asset.cycleStartRevision || '')) return null;
+    const begin = Date.parse(entry.coverageStartAt || '');
+    const end = Date.parse(entry.observedAt || '');
+    const replacement = Date.parse(asset.lastReplacementAt || '');
+    const savedReplacement = Date.parse(entry.lastReplacementAt || '');
+    if (![begin, end, replacement, savedReplacement].every(Number.isFinite) ||
+        replacement !== savedReplacement || begin < replacement || end <= begin ||
+        entry.totalRunningSeconds * 1000 > end - begin + 2000) return null;
+    return {
+      runtime: `${(entry.totalRunningSeconds / 3600).toLocaleString('ko-KR', {
+        minimumFractionDigits: 1, maximumFractionDigits: 1
+      })}시간`,
+      state: entry.endState,
+      stateLabel: entry.endState === 'running' ? '기동중' : '정지중',
+      basis: { startAt: entry.coverageStartAt, observedAt: entry.observedAt },
+      source: entry
+    };
+  }
+
   function renderAssetCard(asset, setting) {
+    // Tests/legacy isolated renderers may execute only this function body.
+    // The complete page always provides the validated helper above.
+    const verifiedLimestone = typeof verifiedLimestoneRunDisplay === 'function' ? verifiedLimestoneRunDisplay(asset) : null;
     const runView = window.BlowerUnifiedRefresh?.fbheSealRunView(asset, getLatestDataParcRuntimeBasis(asset.tagNumber));
     // Fail closed during a mixed deployment; never display the legacy value as a RUN measurement.
     if (runView && !runView.verified && !runView.pending) asset = { ...asset,
@@ -1354,10 +1388,10 @@
       (intermittent && asset.cycleElapsedHours === null && !effectiveStartupPending));
     const operationKnown = !runtimeUnknown && cycleRuntimeTracked && asset.operationState !== "unknown" && asset.cycleRuntimeState !== "unknown";
     const operationRunning = operationKnown && Boolean(asset.isRunning);
-    const operationState = intermittent ? "measured" : confirmed
+    const operationState = verifiedLimestone ? verifiedLimestone.state : intermittent ? "measured" : confirmed
       ? (effectiveStartupPending ? "startup_pending" : (runView?.verified && ["running", "stopped"].includes(runView.state) ? runView.state : (operationKnown ? (operationRunning ? "running" : "stopped") : "unknown")))
       : "unconfirmed";
-    const operationStateLabel = runView?.stateLabel || {
+    const operationStateLabel = verifiedLimestone?.stateLabel || runView?.stateLabel || {
       running: "기동중",
       stopped: "정지중",
       startup_pending: "기동 대기",
@@ -1398,13 +1432,19 @@
     const isDataparcRuntimeAsset = isDataParcRuntimeAsset(asset);
     const dataparcRuntimeBasis = isDataparcRuntimeAsset ? getLatestDataParcRuntimeBasis(asset.tagNumber) : null;
     const preview = state.limestoneRunPreviews?.[asset.tagNumber];
-    const tracked = (state.data?.limestoneRunTracking || []).find(item => item.tagNumber === asset.tagNumber);
-    const trackingDetail = tracked && Number.isSafeInteger(tracked.totalRunningSeconds)
-      ? `<div class="dataparc-runtime-row" data-limestone-run-tracking="true"><div class="dataparc-runtime-basis"><span>확인된 RUN 구간 누적 (V-Belt 공식 누적과 별도)</span><strong>${escapeHtml((tracked.totalRunningSeconds / 3600).toFixed(1))}시간 · ${escapeHtml(tracked.endState === 'running' ? '기동' : '정지')}</strong><small>${escapeHtml(formatKstDateTimeDisplay(tracked.coverageStartAt))} → ${escapeHtml(formatKstDateTimeDisplay(tracked.observedAt))} · 구간 ${escapeHtml(String(tracked.segmentCount))}건 · 조회 성공 구간만 저장</small></div></div>` : '';
-    const previewDetail = preview?.previewOnly === true && ['running','stopped'].includes(preview.previewState)
+    // The old parallel tracking strip is intentionally hidden: the card now
+    // displays the proven RUN hours in the single primary metric.
+    const trackingDetail = '';
+    const previewDetail = !verifiedLimestone && preview?.previewOnly === true && ['running','stopped'].includes(preview.previewState)
       ? `<div class="dataparc-runtime-row" data-limestone-run-preview="true"><div class="dataparc-runtime-basis"><span>최근 RUN 확인 · 누적 미반영</span><strong>${escapeHtml(preview.previewState === 'running' ? 'RUN=1 · 기동' : 'RUN=0 · 정지')} · ${escapeHtml(formatKstDateTimeDisplay(preview.previewObservedAt))}</strong><small>조회 구간 ${escapeHtml(formatKstDateTimeDisplay(preview.previewStartAt))} → ${escapeHtml(formatKstDateTimeDisplay(preview.previewObservedAt))} · RUN=1 합 ${escapeHtml(Number(preview.previewHours).toFixed(1))}h · 실제 교체시각 확인 전 누적시간에 더하지 않음</small></div></div>`
       : '';
-    const dataparcRuntimeBasisLine = runView
+    const dataparcRuntimeBasisLine = verifiedLimestone
+      ? `<div class="dataparc-runtime-row" data-limestone-display-basis="verified-ledger"><div class="dataparc-runtime-basis">
+          <span>데이터 조회 기간</span>
+          <strong>${escapeHtml(formatKstDateTimeDisplay(verifiedLimestone.basis.startAt))} → ${escapeHtml(formatKstDateTimeDisplay(verifiedLimestone.basis.observedAt))}</strong>
+          <small title="실제 V-Belt 교체시각 미확정 · 공식 누적시간과 합산하지 않습니다.">검증된 RUN 구간 기준</small>
+        </div></div>`
+      : runView
       ? `<div class="dataparc-runtime-row run-source-row" data-run-source="${escapeHtml(asset.runRuntime?.source || "unverified")}">
           <div class="dataparc-runtime-basis">
             <span>데이터 조회 기간</span>
@@ -1429,11 +1469,11 @@
       ? "상태"
       : (cycleRuntimeTracked ? "누적" : (actualStarted ? "기동" : "교체"));
     const measuredLabel = `${(effectiveStartupPending ? 0 : cycleElapsedHours).toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간`;
-    const cyclePrimaryValue = runView ? runView.primary : runtimeUnknown ? "최신화 필요" : intermittent ? measuredLabel : effectiveStartupPending ? "기동 대기" : formatDaysHours(cycleElapsedHours);
-    const cyclePrimaryMobileValue = runView ? runView.primary : runtimeUnknown ? "최신화 필요" : intermittent ? measuredLabel : effectiveStartupPending ? "기동 대기" : formatCompactDaysHours(cycleElapsedHours);
+    const cyclePrimaryValue = verifiedLimestone ? verifiedLimestone.runtime : runView ? runView.primary : runtimeUnknown ? "최신화 필요" : intermittent ? measuredLabel : effectiveStartupPending ? "기동 대기" : formatDaysHours(cycleElapsedHours);
+    const cyclePrimaryMobileValue = verifiedLimestone ? verifiedLimestone.runtime : runView ? runView.primary : runtimeUnknown ? "최신화 필요" : intermittent ? measuredLabel : effectiveStartupPending ? "기동 대기" : formatCompactDaysHours(cycleElapsedHours);
 
     return `
-      <article class="asset-card" data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(operationState)}" data-tag="${escapeHtml(asset.tagNumber)}"${unitAttribute}${runView ? ` data-run-view="${runView.verified ? "verified" : "unverified"}"` : ""}>
+      <article class="asset-card" data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(operationState)}" data-tag="${escapeHtml(asset.tagNumber)}"${unitAttribute}${runView ? ` data-run-view="${runView.verified ? "verified" : "unverified"}"` : ""}${verifiedLimestone ? ' data-limestone-display="verified-ledger"' : ''}>
         <div class="asset-card-header">
           <div class="asset-identity">
             <strong class="asset-position" data-mobile-position="${escapeHtml(String(asset.positionLabel || "").trim() || cardPosition)}">${escapeHtml(cardPosition)}</strong>
@@ -1454,7 +1494,7 @@
               <span data-mobile-label="${escapeHtml(cyclePrimaryMobileLabel)}">${escapeHtml(cyclePrimaryLabel)}</span>
               <strong data-mobile-value="${escapeHtml(cyclePrimaryMobileValue)}">${escapeHtml(cyclePrimaryValue)}</strong>
             </div>
-            ${cycleHours ? `<div class="cycle-deadline-metric ${escapeHtml(severity)}">
+            ${cycleHours && !verifiedLimestone ? `<div class="cycle-deadline-metric ${escapeHtml(severity)}">
               <span>${["warning", "critical", "overdue"].includes(severity) ? escapeHtml(severityLabel(severity)) : (cycleRuntimeTracked && !operationRunning && !runtimeUnknown ? "D-day · 정지" : "D-day")}</span>
               <strong>${escapeHtml(remainingLabel)}</strong>
             </div>
@@ -1464,7 +1504,7 @@
             </div>` : ""}
           </div>
 
-          ${cycleHours && !effectiveStartupPending && !runtimeUnknown ? `
+          ${cycleHours && !verifiedLimestone && !effectiveStartupPending && !runtimeUnknown ? `
             <div class="cycle-progress-block">
               <div
                 class="progress-track"
@@ -1764,7 +1804,10 @@
   }
 
   function renderAllOverviewCard(asset) {
-    const view = allOverviewOperation(asset);
+    const trackedRun = verifiedLimestoneRunDisplay(asset);
+    const underlyingView = allOverviewOperation(asset);
+    const view = trackedRun ? { ...underlyingView, state: trackedRun.state,
+      label: trackedRun.stateLabel, runtime: trackedRun.runtime, basis: trackedRun.basis } : underlyingView;
     const severity = displaySeverity(asset);
     const position = formatCardPosition(asset);
     const replacement = asset.lastReplacementAt && !isAssetAwaitingBackfill(asset)
@@ -1773,18 +1816,17 @@
     const overviewOperationState = intermittentInstantState ? "intermittent" : view.state;
     const showOperationStateBadge = !intermittentInstantState;
     const preview = state.limestoneRunPreviews?.[asset.tagNumber];
-    const tracked = (state.data?.limestoneRunTracking || []).find(item => item.tagNumber === asset.tagNumber);
-    const trackingLine = tracked && Number.isSafeInteger(tracked.totalRunningSeconds)
-      ? `<span class="all-overview-query-period" data-limestone-run-tracking="true"><small>RUN 확인 누적 (V-Belt 누적과 별도)</small><strong>${escapeHtml((tracked.totalRunningSeconds / 3600).toFixed(1))}시간 · ${escapeHtml(formatKstDateTimeDisplay(tracked.observedAt))}</strong></span>` : '';
-    const previewLine = preview?.previewOnly === true && ['running','stopped'].includes(preview.previewState)
+    // Never draw a second counter under the compact overview card.
+    const trackingLine = '';
+    const previewLine = !trackedRun && preview?.previewOnly === true && ['running','stopped'].includes(preview.previewState)
       ? `<span class="all-overview-query-period" data-limestone-run-preview="true"><small>최근 RUN 확인 (누적 미반영)</small><strong>${escapeHtml(preview.previewState === 'running' ? 'RUN=1 · 기동' : 'RUN=0 · 정지')} · ${escapeHtml(formatKstDateTimeDisplay(preview.previewObservedAt))} · 구간 ${escapeHtml(Number(preview.previewHours).toFixed(1))}h</strong></span>`
       : '';
     return `
       <button type="button" class="all-overview-card" data-asset-action="history" data-tag="${escapeHtml(asset.tagNumber)}"
-        data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(overviewOperationState)}" data-operation-mode="${view.intermittent ? "intermittent" : "standard"}"
+        data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(overviewOperationState)}" data-operation-mode="${view.intermittent ? "intermittent" : "standard"}"${trackedRun ? ' data-limestone-display="verified-ledger"' : ''}
         aria-label="${escapeHtml(`${position} 이력 보기`)}">
         <span class="all-overview-card-head">
-          <span class="all-overview-identity"><strong>${escapeHtml(position)}</strong><small>${escapeHtml(asset.tagNumber)}</small>${asset.limestoneSignalCandidate && !asset.dataParcRuntimeBasis ?     `<small title="${escapeHtml(asset.limestoneSignalCandidate)} / RUN=1·0 신호 실측 확인 전">RUN 신호 확인 대기</small>` : ""}</span>
+          <span class="all-overview-identity"><strong>${escapeHtml(position)}</strong><small>${escapeHtml(asset.tagNumber)}</small>${trackedRun ? '<small title="V-Belt 교체시각 확인 전: 이 카드는 검증된 RUN 구간만 표시합니다. 기존 V-Belt 누적값은 이력에서 확인하세요.">검증구간 기준 · 교체시각 미확정</small>' : asset.limestoneSignalCandidate && !asset.dataParcRuntimeBasis ? `<small title="${escapeHtml(asset.limestoneSignalCandidate)} / RUN=1·0 신호 실측 확인 전">RUN 신호 확인 대기</small>` : ""}</span>
           <span class="all-overview-status-badges">
             ${view.intermittent ? '<span class="operation-mode-pill intermittent">간헐운전</span>' : ''}
             ${showOperationStateBadge ? `<span class="operation-pill ${escapeHtml(view.state)}">${escapeHtml(view.label)}</span>` : ''}
@@ -2401,6 +2443,7 @@
       .filter(event => ["replacement", "startup", "operation_start", "operation_stop", "runtime_correction", "problem"].includes(event.eventType));
     const latestRuntimeEvent = latestExplicitRuntimeEvent(asset);
     const runView = window.BlowerUnifiedRefresh?.fbheSealRunView(asset, getLatestDataParcRuntimeBasis(tagNumber));
+    const trackedRun = verifiedLimestoneRunDisplay(asset);
 
     elements.historyDialogTitle.textContent = `${asset.positionLabel} 이력`;
     elements.historyDialogAsset.textContent = `${asset.displayName} · ${asset.tagNumber}`;
@@ -2409,7 +2452,7 @@
         <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(severityLabel(severity))}</span>
         <div><span>${escapeHtml(cycleReferenceLabel(asset))}</span><strong>${escapeHtml(cycleReferenceDisplay(asset))}</strong></div>
         ${runView ? `<div><span>확인 상태</span><strong>${escapeHtml(runView.stateLabel)}</strong></div>` : asset.runtimeAccumulationMode === "measured_only" || asset.blowerType === "organic_fuel" ? "" : `<div><span>현재 운전상태</span><strong>${startupPending ? "기동 대기" : asset.cycleRuntimeState === "unknown" ? "확인 필요" : asset.isRunning ? "기동중" : "정지중"}</strong></div>`}
-        <div><span>${runView || asset.blowerType === "organic_fuel" ? "누적 기동시간" : "누적 운전시간"}</span><strong>${runView ? escapeHtml(runView.primary) : startupPending ? "0시간" : asset.cycleRuntimeState === "unknown" || asset.measurementRequired ? "최신화 필요" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
+        <div><span>${trackedRun || runView || asset.blowerType === "organic_fuel" ? "누적 기동시간" : "누적 운전시간"}</span><strong>${trackedRun ? escapeHtml(trackedRun.runtime) : runView ? escapeHtml(runView.primary) : startupPending ? "0시간" : asset.cycleRuntimeState === "unknown" || asset.measurementRequired ? "최신화 필요" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
       `
       : awaitingBackfill
         ? `
@@ -2421,6 +2464,15 @@
         <div class="history-unknown"><strong>확정된 V-Belt 교체 이력이 없습니다.</strong><span>검토 대기 후보를 확인하거나 최초 이력을 직접 등록해 주세요.</span></div>
       `;
 
+    if (trackedRun) {
+      const originalHours = Number(asset.cycleElapsedHours);
+      elements.historyCycleSummary.innerHTML += `<div class="run-history-note" data-limestone-run-audit="true">
+        <strong>DataPARC RUN 검증구간 누적: ${escapeHtml(trackedRun.runtime)}</strong>
+        <small>${escapeHtml(allOverviewBasisText(trackedRun.basis))} · ${escapeHtml(String(trackedRun.source.segmentCount))}개 저장 구간</small>
+        <span>기존 V-Belt 이력 누적: ${Number.isFinite(originalHours) && originalHours >= 0 ? escapeHtml(`${originalHours.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간`) : '확인 필요'} (별도 보존)</span>
+        <small>실제 V-Belt 교체시각이 미확정되어 두 기록을 합산하지 않았으며, 주기 사용률과 교체 알림에도 합산값을 사용하지 않습니다.</small>
+      </div>`;
+    }
     if (runView && asset.lastReplacementAt) {
       const legacy = asset.runRuntime?.legacyStoredHours;
       elements.historyCycleSummary.innerHTML += `<div class="run-history-note"><strong>${escapeHtml(runView.sourceLabel)}</strong>${runView.basis ? `<small>${escapeHtml(formatKstDateTimeDisplay(runView.basis.startAt))} → ${escapeHtml(formatKstDateTimeDisplay(runView.basis.observedAt))}</small>` : runView.manual ? `<small>${escapeHtml(formatKstDateTimeDisplay(runView.measuredAt))} 기준</small>` : ""}<span>${escapeHtml(runView.message)}</span>${!runView.verified && !runView.pending && Number.isFinite(legacy) ? `<small>기존 저장값 ${Number(legacy).toLocaleString("ko-KR", { maximumFractionDigits: 1 })}시간은 RUN 확인값이 아닙니다. 원본 이력과 변경 기록은 보존됩니다.</small>` : ""}</div>`;
