@@ -11340,3 +11340,334 @@
 /* FBHE_OIS_QUERY_WINDOW_V862 */
 
 /* FBHE_OIS_RESULT_CACHE_V863 */
+
+/* GS_BLOWER_204SDF01AN002_BOUNDARY_RECOVERY_V1
+ * One-asset, operator-initiated, verified full-cycle recovery for a documented
+ * DataPARC append-state boundary mismatch. Does NOT bypass server 409 guards.
+ * No automatic query and no automatic apply. Existing receipts retained.
+ */
+;(function (root) {
+  'use strict';
+  const MARKER = 'GSBlowerBoundaryRecoveryV1';
+  if (root[MARKER]) return;
+  const TAG = '204SDF01AN002';
+  const PREVIOUS_TAG = '204SDF01AN001';
+  const STORAGE_KEY = 'gsShiftLog.boundaryRecovery.204SDF01AN002.v1';
+  const SESSION_KEY = 'gsShiftLog.currentUser';
+  const API = '/api/ois-data-requests';
+  const HISTORY = '/api/blower-history';
+  const MAX_TOTAL_MINUTES = 20;
+  const MAX_GAP_SECONDS = 15 * 60;
+  let busy = false;
+  let controls = null;
+  const time = value => Date.parse(value || '');
+  const secondsValid = number => Number.isSafeInteger(number) && number >= 0;
+  const safeHours = n => (Number(n) / 3600).toLocaleString('ko-KR', { maximumFractionDigits: 4, minimumFractionDigits: 4 });
+  const delay = ms => new Promise(resolve => root.setTimeout(resolve, ms));
+  function fail(message, code = 'RECOVERY_GUARD') {
+    return Object.assign(new Error(message), { code });
+  }
+  function getToken() {
+    let user;
+    try { user = JSON.parse(root.localStorage?.getItem(SESSION_KEY) || 'null'); } catch { user = null; }
+    const token = String(user?.sessionToken || user?.session_token || '').trim();
+    if (!token || token.length > 8192) throw fail('로그인한 PC 화면에서만 복구할 수 있습니다.', 'AUTH_REQUIRED');
+    return token;
+  }
+  async function api(method, url, body) {
+    const headers = {
+      Accept: 'application/json', Authorization: 'Bearer ' + getToken(),
+      'X-GS-Client-Mode': 'desktop', ...(body ? { 'Content-Type': 'application/json; charset=utf-8' } : {})
+    };
+    let response;
+    try { response = await root.fetch(url, {
+      method, credentials: 'same-origin', cache: 'no-store', headers,
+      ...(body ? { body: JSON.stringify(body) } : {})
+    }); } catch { throw fail('서버 연결을 확인하지 못했습니다. 기존 요청을 자동 재생성하지 않습니다.', 'NETWORK_UNCERTAIN'); }
+    let data;
+    try { data = await response.json(); } catch { throw fail('서버 응답 형식을 확인할 수 없습니다.', 'INVALID_RESPONSE'); }
+    if (!response.ok || data?.ok !== true) {
+      throw fail(String(data?.message || '서버 요청 실패').slice(0, 350), String(data?.code || response.status));
+    }
+    return data;
+  }
+  function modeAllowed() {
+    const media = root.matchMedia?.('(max-width: 700px), (max-width: 1024px) and (hover: none) and (pointer: coarse)');
+    if (media?.matches) throw fail('모바일에서는 RUN 복구를 실행할 수 없습니다.', 'READ_ONLY_MOBILE');
+    if (root.document?.querySelector('[aria-label="전체 Blower 조회 중"]')) {
+      throw fail('전체 Blower 조회가 진행 중입니다. 완료 후 복구를 시작해 주세요.', 'PARALLEL_REFRESH');
+    }
+  }
+  async function readTarget() {
+    const params = new URLSearchParams({ action: 'refresh_state_page', cursor: PREVIOUS_TAG, limit: '2' });
+    const data = await api('GET', HISTORY + '?' + params);
+    if (data.version !== 'blower-refresh-state-page-v1' || data.permissions?.canWrite !== true || !Array.isArray(data.assets)) {
+      throw fail('최신 조회 기준 또는 로그인된 쓰기 권한을 확인할 수 없습니다.', 'READ_PERMISSION');
+    }
+    const target = data.assets.find(item => item?.tagNumber === TAG);
+    if (!target || target.enabled === false || target.enabled === 0) {
+      throw fail('대상 설비의 등록·사용 상태를 확인할 수 없습니다.', 'TARGET_MISSING');
+    }
+    return target;
+  }
+  function proofOf(asset) {
+    if (!asset || asset.tagNumber !== TAG || asset.blowerType !== 'organic_fuel' || String(asset.unitNo) !== '2') {
+      throw fail('설비 식별 정보가 예상과 다릅니다.', 'WRONG_ASSET');
+    }
+    const base = asset.dataParcRuntimeBasis;
+    if (!base || base.appendReady !== true || asset.hasUnverifiedDataParcHistory === true) {
+      throw fail('서버에서 이전 DataPARC 누적 기준을 검증하지 못했습니다. 기존 값은 유지합니다.', 'UNVERIFIED_BASE');
+    }
+    if (!secondsValid(Number(base.runningSeconds)) || !Number.isFinite(Number(base.runtimeHours)) ||
+        Math.abs(Number(base.runtimeHours) * 3600 - Number(base.runningSeconds)) > 2 ||
+        !Number.isFinite(time(base.startAt)) || !Number.isFinite(time(base.observedAt)) ||
+        !Number.isFinite(time(asset.lastReplacementAt)) || time(base.startAt) < time(asset.lastReplacementAt) ||
+        time(base.observedAt) <= time(base.startAt) ||
+        time(base.startAt) > Date.now() || !/^GSPOGE\.ABB_DCS\.[A-Z0-9._-]+$/.test(String(base.dataParcTag || '')) ||
+        base.dataParcTag !== asset.dataParcTag || !String(asset.cycleRuntimeRevision || '') ||
+        !['legacy','started'].includes(asset.cycleStartState)) {
+      throw fail('확정된 교체·기동·원본 RUN 기준이 맞지 않습니다.', 'BASE_CONFLICT');
+    }
+    if (Number.isFinite(Number(asset.cycleRuntimeHours)) &&
+        Math.abs(Number(asset.cycleRuntimeHours) - Number(base.runtimeHours)) > 0.000001) {
+      throw fail('설비 저장 누적시간과 DataPARC 영수증의 누적시간이 다릅니다.', 'HOURS_CONFLICT');
+    }
+    return Object.freeze({
+      tagNumber: TAG, dataParcTag: base.dataParcTag,
+      lastReplacementAt: String(asset.lastReplacementAt),
+      cycleStartState: String(asset.cycleStartState),
+      cycleStartedAt: String(asset.cycleStoredStartedAt ?? asset.cycleStartedAt ?? ''),
+      cycleStartRevision: String(asset.cycleStartRevision || ''),
+      cycleRuntimeRevision: String(asset.cycleRuntimeRevision),
+      baseRequestId: String(base.requestId),
+      startAt: String(base.startAt), observedAt: String(base.observedAt),
+      runningSeconds: Number(base.runningSeconds), runtimeHours: Number(base.runtimeHours)
+    });
+  }
+  function sameProof(a, b) {
+    return !!a && !!b && Object.keys(a).every(key => b[key] === a[key]) &&
+      Object.keys(b).every(key => a[key] === b[key]);
+  }
+  function bodyFor(proof, incremental) {
+    return {
+      action: 'create_blower_runtime_probe', unifiedRefresh: true,
+      incrementalRefresh: incremental === true, requireIncrementalAppend: incremental === true,
+      assetTag: TAG, dataParcTag: proof.dataParcTag, confirmRunSignal: true,
+      startAt: proof.startAt, expectedLastReplacementAt: proof.lastReplacementAt,
+      expectedCycleStartState: proof.cycleStartState, expectedCycleStartedAt: proof.cycleStartedAt,
+      expectedCycleStartRevision: proof.cycleStartRevision,
+      expectedCycleRuntimeRevision: proof.cycleRuntimeRevision
+    };
+  }
+  function verifiedProbe(item, requestId, proof, expectedStartAt) {
+    if (!item || item.id !== requestId || item.status !== 'complete' || item.requestType !== 'blower_runtime_probe') {
+      throw fail('DataPARC 완료 요청의 ID와 상태를 확인하지 못했습니다.', 'NOT_COMPLETE');
+    }
+    const r = item.result;
+    if (!r || r.schemaVersion !== 1 || r.ok !== true || r.readOnly !== true ||
+        r.assetTag !== TAG || r.dataParcTag !== proof.dataParcTag || r.requestId !== requestId ||
+        time(r.startAt) !== time(expectedStartAt) || !Number.isFinite(time(r.endAt)) ||
+        time(r.endAt) !== time(r.observedAt) || time(r.endAt) <= time(r.startAt) ||
+        !secondsValid(r.runningSeconds) || !Number.isFinite(r.totalRunningHours) ||
+        Math.abs(r.runningSeconds - r.totalRunningHours * 3600) > 2 ||
+        !Number.isInteger(r.chunkCount) || r.chunkCount < 1 || r.completedChunkCount !== r.chunkCount ||
+        !Array.isArray(r.chunks) || r.chunks.length !== r.chunkCount ||
+        !['running','stopped'].includes(r.startState) || !['running','stopped'].includes(r.endState)) {
+      throw fail('DataPARC 원본의 TAG·기간·RUN 초·분할구간 중 일치하지 않는 항목이 있습니다.', 'INVALID_RUN_PROOF');
+    }
+    return r;
+  }
+  function compareRecovery(proof, delta, full) {
+    if (!proof || !delta || !full || delta.assetTag !== TAG || full.assetTag !== TAG ||
+        delta.dataParcTag !== proof.dataParcTag || full.dataParcTag !== proof.dataParcTag ||
+        time(delta.startAt) !== time(proof.observedAt) || time(full.startAt) !== time(proof.startAt)) {
+      return { ok: false, reason: '조회 시작·종료 기준 또는 TAG가 다릅니다.' };
+    }
+    const gapSeconds = (time(full.observedAt) - time(delta.observedAt)) / 1000;
+    if (!Number.isFinite(gapSeconds) || gapSeconds < 0 || gapSeconds > MAX_GAP_SECONDS) {
+      return { ok: false, reason: '두 독립 측정의 종료시각 간격이 너무 큽니다. 다시 비교해야 합니다.' };
+    }
+    if (!secondsValid(proof.runningSeconds) || !secondsValid(delta.runningSeconds) || !secondsValid(full.runningSeconds)) {
+      return { ok: false, reason: '누적 RUN 초 값이 올바르지 않습니다.' };
+    }
+    const expected = proof.runningSeconds + delta.runningSeconds;
+    if (!Number.isSafeInteger(expected) ||
+        full.runningSeconds < expected - 2 || full.runningSeconds > expected + Math.ceil(gapSeconds) + 2) {
+      return { ok: false, reason: '이전 누적 + 이후 구간 RUN 초와 전체 Cycle 재측정 RUN 초가 일치하지 않습니다.',
+        previousSeconds: proof.runningSeconds, deltaSeconds: delta.runningSeconds,
+        fullSeconds: full.runningSeconds, gapSeconds };
+    }
+    if (full.runningSeconds < proof.runningSeconds - 2) {
+      return { ok: false, reason: '전체 재계산 값이 기존 누적보다 작아 자동 반영할 수 없습니다.' };
+    }
+    return { ok: true, previousSeconds: proof.runningSeconds,
+      deltaSeconds: delta.runningSeconds, fullSeconds: full.runningSeconds,
+      gapSeconds, deltaEndAt: delta.observedAt, fullEndAt: full.observedAt };
+  }
+  function restore() {
+    try {
+      const record = JSON.parse(root.sessionStorage?.getItem(STORAGE_KEY) || 'null');
+      return record?.version === 1 && record?.tagNumber === TAG && record?.proof &&
+        typeof record.phase === 'string' &&
+        Number.isFinite(record.startedAt) && (Date.now() - record.startedAt) < 2 * 60 * 60 * 1000
+        ? record : null;
+    } catch { return null; }
+  }
+  function store(record) {
+    root.sessionStorage?.setItem(STORAGE_KEY, JSON.stringify(record));
+  }
+  function clearRecord() { root.sessionStorage?.removeItem(STORAGE_KEY); }
+  function report(message, detail = '') {
+    if (controls) {
+      controls.status.textContent = message;
+      controls.detail.textContent = detail;
+    }
+    root.console?.info?.('[Blower Boundary Recovery]', message, detail);
+  }
+  async function queue(proof, incremental, record) {
+    const phase = incremental ? 'delta' : 'full';
+    let requestId = incremental ? record.deltaId : record.fullId;
+    if (!requestId) {
+      report(incremental ? '1/2 마지막 성공 이후 RUN 재조회 요청' : '2/2 현재 Cycle 전체 RUN 재측정 요청');
+      const response = await api('POST', API, bodyFor(proof, incremental));
+      const item = response.item;
+      if (!item?.id || item.requestType !== 'blower_runtime_probe' || item.probe?.assetTag !== TAG ||
+          !['pending','processing','complete'].includes(item.status)) {
+        throw fail('접수 결과를 확인하지 못했습니다. 중복 요청은 자동 생성하지 않습니다.', 'CREATE_UNCERTAIN');
+      }
+      requestId = item.id;
+      if (incremental) record.deltaId = requestId;
+      else record.fullId = requestId;
+      record.phase = phase;
+      store(record);
+    }
+    return waitRequest(requestId, proof, incremental ? proof.observedAt : proof.startAt);
+  }
+  async function waitRequest(requestId, proof, expectedStartAt) {
+    const start = Date.now();
+    for (let polls = 0; polls < 180; polls++) {
+      if (Date.now() - start > MAX_TOTAL_MINUTES * 60 * 1000) {
+        throw fail('조회가 진행 중일 수 있습니다. 새 요청을 만들지 말고 같은 화면에서 이어서 확인하세요.', 'POLL_TIMEOUT');
+      }
+      if (root.document?.hidden) { await delay(10000); continue; }
+      const response = await api('GET', API + '?id=' + encodeURIComponent(requestId));
+      const item = response.item;
+      if (!item || item.id !== requestId || item.requestType !== 'blower_runtime_probe') {
+        throw fail('서버에서 해당 RUN 요청 ID를 찾지 못했습니다.', 'REQUEST_MISSING');
+      }
+      if (item.status === 'complete') return verifiedProbe(item, requestId, proof, expectedStartAt);
+      if (item.status === 'failed') throw fail('회사 PC DataPARC 조회 실패: ' + String(item.errorMessage || '').slice(0, 200), 'PROBE_FAILED');
+      if (!['pending','processing'].includes(item.status)) throw fail('알 수 없는 조회 상태입니다.', 'UNKNOWN_STATUS');
+      report('DataPARC ' + (expectedStartAt === proof.observedAt ? '이후 구간' : '전체 Cycle') + ' 조회 중 · ' + item.status,
+        '요청 ID: ' + requestId + ' · 이 단계에서는 기존 누적시간을 수정하지 않습니다.');
+      await delay(polls < 8 ? 2500 : 8000);
+    }
+    throw fail('조회 확인 시간 초과 · 기존 요청 ID로 이어서 확인해 주세요.', 'POLL_LIMIT');
+  }
+  async function run() {
+    if (busy) return;
+    busy = true;
+    if (controls) controls.button.disabled = true;
+    try {
+      modeAllowed();
+      const asset = await readTarget();
+      const proof = proofOf(asset);
+      let record = restore();
+      if (record?.phase === 'apply_attempted') {
+        if (proof.baseRequestId === record.fullId) {
+          clearRecord(); report('이미 전체 RUN 재측정이 저장되어 있습니다.'); return;
+        }
+        throw fail('저장 응답이 불확실합니다. 재저장하지 말고 최신 이력과 요청 ID를 확인해 주세요: ' + record.fullId, 'APPLY_UNCERTAIN');
+      }
+      if (record && !sameProof(record.proof, proof)) {
+        throw fail('이전 복구 요청 이후 Cycle 또는 누적시간이 변경됐습니다. 자동 진행하지 않습니다.', 'PROOF_CHANGED');
+      }
+      if (!record) {
+        if (typeof root.confirm !== 'function' || !root.confirm(
+          '#2 유기성 고형연료 Blower #B (' + TAG + ')만 경계 RUN을 검증합니다.\n' +
+          '기존 ' + safeHours(proof.runningSeconds) + '시간은 유지됩니다.\n' +
+          'DataPARC 읽기 전용 요청 2건을 순차 생성합니다. 계속할까요?')) return;
+        record = {version:1,tagNumber:TAG,proof,phase:'begin',deltaId:'',fullId:'',startedAt:Date.now()};
+        store(record);
+      }
+      const delta = await queue(proof, true, record);
+      const afterDelta = proofOf(await readTarget());
+      if (!sameProof(afterDelta, proof)) throw fail('이후 구간 조회 중 기존 누적·교체 기준이 변경됐습니다.', 'CYCLE_CHANGED');
+      const full = await queue(proof, false, record);
+      const evidence = compareRecovery(proof, delta, full);
+      if (!evidence.ok) {
+        report('RUN 정합성 확인 실패 · 저장하지 않았습니다.', JSON.stringify(evidence, null, 2));
+        throw fail(evidence.reason, 'MEASUREMENT_MISMATCH');
+      }
+      report('RUN 정합성 검증 통과 · 최종 저장 승인 대기',
+        '기존: ' + safeHours(evidence.previousSeconds) + 'h\n이후: ' + safeHours(evidence.deltaSeconds) +
+        'h\n전체 재계산: ' + safeHours(evidence.fullSeconds) + 'h\n측정 종료 차이: ' +
+        evidence.gapSeconds.toFixed(0) + '초\n대상: ' + TAG + ' 한 대');
+      const freshProof = proofOf(await readTarget());
+      if (!sameProof(freshProof, proof)) throw fail('최종 적용 전 Cycle·이력이 바뀌었습니다. 저장하지 않습니다.', 'CYCLE_CHANGED');
+      if (typeof root.prompt !== 'function' || root.prompt(
+        '기존 기록을 유지하면서 ' + TAG + '의 새 전체 RUN 재측정 결과만 반영합니다.\n' +
+        '기존 ' + safeHours(proof.runningSeconds) + 'h → 전체 ' + safeHours(full.runningSeconds) +
+        'h\n본인이 직접 승인하려면 APPLY ' + TAG + ' 입력:', '') !== 'APPLY ' + TAG) {
+        report('운영자 승인 취소 · 새 측정 결과는 저장하지 않았습니다.', '이전 누적값 ' + safeHours(proof.runningSeconds) + '시간 유지');
+        return;
+      }
+      record.phase = 'apply_attempted';
+      store(record); // an uncertain POST is never replayed automatically.
+      report('검증된 전체 RUN 결과를 단일 설비에 반영하는 중', '요청 ID: ' + record.fullId);
+      const applied = await api('POST', HISTORY, { action:'dataparc_runtime_sync', requestId:record.fullId });
+      if (applied.requestId !== record.fullId || applied.assetTag !== TAG || !Number.isFinite(applied.runtimeHours) ||
+          Math.abs(applied.runtimeHours * 3600 - full.runningSeconds) > 2) {
+        throw fail('적용 응답을 확인하지 못했습니다. 다시 저장하지 말고 이력을 확인해 주세요.', 'APPLY_RESPONSE_UNCERTAIN');
+      }
+      const post = await readTarget();
+      const newBasis = post.dataParcRuntimeBasis;
+      if (!newBasis || newBasis.requestId !== record.fullId ||
+          Math.abs(Number(newBasis.runningSeconds) - full.runningSeconds) > 2) {
+        throw fail('서버 저장 응답은 성공했지만 최종 이력 재확인은 실패했습니다. 재저장하지 마세요.', 'POST_VERIFY_UNCERTAIN');
+      }
+      clearRecord();
+      report('복구 완료 · ' + TAG + ' 한 대의 전체 RUN 검증값만 반영',
+        '기존 ' + safeHours(proof.runningSeconds) + 'h → 검증된 ' + safeHours(full.runningSeconds) +
+        'h\n이전 이력은 삭제하지 않았습니다. Blower 현황을 새로고침해 주세요.');
+    } catch (error) {
+      report('RUN 경계 복구 중단 · 기존 누적시간 보호',
+        String(error?.code || 'ERROR') + ': ' + String(error?.message || '알 수 없는 오류').slice(0, 350));
+    } finally {
+      busy = false;
+      if (controls) controls.button.disabled = false;
+    }
+  }
+  function boot() {
+    if (!root.document?.body || root.document.getElementById('gs-blower-boundary-recovery-v1')) return;
+    const heading = Array.from(root.document.querySelectorAll('h1')).find(h => /Blower\s+V-Belt/i.test(h.textContent || ''));
+    if (!heading) return; // never appear on other pages
+    const panel = root.document.createElement('section');
+    panel.id = 'gs-blower-boundary-recovery-v1';
+    panel.style.cssText = 'margin:8px 0 12px;padding:10px 12px;border:1px solid #b9cce8;border-radius:8px;background:#f3f7fd;color:#263d56;font:13px system-ui,sans-serif;';
+    const title = root.document.createElement('div');
+    title.textContent = '2호기 유기성 고형연료 Blower #B · RUN 경계 정밀 복구';
+    title.style.cssText = 'font-weight:700;margin-bottom:5px;';
+    const description = root.document.createElement('div');
+    description.textContent = '기존 누적값 유지 → 이후 구간과 전체 Cycle 독립 측정 → RUN 초 일치 검증 → 운영자 승인 후 한 대만 반영';
+    description.style.cssText = 'margin-bottom:8px;';
+    const button = root.document.createElement('button');
+    button.type = 'button'; button.textContent = '204SDF01AN002 경계 검증·복구';
+    button.style.cssText = 'padding:6px 10px;border:1px solid #557cab;border-radius:6px;background:#fff;color:#193f66;cursor:pointer;';
+    const status = root.document.createElement('div'); status.setAttribute('role', 'status');
+    status.style.cssText = 'margin-top:7px;font-size:12px;';
+    status.textContent = '대기 중 · 클릭하기 전에는 요청을 생성하지 않습니다.';
+    const detail = root.document.createElement('pre');
+    detail.style.cssText = 'font:12px ui-monospace,monospace;white-space:pre-wrap;margin:4px 0 0;overflow-wrap:anywhere;';
+    panel.append(title,description,button,status,detail);
+    const slot = root.document.getElementById('unifiedRefreshStatus') || heading.closest?.('.page-header') || heading;
+    slot.insertAdjacentElement('afterend', panel);
+    controls = { panel, button, status, detail };
+    button.addEventListener('click', () => { void run(); });
+  }
+  root[MARKER] = Object.freeze({ TAG, proofOf, sameProof, bodyFor, verifiedProbe, compareRecovery, run, version: 1 });
+  if (root.document) {
+    if (root.document.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', boot, { once: true });
+    else boot();
+  }
+})(typeof window !== 'undefined' ? window : globalThis);
