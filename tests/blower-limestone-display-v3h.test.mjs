@@ -81,7 +81,9 @@ test('newer ledger snapshots NEVER replace the old stored full-cycle checkpoint 
  const before=card(original.tagNumber);
  ui.state.data.limestoneRunTracking=assets.map(a=>({...proof(a,24*3600+720),observedAt:'2026-10-31T16:38:00+09:00'}));
  const after=card(original.tagNumber);
- assert.equal(after,before);
+ assert.notEqual(after,before,'latest RUN observed-time label should advance separately');
+ assert.match(after,/최근 RUN 확인 2026-10-31 16:38 · 누적 미반영/);
+ assert.match(after,/2026-10-30 10:31/);
  assert.match(after,/922\.1시간/);
  assert.doesNotMatch(after,/24\.2시간/);
  assert.equal(original.cycleElapsedHours,originalHours);
@@ -129,7 +131,7 @@ test('history dialog shows previous stored cumulative and a separate verified RU
 });
 
 test('new V3-I JS cache key is distinct while existing scheduler/core cache identities remain unchanged',()=>{
- assert.match(html,/blower-history\.js\?v=20261031-limestone-ledger-v3g-checkpoint-v3i/);
+ assert.match(html,/blower-history\.js\?v=20261031-limestone-ledger-v3g-checkpoint-v3k-ui/);
  assert.match(html,/blower-unified-refresh\.js\?v=20261031-limestone-ledger-v3g/);
  assert.match(html,/blower-schedule-v1\.js\?v=20261031-limestone-ledger-v3g/);
 });

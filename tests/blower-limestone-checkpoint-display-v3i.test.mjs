@@ -69,7 +69,9 @@ test('period on card comes from its original accumulation checkpoint, not newer 
     a.tagNumber==='203HRJ01AN602'?'2026-10-30T10:32:00+09:00':'2026-10-30T10:31:00+09:00'};
   const out=card(a.tagNumber);
   assert.match(out,/2026-10-30 10:(31|32|34)/);
-  assert.doesNotMatch(out,/2026-10-31 16:30/);
+  assert.match(out,/data-limestone-run-asof="true"/);
+  assert.match(out,/최근 RUN 확인 2026-10-31 16:30 · 누적 미반영/);
+  assert.doesNotMatch(out,/데이터 조회 기간[\s\S]{0,150}2026-10-31 16:30/);
   assert.match(out,/이전 저장값 · 교체 기준 확인 필요/);
  }
 });
@@ -90,7 +92,9 @@ test('next RUN ledger append changes no previous checkpoint, and never adds it t
  const a=assets[2];const before=card(a.tagNumber);const value=a.cycleElapsedHours;
  ui.state.data.limestoneRunTracking=assets.map(x=>({...proof(x,30*3600),observedAt:'2026-10-31T22:23:00+09:00'}));
  const after=card(a.tagNumber);
- assert.equal(after,before);
+ assert.notEqual(after,before,'independent RUN freshness should advance');
+ assert.match(after,/최근 RUN 확인 2026-10-31 22:23 · 누적 미반영/);
+ assert.match(after,/2026-10-30 10:32/);
  assert.equal(a.cycleElapsedHours,value);
  assert.match(after,/921\.9시간/);
  assert.doesNotMatch(after,/30\.0시간|951\.9시간/);
@@ -125,7 +129,7 @@ test('history reveals prior total and separate ledger proof without declaring a 
 });
 
 test('cache identity changes only history.js; server ledger and scheduler remain untouched',()=>{
- assert.match(html,/blower-history\.js\?v=20261031-limestone-ledger-v3g-checkpoint-v3i/);
+ assert.match(html,/blower-history\.js\?v=20261031-limestone-ledger-v3g-checkpoint-v3k-ui/);
  assert.match(html,/blower-unified-refresh\.js\?v=20261031-limestone-ledger-v3g/);
  assert.match(html,/blower-schedule-v1\.js\?v=20261031-limestone-ledger-v3g/);
  const ledgerFile=fs.readFileSync(new URL('../functions/api/blower-history.js',import.meta.url),'utf8');

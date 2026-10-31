@@ -1817,6 +1817,11 @@
     const overviewOperationState = intermittentInstantState ? "intermittent" : view.state;
     const showOperationStateBadge = !intermittentInstantState;
     const preview = state.limestoneRunPreviews?.[asset.tagNumber];
+    // V3-K UI: latest observed RUN time is informative only. It must never
+    // replace or extend the prior verified whole-cycle cumulative checkpoint.
+    const latestRunAsOf = disputedLimestone && trackedRun
+      ? `<small class="limestone-run-asof" data-limestone-run-asof="true" title="최근 RUN 신호의 별도 검증 종료시각입니다. 이전 누적시간·교체 기준 및 기존 측정 범위는 갱신되지 않았습니다.">최근 RUN 확인 ${escapeHtml(formatKstDateTimeDisplay(trackedRun.basis.observedAt))} · 누적 미반영</small>`
+      : '';
     // Never draw a second counter under the compact overview card.
     const trackingLine = '';
     const previewLine = !trackedRun && preview?.previewOnly === true && ['running','stopped'].includes(preview.previewState)
@@ -1827,7 +1832,7 @@
         data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(overviewOperationState)}" data-operation-mode="${view.intermittent ? "intermittent" : "standard"}"${disputedLimestone ? ' data-limestone-display="previous-checkpoint"' : ''}
         aria-label="${escapeHtml(`${position} 이력 보기`)}">
         <span class="all-overview-card-head">
-          <span class="all-overview-identity"><strong>${escapeHtml(position)}</strong><small>${escapeHtml(asset.tagNumber)}</small>${disputedLimestone ? '<small title="표시된 큰 숫자는 이전 저장 누적값이며, 최신 RUN 추적 누적과 합산하지 않았습니다. 정확한 V-Belt 교체시각 확인 후 재산정이 필요합니다.">이전 저장값 · 교체 기준 확인 필요</small>' : asset.limestoneSignalCandidate && !asset.dataParcRuntimeBasis ? `<small title="${escapeHtml(asset.limestoneSignalCandidate)} / RUN=1·0 신호 실측 확인 전">RUN 신호 확인 대기</small>` : ""}</span>
+          <span class="all-overview-identity"><strong>${escapeHtml(position)}</strong><small>${escapeHtml(asset.tagNumber)}</small>${disputedLimestone ? '<small title="표시된 큰 숫자는 이전 저장 누적값이며, 최신 RUN 추적 누적과 합산하지 않았습니다. 정확한 V-Belt 교체시각 확인 후 재산정이 필요합니다.">이전 저장값 · 교체 기준 확인 필요</small>' : asset.limestoneSignalCandidate && !asset.dataParcRuntimeBasis ? `<small title="${escapeHtml(asset.limestoneSignalCandidate)} / RUN=1·0 신호 실측 확인 전">RUN 신호 확인 대기</small>` : ""}${latestRunAsOf}</span>
           <span class="all-overview-status-badges">
             ${view.intermittent ? '<span class="operation-mode-pill intermittent">간헐운전</span>' : ''}
             ${showOperationStateBadge ? `<span class="operation-pill ${escapeHtml(view.state)}">${escapeHtml(view.label)}</span>` : ''}
@@ -11757,36 +11762,9 @@
       if (controls) controls.button.disabled = false;
     }
   }
-  function boot() {
-    if (!root.document?.body || root.document.getElementById('gs-blower-boundary-recovery-v1')) return;
-    const heading = Array.from(root.document.querySelectorAll('h1')).find(h => /Blower\s+V-Belt/i.test(h.textContent || ''));
-    if (!heading) return; // never appear on other pages
-    const panel = root.document.createElement('section');
-    panel.id = 'gs-blower-boundary-recovery-v1';
-    panel.style.cssText = 'margin:8px 0 12px;padding:10px 12px;border:1px solid #b9cce8;border-radius:8px;background:#f3f7fd;color:#263d56;font:13px system-ui,sans-serif;';
-    const title = root.document.createElement('div');
-    title.textContent = '2호기 유기성 고형연료 Blower #B · RUN 경계 정밀 복구';
-    title.style.cssText = 'font-weight:700;margin-bottom:5px;';
-    const description = root.document.createElement('div');
-    description.textContent = '기존 누적값 유지 → 이후 구간과 전체 Cycle 독립 측정 → RUN 초 일치 검증 → 운영자 승인 후 한 대만 반영';
-    description.style.cssText = 'margin-bottom:8px;';
-    const button = root.document.createElement('button');
-    button.type = 'button'; button.textContent = '204SDF01AN002 경계 검증·복구';
-    button.style.cssText = 'padding:6px 10px;border:1px solid #557cab;border-radius:6px;background:#fff;color:#193f66;cursor:pointer;';
-    const status = root.document.createElement('div'); status.setAttribute('role', 'status');
-    status.style.cssText = 'margin-top:7px;font-size:12px;';
-    status.textContent = '대기 중 · 클릭하기 전에는 요청을 생성하지 않습니다.';
-    const detail = root.document.createElement('pre');
-    detail.style.cssText = 'font:12px ui-monospace,monospace;white-space:pre-wrap;margin:4px 0 0;overflow-wrap:anywhere;';
-    panel.append(title,description,button,status,detail);
-    const slot = root.document.getElementById('unifiedRefreshStatus') || heading.closest?.('.page-header') || heading;
-    slot.insertAdjacentElement('afterend', panel);
-    controls = { panel, button, status, detail };
-    button.addEventListener('click', () => { void run(); });
-  }
+  // V3-K UI cleanup: retire the standalone 204SDF01AN002 recovery banner.
+  // Keep the existing guarded recovery contract available for an explicitly
+  // authorized maintenance workflow; NEVER attach a main-page button,
+  // initiate a DataPARC probe, or write to D1 during page initialization.
   root[MARKER] = Object.freeze({ TAG, proofOf, sameProof, bodyFor, verifiedProbe, compareRecovery, run, version: 1 });
-  if (root.document) {
-    if (root.document.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', boot, { once: true });
-    else boot();
-  }
 })(typeof window !== 'undefined' ? window : globalThis);
