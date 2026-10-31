@@ -49,14 +49,16 @@ ui.state.data={permissions:{canWrite:true},user:{name:'tester'},assets:[...asset
   backfill:{hasRun:true,status:'complete'}};
 function card(tag){return ui.renderAllOverviewCard(ui.state.data.assets.find(a=>a.tagNumber===tag));}
 
-test('all three held Limestone cards use one prominent saved RUN measure and its real coverage period',()=>{
+test('all three held Limestone cards restore the previous stored total and its own historical range',()=>{
  for (const a of assets){
   const out=card(a.tagNumber);
-  assert.match(out,/data-limestone-display="verified-ledger"/);
-  assert.match(out,/<small>누적 기동시간<\/small><strong>24\.1시간<\/strong>/);
-  assert.match(out,/2026-10-30 16:23.*2026-10-31 16:30/);
-  assert.match(out,/검증구간 기준.*교체시각 미확정/);
-  assert.doesNotMatch(out,/data-limestone-run-tracking|data-limestone-run-preview/);
+  assert.match(out,/data-limestone-display="previous-checkpoint"/);
+  assert.match(out,/<small>이전 저장 누적<\/small>/);
+  const baseline=a.tagNumber==='203HRJ01AN601'?'4,080.1':a.tagNumber==='203HRJ01AN602'?'921.9':'922.1';
+  assert.match(out,new RegExp(`<strong>${baseline.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}시간<\/strong>`));
+  assert.match(out,/이전 저장값.*교체 기준 확인 필요/);
+  assert.doesNotMatch(out,/데이터 조회 기간[\s\S]{0,150}2026-10-31 16:30/);
+  assert.doesNotMatch(out,/24\.1시간|data-limestone-run-tracking|data-limestone-run-preview/);
   assert.doesNotMatch(out,/946\.2시간|4,104\.2시간|946\.0시간/);
   assert.match(out,/data-operation-state="running"/);
  }
@@ -74,13 +76,14 @@ test('normal Blower and Limestone 1A are byte-for-byte unaffected by ledger proo
  ui.state.data.limestoneRunTracking=assets.map(a=>proof(a));
 });
 
-test('reloading a later ledger snapshot changes only the card metric and query period; never mutates official hours',()=>{
+test('newer ledger snapshots NEVER replace the old stored full-cycle checkpoint or its own observation period',()=>{
  const original=assets[0]; const originalHours=original.cycleElapsedHours;
  const before=card(original.tagNumber);
  ui.state.data.limestoneRunTracking=assets.map(a=>({...proof(a,24*3600+720),observedAt:'2026-10-31T16:38:00+09:00'}));
  const after=card(original.tagNumber);
- assert.match(before,/24\.1시간/);
- assert.match(after,/24\.2시간/);
+ assert.equal(after,before);
+ assert.match(after,/922\.1시간/);
+ assert.doesNotMatch(after,/24\.2시간/);
  assert.equal(original.cycleElapsedHours,originalHours);
  ui.state.data.limestoneRunTracking=assets.map(a=>proof(a));
 });
@@ -101,28 +104,32 @@ test('malformed or stale ledgers never become certified display values',()=>{
  for (const override of mutations){
    ui.state.data.limestoneRunTracking=[{...valid,...override}];
    assert.equal(ui.verifiedLimestoneRunDisplay(original),null,JSON.stringify(override));
-   assert.doesNotMatch(card(original.tagNumber),/data-limestone-display="verified-ledger"/);
+   const cardHtml=card(original.tagNumber);
+   assert.match(cardHtml,/data-limestone-display="previous-checkpoint"/);
+   assert.match(cardHtml,/4,080\.1시간/);
+   assert.doesNotMatch(cardHtml,/24\.1시간/);
  }
  ui.state.data.limestoneRunTracking=assets.map(a=>proof(a));
 });
 
-test('history dialog retains separate V-Belt legacy hours and proof, with an explicit no-add warning',()=>{
+test('history dialog shows previous stored cumulative and a separate verified RUN evidence record without adding',()=>{
  const a=assets[0];
  ui.openAssetHistory(a.tagNumber);
  const out=ui.elements.historyCycleSummary.innerHTML;
  assert.match(out,/data-limestone-run-audit="true"/);
  assert.match(out,/DataPARC RUN 검증구간 누적: 24\.1시간/);
  assert.match(out,/기존 V-Belt 이력 누적: 922\.1시간/);
- assert.match(out,/두 기록을 합산하지 않았으며/);
+ assert.match(out,/합산하거나 전체 누적시간으로 확정하지 않습니다/);
  const detail=ui.renderAssetCard(a,null);
- assert.match(detail,/data-limestone-display="verified-ledger"/);
- assert.match(detail,/24\.1시간/);
+ assert.match(detail,/data-limestone-display="previous-checkpoint"/);
+ assert.match(detail,/922\.1시간/);
+ assert.doesNotMatch(detail,/data-limestone-display-basis="verified-ledger"/);
  assert.match(detail,/데이터 조회 기간/);
  assert.doesNotMatch(detail,/data-limestone-run-tracking="true"/);
 });
 
-test('new V3-H JS is cache-busted while existing scheduler/core cache identities remain unchanged',()=>{
- assert.match(html,/blower-history\.js\?v=20261031-limestone-ledger-v3g-display-v3h/);
+test('new V3-I JS cache key is distinct while existing scheduler/core cache identities remain unchanged',()=>{
+ assert.match(html,/blower-history\.js\?v=20261031-limestone-ledger-v3g-checkpoint-v3i/);
  assert.match(html,/blower-unified-refresh\.js\?v=20261031-limestone-ledger-v3g/);
  assert.match(html,/blower-schedule-v1\.js\?v=20261031-limestone-ledger-v3g/);
 });

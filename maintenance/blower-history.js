@@ -1333,7 +1333,7 @@
     return text.length > 240 ? `${text.slice(0, 237).trim()}…` : text;
   }
 
-  /* LIMESTONE_VERIFIED_RUN_DISPLAY_V3H: one visual metric, never arithmetic with disputed V-Belt totals. */
+  /* LIMESTONE_SAFE_CHECKPOINT_DISPLAY_V3I: preserve last-known belt-cycle hours; RUN ledger remains separate. */
   const LIMESTONE_DISPUTED_RUN_TAGS = new Set(['103HRJ01AN602', '203HRJ01AN601', '203HRJ01AN602']);
   function verifiedLimestoneRunDisplay(asset) {
     const tag = String(asset?.tagNumber || '');
@@ -1365,6 +1365,8 @@
   }
 
   function renderAssetCard(asset, setting) {
+    // The disputed belt-cycle total stays provisional even if a RUN ledger is temporarily unavailable.
+    const disputedLimestone = asset?.blowerType === 'limestone' && typeof LIMESTONE_DISPUTED_RUN_TAGS !== 'undefined' && LIMESTONE_DISPUTED_RUN_TAGS.has(String(asset.tagNumber || ''));
     // Tests/legacy isolated renderers may execute only this function body.
     // The complete page always provides the validated helper above.
     const verifiedLimestone = typeof verifiedLimestoneRunDisplay === 'function' ? verifiedLimestoneRunDisplay(asset) : null;
@@ -1438,13 +1440,9 @@
     const previewDetail = !verifiedLimestone && preview?.previewOnly === true && ['running','stopped'].includes(preview.previewState)
       ? `<div class="dataparc-runtime-row" data-limestone-run-preview="true"><div class="dataparc-runtime-basis"><span>최근 RUN 확인 · 누적 미반영</span><strong>${escapeHtml(preview.previewState === 'running' ? 'RUN=1 · 기동' : 'RUN=0 · 정지')} · ${escapeHtml(formatKstDateTimeDisplay(preview.previewObservedAt))}</strong><small>조회 구간 ${escapeHtml(formatKstDateTimeDisplay(preview.previewStartAt))} → ${escapeHtml(formatKstDateTimeDisplay(preview.previewObservedAt))} · RUN=1 합 ${escapeHtml(Number(preview.previewHours).toFixed(1))}h · 실제 교체시각 확인 전 누적시간에 더하지 않음</small></div></div>`
       : '';
-    const dataparcRuntimeBasisLine = verifiedLimestone
-      ? `<div class="dataparc-runtime-row" data-limestone-display-basis="verified-ledger"><div class="dataparc-runtime-basis">
-          <span>데이터 조회 기간</span>
-          <strong>${escapeHtml(formatKstDateTimeDisplay(verifiedLimestone.basis.startAt))} → ${escapeHtml(formatKstDateTimeDisplay(verifiedLimestone.basis.observedAt))}</strong>
-          <small title="실제 V-Belt 교체시각 미확정 · 공식 누적시간과 합산하지 않습니다.">검증된 RUN 구간 기준</small>
-        </div></div>`
-      : runView
+    // The saved V-Belt checkpoint and its own observed interval must remain paired.
+    // A newer RUN ledger observation cannot certify the entire belt-cycle total.
+    const dataparcRuntimeBasisLine = runView
       ? `<div class="dataparc-runtime-row run-source-row" data-run-source="${escapeHtml(asset.runRuntime?.source || "unverified")}">
           <div class="dataparc-runtime-basis">
             <span>데이터 조회 기간</span>
@@ -1462,18 +1460,18 @@
           </div>
         </div>`
       : "";
-    const cyclePrimaryLabel = isDataparcRuntimeAsset && !effectiveStartupPending ? "누적 기동시간" : effectiveStartupPending
+    const cyclePrimaryLabel = disputedLimestone ? "이전 저장 누적" : isDataparcRuntimeAsset && !effectiveStartupPending ? "누적 기동시간" : effectiveStartupPending
       ? "주기 상태"
       : (cycleRuntimeTracked ? "누적 운전" : (actualStarted ? "기동 경과" : "교체 경과"));
-    const cyclePrimaryMobileLabel = isDataparcRuntimeAsset && !effectiveStartupPending ? "누적 기동" : effectiveStartupPending
+    const cyclePrimaryMobileLabel = disputedLimestone ? "이전 누적" : isDataparcRuntimeAsset && !effectiveStartupPending ? "누적 기동" : effectiveStartupPending
       ? "상태"
       : (cycleRuntimeTracked ? "누적" : (actualStarted ? "기동" : "교체"));
     const measuredLabel = `${(effectiveStartupPending ? 0 : cycleElapsedHours).toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간`;
-    const cyclePrimaryValue = verifiedLimestone ? verifiedLimestone.runtime : runView ? runView.primary : runtimeUnknown ? "최신화 필요" : intermittent ? measuredLabel : effectiveStartupPending ? "기동 대기" : formatDaysHours(cycleElapsedHours);
-    const cyclePrimaryMobileValue = verifiedLimestone ? verifiedLimestone.runtime : runView ? runView.primary : runtimeUnknown ? "최신화 필요" : intermittent ? measuredLabel : effectiveStartupPending ? "기동 대기" : formatCompactDaysHours(cycleElapsedHours);
+    const cyclePrimaryValue = disputedLimestone ? allOverviewOperation(asset).runtime : runView ? runView.primary : runtimeUnknown ? "최신화 필요" : intermittent ? measuredLabel : effectiveStartupPending ? "기동 대기" : formatDaysHours(cycleElapsedHours);
+    const cyclePrimaryMobileValue = disputedLimestone ? allOverviewOperation(asset).runtime : runView ? runView.primary : runtimeUnknown ? "최신화 필요" : intermittent ? measuredLabel : effectiveStartupPending ? "기동 대기" : formatCompactDaysHours(cycleElapsedHours);
 
     return `
-      <article class="asset-card" data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(operationState)}" data-tag="${escapeHtml(asset.tagNumber)}"${unitAttribute}${runView ? ` data-run-view="${runView.verified ? "verified" : "unverified"}"` : ""}${verifiedLimestone ? ' data-limestone-display="verified-ledger"' : ''}>
+      <article class="asset-card" data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(operationState)}" data-tag="${escapeHtml(asset.tagNumber)}"${unitAttribute}${runView ? ` data-run-view="${runView.verified ? "verified" : "unverified"}"` : ""}${disputedLimestone ? ' data-limestone-display="previous-checkpoint"' : ''}>
         <div class="asset-card-header">
           <div class="asset-identity">
             <strong class="asset-position" data-mobile-position="${escapeHtml(String(asset.positionLabel || "").trim() || cardPosition)}">${escapeHtml(cardPosition)}</strong>
@@ -1494,7 +1492,7 @@
               <span data-mobile-label="${escapeHtml(cyclePrimaryMobileLabel)}">${escapeHtml(cyclePrimaryLabel)}</span>
               <strong data-mobile-value="${escapeHtml(cyclePrimaryMobileValue)}">${escapeHtml(cyclePrimaryValue)}</strong>
             </div>
-            ${cycleHours && !verifiedLimestone ? `<div class="cycle-deadline-metric ${escapeHtml(severity)}">
+            ${cycleHours && !disputedLimestone ? `<div class="cycle-deadline-metric ${escapeHtml(severity)}">
               <span>${["warning", "critical", "overdue"].includes(severity) ? escapeHtml(severityLabel(severity)) : (cycleRuntimeTracked && !operationRunning && !runtimeUnknown ? "D-day · 정지" : "D-day")}</span>
               <strong>${escapeHtml(remainingLabel)}</strong>
             </div>
@@ -1504,7 +1502,7 @@
             </div>` : ""}
           </div>
 
-          ${cycleHours && !verifiedLimestone && !effectiveStartupPending && !runtimeUnknown ? `
+          ${cycleHours && !disputedLimestone && !effectiveStartupPending && !runtimeUnknown ? `
             <div class="cycle-progress-block">
               <div
                 class="progress-track"
@@ -1804,10 +1802,13 @@
   }
 
   function renderAllOverviewCard(asset) {
+    const disputedLimestone = asset?.blowerType === 'limestone' && typeof LIMESTONE_DISPUTED_RUN_TAGS !== 'undefined' && LIMESTONE_DISPUTED_RUN_TAGS.has(String(asset.tagNumber || ''));
     const trackedRun = verifiedLimestoneRunDisplay(asset);
     const underlyingView = allOverviewOperation(asset);
+    // Only the current RUN state is from the latest ledger. The large number and
+    // displayed period must BOTH remain from the same previous V-Belt checkpoint.
     const view = trackedRun ? { ...underlyingView, state: trackedRun.state,
-      label: trackedRun.stateLabel, runtime: trackedRun.runtime, basis: trackedRun.basis } : underlyingView;
+      label: trackedRun.stateLabel } : underlyingView;
     const severity = displaySeverity(asset);
     const position = formatCardPosition(asset);
     const replacement = asset.lastReplacementAt && !isAssetAwaitingBackfill(asset)
@@ -1823,17 +1824,17 @@
       : '';
     return `
       <button type="button" class="all-overview-card" data-asset-action="history" data-tag="${escapeHtml(asset.tagNumber)}"
-        data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(overviewOperationState)}" data-operation-mode="${view.intermittent ? "intermittent" : "standard"}"${trackedRun ? ' data-limestone-display="verified-ledger"' : ''}
+        data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(overviewOperationState)}" data-operation-mode="${view.intermittent ? "intermittent" : "standard"}"${disputedLimestone ? ' data-limestone-display="previous-checkpoint"' : ''}
         aria-label="${escapeHtml(`${position} 이력 보기`)}">
         <span class="all-overview-card-head">
-          <span class="all-overview-identity"><strong>${escapeHtml(position)}</strong><small>${escapeHtml(asset.tagNumber)}</small>${trackedRun ? '<small title="V-Belt 교체시각 확인 전: 이 카드는 검증된 RUN 구간만 표시합니다. 기존 V-Belt 누적값은 이력에서 확인하세요.">검증구간 기준 · 교체시각 미확정</small>' : asset.limestoneSignalCandidate && !asset.dataParcRuntimeBasis ? `<small title="${escapeHtml(asset.limestoneSignalCandidate)} / RUN=1·0 신호 실측 확인 전">RUN 신호 확인 대기</small>` : ""}</span>
+          <span class="all-overview-identity"><strong>${escapeHtml(position)}</strong><small>${escapeHtml(asset.tagNumber)}</small>${disputedLimestone ? '<small title="표시된 큰 숫자는 이전 저장 누적값이며, 최신 RUN 추적 누적과 합산하지 않았습니다. 정확한 V-Belt 교체시각 확인 후 재산정이 필요합니다.">이전 저장값 · 교체 기준 확인 필요</small>' : asset.limestoneSignalCandidate && !asset.dataParcRuntimeBasis ? `<small title="${escapeHtml(asset.limestoneSignalCandidate)} / RUN=1·0 신호 실측 확인 전">RUN 신호 확인 대기</small>` : ""}</span>
           <span class="all-overview-status-badges">
             ${view.intermittent ? '<span class="operation-mode-pill intermittent">간헐운전</span>' : ''}
             ${showOperationStateBadge ? `<span class="operation-pill ${escapeHtml(view.state)}">${escapeHtml(view.label)}</span>` : ''}
           </span>
         </span>
         <span class="all-overview-metrics">
-          <span><small>누적 기동시간</small><strong>${escapeHtml(view.runtime)}</strong></span>
+          <span><small>${disputedLimestone ? '이전 저장 누적' : '누적 기동시간'}</small><strong>${escapeHtml(view.runtime)}</strong></span>
           <span><small>${escapeHtml(cycleReferenceLabel(asset))}</small><strong>${escapeHtml(replacement)}</strong></span>
         </span>
         <span class="all-overview-query-period">
@@ -2444,6 +2445,7 @@
     const latestRuntimeEvent = latestExplicitRuntimeEvent(asset);
     const runView = window.BlowerUnifiedRefresh?.fbheSealRunView(asset, getLatestDataParcRuntimeBasis(tagNumber));
     const trackedRun = verifiedLimestoneRunDisplay(asset);
+    const disputedLimestone = asset?.blowerType === 'limestone' && typeof LIMESTONE_DISPUTED_RUN_TAGS !== 'undefined' && LIMESTONE_DISPUTED_RUN_TAGS.has(String(asset.tagNumber || ''));
 
     elements.historyDialogTitle.textContent = `${asset.positionLabel} 이력`;
     elements.historyDialogAsset.textContent = `${asset.displayName} · ${asset.tagNumber}`;
@@ -2452,7 +2454,7 @@
         <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(severityLabel(severity))}</span>
         <div><span>${escapeHtml(cycleReferenceLabel(asset))}</span><strong>${escapeHtml(cycleReferenceDisplay(asset))}</strong></div>
         ${runView ? `<div><span>확인 상태</span><strong>${escapeHtml(runView.stateLabel)}</strong></div>` : asset.runtimeAccumulationMode === "measured_only" || asset.blowerType === "organic_fuel" ? "" : `<div><span>현재 운전상태</span><strong>${startupPending ? "기동 대기" : asset.cycleRuntimeState === "unknown" ? "확인 필요" : asset.isRunning ? "기동중" : "정지중"}</strong></div>`}
-        <div><span>${trackedRun || runView || asset.blowerType === "organic_fuel" ? "누적 기동시간" : "누적 운전시간"}</span><strong>${trackedRun ? escapeHtml(trackedRun.runtime) : runView ? escapeHtml(runView.primary) : startupPending ? "0시간" : asset.cycleRuntimeState === "unknown" || asset.measurementRequired ? "최신화 필요" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
+        <div><span>${disputedLimestone ? "이전 저장 누적" : runView || asset.blowerType === "organic_fuel" ? "누적 기동시간" : "누적 운전시간"}</span><strong>${disputedLimestone ? escapeHtml(allOverviewOperation(asset).runtime) : runView ? escapeHtml(runView.primary) : startupPending ? "0시간" : asset.cycleRuntimeState === "unknown" || asset.measurementRequired ? "최신화 필요" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
       `
       : awaitingBackfill
         ? `
@@ -2470,7 +2472,7 @@
         <strong>DataPARC RUN 검증구간 누적: ${escapeHtml(trackedRun.runtime)}</strong>
         <small>${escapeHtml(allOverviewBasisText(trackedRun.basis))} · ${escapeHtml(String(trackedRun.source.segmentCount))}개 저장 구간</small>
         <span>기존 V-Belt 이력 누적: ${Number.isFinite(originalHours) && originalHours >= 0 ? escapeHtml(`${originalHours.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간`) : '확인 필요'} (별도 보존)</span>
-        <small>실제 V-Belt 교체시각이 미확정되어 두 기록을 합산하지 않았으며, 주기 사용률과 교체 알림에도 합산값을 사용하지 않습니다.</small>
+        <small>기존 V-Belt 누적은 최신 검증 RUN 누적과 서로 다른 기간·기준의 기록입니다. 실제 교체시각과 미조회 구간을 확인하기 전까지 합산하거나 전체 누적시간으로 확정하지 않습니다. 주기 사용률과 교체 알림에도 합산값을 사용하지 않습니다.</small>
       </div>`;
     }
     if (runView && asset.lastReplacementAt) {
