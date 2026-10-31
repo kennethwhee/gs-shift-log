@@ -11,7 +11,7 @@ const num=x=>typeof x==='number'&&Number.isFinite(x)&&x>=0;
 const fmt=x=>num(x)?x.toLocaleString('ko-KR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
 const adj=()=>root.CofiringPeriodAdjustmentV56;
 const estimateApi=()=>root.CofiringEstimateV1;
-const state={active:null,resetPending:false,preview:null,ctx:null,hydratedKey:'',loadingKey:'',dialog:null,focus:null};
+const state={active:null,resetPending:false,preview:null,ctx:null,hydratedKey:'',loadingKey:'',hydrateRetryKey:'',hydrateRetryAfter:0,hydrateRetryCount:0,dialog:null,focus:null};
 function context(){
  let selected;try{selected=root.CofiringProvisionalV12?.projectionContext?.();}catch{return null;}
  if(!selected)return null;
@@ -172,10 +172,12 @@ function reset(){const c=context();if(!c||state.ctx?.key!==c.key){close();return
 }
 async function maybeHydrate(c){
  if(!c||state.active?.key===c.key||state.resetPending||state.hydratedKey===c.key||state.loadingKey===c.key)return;
- state.loadingKey=c.key;
+ if(state.hydrateRetryKey!==c.key){state.hydrateRetryKey=c.key;state.hydrateRetryAfter=0;state.hydrateRetryCount=0;}
+if(Date.now()<state.hydrateRetryAfter)return;
+state.loadingKey=c.key;
  try{const item=(await root.CofiringProvisionalV12?.request?.('?targetDate='+encodeURIComponent(c.date)))?.item;
   if(state.loadingKey!==c.key||context()?.key!==c.key)return;
-  state.hydratedKey=c.key;
+  state.hydratedKey=c.key;state.hydrateRetryCount=0;state.hydrateRetryAfter=0;
   const m=item?.adjustment;
   if(item?.sourceRequestId!==c.sourceId||!m||!['max_auto','manual_transfer'].includes(m.mode))return;
   const r=adj()?.adjustFinal?.(c.base,c.settings,m.finalBioUnit1,m.finalBioUnit2,
@@ -183,7 +185,7 @@ async function maybeHydrate(c){
   if(!r?.ok)return;
   state.active={key:c.key,result:r.result,adjustment:m};
   c.ctrl.applyProvisionalAdjustment?.(r.result);paintSaveStatus('추정 조정 복원 · 미확정');
- }catch(_){}finally{if(state.loadingKey===c.key)state.loadingKey='';}
+ }catch(_){if(state.loadingKey===c.key){state.hydrateRetryCount=Math.min(7,state.hydrateRetryCount+1);state.hydrateRetryAfter=Date.now()+Math.min(900000,30000*2**(state.hydrateRetryCount-1));}}finally{if(state.loadingKey===c.key)state.loadingKey='';}
 }
 function refreshButton(){
  const c=context(),button=c?.shell?.querySelector('[data-cfv56-adjust]');

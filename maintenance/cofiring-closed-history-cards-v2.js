@@ -384,6 +384,10 @@
     let listItems=[];
     let selectedMonth='';
     let loadEpoch=0;
+// D1_READ_BUDGET_V1: de-duplicate background panel opens; explicit updates are immediate.
+let lastMonthLoadAt=0;
+let lastMonthLoaded="";
+const MONTH_RECHECK_MIN_MS=60000;
     let openDate='';
     let provisionalWarning='';
 
@@ -411,8 +415,13 @@
       void loadList({keepMonth:true});
     }
 
-    async function loadList({keepMonth=true}={}){
-      const epoch=++loadEpoch;
+    async function loadList({keepMonth=true,force=false}={}){
+const now=Date.now();
+if(!force&&!selectedMonth&&lastMonthLoaded==='__initial__'&&now-lastMonthLoadAt<MONTH_RECHECK_MIN_MS)return;
+if(keepMonth&&!force&&selectedMonth&&lastMonthLoaded===selectedMonth&&now-lastMonthLoadAt<MONTH_RECHECK_MIN_MS)return;
+if(!selectedMonth){lastMonthLoaded='__initial__';lastMonthLoadAt=now;}
+if(keepMonth&&selectedMonth){lastMonthLoaded=selectedMonth;lastMonthLoadAt=now;}
+const epoch=++loadEpoch;
       detailCache.clear();provisionalWarning='';
       host.innerHTML='<div class="cfv15-state">마감 데이터 목록을 확인하는 중입니다...</div>';
       try{
@@ -444,6 +453,7 @@
         listItems=mergeHistoryItems(Array.isArray(payload?.items)?payload.items:[],savedHypotheses,month);
         monthInput.value=selectedMonth;monthText.textContent=monthLabel(selectedMonth);
         await renderMonth(epoch);
+if(epoch===loadEpoch&&month===selectedMonth){lastMonthLoaded=month;lastMonthLoadAt=Date.now();}
       }catch(error){
         if(epoch!==loadEpoch)return;
         countText.textContent='목록 조회 실패';
@@ -562,21 +572,21 @@
       if(go)goDate(go.getAttribute('data-cfv15-go')||'');
     });
 
-    panel.querySelector('[data-cfv12-refresh]')?.addEventListener('click',()=>void loadList({keepMonth:true}));
+    panel.querySelector('[data-cfv12-refresh]')?.addEventListener('click',()=>void loadList({keepMonth:true,force:true}));
     root.addEventListener?.('cofiring:closed-history-changed',()=>{
-      detailCache.clear();if(!panel.hidden)void loadList({keepMonth:true});
+      detailCache.clear();if(!panel.hidden)void loadList({keepMonth:true,force:true});
     });
 
     root.addEventListener?.('cofiring:provisional-inline-updated',event=>{
       const date=event?.detail?.targetDate;
       if(typeof date==='string'&&/^20\d{2}-\d{2}-\d{2}$/.test(date)&&date.slice(0,7)===selectedMonth){
-        detailCache.clear();if(!panel.hidden)void loadList({keepMonth:true});
+        detailCache.clear();if(!panel.hidden)void loadList({keepMonth:true,force:true});
       }
     });
 
     root.addEventListener?.('cofiring:period-adjustment-changed',()=>{
       detailCache.clear();
-      if(!panel.hidden)void loadList({keepMonth:true});
+      if(!panel.hidden)void loadList({keepMonth:true,force:true});
     });
 
     const observer=root.MutationObserver?new root.MutationObserver(()=>{if(!panel.hidden)void loadList({keepMonth:true});}):null;

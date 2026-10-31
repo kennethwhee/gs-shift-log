@@ -29,7 +29,7 @@ const validDate=s=>estimateApi()?.validDate(s)===true;
 const getToken=()=>{try{const h=root.getShiftLogAuthHeaders?.()||{};return String(h.Authorization||h.authorization||'')}catch{return ''}};
 const headers=()=>({...root.getShiftLogAuthHeaders?.(),Accept:'application/json'});
 const dateAllowed=d=>validDate(d);
-const state={saveKey:'',saveBusy:false,failKey:'',failUntil:0,morningDate:'',morningAuth:'',morningGeneration:0,morningItem:null,morningSourceDate:'',morningPending:'',morningCheckAt:0,historyCheckAt:0,historyItems:null,historyPending:false,historyKey:'',tickTimer:null};
+const state={saveKey:'',saveBusy:false,failKey:'',failUntil:0,failCount:0,morningDate:'',morningAuth:'',morningGeneration:0,morningItem:null,morningSourceDate:'',morningPending:'',morningCheckAt:0,historyCheckAt:0,historyItems:null,historyPending:false,historyKey:'',tickTimer:null};
 async function request(suffix='',opts={}){
  const r=await root.fetch(API+suffix,{credentials:'same-origin',cache:'no-store',...opts,headers:{...headers(),...(opts.headers||{})}});
  let data;try{data=await r.json()}catch{throw Error('추정 계산 기록의 서버 응답을 확인하지 못했습니다.')}
@@ -183,7 +183,7 @@ function currentSaveContext(auth,data){
 }
 function saveNotice(message,tone){try{saveStatus(message,tone)}catch(error){root.console?.warn?.('추정 저장 안내 표시 오류:',error)}}
 function publishSaved(item,data,key){
- state.saveKey=key;state.savedItem=item;state.failKey='';state.failUntil=0;
+ state.saveKey=key;state.savedItem=item;state.failKey='';state.failUntil=0;state.failCount=0;
  state.pendingKey='';state.pendingUntil=0;state.pendingMessage='';
  if(data.targetDate===morningSourceDate(morningDate())){state.morningCheckAt=0;state.morningGeneration++;}
  state.historyCheckAt=0;
@@ -257,7 +257,7 @@ async function autoSave(options={}){
    return {ok:true,item:response.item,targetDate:data.targetDate};
   }catch(error){
    const message=error?.message||'추정 계산 저장을 확인하지 못했습니다.';
-   state.failKey=key;state.failUntil=Date.now()+30000;state.saveError=message;
+   state.failCount=state.failKey===key?Math.min(7,state.failCount+1):1;state.failKey=key;state.failUntil=Date.now()+Math.min(900000,30000*2**(state.failCount-1));state.saveError=message;
    if(currentSaveContext(auth,data)){
     try{if(data.adjustment||root.CofiringProvisionalAdjustV14?.resetRequested?.())root.CofiringProvisionalAdjustV14?.onSaveError?.(message)}catch{}
     saveNotice('추정 기록 저장 실패 · '+message,'error');
