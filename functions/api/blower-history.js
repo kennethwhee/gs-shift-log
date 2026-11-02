@@ -994,6 +994,39 @@ async function ensureAssetManagementSchema(database) {
   await initializeCycleRuntimeTracking(database);
 }
 
+const BLOWER_SCHEMA_PRESENCE_TTL_MS = 60 * 1000;
+const blowerSchemaPresenceByDatabase = new WeakMap();
+
+function loadBlowerSchemaPresence(database) {
+  // Only sqlite_master presence is shared. Seed/data checks remain fresh.
+  const cached = blowerSchemaPresenceByDatabase.get(database);
+  if (cached && (cached.pending || cached.expiresAt > Date.now())) return cached.promise;
+  const entry = { pending: true, expiresAt: 0, promise: null };
+  entry.promise = Promise.resolve().then(() => {
+    return database.prepare(`
+      SELECT
+        MAX(CASE WHEN type = 'table' AND name = 'blower_history_atomic_guard' THEN 1 ELSE 0 END) AS guard_ready,
+        MAX(CASE WHEN type = 'index' AND name = 'idx_blower_history_assets_active_slot' THEN 1 ELSE 0 END) AS active_slot_ready,
+        MAX(CASE WHEN type = 'index' AND name = 'idx_blower_history_assets_canonical_tag' THEN 1 ELSE 0 END) AS canonical_tag_ready
+      FROM sqlite_master
+      WHERE name IN (
+        'blower_history_atomic_guard',
+        'idx_blower_history_assets_active_slot',
+        'idx_blower_history_assets_canonical_tag'
+      )
+    `).first();
+  }).then(result => {
+    entry.pending = false;
+    entry.expiresAt = Date.now() + BLOWER_SCHEMA_PRESENCE_TTL_MS;
+    return result;
+  }, error => {
+    if (blowerSchemaPresenceByDatabase.get(database) === entry) blowerSchemaPresenceByDatabase.delete(database);
+    throw error;
+  });
+  blowerSchemaPresenceByDatabase.set(database, entry);
+  return entry.promise;
+}
+
 async function ensureBlowerHistorySchemaReady(database) {
   // 운영 GET/POST마다 전체 CREATE TABLE/INDEX + seed INSERT를 반복하지 않는다.
   // 이미 운영 스키마/필수 seed가 준비되어 있으면 읽기 1회로 바로 진행한다.
@@ -1034,20 +1067,9 @@ async function ensureBlowerHistorySchemaReady(database) {
     /* GS_D1_V3_BLOWER_SCHEMA_PRESENCE_3_TO_1
      * Formerly three independent sqlite_master scans per authenticated request.
      * Preserve all three exact table/index checks and full migration fallback.
-     * No cross-request cache or persisted changes; missing objects still run ensureSchema.
+     * Presence alone has a short per-binding cache; all seed/data checks stay fresh.
      */
-    const schemaPresence = await database.prepare(`
-      SELECT
-        MAX(CASE WHEN type = 'table' AND name = 'blower_history_atomic_guard' THEN 1 ELSE 0 END) AS guard_ready,
-        MAX(CASE WHEN type = 'index' AND name = 'idx_blower_history_assets_active_slot' THEN 1 ELSE 0 END) AS active_slot_ready,
-        MAX(CASE WHEN type = 'index' AND name = 'idx_blower_history_assets_canonical_tag' THEN 1 ELSE 0 END) AS canonical_tag_ready
-      FROM sqlite_master
-      WHERE name IN (
-        'blower_history_atomic_guard',
-        'idx_blower_history_assets_active_slot',
-        'idx_blower_history_assets_canonical_tag'
-      )
-    `).first();
+    const schemaPresence = await loadBlowerSchemaPresence(database);
 
     if (
       Number(ready?.setting_count || 0) >= 6 &&
@@ -1063,6 +1085,7 @@ async function ensureBlowerHistorySchemaReady(database) {
     // 최초 설치처럼 base table 자체가 없으면 아래 full ensure로 이동한다.
   }
 
+  blowerSchemaPresenceByDatabase.delete(database);
   await ensureSchema(database);
 }
 
@@ -1821,13 +1844,14 @@ async function loadAssetStates(database, settings, options = {}) {
 
   const referenceRows = Array.isArray(referenceResult.results) ? referenceResult.results : [];
   const tags = assets.map(asset => asset.tag_number);
+  const useJsonTagFilter = !options.assetRows || tags.length > 100;
   const runtimeResult = tags.length ? await database.prepare(`
     SELECT id, tag_number, event_type, event_date, runtime_hours, source_type, source_log_id, source_text, created_at, updated_at, issue_type, action_type, note
     FROM blower_history_events
     WHERE event_type IN ('runtime_correction', 'startup', 'operation_start', 'operation_stop')
-      ${options.assetRows ? `AND tag_number IN (${tags.map(() => '?').join(',')})` : ''}
+      AND tag_number IN (${useJsonTagFilter ? 'SELECT value FROM json_each(?)' : tags.map(() => '?').join(',')})
     ORDER BY created_at DESC, event_date DESC, id DESC
-  `).bind(...(options.assetRows ? tags : [])).all() : { results: [] };
+  `).bind(...(useJsonTagFilter ? [JSON.stringify(tags)] : tags)).all() : { results: [] };
   const runtimeRows = Array.isArray(runtimeResult.results) ? runtimeResult.results : [];
   // Partition once, keeping every event and the original within-asset order.
   const runtimeByTag = new Map();
@@ -4670,6 +4694,35 @@ async function handleGet(context, user) {
     return jsonResponse(await buildFullData(database, user));
   }
 
+  if (action === "events") {
+    const events = await loadEvents(
+      database,
+      Number(url.searchParams.get("limit")) || 500
+    );
+
+    return jsonResponse({
+      ok: true,
+      permissions,
+      events: user ? events : sanitizeEventsForAnonymous(events)
+    });
+  }
+
+  if (action === "candidates") {
+    return jsonResponse({
+      ok: true,
+      permissions,
+      candidates: await loadCandidates(
+        database,
+        normalizeText(url.searchParams.get("status")) || "pending",
+        Number(url.searchParams.get("limit")) || 300
+      )
+    });
+  }
+
+  if (action !== "summary" && action !== "vibration_shadow") {
+    return jsonResponse(await buildFullData(database, user));
+  }
+
   const settings = await loadSettings(database);
   const assets = await loadAssetStates(database, settings);
   const responseAssets = user
@@ -4722,31 +4775,6 @@ async function handleGet(context, user) {
       permissions,
       ...buildSummaryFromAssets(responseAssets),
       generatedAt: new Date().toISOString()
-    });
-  }
-
-  if (action === "events") {
-    const events = await loadEvents(
-      database,
-      Number(url.searchParams.get("limit")) || 500
-    );
-
-    return jsonResponse({
-      ok: true,
-      permissions,
-      events: user ? events : sanitizeEventsForAnonymous(events)
-    });
-  }
-
-  if (action === "candidates") {
-    return jsonResponse({
-      ok: true,
-      permissions,
-      candidates: await loadCandidates(
-        database,
-        normalizeText(url.searchParams.get("status")) || "pending",
-        Number(url.searchParams.get("limit")) || 300
-      )
     });
   }
 

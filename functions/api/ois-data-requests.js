@@ -19820,48 +19820,59 @@ function blowerRuntimeProbeBatchMutationStatements(database, preparedItems, requ
         BLOWER_RUNTIME_PROBE_REQUEST_TYPE, requestedById)
   );
   if (!mutable.length) return statements;
+  // Only processing requests can block retirement. Start there so fully ended
+  // historical groups do not become CAS candidates on every Latest request.
+  // A processing sibling still checks complete seeds when create_new=1.
+  // Slot-sized primary-key ranges also preserve the old SQLite TEXT length
+  // semantics for a canonical ID followed by NUL, without scanning old groups.
+  // CASE keeps the seed filters intact while preventing a type/status index
+  // from replacing those small primary-key ranges with repeated history scans.
   statements.push(
       database.prepare(`/* BLOWER_RUNTIME_BATCH_RETIRE_GROUP_CAS_V1 */
-        WITH plans AS (
+        WITH plans AS MATERIALIZED (
           SELECT json_extract(value,'$.assetTag') asset_tag,
                  json_extract(value,'$.reuseKey') reuse_key,
                  json_extract(value,'$.staleRequestId') stale_request_id,
                  CAST(json_extract(value,'$.createNew') AS INTEGER) create_new
           FROM json_each(?)
-        ), initial_retire_ids AS (
-          SELECT intent.request_id
-          FROM blower_runtime_probe_intents_v5 AS intent
-          JOIN ois_data_requests AS request ON request.id=intent.request_id
-          JOIN plans ON plans.asset_tag=intent.asset_tag
+        ), processing AS MATERIALIZED (
+          SELECT request.id,request.requested_by_id
+          FROM ois_data_requests AS request
           WHERE request.request_type=? AND request.requested_by_id=?
-            AND (request.status IN ('pending','processing')
-              OR (request.status='complete' AND plans.create_new=1))
-            AND (COALESCE(intent.reuse_key,'')<>plans.reuse_key
-              OR intent.request_id=plans.stale_request_id)
-        ), retire_groups AS (
-          SELECT DISTINCT
-            substr(request.id,1,${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH}) group_id,
-            request.requested_by_id requested_by_id
-          FROM ois_data_requests AS request
-          WHERE request.id IN (SELECT request_id FROM initial_retire_ids)
-            AND length(request.id)=47
-                AND ${blowerRuntimeProbeCreateGroupSql("request.id")}
-        ), processing_conflicts AS (
-          SELECT 'request:' || request.id conflict_id
-          FROM ois_data_requests AS request
-          WHERE request.id IN (SELECT request_id FROM initial_retire_ids)
             AND request.status='processing'
+        ), processing_groups AS MATERIALIZED (
+          SELECT DISTINCT
+            substr(active.id,1,${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH}) group_id,
+            active.requested_by_id requested_by_id
+          FROM processing AS active
+          WHERE ${blowerRuntimeProbeCreateGroupSql("active.id")}
+        ), group_slots(slot) AS (
+          VALUES ${Array.from({length: MAXIMUM_STATUS_BATCH_IDS}, (_, index) => `(${index})`).join(",")}
+        ), processing_conflicts AS (
+          SELECT 'request:' || active.id conflict_id
+          FROM processing AS active
+          CROSS JOIN blower_runtime_probe_intents_v5 AS intent ON intent.request_id=active.id
+          CROSS JOIN plans ON plans.asset_tag=intent.asset_tag
+          WHERE COALESCE(intent.reuse_key,'')<>plans.reuse_key
+            OR intent.request_id=plans.stale_request_id
           UNION
-          SELECT 'group:' || retire_group.group_id conflict_id
-          FROM retire_groups AS retire_group
-          WHERE EXISTS (SELECT 1 FROM ois_data_requests AS active_group
-              WHERE active_group.request_type=?
-                AND active_group.requested_by_id=retire_group.requested_by_id
-                AND length(active_group.id)=47
-                  AND ${blowerRuntimeProbeCreateGroupSql("active_group.id")}
-                AND substr(active_group.id,1,${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH})=
-                  retire_group.group_id
-                AND active_group.status='processing')
+          SELECT 'group:' || active_group.group_id conflict_id
+          FROM processing_groups AS active_group
+          WHERE EXISTS (
+            SELECT 1 FROM group_slots
+            CROSS JOIN ois_data_requests AS seed
+              ON seed.id>=active_group.group_id||printf('%02d',group_slots.slot)
+                AND seed.id<active_group.group_id||printf('%02d',group_slots.slot)||char(1)
+            CROSS JOIN blower_runtime_probe_intents_v5 AS intent ON intent.request_id=seed.id
+            CROSS JOIN plans ON plans.asset_tag=intent.asset_tag
+            WHERE CASE WHEN seed.request_type=?
+              AND seed.requested_by_id=active_group.requested_by_id
+              AND ${blowerRuntimeProbeCreateGroupSql("seed.id")}
+              AND (seed.status IN ('pending','processing')
+                OR (seed.status='complete' AND plans.create_new=1))
+              THEN 1 ELSE 0 END=1
+              AND (COALESCE(intent.reuse_key,'')<>plans.reuse_key
+                OR intent.request_id=plans.stale_request_id))
         )
         INSERT INTO blower_runtime_probe_intents_v5
           (request_id,reuse_key,schema_version,asset_tag,dataparc_tag,window_start,window_end,chunk_days,chunk_count,
