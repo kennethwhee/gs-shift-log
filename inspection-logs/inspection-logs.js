@@ -835,7 +835,7 @@ const INSPECTION_SCHEDULE_MASTER = [
       "Fly Ash Sampling",
 
     scheduleLabel:
-      "매주 월요일 N/S",
+      "매주 일요일 N/S",
 
     shifts: [
       "N/S"
@@ -851,14 +851,14 @@ const INSPECTION_SCHEDULE_MASTER = [
       "-",
 
     note:
-      "화요일 02시경 Sampling 실시",
+      "월요일 02시경 Sampling 실시",
 
     rule: {
       type:
         "weekly",
 
       days: [
-        1
+        0
       ]
     }
   },
