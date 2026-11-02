@@ -52,3 +52,7 @@
 #efficiencyCofiringDraftView .cofiring-period-v5.cfv-summary-final-layout-pending .cfv-results-dark > [data-cfv-summary-loading]{grid-row:4!important}
 #efficiencyCofiringDraftView .cofiring-period-v5.cfv-summary-final-layout-pending .cfv-results-dark > .cfv52-manual-panel{grid-row:5!important}
 }
+
+/* V6: emphasize operator-entered numbers. */
+[data-cofiring-draft-root] .cfbt-card input:not([readonly]):not(:disabled),
+[data-cofiring-draft-root] .cfbt-shared input:not([readonly]):not(:disabled){font-weight:700}
