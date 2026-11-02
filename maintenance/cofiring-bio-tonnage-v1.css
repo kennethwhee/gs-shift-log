@@ -1,8 +1,8 @@
-/* COFIRING_BIO_TONNAGE_COMPACT_V4 — browser-local planning only. */
+/* COFIRING_BIO_TONNAGE_COMPACT_V5 — browser-local planning only. */
 [data-cofiring-draft-root] .cfbt-card{margin-top:6px;padding:7px 8px;background:rgba(36,134,112,.09);border:1px solid rgba(104,161,154,.32);border-radius:4px;color:inherit;font-size:11px;box-sizing:border-box}
 [data-cofiring-draft-root] .cfbt-main{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:7px;min-width:0}
 [data-cofiring-draft-root] .cfbt-goal{display:flex;flex:none;align-items:center;gap:4px;font-size:11px;color:inherit;white-space:nowrap}
-[data-cofiring-draft-root] .cfbt-card input,[data-cofiring-draft-root] .cfbt-shared input{font:inherit;color:inherit;border:1px solid rgba(123,151,172,.5);background:transparent;border-radius:4px;font-variant-numeric:tabular-nums;padding:4px;text-align:right;box-sizing:border-box}
+[data-cofiring-draft-root] .cfbt-card input,[data-cofiring-draft-root] .cfbt-shared input{font:inherit;color:#16324d;border:1px solid #4a8ed1;background:#fff;border-radius:4px;font-variant-numeric:tabular-nums;padding:4px;text-align:right;box-sizing:border-box;cursor:text}
 [data-cofiring-draft-root] .cfbt-goal input{width:60px;min-width:0;font-size:12px}
 [data-cofiring-draft-root] .cfbt-rate{display:flex;flex:none;align-items:baseline;gap:3px;white-space:nowrap;font-size:11px}
 [data-cofiring-draft-root] .cfbt-rate strong{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
@@ -27,8 +27,7 @@
 [data-cofiring-draft-root] .cfbt-support-proof{display:block;margin:5px 0 0;padding:0;background:none;line-height:1.5;font-size:11px;opacity:.8}
 [data-cofiring-draft-root] .cfbt-basis,[data-cofiring-draft-root] .cfbt-status{margin:5px 2px 0;padding:0;font-size:11px;line-height:1.5;opacity:.8}
 [data-cofiring-draft-root] .cfbt-status.is-warning{color:#b97b2b;opacity:1}
-[data-cofiring-draft-root] .cfbt-card input:disabled,[data-cofiring-draft-root] .cfbt-shared input:disabled,[data-cofiring-draft-root] .cfbt-modes button:disabled{opacity:.5;cursor:default}
-[data-cofiring-draft-root] .cfbt-card input[aria-invalid="true"],[data-cofiring-draft-root] .cfbt-shared input[aria-invalid="true"]{border-color:#d47e5f}
+[data-cofiring-draft-root] .cfbt-modes button:disabled{opacity:.5;cursor:default}
 [data-cofiring-draft-root] .cfbt-shared [hidden]{display:none!important}
 @media(max-width:680px){[data-cofiring-draft-root] .cfbt-main{flex-wrap:wrap;gap:5px 8px}[data-cofiring-draft-root] .cfbt-plan,[data-cofiring-draft-root] .cfbt-proof{margin-left:0;white-space:normal;flex-wrap:wrap}}
 @media(max-width:380px){[data-cofiring-draft-root] .cfbt-rate strong{font-size:17px}}
@@ -37,4 +36,19 @@
 [data-cofiring-draft-root] .cfbt-total-edit{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;font-size:11px}
 [data-cofiring-draft-root] .cfbt-total-edit input{width:76px;min-width:0;font-size:12px;padding:3px 5px}
 
-[data-cofiring-draft-root] .cfbt-goal input[readonly]{background:rgba(123,151,172,.07);border-style:dashed;cursor:default}
+[data-cofiring-draft-root] .cfbt-card input::placeholder,[data-cofiring-draft-root] .cfbt-shared input::placeholder{color:#526d88;opacity:1}
+[data-cofiring-draft-root] .cfbt-card input:not([readonly]):not(:disabled):hover,[data-cofiring-draft-root] .cfbt-shared input:not([readonly]):not(:disabled):hover{border-color:#1a65b4;box-shadow:0 0 0 1px rgba(37,99,199,.15)}
+[data-cofiring-draft-root] .cfbt-card input:not([readonly]):not(:disabled):focus,[data-cofiring-draft-root] .cfbt-shared input:not([readonly]):not(:disabled):focus{border-color:#1a65b4;outline:2px solid #2563c7;outline-offset:1px;box-shadow:0 0 0 1px rgba(37,99,199,.15)}
+[data-cofiring-draft-root] .cfbt-goal input[readonly]{background:#edf1f4;color:#566879;border-color:#9aa8b4;border-style:dashed;cursor:default;box-shadow:none}
+[data-cofiring-draft-root] .cfbt-card input[aria-invalid="true"]:not([readonly]):not(:disabled),[data-cofiring-draft-root] .cfbt-shared input[aria-invalid="true"]:not([readonly]):not(:disabled){background:#fff7ed;border-color:#c87325;color:#653b16}
+[data-cofiring-draft-root] .cfbt-card input:disabled,[data-cofiring-draft-root] .cfbt-shared input:disabled{background:#eef1f4;color:#748390;border-color:#c2cbd2;opacity:.75;cursor:default;box-shadow:none}
+
+/* Existing layout owner keeps the live summary above the unit grid. */
+#efficiencyCofiringDraftView .cfv-results-dark > .cfv52-card-total{margin-top:0!important;margin-bottom:10px!important}
+
+@media screen and (min-width:901px){
+#efficiencyCofiringDraftView .cofiring-period-v5.cfv-summary-final-layout-pending .cfv-results-dark > .cfv52-card-total{grid-row:3!important}
+#efficiencyCofiringDraftView .cofiring-period-v5.cfv-summary-final-layout-pending .cfv-results-dark > [data-cfv52-summary-grid],
+#efficiencyCofiringDraftView .cofiring-period-v5.cfv-summary-final-layout-pending .cfv-results-dark > [data-cfv-summary-loading]{grid-row:4!important}
+#efficiencyCofiringDraftView .cofiring-period-v5.cfv-summary-final-layout-pending .cfv-results-dark > .cfv52-manual-panel{grid-row:5!important}
+}
