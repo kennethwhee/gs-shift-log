@@ -10,10 +10,10 @@
   <link rel="stylesheet" href="blower-history-mobile-dialog-close-v1.css?v=20260903-v1">
   <link rel="stylesheet" href="/maintenance/seal-pot-ois-shadow.css?v=20260901-v2">
   <script src="shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
-  <link rel="stylesheet" href="blower-unified-refresh.css?v=20261022-query-resource-v3">
-  <script src="blower-refresh-timing.js?v=20260915-fast-timing-v12" defer></script>
-  <script src="blower-unified-refresh.js?v=20261031-limestone-ledger-v3g-20261102-auto-v3m" defer></script>
-    <script src="blower-history.js?v=20261031-limestone-ledger-v3g-checkpoint-v3k-ui-20261102-auto-v3m" defer></script>
+  <link rel="stylesheet" href="blower-unified-refresh.css?v=20261022-query-resource-v3-20261102-inline-v3n">
+  <script src="blower-refresh-timing.js?v=20260915-fast-timing-v12-20261102-inline-v3n" defer></script>
+  <script src="blower-unified-refresh.js?v=20261031-limestone-ledger-v3g-20261102-auto-v3m-20261102-inline-v3n" defer></script>
+    <script src="blower-history.js?v=20261031-limestone-ledger-v3g-checkpoint-v3k-ui-20261102-auto-v3m-20261102-inline-v3n" defer></script>
   <script src="/maintenance/seal-pot-ois-shadow.js?v=20260909-unified-refresh-v1" defer></script>
   <link rel="stylesheet" href="/maintenance/blower-schedule-v1.css?v=20261029-settings-v2">
   <script src="/maintenance/blower-schedule-v1.js?v=20261031-limestone-ledger-v3g" defer></script>
@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="/maintenance/blower-readable-compact-v1.css?v=20260927-v2">
 </head>
 <body>
-  <section class="blower-query-overlay" id="blowerQueryOverlay" role="status" aria-live="polite" aria-atomic="true" hidden>
+  <section class="blower-query-overlay" id="blowerQueryOverlay" role="status" aria-live="off" aria-hidden="true" aria-atomic="true" hidden>
     <div class="blower-query-card">
       <span class="blower-query-spinner" aria-hidden="true"></span>
       <strong>Blower 조회 중</strong>
@@ -47,12 +47,6 @@
     </header>
 
     <section class="notice-bar" id="authNotice" role="status" aria-live="polite" hidden></section>
-    <section class="unified-refresh-status" id="unifiedRefreshStatus" aria-label="전체 통합조회 결과" hidden>
-      <p id="unifiedRefreshText" role="status" aria-live="polite"></p>
-      <button type="button" class="button secondary blower-resume-button" id="unifiedRefreshResume" hidden>조회 결과 다시 확인</button>
-      <details id="unifiedRefreshDiagnostics" hidden><summary>조회 상세</summary><p id="unifiedRefreshDiagnosticText"></p></details>
-      <details id="unifiedRefreshDetails" hidden><summary id="unifiedRefreshSummary">통합조회 결과</summary><div id="unifiedRefreshList"></div></details>
-    </section>
     <section class="blower-schedule-panel blower-schedule-compact" id="blowerSchedulePanel" aria-label="BCO1 자동조회 설정" hidden>
       <div class="blower-schedule-heading">
         <strong id="blowerScheduleState">자동조회 확인 중</strong>
@@ -152,16 +146,24 @@
                   <path class="overview-refresh-icon-ring" d="M19.1 7.2A8.2 8.2 0 1 0 20 13"></path>
                 </svg>
               </button>
-              <div class="overview-refresh-progress" aria-live="polite">
-                <div class="overview-refresh-progress-head">
-                  <strong id="overviewRefreshPercent">0%</strong>
-                  <span id="overviewRefreshProgressText">통합조회 대기</span>
+              <div class="overview-refresh-progress" id="overviewRefreshInlineStatus" data-state="idle" aria-label="전체 Blower 조회 상태">
+                <div class="overview-refresh-progress-head" role="status" aria-live="polite" aria-atomic="true">
+                  <strong id="overviewRefreshPercent" aria-hidden="true" hidden>0%</strong>
+                  <span id="overviewRefreshProgressText">조회 대기</span>
+                  <span id="overviewRefreshCount" hidden></span>
                 </div>
-                <div class="overview-refresh-progress-track" role="progressbar" aria-label="전체 Blower 통합조회 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="overviewRefreshProgressTrack">
+                <span class="overview-refresh-elapsed" id="overviewRefreshElapsed" aria-live="off" hidden>경과 00:00</span>
+                <div class="overview-refresh-progress-track" id="overviewRefreshProgressTrack" aria-hidden="true">
                   <span id="overviewRefreshProgressBar"></span>
                 </div>
               </div>
             </div>
+            <section class="unified-refresh-status" id="unifiedRefreshStatus" aria-label="전체 통합조회 상세" hidden>
+              <p id="unifiedRefreshText" aria-hidden="true" aria-live="off" hidden></p>
+              <button type="button" class="button secondary blower-resume-button" id="unifiedRefreshResume" hidden>조회 결과 다시 확인</button>
+              <details id="unifiedRefreshDiagnostics" hidden><summary>조회 상세</summary><p id="unifiedRefreshDiagnosticText"></p></details>
+              <details id="unifiedRefreshDetails" hidden><summary id="unifiedRefreshSummary">설비별 조회 결과</summary><div id="unifiedRefreshList"></div></details>
+            </section>
           </section>
 
           <section class="status-toolbar" aria-label="설비 상태 필터">

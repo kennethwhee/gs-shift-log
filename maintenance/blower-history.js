@@ -172,6 +172,7 @@
       "blowerQueryOverlay", "blowerQueryPhase", "blowerQueryElapsed", "blowerQueryProgress",
       "blowerQueryDismiss", "unifiedRefreshResume",
       "unifiedRefreshDiagnostics", "unifiedRefreshDiagnosticText",
+      "overviewRefreshInlineStatus", "overviewRefreshCount", "overviewRefreshElapsed",
       "historyRuntimeQueryButton",
       "dataparcRuntimeDialog",
       "dataparcRuntimeForm",
@@ -2017,12 +2018,142 @@
     if (elements.blowerQueryProgress) elements.blowerQueryProgress.hidden = phase !== "업무일지";
     const label = unifiedRefreshPhaseLabel(phase);
     if (elements.blowerQueryPhase && elements.blowerQueryPhase.textContent !== label) elements.blowerQueryPhase.textContent = label;
+    if (typeof renderInlineRefreshStatus === 'function') renderInlineRefreshStatus();
   }
   function renderUnifiedLogProgress(value) {
+    state.unifiedRefreshLogCounts = {
+      replacement: Math.max(0, Math.floor(Number(value?.scannedReplacementLogs) || 0)),
+      operation: Math.max(0, Math.floor(Number(value?.scannedOperationLogs) || 0))
+    };
+    if (typeof renderInlineRefreshStatus === 'function') renderInlineRefreshStatus();
     if (!elements.blowerQueryProgress) return;
     const count = key => Math.max(0, Math.floor(Number(value?.[key]) || 0)).toLocaleString("ko-KR");
     elements.blowerQueryProgress.textContent = `교체 ${count("scannedReplacementLogs")}건 · 운전 ${count("scannedOperationLogs")}건 확인`;
   }
+  function inlineRefreshResults() {
+    const byTag = new Map();
+    for (const item of state.unifiedRefreshResults || []) {
+      if (item && typeof item.tagNumber === 'string' && item.tagNumber &&
+          ['complete', 'failed', 'waiting', 'skipped'].includes(item.status)) byTag.set(item.tagNumber, item);
+    }
+    return [...byTag.values()];
+  }
+  function inlineRefreshKeptResult(result) {
+    if (result?.unchanged === true) return true;
+    let replayed = false, applied = false;
+    for (const item of Object.values(state.unifiedRefreshAppliedRequests || {})) {
+      if (!item || item.previewOnly || item.tagNumber !== result?.tagNumber) continue;
+      replayed = replayed || item.replayed === true;
+      applied = applied || item.applied === true;
+    }
+    return replayed && !applied;
+  }
+  function inlineRefreshApplied() {
+    const byTag = new Map();
+    for (const item of Object.values(state.unifiedRefreshAppliedRequests || {})) {
+      if (!item || item.previewOnly || !item.tagNumber) continue;
+      const prior = byTag.get(item.tagNumber);
+      byTag.set(item.tagNumber, { ...item, applied: item.applied === true || prior?.applied === true });
+    }
+    return [...byTag.values()].filter(item => item.applied === true).length;
+  }
+  function renderInlineRefreshStatus() {
+    const host = elements.overviewRefreshInlineStatus;
+    if (!host) return;
+    host.hidden = false;
+    const results = inlineRefreshResults();
+    const target = Math.max(0, Math.floor(Number(state.unifiedRefreshProgressTarget) || 0));
+    const requested = Math.max(0, Math.floor(Number(state.unifiedRefreshRequestedCount) || 0));
+    const applied = inlineRefreshApplied();
+    const outcome = state.unifiedRefreshInlineOutcome || (state.unifiedRefreshBusy ? 'running' : 'idle');
+    const running = state.unifiedRefreshBusy && outcome === 'running';
+    let visual = running ? 'running' : outcome;
+    let label = '조회 대기', count = '';
+    const counts = {
+      applied: results.filter(item => item.status === 'complete' && !inlineRefreshKeptResult(item) && !item.previewOnly).length,
+      kept: results.filter(item => item.status === 'complete' && inlineRefreshKeptResult(item) && !item.previewOnly).length,
+      preview: results.filter(item => item.status === 'complete' && item.previewOnly).length,
+      waiting: results.filter(item => item.status === 'waiting').length,
+      failed: results.filter(item => item.status === 'failed').length,
+      skipped: results.filter(item => item.status === 'skipped').length
+    };
+    const missing = Math.max(0, target - results.length);
+    if (running) {
+      label = { '업무일지': '교체 이력 확인 중', '조회 계획': '조회 기준 확인 중',
+        'DataPARC 일괄 조회': '운전시간 조회 중', '결과 확인': '결과 확인 중' }[state.unifiedRefreshPhase] || '조회 준비 중';
+      if (state.unifiedRefreshPhase === '업무일지' && state.unifiedRefreshLogCounts) {
+        const logs = state.unifiedRefreshLogCounts;
+        count = `교체 ${logs.replacement}건 · 운전 ${logs.operation}건 확인`;
+      } else if (state.unifiedRefreshPhase === 'DataPARC 일괄 조회') {
+        const statuses = state.unifiedRefreshQueryStatuses || [];
+        const complete = statuses.filter(item => item.status === 'complete').length;
+        const failed = statuses.filter(item => item.status === 'failed').length;
+        count = statuses.length
+          ? `조회 완료 ${complete}/${requested || statuses.length}대 · 저장 반영 ${applied}대${failed ? ` · 조회 실패 ${failed}대` : ''}`
+          : `조회 대상 ${requested || target}대 · 저장 반영 ${applied}대`;
+      } else if (state.unifiedRefreshPhase === '결과 확인') {
+        count = `저장 반영 ${Math.max(applied, counts.applied)}대 · 화면 갱신 중`;
+      } else if (target) count = `조회 대상 ${target}대`;
+    } else if (outcome !== 'idle') {
+      const incomplete = counts.waiting + counts.failed + counts.skipped + missing;
+      if (outcome === 'complete' && incomplete) visual = 'partial';
+      label = visual === 'failed' ? (state.unifiedRefreshPhase === '결과 확인' && applied > 0
+          ? '저장 반영 · 화면 갱신 실패' : '조회 중단')
+        : counts.waiting ? '조회 결과 확인 대기' : visual === 'partial' ? '부분 완료'
+        : target === 0 ? '조회 대상 없음' : '조회 완료';
+      const parts = [];
+      const reflected = Math.max(applied, counts.applied);
+      if (reflected || !results.length) parts.push(`반영 ${reflected}대`);
+      if (counts.kept) parts.push(`유지 ${counts.kept}대`);
+      if (counts.preview) parts.push(`RUN 확인 ${counts.preview}대`);
+      if (counts.waiting) parts.push(`대기 ${counts.waiting}대`);
+      if (counts.failed) parts.push(`실패 ${counts.failed}대`);
+      if (counts.skipped) parts.push(`보류 ${counts.skipped}대`);
+      if (missing) parts.push(`미확인 ${missing}대`);
+      count = parts.join(' · ');
+    }
+    host.dataset.state = visual;
+    if (elements.overviewRefreshProgressText && elements.overviewRefreshProgressText.textContent !== label) elements.overviewRefreshProgressText.textContent = label;
+    if (elements.overviewRefreshCount) {
+      if (elements.overviewRefreshCount.textContent !== count) elements.overviewRefreshCount.textContent = count;
+      elements.overviewRefreshCount.hidden = !count;
+    }
+    if (elements.overviewRefreshElapsed) {
+      const seconds = Math.max(0, Math.floor(Number(state.unifiedRefreshElapsedSeconds) || 0));
+      elements.overviewRefreshElapsed.hidden = outcome === 'idle';
+      elements.overviewRefreshElapsed.textContent = `경과 ${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+    }
+  }
+  function observeUnifiedRefreshStatuses(items) {
+    try {
+      const byId = new Map();
+      for (const item of Array.isArray(items) ? items : []) {
+        if (item && typeof item.id === 'string' && item.id &&
+            ['pending', 'processing', 'complete', 'failed'].includes(item.status)) byId.set(item.id, item);
+      }
+      state.unifiedRefreshQueryStatuses = [...byId.values()];
+      renderInlineRefreshStatus();
+    } catch (_) { /* Presentation cannot invalidate a successful request. */ }
+  }
+  function observeUnifiedRefreshApply(options, result) {
+    try {
+      const body = options?.body, action = body?.action;
+      if (!['dataparc_runtime_sync', 'limestone_run_track_apply'].includes(action) || result?.ok !== true ||
+          typeof body.requestId !== 'string' || !body.requestId ||
+          (result.requestId && result.requestId !== body.requestId) ||
+          (result.applied !== true && result.replayed !== true)) return;
+      const tagNumber = String(result.assetTag || result.tagNumber || '');
+      if (!tagNumber) return;
+      if (!state.unifiedRefreshAppliedRequests) state.unifiedRefreshAppliedRequests = Object.create(null);
+      const prior = state.unifiedRefreshAppliedRequests[body.requestId];
+      state.unifiedRefreshAppliedRequests[body.requestId] = {
+        tagNumber, applied: prior?.applied === true || result.applied === true,
+        replayed: result.replayed === true, previewOnly: action === 'limestone_run_track_apply'
+      };
+      renderInlineRefreshStatus();
+    } catch (_) { /* Presentation cannot turn a committed write into failure. */ }
+  }
+
   function startUnifiedRefreshFeedback() {
     renderUnifiedLogProgress(null);
     if (unifiedFeedbackTimer !== null) window.clearInterval(unifiedFeedbackTimer);
@@ -2031,12 +2162,15 @@
     const tick = () => {
       const seconds = Math.max(0, Math.floor((performance.now() - unifiedFeedbackStartedAt) / 1000));
       if (elements.blowerQueryElapsed) elements.blowerQueryElapsed.textContent = `경과 ${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
-      if (seconds >= 30 && !state.unifiedFeedbackDismissed) dismissUnifiedRefreshFeedback();
+      state.unifiedRefreshElapsedSeconds = seconds;
+      if (elements.overviewRefreshElapsed) {
+        elements.overviewRefreshElapsed.textContent = `경과 ${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+      }
     };
     tick();
     unifiedFeedbackTimer = window.setInterval(tick, 1000);
-    if (elements.blowerQueryOverlay) elements.blowerQueryOverlay.hidden = false;
-    document.body.classList.add("blower-query-active");
+    if (elements.blowerQueryOverlay) elements.blowerQueryOverlay.hidden = true;
+    document.body.classList.remove("blower-query-active");
     if (elements.unifiedRefreshDiagnostics) { elements.unifiedRefreshDiagnostics.hidden = true; elements.unifiedRefreshDiagnostics.open = false; }
     if (elements.unifiedRefreshDiagnosticText) elements.unifiedRefreshDiagnosticText.textContent = "";
     setUnifiedRefreshPhase("업무일지");
@@ -2046,8 +2180,7 @@
     if (elements.blowerQueryOverlay) elements.blowerQueryOverlay.hidden = true;
     document.body.classList.remove("blower-query-active");
     if (elements.unifiedRefreshStatus) elements.unifiedRefreshStatus.hidden = false;
-    if (elements.unifiedRefreshText) elements.unifiedRefreshText.textContent =
-      `${unifiedRefreshPhaseLabel(state.unifiedRefreshPhase)} · 저장된 이력을 볼 수 있습니다.`;
+    if (typeof renderInlineRefreshStatus === 'function') renderInlineRefreshStatus();
   }
   function finishUnifiedRefreshFeedback() {
     if (unifiedFeedbackTimer !== null) window.clearInterval(unifiedFeedbackTimer);
@@ -2056,10 +2189,12 @@
     document.body.classList.remove("blower-query-active");
   }
   function renderUnifiedRefreshOutcome(status, message, details) {
+    state.unifiedRefreshInlineOutcome = status;
     if (elements.unifiedRefreshText) elements.unifiedRefreshText.textContent = message;
     if (elements.unifiedRefreshStatus) { elements.unifiedRefreshStatus.hidden = false; elements.unifiedRefreshStatus.dataset.state = status; }
     if (elements.unifiedRefreshDiagnosticText) elements.unifiedRefreshDiagnosticText.textContent = String(details || "");
-    if (elements.unifiedRefreshDiagnostics) elements.unifiedRefreshDiagnostics.hidden = !details;
+    if (elements.unifiedRefreshDiagnostics) { elements.unifiedRefreshDiagnostics.hidden = !details; elements.unifiedRefreshDiagnostics.open = status === 'failed' && Boolean(details); }
+    if (typeof renderInlineRefreshStatus === 'function') renderInlineRefreshStatus();
   }
   async function initializeConfirmedManureRun(io, logResult) {
     if (logResult?.complete !== true) return null;
@@ -2139,11 +2274,13 @@
         ledgerWarning = 'RUN 추적 저장 기준 확인 실패 · 기존 누적시간 유지 · 이번 조회 보류';
       }
     }
+    const automaticSavedBaseline = asset => asset.blowerType === 'limestone' && asset.limestoneAutoApply === true &&
+      ['103HRJ01AN602', '203HRJ01AN601', '203HRJ01AN602'].includes(asset.tagNumber);
     const blocked = snapshot.assets.filter(asset =>
-      (asset.hasUnverifiedDataParcHistory && !isPreviewCandidate(asset)) ||
+      (asset.hasUnverifiedDataParcHistory && !isPreviewCandidate(asset) && !automaticSavedBaseline(asset)) ||
       (ledgerWarning && isPreviewCandidate(asset)));
     const planned = core.plan(snapshot.assets.filter(asset =>
-      (!asset.hasUnverifiedDataParcHistory || isPreviewCandidate(asset)) &&
+      (!asset.hasUnverifiedDataParcHistory || isPreviewCandidate(asset) || automaticSavedBaseline(asset)) &&
       !(ledgerWarning && isPreviewCandidate(asset))),
       new Date(snapshot.generatedAt), tag => basis.get(tag) || null,
       tag => tracked.get(tag) || null);
@@ -2160,13 +2297,13 @@
     const safe = Number.isFinite(numeric) ? Math.max(0, Math.min(100, Math.floor(numeric))) : 0;
     state.unifiedRefreshProgressPct = safe;
     state.unifiedRefreshProgressText = String(text || (state.unifiedRefreshBusy ? "통합조회 중" : "통합조회 대기"));
-    if (elements.overviewRefreshPercent) elements.overviewRefreshPercent.textContent = `${safe}%`;
-    if (elements.overviewRefreshProgressText) elements.overviewRefreshProgressText.textContent = state.unifiedRefreshBusy ? "조회 중" : state.unifiedRefreshProgressText;
+    if (elements.overviewRefreshPercent) { elements.overviewRefreshPercent.hidden = true; elements.overviewRefreshPercent.textContent = ""; }
     if (elements.overviewRefreshProgressTrack) {
-      elements.overviewRefreshProgressTrack.setAttribute("aria-valuenow", String(safe));
-      elements.overviewRefreshProgressTrack.setAttribute("aria-valuetext", `${safe}% · ${state.unifiedRefreshProgressText}`);
+      elements.overviewRefreshProgressTrack.setAttribute("aria-hidden", "true");
+      for (const name of ["role", "aria-valuenow", "aria-valuemin", "aria-valuemax", "aria-valuetext"]) elements.overviewRefreshProgressTrack.removeAttribute(name);
     }
-    if (elements.overviewRefreshProgressBar) elements.overviewRefreshProgressBar.style.width = `${safe}%`;
+    if (elements.overviewRefreshProgressBar) elements.overviewRefreshProgressBar.style.width = "";
+    if (typeof renderInlineRefreshStatus === 'function') renderInlineRefreshStatus();
     if (elements.refreshButton) {
       elements.refreshButton.classList.toggle("is-spinning", state.unifiedRefreshBusy);
       elements.refreshButton.setAttribute("aria-label", state.unifiedRefreshBusy
@@ -10994,7 +11131,7 @@
   /* BLOWER_UNIFIED_REFRESH_V1 */
   function renderUnifiedRefreshProgress(text, results = state.unifiedRefreshResults || []) {
     if (!elements.unifiedRefreshStatus) return;
-    elements.unifiedRefreshStatus.hidden = state.unifiedRefreshBusy && !state.unifiedFeedbackDismissed;
+    elements.unifiedRefreshStatus.hidden = results.length === 0;
     elements.unifiedRefreshText.textContent = state.unifiedRefreshBusy
       ? `${unifiedRefreshPhaseLabel(state.unifiedRefreshPhase)} · 저장된 이력을 볼 수 있습니다.` : text;
     elements.unifiedRefreshDetails.hidden = results.length === 0;
@@ -11004,7 +11141,7 @@
     const skipped = results.filter(x => x.status === "skipped").length;
     const waiting = results.filter(x => x.status === "waiting").length;
     const previews = results.filter(x => x.status === 'complete' && x.previewOnly === true).length;
-    const unchanged = results.filter(x => x.status === "complete" && x.unchanged === true && x.previewOnly !== true).length;
+    const unchanged = results.filter(x => x.status === "complete" && (typeof inlineRefreshKeptResult === "function" ? inlineRefreshKeptResult(x) : x.unchanged === true) && x.previewOnly !== true).length;
     elements.unifiedRefreshSummary.textContent = `통합조회 결과 · 반영 ${complete - unchanged - previews}대${previews ? ` · RUN 확인(누적 미반영) ${previews}대` : ""}${unchanged ? ` · 유지 ${unchanged}대` : ""}${waiting ? ` · 확인 대기 ${waiting}대` : ""}${skipped ? ` · 조회 보류 ${skipped}대` : ""}${failed ? ` · 실패 ${failed}대` : ""}`;
     // Presentation only: keep the original result array, requests, and receipts intact.
     // Surface true failures above protected skipped assets, with stable order inside groups.
@@ -11039,6 +11176,12 @@
       state.unifiedRefreshBusy = true;
       state.unifiedRefreshToken = getSessionToken();
       state.unifiedRefreshResults = [];
+      state.unifiedRefreshInlineOutcome = 'running';
+      state.unifiedRefreshQueryStatuses = [];
+      state.unifiedRefreshAppliedRequests = Object.create(null);
+      state.unifiedRefreshLogCounts = null;
+      state.unifiedRefreshRequestedCount = 0;
+      state.unifiedRefreshElapsedSeconds = 0;
       state.limestoneRunPreviews = Object.create(null);
       state.unifiedRefreshProgressPct = 0;
       state.unifiedRefreshProgressTarget = (state.data?.assets || []).filter(asset => asset.enabled !== false && asset.enabled !== 0).length;
@@ -11069,10 +11212,12 @@
           ...value, logNote, logPartial: partial,
           skipped: state.unifiedRefreshResults.filter(item => item.status === "skipped" || item.unchanged === true),
           targetCount: state.unifiedRefreshProgressTarget
-        } : null), api: options => {
+        } : null), api: async options => {
           assertUnifiedRefreshWritable();
-          return apiRequest({ ...options, unifiedRefresh: true });
-        }, assertWritable: assertUnifiedRefreshWritable, progress, logProgress: renderUnifiedLogProgress,
+          const result = await apiRequest({ ...options, unifiedRefresh: true });
+          observeUnifiedRefreshApply(options, result);
+          return result;
+        }, onStatuses: observeUnifiedRefreshStatuses, assertWritable: assertUnifiedRefreshWritable, progress, logProgress: renderUnifiedLogProgress,
         checkpoint: value => { state.unifiedLogResume = value; },
         reload: () => core.readWithRetry(() => loadData({ silent: true, syncOperations: false, strict: true, timeoutMs: 20000 }), io) };
       try {
@@ -11102,6 +11247,7 @@
           setUnifiedRefreshPhase(phase);
           planned = await readUnifiedRefreshPlan(core, io);
         }
+        state.unifiedRefreshRequestedCount = planned.tasks.length;
         state.unifiedRefreshResults.push(...planned.skipped);
         setOverviewRefreshProcessed(state.unifiedRefreshResults.length, planned.targetCount,
           planned.tasks.length ? `증분조회 시작 · ${state.unifiedRefreshResults.length}/${planned.targetCount}대 처리` : "새 조회 구간 확인 완료");
@@ -11138,17 +11284,18 @@
         // in-branch read was immediately followed by this identical full
         // payload read and added an avoidable render/API round trip.
         await io.reload();
-        const counts = state.unifiedRefreshResults;
-        const failures = counts.filter(x => x.status !== "complete").length;
+        const counts = inlineRefreshResults();
+        const missingCount = Math.max(0, planned.targetCount - counts.length);
+        const failures = counts.filter(x => x.status !== "complete").length + missingCount;
         const waitingCount = counts.filter(x => x.status === "waiting").length;
         const failedCount = counts.filter(x => x.status === "failed").length;
         const skippedCount = counts.filter(x => x.status === "skipped").length;
-        const issueSummary = [skippedCount ? `조회 보류 ${skippedCount}대` : "", failedCount ? `실패 ${failedCount}대` : ""].filter(Boolean).join(" · ");
+        const issueSummary = [skippedCount ? `조회 보류 ${skippedCount}대` : "", failedCount ? `실패 ${failedCount}대` : "", missingCount ? `미확인 ${missingCount}대` : ""].filter(Boolean).join(" · ");
         const previewCount = counts.filter(x => x.status === 'complete' && x.previewOnly === true).length;
-        const unchanged = counts.filter(x => x.status === "complete" && x.unchanged === true && x.previewOnly !== true).length;
-        const completion = `${formatKstDateTimeDisplay(currentServerDate().toISOString())} · 반영 ${counts.length - failures - unchanged - previewCount}대${previewCount ? ` · RUN 확인 ${previewCount}대(누적 미반영)` : ""}${unchanged ? ` · 유지 ${unchanged}대` : ""} / 전체 ${planned.targetCount}대`;
+        const unchanged = counts.filter(x => x.status === "complete" && inlineRefreshKeptResult(x) && x.previewOnly !== true).length;
+        const completion = `${formatKstDateTimeDisplay(currentServerDate().toISOString())} · 반영 ${counts.filter(x => x.status === "complete").length - unchanged - previewCount}대${previewCount ? ` · RUN 확인 ${previewCount}대(누적 미반영)` : ""}${unchanged ? ` · 유지 ${unchanged}대` : ""} / 전체 ${planned.targetCount}대`;
         partial = partial || failures > 0;
-        setOverviewRefreshProcessed(planned.targetCount - waitingCount, planned.targetCount, waitingCount ? "조회 결과 확인 대기" : partial ? "부분 완료 · 결과 확인" : "통합조회 완료");
+        setOverviewRefreshProcessed(counts.filter(x => x.status !== "waiting").length, planned.targetCount, waitingCount ? "조회 결과 확인 대기" : partial ? "부분 완료 · 결과 확인" : "통합조회 완료");
         renderUnifiedRefreshProgress(`${partial ? "부분 통합조회" : "통합조회 완료"} · ${completion} · ${logNote}${issueSummary ? ` · ${issueSummary}` : ""}`);
         renderUnifiedRefreshOutcome(partial ? "partial" : "complete",
           waitingCount ? `${waitingCount}대의 결과를 기다리고 있습니다. 저장된 이력을 보면서 ‘조회 결과 다시 확인’을 눌러 주세요.`
@@ -11184,6 +11331,7 @@
         // an extra full read here used to overwrite the useful failure notice.
       } finally {
         finishUnifiedRefreshFeedback();
+        state.unifiedRefreshInlineOutcome = stopped ? "failed" : partial ? "partial" : "complete";
         state.unifiedRefreshBusy = false;
         state.unifiedRefreshToken = "";
         state.unifiedRefreshClientMode = "";

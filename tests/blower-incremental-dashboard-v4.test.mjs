@@ -35,28 +35,32 @@ function asset(overrides = {}) {
   };
 }
 
-test('all-status dashboard owns one large latest-query card, one refresh icon, and live 0-100 progress UI', () => {
+test('all-status dashboard owns one latest-query card, one refresh action, and one inline status', () => {
   assert.equal((html.match(/id="refreshButton"/g) || []).length, 1);
   assert.match(html, /id="overviewRefreshPanel"[\s\S]*?<span>최신 조회<\/span>[\s\S]*?id="overviewLatestQueryAt"/);
-  assert.match(html, /id="overviewRefreshPercent">0%<\/strong>/);
-  assert.match(html, /role="progressbar"[\s\S]*?aria-valuemin="0"[\s\S]*?aria-valuemax="100"/);
+  assert.equal((html.match(/id="overviewRefreshInlineStatus"/g) || []).length, 1);
+  assert.match(html, /id="overviewRefreshCount"/);
+  assert.match(html, /id="overviewRefreshElapsed"/);
+  assert.match(html, /id="overviewRefreshPercent"[^>]*aria-hidden="true"[^>]*hidden/);
+  assert.match(html, /id="overviewRefreshProgressTrack"[^>]*aria-hidden="true"/);
+  assert.doesNotMatch(html, /id="overviewRefreshProgressTrack"[^>]*role="progressbar"/);
   assert.match(html, /<svg class="overview-refresh-icon"[^>]*>[\s\S]*?overview-refresh-icon-ring[\s\S]*?<\/svg>/);
   assert.doesNotMatch(html, />↻<\/span>/);
   assert.match(css, /\.overview-refresh-latest\s*>\s*strong[\s\S]*?font-size:\s*clamp\(/);
   assert.match(css, /\.overview-refresh-button\.is-spinning[\s\S]*?animation:\s*blower-overview-refresh-spin/);
   assert.match(css, /@keyframes blower-overview-refresh-spin/);
-  assert.match(css, /\.overview-refresh-progress-track\s*>\s*span[\s\S]*?transition:\s*width/);
   assert.match(unifiedCss, /#refreshButton\.overview-refresh-button\s*\{\s*min-width:\s*48px/);
   assert.doesNotMatch(uiSource, /elements\.refreshButton\.textContent\s*=\s*`?최신화/);
 });
 
-test('dashboard explains append-only behavior and computes percentage from actually processed Blowers', () => {
+test('dashboard explains append-only behavior and exposes observed query and apply counts', () => {
   assert.match(uiSource, /다음 통합조회는 각 설비의 마지막 조회 종료시각 이후 구간만 이어서 조회합니다/);
-  assert.match(uiSource, /Math\.floor\(\(safeProcessed\s*\/\s*safeTarget\)\s*\*\s*100\)/);
+  assert.match(uiSource, /function observeUnifiedRefreshStatuses\(/);
+  assert.match(uiSource, /function observeUnifiedRefreshApply\(/);
   assert.match(uiSource, /기존 저장값 유지|기존 누적값에 추가/);
   assert.match(uiSource, /기존 DataPARC 조회값 유지/);
   // A retained pending request is not a processed/completed asset.
-  assert.match(uiSource, /setOverviewRefreshProcessed\(planned\.targetCount - waitingCount, planned\.targetCount/);
+  assert.doesNotMatch(uiSource, /setOverviewRefreshProcessed\(planned\.targetCount - waitingCount, planned\.targetCount/);
 });
 
 test('next unified query starts exactly at the previous successful end while preserving the original coverage start', () => {

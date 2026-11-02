@@ -55,24 +55,60 @@
  .asset-card[data-run-view] .cycle-primary-metric > strong::after { content:none !important; }
 }
 
-/* BLOWER_QUERY_FEEDBACK_V1 — fixed viewport card; long diagnostics never resize the action. */
-.blower-query-overlay { position:fixed; inset:0; z-index:2000; display:grid; place-items:center; padding:16px; box-sizing:border-box; background:rgba(245,248,253,.78); pointer-events:none; }
-.blower-query-overlay[hidden] { display:none !important; }
-.blower-query-card { display:grid; justify-items:center; gap:10px; box-sizing:border-box; width:min(320px,100%); min-height:202px; padding:24px 20px; border:1px solid #cdddf7; border-radius:16px; background:#fff; color:#203149; box-shadow:0 12px 36px rgba(30,64,120,.16); text-align:center; word-break:keep-all; }
-.blower-query-card > strong { font-size:16px; font-weight:850; line-height:1.45; }
-.blower-query-card > p { margin:0; min-height:20px; font-size:13px; line-height:1.45; color:#586b85; }
-.blower-query-spinner { box-sizing:border-box; width:38px; height:38px; margin-bottom:4px; border:4px solid #dce8fc; border-top-color:#1d4ed8; border-radius:50%; animation:blower-query-spin .9s linear infinite; }
-.blower-query-elapsed { padding:5px 10px; border-radius:7px; background:#eef4ff; color:#1d4ed8; font-size:12px; font-weight:800; font-variant-numeric:tabular-nums; }
-.blower-query-active #unifiedRefreshStatus { display:none !important; }
-.blower-query-active .overview-refresh-progress { visibility:hidden; }
-.overview-refresh-action { flex:0 0 340px; width:340px; min-width:0; max-width:100%; }
-.overview-refresh-progress-head > span { min-width:0; }
-#unifiedRefreshDiagnosticText { white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; font-weight:400; max-height:160px; overflow:auto; }
-@keyframes blower-query-spin { to { transform:rotate(360deg); } }
-@media (prefers-reduced-motion:reduce) { .blower-query-spinner { animation:none; } }
+/* BLOWER_INLINE_REFRESH_V3N — one nonblocking status next to the refresh action. */
+#blowerQueryOverlay,
+#overviewRefreshPercent,
+#blowerRefreshTimingRow,
+#unifiedRefreshText { display: none !important; }
 
-.blower-query-card > .blower-query-count { width:100%; min-height:20px; font-size:12px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
-.blower-query-count[hidden] { display:block !important; visibility:hidden; }
+.overview-refresh-panel { flex-wrap: wrap; align-items: center; gap: 12px 22px; }
+.overview-refresh-latest { flex: 1 1 260px; }
+.overview-refresh-action { flex: 0 1 390px; width: auto; min-width: 280px; max-width: 100%; gap: 12px; }
+#overviewRefreshInlineStatus { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; min-width: 0; min-height: 42px; }
+#overviewRefreshInlineStatus .overview-refresh-progress-head { justify-content: flex-start; align-items: center; flex-wrap: wrap; gap: 3px 7px; min-width: 0; }
+#overviewRefreshProgressText { overflow: visible; color: #53677b; font-size: 12px; font-weight: 750; line-height: 1.5; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
+#overviewRefreshCount { overflow: visible; color: #617489; font-size: 11px; font-weight: 600; line-height: 1.5; text-overflow: clip; white-space: normal; font-variant-numeric: tabular-nums; }
+#overviewRefreshCount::before { content: "·"; margin-right: 7px; color: #97a5b3; }
+#overviewRefreshElapsed { color: #718197; font-size: 11px; font-weight: 550; line-height: 1.5; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#overviewRefreshInlineStatus [hidden] { display: none !important; }
+#overviewRefreshInlineStatus .overview-refresh-progress-track { display: none; grid-column: 1 / -1; height: 3px; margin-top: 0; background: #e8edf3; }
+#overviewRefreshInlineStatus .overview-refresh-progress-track > span { width: 34% !important; background: #6c9bc6; transition: none; }
+#overviewRefreshInlineStatus[data-state="running"] .overview-refresh-progress-track { display: block; }
+#overviewRefreshInlineStatus[data-state="running"] .overview-refresh-progress-track > span { animation: blower-inline-refresh-slide 1.55s ease-in-out infinite; }
+#overviewRefreshInlineStatus[data-state="running"] #overviewRefreshProgressText { color: #315f87; }
+#overviewRefreshInlineStatus[data-state="complete"] #overviewRefreshProgressText { color: #287044; }
+#overviewRefreshInlineStatus[data-state="partial"] #overviewRefreshProgressText { color: #916518; }
+#overviewRefreshInlineStatus[data-state="failed"] #overviewRefreshProgressText { color: #ae4141; }
+#overviewRefreshInlineStatus[data-state="complete"] #overviewRefreshCount { color: #47745b; }
+#overviewRefreshInlineStatus[data-state="partial"] #overviewRefreshCount { color: #916518; }
+#overviewRefreshInlineStatus[data-state="failed"] #overviewRefreshCount { color: #ae4141; }
+@keyframes blower-inline-refresh-slide { from { transform: translateX(-110%); } to { transform: translateX(400%); } }
+
+/* Details stay beside the same action, rather than forming a second result banner. */
+#overviewRefreshPanel > #unifiedRefreshStatus { flex: 1 0 100%; min-width: 0; width: 100%; box-sizing: border-box; margin: 0; padding: 7px 0 0; border: 0; border-top: 1px solid #e1e8ef; border-radius: 0; background: transparent; font-size: 12px; }
+#overviewRefreshPanel > #unifiedRefreshStatus details { margin-top: 0; }
+#overviewRefreshPanel > #unifiedRefreshStatus details + details { margin-top: 5px; }
+#overviewRefreshPanel > #unifiedRefreshStatus summary { width: fit-content; color: #607389; font-size: 11px; font-weight: 650; }
+#unifiedRefreshDiagnosticText { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; font-weight: 400; max-height: 160px; overflow: auto; }
+
+@media (max-width: 700px), (max-width: 1024px) and (hover: none) and (pointer: coarse) {
+  .overview-refresh-latest { flex-basis: auto; }
+  /* Preserve the monitoring-only mobile button policy while showing query state. */
+  .overview-refresh-action { display: flex !important; flex: 0 0 auto; width: 100%; min-width: 0; }
+  #refreshButton.overview-refresh-button { display: none !important; }
+  #overviewRefreshInlineStatus { width: 100%; min-height: 28px; gap: 3px 10px; }
+  #overviewRefreshProgressText { font-size: 11px; }
+  #overviewRefreshCount, #overviewRefreshElapsed { font-size: 10px; }
+  #overviewRefreshPanel > #unifiedRefreshStatus { flex-basis: auto; padding-top: 6px; }
+}
+@media (max-width: 380px) {
+  #overviewRefreshInlineStatus { grid-template-columns: minmax(0, 1fr); }
+  #overviewRefreshElapsed { justify-self: start; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #overviewRefreshInlineStatus[data-state="running"] .overview-refresh-progress-track > span { width: 100% !important; animation: none; opacity: .55; }
+  #refreshButton.is-spinning .overview-refresh-icon { animation: none; }
+}
 
 /* BLOWER_LOADING_RECOVERY_V4: history remains readable during a slow query. */
 .blower-query-dismiss { pointer-events:auto; margin-top:4px; padding:8px 12px; border:1px solid #cbdaf0; border-radius:8px; color:#315b88; background:#f8fbff; font:inherit; font-size:12px; cursor:pointer; }

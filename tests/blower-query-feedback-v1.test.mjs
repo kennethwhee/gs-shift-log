@@ -20,7 +20,7 @@ const snapshot=()=>({ok:true,version:'blower-refresh-state-page-v1',done:true,ne
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {resolve,promise};};
 function harness(options={}) {
  const timers=new Map(), classes=new Set(), storage=options.storage||new Map(), calls={api:[],reload:0,logs:0,batch:0,batchIo:[],toast:[]};let clock=0,id=0;
- const elements=Object.fromEntries(['blowerQueryOverlay','blowerQueryPhase','blowerQueryElapsed','blowerQueryProgress','blowerQueryDismiss','unifiedRefreshResume','unifiedRefreshDiagnostics','unifiedRefreshDiagnosticText','unifiedRefreshText','unifiedRefreshStatus','refreshButton'].map(key=>[key,{hidden:true,textContent:'',dataset:{},setAttribute(){},removeAttribute(){}}]));
+ const elements=Object.fromEntries(['blowerQueryOverlay','blowerQueryPhase','blowerQueryElapsed','blowerQueryProgress','blowerQueryDismiss','unifiedRefreshResume','unifiedRefreshDiagnostics','unifiedRefreshDiagnosticText','unifiedRefreshText','unifiedRefreshStatus','refreshButton','overviewRefreshInlineStatus','overviewRefreshProgressText','overviewRefreshCount','overviewRefreshElapsed'].map(key=>[key,{hidden:true,textContent:'',dataset:{},setAttribute(){},removeAttribute(){}}]));
  const state={data:{permissions:{canWrite:true},user:{name:'old',employeeNo:options.employeeNo||'employee-one'},assets:[{...asset,cycleRuntimeRevision:'stale-r1',dataParcRuntimeBasis:{observedAt:'stale'}}]},busy:false};
  const core={...realCore,
   readWithRetry:async read=>read(),
@@ -42,9 +42,10 @@ function harness(options={}) {
  vm.runInContext(permission+headers+feedback+guard+refresh,context);
  return {context,state,elements,calls,classes,timers,storage,tick(ms){clock=ms;for(const fn of timers.values())fn();},run:()=>context.refreshAllBlowers()};
 }
-test('actual refresh keeps centered phase short through retry text and ignores a second click',async()=>{
+test('actual refresh keeps one nonblocking inline status through retry text and ignores a second click',async()=>{
  const gate=deferred(),h=harness({gate});const first=h.run();
- assert.equal(h.elements.blowerQueryOverlay.hidden,false);assert.equal(h.classes.has('blower-query-active'),true);
+ assert.equal(h.elements.blowerQueryOverlay.hidden,true);assert.equal(h.classes.has('blower-query-active'),false);
+ assert.equal(h.elements.overviewRefreshInlineStatus.hidden,false);
  assert.equal(h.elements.blowerQueryPhase.textContent,'교체 이력을 확인하고 있습니다');
  assert.equal(h.elements.blowerQueryProgress.textContent,'교체 123건 · 운전 44건 확인');
  h.tick(65000);assert.equal(h.elements.blowerQueryElapsed.textContent,'경과 01:05');
@@ -216,15 +217,14 @@ function acceptedCheckpoint(tasks, outcomes=[]) {
   results:tasks.map((task,index)=>({ok:true,assetTag:task.snapshot.tagNumber,item:{id:`accepted-ui-${index+1}`,status:'pending',requestType:'blower_runtime_probe',probe:{assetTag:task.snapshot.tagNumber,requestId:`accepted-ui-${index+1}`}}}))},outcomes};
 }
 
-test('the centered overlay dismisses after 30 seconds while the admitted query and duplicate-click guard stay active',async()=>{
+test('inline feedback remains available after 30 seconds while the admitted query and duplicate-click guard stay active',async()=>{
  const gate=deferred(),h=harness({gate}),running=h.run();
- h.tick(29000);assert.equal(h.elements.blowerQueryOverlay.hidden,false);
+ h.tick(29000);assert.equal(h.elements.blowerQueryOverlay.hidden,true);
  h.tick(30000);
  assert.equal(h.elements.blowerQueryOverlay.hidden,true);
  assert.equal(h.classes.has('blower-query-active'),false);
  assert.equal(h.state.unifiedRefreshBusy,true);assert.equal(h.state.busy,true);
- assert.equal(h.elements.unifiedRefreshStatus.hidden,false);
- assert.match(h.elements.unifiedRefreshText.textContent,/저장된 이력을 볼 수 있습니다/);
+ assert.equal(h.elements.overviewRefreshInlineStatus.hidden,false);
  assert.equal(h.timers.size,1,'elapsed feedback remains alive while the original operation is running');
  await h.run();assert.equal(h.calls.logs,1);assert.equal(h.calls.batch,0);
  gate.resolve();await running;
@@ -232,12 +232,12 @@ test('the centered overlay dismisses after 30 seconds while the admitted query a
  assert.equal(h.state.unifiedRefreshBusy,false);
 });
 
-test('manual history viewing hides the overlay without cancelling or restarting the running query',async()=>{
+test('legacy dismiss action leaves inline feedback and the original running query available',async()=>{
  const gate=deferred(),h=harness({gate}),running=h.run();
  h.context.dismissUnifiedRefreshFeedback();
  assert.equal(h.elements.blowerQueryOverlay.hidden,true);
  assert.equal(h.state.unifiedRefreshBusy,true);assert.equal(h.state.busy,true);
- assert.equal(h.state.unifiedFeedbackDismissed,true);
+ assert.equal(h.elements.overviewRefreshInlineStatus.hidden,false);
  h.tick(1000);assert.equal(h.elements.blowerQueryOverlay.hidden,true);
  await h.run();assert.equal(h.calls.logs,1);assert.equal(h.calls.batch,0);
  gate.resolve();await running;
