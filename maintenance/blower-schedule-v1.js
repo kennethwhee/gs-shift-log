@@ -15,6 +15,8 @@
   const DEFAULT_TIMING = Object.freeze({ intervalHours: 24, startTime: '00:00', timeZone: 'Asia/Seoul' });
   const STATUS_INTERVAL = 5 * 60000, MAX_TICK_GAP = 90000;
   const SLOT_WINDOW = 120000, RUN_LIMIT = 10 * 60000;
+  const RETRY_INTERVAL = 30000;
+  const LIMESTONE_AUTO_TAGS = ['103HRJ01AN602', '203HRJ01AN601', '203HRJ01AN602'];
   const HEX = /^[a-f0-9]{64}$/;
   const TERMINAL = new Set(['complete', 'partial', 'failed', 'interrupted']);
   const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
@@ -97,6 +99,7 @@
     let anchor = null, lastStatusMono = -Infinity, lastRecoveryMono = -Infinity;
     let status = null, phase = 'idle', busy = false, managing = false, message = '', errorCode = '';
     let active = null;
+    let nextStatusRetryMono = -Infinity, statusFailures = 0, nextClaimAttemptMono = -Infinity;
 
     function identity() {
       const value = o.identity();
@@ -197,13 +200,20 @@
           time(data.nextSlotAt) !== slotAt(server, timing) + timing.intervalHours * 3600000) {
         throw fail('SCHEDULE_STATUS_INVALID', '자동조회 기준시각 또는 설정을 확인할 수 없습니다.');
       }
+      if (own(data, 'dueSlotAt') && data.dueSlotAt !== null &&
+          (!validSlot(data.dueSlotAt) || time(data.dueSlotAt) > server ||
+            time(data.dueSlotAt) !== slotAt(server, timing) || !data.enabled || !data.thisDevice)) {
+        throw fail('SCHEDULE_STATUS_INVALID', '서버의 미실행 자동조회 시각을 확인할 수 없습니다.');
+      }
       if (status && (status.revision !== data.revision || status.enabled !== data.enabled ||
           status.thisDevice !== data.thisDevice || timingSignature(status.timing) !== timingSignature(timing))) lastTick = null;
       // No response bodies or authentication fields are exposed to the adapter.
       status = { version: VERSION, serverNow: data.serverNow, enabled: data.enabled,
         thisDevice: data.thisDevice, revision: data.revision, nextSlotAt: data.nextSlotAt,
-        timing, latestSlot: data.latestSlot || null };
+        timing, latestSlot: data.latestSlot || null,
+        ...(own(data, 'dueSlotAt') ? { dueSlotAt: data.dueSlotAt } : {}) };
       anchor = { server, mono }; lastStatusMono = mono;
+      nextStatusRetryMono = -Infinity; statusFailures = 0;
       return status;
     }
     function serverNow() {
@@ -215,6 +225,17 @@
       const data = await schedule(ctx, 'status');
       updateStatus(data);
       return snapshot();
+    }
+    async function tickStatus(ctx) {
+      if (monotonicNow() < nextStatusRetryMono) return false;
+      try { await statusFor(ctx); return true; }
+      catch (error) {
+        statusFailures += 1;
+        const delay = [401, 403].includes(Number(error.status)) ? STATUS_INTERVAL
+          : Math.min(STATUS_INTERVAL, RETRY_INTERVAL * 2 ** Math.min(4, statusFailures - 1));
+        nextStatusRetryMono = monotonicNow() + delay;
+        throw error;
+      }
     }
     async function refreshStatus() {
       const pin = identity();
@@ -355,6 +376,73 @@
         }
       };
     }
+    async function readScheduleAssets(io) {
+      let cursor = '', snapshot = null;
+      const deadline = monotonicNow() + 60000, assets = [], seen = new Set();
+      for (let pageIndex = 0; pageIndex < 64; pageIndex++) {
+        const remaining = deadline - monotonicNow();
+        if (remaining <= 0) throw fail('SCHEDULE_PLAN_TIMEOUT', '자동조회 기준 확인 대기시간을 초과했습니다.');
+        const page = await core.readWithRetry(() => io.api({
+          url: '/api/blower-history?action=refresh_state_page&limit=2&cursor=' + encodeURIComponent(cursor),
+          timeoutMs: Math.max(1, Math.min(20000, remaining))
+        }), io, '자동조회 기준 확인', { deadline, clock: monotonicNow, sleep });
+        io.assertWritable();
+        if (page?.permissions?.canWrite !== true || !page.user)
+          throw fail('WRITE_ACCESS_CHANGED', '자동조회 로그인 또는 조회 권한이 변경되었습니다.', 403);
+        if (page.ok !== true || page.version !== 'blower-refresh-state-page-v1' ||
+            !Array.isArray(page.assets) || page.assets.length > 2 || typeof page.done !== 'boolean' ||
+            !Number.isFinite(time(page.generatedAt)) ||
+            page.assets.some((asset, index) => !asset || typeof asset.tagNumber !== 'string' ||
+              asset.tagNumber <= cursor || seen.has(asset.tagNumber) ||
+              index > 0 && asset.tagNumber <= page.assets[index - 1].tagNumber ||
+              typeof asset.hasUnverifiedDataParcHistory !== 'boolean' || !own(asset, 'dataParcRuntimeBasis')) ||
+            (!page.done && (!page.assets.length || page.nextCursor !== page.assets.at(-1).tagNumber)) ||
+            (page.done && page.nextCursor !== null)) {
+          throw fail('SCHEDULE_ASSETS_INVALID', '자동조회 기준의 설비·이어보기 응답을 확인할 수 없습니다.');
+        }
+        for (const asset of page.assets) { seen.add(asset.tagNumber); assets.push(asset); }
+        if (page.done) { snapshot = { ...page, assets }; break; }
+        cursor = page.nextCursor;
+      }
+      if (!snapshot) throw fail('SCHEDULE_ASSETS_INVALID', '자동조회 기준의 이어보기 한도를 초과했습니다.');
+      return snapshot;
+    }
+    async function readSchedulePlan(io) {
+      const data = await readScheduleAssets(io);
+      const candidate = asset => asset.blowerType === 'limestone' && LIMESTONE_AUTO_TAGS.includes(asset.tagNumber);
+      const automatic = asset => candidate(asset) && asset.limestoneAutoApply === true;
+      const preview = asset => candidate(asset) && !automatic(asset) &&
+        (typeof asset.limestoneRunDisputed === 'boolean' ? asset.limestoneRunDisputed : asset.limestoneBasisConfirmed !== true);
+      let tracked = new Map(), ledgerWarning = '';
+      if (data.assets.some(preview)) {
+        try {
+          const ledger = await core.readWithRetry(() => io.api({
+            url: '/api/blower-history?action=limestone_run_tracking', timeoutMs: 20000
+          }), io, '저장된 Limestone RUN 추적 기준 확인', { clock: monotonicNow, sleep });
+          if (ledger?.ok !== true || ledger.version !== 'limestone-run-ledger-v1' ||
+              !Array.isArray(ledger.items) || ledger.items.length > 3 ||
+              ledger.items.some(item => !item || !LIMESTONE_AUTO_TAGS.includes(item.tagNumber)) ||
+              new Set(ledger.items.map(item => item.tagNumber)).size !== ledger.items.length)
+            throw fail('SCHEDULE_LEDGER_INVALID', '저장된 Limestone RUN 추적 기준을 확인할 수 없습니다.');
+          tracked = new Map(ledger.items.map(item => [item.tagNumber, item]));
+        } catch (error) {
+          if ([401, 403].includes(Number(error.status)) || error.code === 'WRITE_ACCESS_CHANGED' ||
+              error.code === 'READ_DEADLINE') throw error;
+          ledgerWarning = 'RUN 추적 저장 기준 확인 실패 · 기존 누적시간 유지 · 이번 조회 보류';
+        }
+      }
+      const blocked = asset => (asset.hasUnverifiedDataParcHistory && !preview(asset) && !automatic(asset)) ||
+        (ledgerWarning && preview(asset));
+      const plan = core.plan(data.assets.filter(asset => !blocked(asset)), new Date(data.generatedAt),
+        () => null, tag => tracked.get(tag) || null);
+      const held = data.assets.filter(blocked);
+      plan.skipped.push(...held.map(asset => ({ tagNumber: asset.tagNumber,
+        displayName: asset.displayName || asset.tagNumber, status: 'skipped',
+        message: ledgerWarning && preview(asset) ? ledgerWarning
+          : '기존 조회값 보호 · 증분 이어조회 기준 확인 필요 · 전체 재조회하지 않음' })));
+      plan.targetCount += held.length;
+      return plan;
+    }
     async function applyReceipt(ctx, item, receipt, completion = null) {
       const validated = validateBatchReceipt(receipt), io = ioFor(ctx, item, { createAttempted: true });
       if (completion && (completion.taskCount !== validated.requestedCount ||
@@ -410,7 +498,7 @@
       };
       await Promise.all(Array.from({ length: Math.min(4, verified.length) }, applyWorker));
       if (fatal) throw fatal;
-      await request(ctx, {});
+      await readScheduleAssets(io);
       const targetCount = completion ? completion.targetCount : validated.requestedCount;
       const result = completedCount === targetCount && completion?.logsComplete !== false ? 'complete' :
         failedCount === targetCount && targetCount ? 'failed' : 'partial';
@@ -461,7 +549,11 @@
       let acquired = false;
       try {
         const claimed = await schedule(ctx, 'claim', { ...receiptBody(item), expectedRevision });
-        if (claimed.acquired === false) { clearReceipt(item); emit('ready', '이번 예약은 이미 처리되었거나 다른 조회가 진행 중입니다.'); return; }
+        if (claimed.acquired === false) {
+          clearReceipt(item);
+          if (status && own(status, 'dueSlotAt')) status.dueSlotAt = null;
+          emit('ready', '이번 예약은 이미 처리되었거나 다른 조회가 진행 중입니다.'); return;
+        }
         if (claimed.acquired !== true || !Number.isFinite(time(claimed.claimedAt))) {
           throw fail('SCHEDULE_CLAIM_INVALID', '자동조회 시작 기록을 확인할 수 없습니다.');
         }
@@ -471,13 +563,7 @@
         if (verified.state !== 'running' || verified.batchReceipt) return recover(ctx, item);
         const io = ioFor(ctx, item, tracking);
         const logs = await core.refreshLogsForRuntime(io, { sleep });
-        const data = await io.api({});
-        if (!Array.isArray(data?.assets) || !Number.isFinite(time(data.generatedAt))) {
-          throw fail('SCHEDULE_ASSETS_INVALID', 'Blower 조회 기준을 확인할 수 없습니다.');
-        }
-        const track = new Map((data.limestoneRunTracking || []).map(item => [item.tagNumber, item]));
-        const plan = core.plan(data.assets, new Date(data.generatedAt), () => null,
-          tag => track.get(tag) || null);
+        const plan = await readSchedulePlan(io);
         const results = await core.executeDataParcBatch(plan.tasks, io);
         // The shared foreground workflow can return waiting results after a
         // bounded poll. Keep the durable schedule receipt until those exact
@@ -490,7 +576,7 @@
             failedCount: plan.skipped.filter(entry => entry.status === 'failed').length,
             logsComplete: logs.complete !== false }));
         }
-        await io.api({});
+        await readScheduleAssets(io);
         const all = [...results, ...plan.skipped];
         const completedCount = all.filter(entry => entry.status === 'complete').length;
         const failedCount = all.filter(entry => entry.status === 'failed').length;
@@ -500,7 +586,12 @@
       } catch (error) {
         ctx.assert();
         if (!acquired && ['blower_busy', 'outside_slot_window', 'configuration_changed', 'device_not_designated'].includes(error.code)) {
-          clearReceipt(item); emit('ready', '이번 예약은 다른 조회 또는 설정 변경으로 건너뜁니다.'); return;
+          clearReceipt(item);
+          if (status && own(status, 'dueSlotAt'))
+            emit('waiting', error.code === 'blower_busy' ? '다른 Blower 조회가 끝나면 미실행 예약을 다시 확인합니다.'
+              : '자동조회 설정과 미실행 예약을 다시 확인합니다.');
+          else emit('ready', '이번 예약은 다른 조회 또는 설정 변경으로 건너뜁니다.');
+          return;
         }
         if (tracking.createAttempted || !acquired) return recover(ctx, item);
         await finish(ctx, item, { status: 'failed', targetCount: 0, completedCount: 0, failedCount: 0 });
@@ -524,13 +615,32 @@
       if (!pin) {
         if (rememberedIdentity) generation += 1;
         rememberedIdentity = ''; lastTick = null; anchor = null; status = null;
+        nextStatusRetryMono = nextClaimAttemptMono = -Infinity; statusFailures = 0;
         emit('signed_out'); return snapshot();
       }
       if (!finite(mono) || !finite(wall)) { lastTick = null; emit('error', '시각을 확인할 수 없습니다.', 'SCHEDULE_CLOCK_INVALID'); return snapshot(); }
       let refreshed = false;
-      if (key !== rememberedIdentity) {
+      const changedIdentity = key !== rememberedIdentity;
+      if (changedIdentity) {
         generation += 1; rememberedIdentity = key; lastTick = null; anchor = null;
-        await statusFor(scope(pin));
+        nextStatusRetryMono = nextClaimAttemptMono = -Infinity; statusFailures = 0;
+      }
+      const receipt = getReceipt(pin.employeeNo);
+      if (receipt) {
+        // An existing nonce always takes precedence over fresh eligibility.
+        // Its server-owned receipt can be reconciled even if a status read is
+        // temporarily unavailable; it can never create another batch here.
+        if (monotonicNow() - lastRecoveryMono >= RETRY_INTERVAL) {
+          lastRecoveryMono = monotonicNow();
+          await withLock(pin, ctx => recover(ctx, receipt));
+          if (!getReceipt(pin.employeeNo) && !status && await tickStatus(scope(pin))) {
+            lastTick = { mono: monotonicNow(), wall: clock(), server: serverNow() };
+          }
+        }
+        return snapshot();
+      }
+      if (changedIdentity) {
+        if (!await tickStatus(scope(pin))) return snapshot();
         refreshed = true;
       }
       const previous = lastTick;
@@ -542,10 +652,14 @@
       const candidate = dueTiming ? slotAt(beforeRefresh, dueTiming) : NaN;
       let due = continuous && finite(previous.server) && finite(candidate) && candidate > previous.server &&
         beforeRefresh - candidate < SLOT_WINDOW ? iso(candidate) : '';
+      const serverDue = status && own(status, 'dueSlotAt');
+      const retryDue = serverDue && status.dueSlotAt !== null && mono >= nextClaimAttemptMono;
+      const crossedSlot = serverDue && finite(candidate) && Number.isFinite(time(status.serverNow)) &&
+        candidate !== slotAt(time(status.serverNow), status.timing);
       // Read current timing at every crossed boundary. Revision is also sent to
       // claim so a concurrent save cannot authorize an obsolete browser cadence.
-      if (!refreshed && (due || !continuous || mono - lastStatusMono >= STATUS_INTERVAL || !finite(beforeRefresh))) {
-        await statusFor(scope(pin));
+      if (!refreshed && (due || retryDue || crossedSlot || !continuous || mono - lastStatusMono >= STATUS_INTERVAL || !finite(beforeRefresh))) {
+        if (!await tickStatus(scope(pin))) return snapshot();
         const updated = serverNow();
         if (!continuous || !finite(beforeRefresh) || Math.abs(updated - beforeRefresh) > 2000 ||
             status.revision !== dueRevision || !dueTiming || timingSignature(status.timing) !== timingSignature(dueTiming)) due = '';
@@ -555,16 +669,19 @@
       if (due && (!previous || monotonicNow() - previous.mono > MAX_TICK_GAP ||
           !finite(serverNow()) || serverNow() - Date.parse(due) >= SLOT_WINDOW)) due = '';
       lastTick = { mono: monotonicNow(), wall: clock(), server: serverNow() };
-      const receipt = getReceipt(pin.employeeNo);
-      if (receipt) {
-        if (monotonicNow() - lastRecoveryMono >= 30000) {
-          lastRecoveryMono = monotonicNow();
-          await withLock(pin, ctx => recover(ctx, receipt));
-        }
-        return snapshot();
-      }
       if (!getDevice() || !status?.enabled || status.thisDevice !== true) { emit('disabled'); return snapshot(); }
-      if (due) await withLock(pin, ctx => run(ctx, due, dueRevision));
+      if (own(status, 'dueSlotAt')) {
+        // Server-owned due state survives login, suspension and a busy lock.
+        // Recheck on a bounded cadence until one canonical slot is claimed;
+        // a local tick or failed admission never consumes that reservation.
+        if (status.dueSlotAt !== null) {
+          if (monotonicNow() < nextClaimAttemptMono) return snapshot();
+          const dueTime = time(status.dueSlotAt), server = serverNow();
+          if (!finite(server) || dueTime > server || dueTime !== slotAt(server, status.timing)) return snapshot();
+          nextClaimAttemptMono = monotonicNow() + RETRY_INTERVAL;
+          await withLock(pin, ctx => run(ctx, status.dueSlotAt, status.revision));
+        } else emit('ready');
+      } else if (due) await withLock(pin, ctx => run(ctx, due, dueRevision));
       else emit('ready');
       return snapshot();
     }

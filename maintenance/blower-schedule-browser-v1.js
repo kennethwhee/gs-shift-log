@@ -153,14 +153,18 @@
         !ready ? '현재 설정을 확인 중입니다.' : status.thisDevice === true ? '저장한 설정은 다음 예약부터 적용됩니다.' :
           status.revision === 0 ? '주기와 시각을 선택한 뒤 BCO1 지정을 눌러 주세요.' : '시간 설정은 지정된 BCO1 브라우저에서 변경할 수 있습니다.'));
       const errorText = snapshot.error ? snapshot.message || (typeof snapshot.error === 'string' ? snapshot.error : snapshot.error?.message) || '' : '';
-      text('blowerScheduleState', !loggedIn ? '로그인 후 설정' : here ? '이 PC에서 자동조회 사용 중' :
+      text('blowerScheduleState', !loggedIn ? '로그인 후 설정' : here ?
+        snapshot.busy ? '자동조회 진행 중' : errorText ? '자동조회 확인 필요' : '이 PC 자동조회 예약 켜짐' :
         status.enabled ? '다른 브라우저가 BCO1으로 지정됨' : '자동조회 꺼짐');
-      text('blowerScheduleNext', here ? '다음 예약 · ' + formatKst(status.nextSlotAt) : 'BCO1 PC에서 한 번 지정해 주세요.');
+      text('blowerScheduleNext', here ? (status.dueSlotAt ? '미처리 예약 재시도 · ' + formatKst(status.dueSlotAt) :
+        '다음 예약 · ' + formatKst(status.nextSlotAt)) : 'BCO1 PC에서 한 번 지정해 주세요.');
       text('blowerScheduleProgress', errorText || snapshot.message || (snapshot.busy ? '자동조회 진행 중' : ''));
       const latest = status.latestSlot;
       const names = {running:'진행 중', complete:'완료', partial:'부분 완료', failed:'실패', interrupted:'중단'};
       text('blowerScheduleLast', latest ? '최근 예약 · ' + formatKst(latest.slotKey) + ' · ' + (names[latest.state] || '확인 필요') +
-        (Number.isInteger(latest.completedCount) ? ' · 반영 ' + latest.completedCount + '건' : '') : '예약 실행 기록 없음');
+        (Number.isInteger(latest.completedCount) ? ' · 반영 ' + latest.completedCount + '건' : '') +
+        (Number.isFinite(Date.parse(latest.claimedAt)) && Date.parse(latest.claimedAt) - Date.parse(latest.slotKey) > 120000 ?
+          ' · 실행 ' + formatKst(latest.claimedAt) : '') : '예약 실행 기록 없음');
       const register = byId('blowerScheduleRegister'), disable = byId('blowerScheduleDisable');
       if (register) { register.hidden = !loggedIn || here; register.disabled = Boolean(snapshot.busy) || settingsPending || !ready || !timingValue(draft); }
       if (disable) { disable.hidden = !loggedIn || !here; disable.disabled = Boolean(snapshot.busy) || settingsPending; }

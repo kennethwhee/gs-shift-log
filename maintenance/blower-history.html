@@ -12,12 +12,12 @@
   <script src="shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
   <link rel="stylesheet" href="blower-unified-refresh.css?v=20261022-query-resource-v3-20261102-inline-v3n-20261102-label-v3o-20261102-right-v3p">
   <script src="blower-refresh-timing.js?v=20260915-fast-timing-v12-20261102-inline-v3n" defer></script>
-  <script src="blower-unified-refresh.js?v=20261031-limestone-ledger-v3g-20261102-auto-v3m-20261102-inline-v3n" defer></script>
+  <script src="blower-unified-refresh.js?v=20261031-limestone-ledger-v3g-20261102-auto-v3m-20261102-inline-v3n-20261102-schedule-v3q" defer></script>
     <script src="blower-history.js?v=20261031-limestone-ledger-v3g-checkpoint-v3k-ui-20261102-auto-v3m-20261102-inline-v3n-20261102-label-v3o" defer></script>
   <script src="/maintenance/seal-pot-ois-shadow.js?v=20260909-unified-refresh-v1" defer></script>
   <link rel="stylesheet" href="/maintenance/blower-schedule-v1.css?v=20261029-settings-v2">
-  <script src="/maintenance/blower-schedule-v1.js?v=20261031-limestone-ledger-v3g" defer></script>
-  <script src="/maintenance/blower-schedule-browser-v1.js?v=20261029-settings-v2" defer></script>
+  <script src="/maintenance/blower-schedule-v1.js?v=20261031-limestone-ledger-v3g-20261102-schedule-v3q" defer></script>
+  <script src="/maintenance/blower-schedule-browser-v1.js?v=20261029-settings-v2-20261102-schedule-v3q" defer></script>
   <link rel="stylesheet" href="/maintenance/blower-readable-compact-v1.css?v=20260927-v2">
 </head>
 <body>
@@ -56,6 +56,7 @@
           <button type="button" id="blowerScheduleDisable" title="자동조회 끄기" aria-label="자동조회 끄기" hidden>끄기</button>
         </div>
       </div>
+      <p class="blower-schedule-last" id="blowerScheduleLast">예약 실행 기록 없음</p>
       <details class="blower-schedule-details" id="blowerScheduleDetails">
         <summary aria-label="자동조회 시간과 주기 설정">설정</summary>
         <div class="blower-schedule-detail-content">
@@ -80,8 +81,7 @@
           <p class="blower-schedule-help" id="blowerSchedulePreview">실행 시각 · 00:00 (한국시간)</p>
           <p class="blower-schedule-draft-status" id="blowerScheduleDraftStatus" role="status" aria-live="polite">현재 설정을 확인 중입니다.</p>
           <p id="blowerScheduleNext">BCO1 PC에서 지정해 주세요.</p>
-          <p class="blower-schedule-last" id="blowerScheduleLast">예약 실행 기록 없음</p>
-          <p class="blower-schedule-help">지정한 브라우저에서 업무일지 또는 Blower 화면을 열고 로그인한 동안 실행합니다.<br>절전·브라우저 종료로 놓친 예약은 건너뜁니다.</p>
+          <p class="blower-schedule-help">지정한 브라우저에서 업무일지 또는 Blower 화면을 열고 로그인한 동안 실행합니다.<br>놓친 예약은 다시 연결되면 가장 최근 1회만 보충 실행합니다. 브라우저가 닫혀 있으면 예약 시각에 실행할 수 없습니다.</p>
         </div>
       </details>
       <p class="blower-schedule-progress" id="blowerScheduleProgress" role="status" aria-live="polite"></p>

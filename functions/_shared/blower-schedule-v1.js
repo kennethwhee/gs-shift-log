@@ -7,7 +7,8 @@ const VERSION = 'blower-schedule-v2';
 const INTERVAL_HOURS = Object.freeze([1, 2, 3, 4, 6, 8, 12, 24]);
 const DEFAULT_TIMING = Object.freeze({ intervalHours: 24, startTime: '00:00', timeZone: 'Asia/Seoul' });
 const KST_MS = 9 * 60 * 60 * 1000;
-const CLAIM_WINDOW_MS = 2 * 60 * 1000;
+// V3Q: a still-unclaimed current slot remains due until the next interval.
+// Missed intervals are coalesced; no historical slot backlog is replayed.
 const CREATE_WINDOW_MS = 10 * 60 * 1000;
 const RESUME_WINDOW_MS = 24 * 60 * 60 * 1000;
 const KEY = /^[a-f0-9]{64}$/;
@@ -185,10 +186,17 @@ export function isScheduledBatchConflict(cause) {
 async function statusData(db, config, deviceHash, now) {
   const timing = timingFor(config);
   const latest = await db.prepare('SELECT * FROM blower_schedule_slots_v1 ORDER BY slot_key DESC LIMIT 1').first();
+  const currentStart = slotStart(now, timing);
+  const currentKey = new Date(currentStart).toISOString();
+  const effectiveAt = Date.parse(config?.updated_at || '');
+  const eligible = config?.enabled === 1 && sameDevice(config, deviceHash) &&
+    Number.isFinite(effectiveAt) && currentStart >= effectiveAt;
+  const current = eligible ? await loadSlot(db, currentKey) : null;
   return {
     enabled: config?.enabled === 1, revision: config?.revision || 0,
     thisDevice: sameDevice(config, deviceHash),
-    timing, nextSlotAt: new Date(slotStart(now, timing) + timing.intervalHours * 60 * 60 * 1000).toISOString(),
+    timing, nextSlotAt: new Date(currentStart + timing.intervalHours * 60 * 60 * 1000).toISOString(),
+    dueSlotAt: eligible && !current ? currentKey : null,
     latestSlot: slotSummary(latest)
   };
 }
@@ -307,7 +315,9 @@ export async function handleBlowerSchedule(context, user, body) {
     if (operation === 'claim') {
       if (body.expectedRevision !== config.revision) return fail('configuration_changed', '자동조회 설정이 변경됐습니다. 현재 설정을 다시 확인해 주세요.', 409);
       const start = slotStart(now, timingFor(config));
-      if (body.slotKey !== new Date(start).toISOString() || now < start || now >= start + CLAIM_WINDOW_MS) {
+      const effectiveAt = Date.parse(config.updated_at);
+      if (body.slotKey !== new Date(start).toISOString() || now < start ||
+          !Number.isFinite(effectiveAt) || start < effectiveAt) {
         return fail('outside_slot_window', '지정된 자동조회 시작 시간이 아닙니다.', 409);
       }
       // A single SQL statement checks the current designation, revision, main
@@ -318,9 +328,10 @@ export async function handleBlowerSchedule(context, user, body) {
         SELECT ?, ?, ?, ?, revision, 'running', ?, ? FROM blower_schedule_config_v1
         WHERE singleton = 1 AND enabled = 1 AND device_hash = ? AND revision = ?
           AND NOT EXISTS (SELECT 1 FROM ois_data_requests
-            WHERE request_type = 'blower_runtime_probe' AND status IN ('pending', 'processing'))
+            WHERE request_type = 'blower_runtime_probe' AND status IN ('pending', 'processing')
+              AND (expires_at IS NULL OR julianday(expires_at) IS NULL OR julianday(expires_at) >= julianday(?)))
         ON CONFLICT(slot_key) DO NOTHING`)
-        .bind(body.slotKey, deviceHash, owner, runHash, serverNow, serverNow, deviceHash, config.revision).run();
+        .bind(body.slotKey, deviceHash, owner, runHash, serverNow, serverNow, deviceHash, config.revision, serverNow).run();
       if (changes(result) === 1) return reply({ ok: true, acquired: true, slotKey: body.slotKey, claimedAt: serverNow });
       const current = await loadConfig(db);
       if (!current?.enabled || !sameDevice(current, deviceHash) || current.revision !== config.revision) {
@@ -362,4 +373,4 @@ export async function handleBlowerSchedule(context, user, body) {
   }
 }
 
-export const __blowerScheduleTest = Object.freeze({ slotStart, normalizeTiming, timingFor, DEFAULT_TIMING, INTERVAL_HOURS, CLAIM_WINDOW_MS, CREATE_WINDOW_MS, RESUME_WINDOW_MS });
+export const __blowerScheduleTest = Object.freeze({ slotStart, normalizeTiming, timingFor, DEFAULT_TIMING, INTERVAL_HOURS, CREATE_WINDOW_MS, RESUME_WINDOW_MS });

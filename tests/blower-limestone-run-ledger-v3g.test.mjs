@@ -114,7 +114,7 @@ test('scheduling handles RUN-only receipts separately without modifying standard
  const s=fs.readFileSync(new URL('../maintenance/blower-schedule-v1.js',import.meta.url),'utf8');
  assert.match(s,/limestoneTrackingOnly:\s*actual\.probe\?\.limestoneTrackingOnly/);
  assert.match(s,/limestone_run_track_apply/);
- assert.match(s,/core\.plan\(data\.assets, new Date\(data\.generatedAt\), \(\) => null,/);
+ assert.match(s,/core\.plan\(data\.assets\.filter\(asset => !blocked\(asset\)\), new Date\(data\.generatedAt\),\s*\(\) => null, tag => tracked\.get\(tag\) \|\| null\)/);
  const api=fs.readFileSync(new URL('../functions/api/ois-data-requests.js',import.meta.url),'utf8');
  assert.match(api,/limestone-run-ledger-v1:/);
  assert.match(api,/limestoneTrackingOnly/);

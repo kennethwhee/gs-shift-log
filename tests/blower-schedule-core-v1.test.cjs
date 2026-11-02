@@ -112,11 +112,18 @@ function fixture(options = {}) {
       assert.ok(f.requests.has(body.requestId));
       if (f.conflictId === body.requestId) throw error('CYCLE_CONFLICT', 409);
       result = { ok: true };
-    } else if (config.url === '/api/blower-history' && !config.method) {
-      result = { ok: true, generatedAt: date(f.now()), assets: f.assets.map(tag => ({
+    } else if (config.url.startsWith('/api/blower-history?action=refresh_state_page&') && !config.method) {
+      const cursor = new URL(config.url, 'https://test.invalid').searchParams.get('cursor') || '';
+      const allAssets = f.assets.map(tag => ({
         tagNumber: tag, displayName: tag, enabled: true, lastReplacementAt: '2026-09-15T00:00:00.000Z',
-        dataParcTag: `GSPOGE.ABB_DCS.${tag}XB04`, cycleStartState: 'legacy'
-      })) };
+        dataParcTag: `GSPOGE.ABB_DCS.${tag}XB04`, cycleStartState: 'legacy',
+        hasUnverifiedDataParcHistory: false, dataParcRuntimeBasis: null
+      })).sort((a, b) => a.tagNumber.localeCompare(b.tagNumber));
+      const remaining = allAssets.filter(asset => asset.tagNumber > cursor), assets = remaining.slice(0, 2);
+      const done = remaining.length <= 2;
+      result = { ok: true, version: 'blower-refresh-state-page-v1', user: { employeeNo: f.identity.employeeNo },
+        permissions: { canWrite: true }, generatedAt: date(f.now()), assets,
+        done, nextCursor: done ? null : assets.at(-1).tagNumber };
     } else throw error(`unexpected API ${JSON.stringify(config)}`);
     if (f.afterApi) await f.afterApi(config, result);
     return result;
@@ -321,10 +328,9 @@ test('a lost claim response with confirmed absent server slot clears only after 
 
 test('server-owned nonce mismatch retains receipt and does not apply or finish', async () => {
   const f = fixture({ failClaim: 'committed' });
-  f.afterApi = config => { if (config.body?.operation === 'status' && f.records.size) [...f.records.values()][0].runToken = 'f'.repeat(64); };
   const slotKey = '2026-09-16T03:00:00.000Z', item = { version: 1, slotKey, runToken: '1'.repeat(64), employeeNo: 'BCO-1-user', claimedAt: slotKey };
   f.storage.setItem(RECEIPT(item.employeeNo), JSON.stringify(item));
-  f.records.set(slotKey, { ...item, state: 'running', batchReceipt: null });
+  f.records.set(slotKey, { ...item, runToken: 'f'.repeat(64), state: 'running', batchReceipt: null });
   await f.c.tick();
   assert.ok(f.storage.getItem(RECEIPT(item.employeeNo))); assert.equal(f.operations('finish').length, 0);
   assert.equal(f.actions('create_blower_runtime_probe_batch').length, 0);

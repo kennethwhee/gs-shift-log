@@ -14,7 +14,7 @@ const SIGNAL_B = 'GSPOGE.ABB_DCS.003ETH03AN602XB04';
 const DEVICE_KEY = 'a'.repeat(64);
 const RUN_TOKEN = 'b'.repeat(64);
 const SLOT_KEY = '2026-09-15T19:00:00.000Z'; // 2026-09-16 04:00 KST.
-const INITIAL_CLOCK = '2026-09-15T19:00:30.000Z';
+const INITIAL_CLOCK = '2026-09-15T18:59:30.000Z';
 const realDate = Date;
 
 function installClock() {
@@ -97,7 +97,7 @@ function successful(response, status = 200) {
   return response.body;
 }
 
-async function registerAndClaim(database) {
+async function registerAndClaim(database, clock) {
   const registered = successful(await schedule(database, 'register', {
     deviceKey: DEVICE_KEY, confirmedPhysicalBco1: true, expectedRevision: 0,
     timing: { intervalHours: 4, startTime: '00:00' }
@@ -105,6 +105,7 @@ async function registerAndClaim(database) {
   assert.equal(registered.thisDevice, true);
   assert.equal(registered.enabled, true);
   assert.equal(registered.revision, 1);
+  clock.advance(60000); // Registration precedes the eligible 04:00 KST boundary.
   const claimed = successful(await schedule(database, 'claim', metadata()));
   assert.equal(claimed.acquired, true);
   assert.equal(claimed.slotKey, SLOT_KEY);
@@ -142,8 +143,8 @@ function validProbeResult(claimed) {
 }
 
 test('authenticated slot creates one atomic batch with exact durable receipt; replay cannot enqueue again', async () => {
-  await withFixture(async ({ database, sqlite }) => {
-    await registerAndClaim(database);
+  await withFixture(async ({ database, sqlite, clock }) => {
+    await registerAndClaim(database, clock);
     const body = batchBody(sqlite);
     const created = successful(await scheduledCreate(database, body), 201);
     assert.equal(created.createdCount, 2);
@@ -168,12 +169,12 @@ test('authenticated slot creates one atomic batch with exact durable receipt; re
 });
 
 test('receipt records an actually completed reused request and a new sibling without replacing the reused ID', async () => {
-  await withFixture(async ({ database, sqlite }) => {
+  await withFixture(async ({ database, sqlite, clock }) => {
     const manual = successful(await browserCreate(database, item(sqlite, TAG_A, SIGNAL_A)), 201);
     const claimed = successful(await agentClaim(database)).items.excel;
     assert.equal(claimed.id, manual.item.id);
     successful(await agentComplete(database, claimed.id, validProbeResult(claimed)));
-    await registerAndClaim(database);
+    await registerAndClaim(database, clock);
 
     const created = successful(await scheduledCreate(database, batchBody(sqlite)), 201);
     assert.equal(created.createdCount, 1);
@@ -189,8 +190,8 @@ test('receipt records an actually completed reused request and a new sibling wit
 });
 
 test('configuration revision race at the real transaction boundary leaves no receipt or partial queue', async () => {
-  await withFixture(async ({ database, sqlite }) => {
-    await registerAndClaim(database);
+  await withFixture(async ({ database, sqlite, clock }) => {
+    await registerAndClaim(database, clock);
     const originalBatch = database.batch.bind(database);
     let injected = false;
     database.batch = async statements => {
@@ -210,8 +211,8 @@ test('configuration revision race at the real transaction boundary leaves no rec
 });
 
 test('asset cycle race rolls back the scheduled receipt, prior-request retirement and all new siblings', async () => {
-  await withFixture(async ({ database, sqlite }) => {
-    await registerAndClaim(database);
+  await withFixture(async ({ database, sqlite, clock }) => {
+    await registerAndClaim(database, clock);
     const manual = successful(await browserCreate(database, item(sqlite, TAG_A, SIGNAL_A)), 201);
     sqlite.prepare('UPDATE blower_history_assets SET cycle_runtime_revision=? WHERE tag_number=?')
       .run('prepared-schedule-runtime-r2', TAG_A);
@@ -244,7 +245,7 @@ test('asset cycle race rolls back the scheduled receipt, prior-request retiremen
 
 test('wrong login, wrong credentials, expired runs and extra request metadata reject without queue writes', async () => {
   await withFixture(async ({ database, sqlite, clock }) => {
-    await registerAndClaim(database);
+    await registerAndClaim(database, clock);
     addBrowserIdentity(sqlite, { token: 'other-browser-token', employeeNo: 'other-employee', name: '다른 로그인' });
     const cases = [
       { name: 'wrong login', body: batchBody(sqlite), token: 'other-browser-token', status: 403 },
@@ -269,7 +270,7 @@ test('wrong login, wrong credentials, expired runs and extra request metadata re
 });
 
 test('public and mobile clients cannot register or submit scheduled work through actual API routes', async () => {
-  await withFixture(async ({ database, sqlite }) => {
+  await withFixture(async ({ database, sqlite, clock }) => {
     const register = { deviceKey: DEVICE_KEY, confirmedPhysicalBco1: true, expectedRevision: 0 };
     const publicRegister = await schedule(database, 'register', register, { token: null });
     assert.equal(publicRegister.status, 401, JSON.stringify(publicRegister.body));
@@ -278,7 +279,7 @@ test('public and mobile clients cannot register or submit scheduled work through
     const status = successful(await schedule(database, 'status', { deviceKey: DEVICE_KEY }));
     assert.equal(status.enabled, false);
     assert.equal(status.revision, 0);
-    await registerAndClaim(database);
+    await registerAndClaim(database, clock);
 
     for (const [options, expectedStatus] of [[{ token: null }, 401], [{ clientMode: 'mobile-monitoring' }, 403]]) {
       const response = await scheduledCreate(database, batchBody(sqlite), options);
@@ -290,8 +291,8 @@ test('public and mobile clients cannot register or submit scheduled work through
 });
 
 test('unauthenticated malformed scheduling requests cannot look up slot state or disclose its receipt', async () => {
-  await withFixture(async ({ database, sqlite }) => {
-    await registerAndClaim(database);
+  await withFixture(async ({ database, sqlite, clock }) => {
+    await registerAndClaim(database, clock);
     successful(await scheduledCreate(database, batchBody(sqlite)), 201);
     const receipt = storedReceipt(sqlite);
     const originalPrepare = database.prepare.bind(database);
@@ -323,16 +324,17 @@ test('unauthenticated malformed scheduling requests cannot look up slot state or
 });
 
 test('slot receipt survives disable and re-enable so a second registration cannot rerun the same KST slot', async () => {
-  await withFixture(async ({ database, sqlite }) => {
-    await registerAndClaim(database);
+  await withFixture(async ({ database, sqlite, clock }) => {
+    await registerAndClaim(database, clock);
     const repeated = successful(await schedule(database, 'claim', metadata({ runToken: 'e'.repeat(64) })));
     assert.equal(repeated.acquired, false);
     successful(await schedule(database, 'disable', { deviceKey: DEVICE_KEY, expectedRevision: 1 }));
     successful(await schedule(database, 'register', {
       deviceKey: DEVICE_KEY, confirmedPhysicalBco1: true, expectedRevision: 2
     }));
-    const afterRegistration = successful(await schedule(database, 'claim', metadata({ runToken: 'f'.repeat(64), expectedRevision: 3 })));
-    assert.equal(afterRegistration.acquired, false);
+    const afterRegistration = await schedule(database, 'claim', metadata({ runToken: 'f'.repeat(64), expectedRevision: 3 }));
+    assert.equal(afterRegistration.status, 409);
+    assert.equal(afterRegistration.body.code, 'outside_slot_window', 're-registration applies from a later slot');
     assert.equal(sqlite.prepare('SELECT COUNT(*) AS count FROM blower_schedule_slots_v1').get().count, 1);
     const staleAuthorization = await scheduledCreate(database, batchBody(sqlite));
     assert.equal(staleAuthorization.status, 409, JSON.stringify(staleAuthorization.body));
@@ -343,7 +345,7 @@ test('slot receipt survives disable and re-enable so a second registration canno
 
 test('a fresh session for the original user recovers a lost response after the create window without reenqueuing', async () => {
   await withFixture(async ({ database, sqlite, clock }) => {
-    await registerAndClaim(database);
+    await registerAndClaim(database, clock);
     successful(await scheduledCreate(database, batchBody(sqlite)), 201);
     // Treat the HTTP create response as lost; only durable server state is used.
     const persisted = storedReceipt(sqlite);

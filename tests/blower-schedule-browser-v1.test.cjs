@@ -291,6 +291,13 @@ test('next and last server slot times render in KST including midnight rollover'
   assert.equal(f.elements.get('blowerScheduleRegister').hidden, true);
   assert.equal(f.elements.get('blowerScheduleDisable').hidden, false);
   assert.equal(formatKst('invalid time'), '확인 중');
+  f.calls.controllers[0].onState({...snapshot, status: {...snapshot.status,
+    dueSlotAt: '2026-09-15T15:00:00.000Z', latestSlot: {...snapshot.status.latestSlot, claimedAt: '2026-09-15T11:10:00.000Z'}}});
+  assert.match(f.elements.get('blowerScheduleNext').textContent, /미처리 예약 재시도.*00:00/);
+  assert.match(f.elements.get('blowerScheduleLast').textContent, /실행.*20:10/);
+  f.calls.controllers[0].onState({...snapshot, error: 'SCHEDULE_STATUS_FAILED', message: '예약 연결 확인 필요'});
+  assert.equal(f.elements.get('blowerScheduleState').textContent, '자동조회 확인 필요');
+  assert.equal(f.elements.get('blowerScheduleProgress').textContent, '예약 연결 확인 필요');
 });
 
 test('both pages load scheduling scripts once; Blower owns the designation panel and main links to it', () => {
@@ -343,12 +350,21 @@ test('default midnight cadence is visible when settings are collapsed and contro
   assert.match(html, /<label for="blowerScheduleTime">조회 기준시각/);
   assert.match(html, /id="blowerScheduleTime" type="time" value="00:00" step="60"/);
   assert.doesNotMatch(html, /매일 00 · 04 · 08 · 12 · 16 · 20시/);
+  const releases = new Map();
   for (const entry of ['index.html', 'maintenance/blower-history.html']) {
     const text = fs.readFileSync(path.join(__dirname, '..', entry), 'utf8');
-    assert.equal((text.match(/blower-schedule-(?:browser-)?v1\.(?:js|css)\?v=20261029-settings-v2/g) || []).length, 3);
-    assert.equal((text.match(/blower-unified-refresh\.js\?v=20261029-settings-v2/g) || []).length, 1,
-      `${entry}: refresh dependency uses the same release cache key`);
+    for (const name of ['blower-unified-refresh.js', 'blower-schedule-v1.js', 'blower-schedule-browser-v1.js']) {
+      const scripts = [...text.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["']/g)]
+        .map(match => match[1]).filter(src => src.split('?')[0].split('/').at(-1) === name);
+      assert.equal(scripts.length, 1, `${entry}: ${name} once`);
+      assert.match(scripts[0], /20261102-schedule-v3q$/);
+      const key = scripts[0].split('?')[1];
+      if (releases.has(name)) assert.equal(key, releases.get(name), `${name}: both entry points load the same release`);
+      else releases.set(name, key);
+    }
   }
+  assert.ok(html.indexOf('id="blowerScheduleLast"') < html.indexOf('id="blowerScheduleDetails"'),
+    'actual latest reservation outcome remains visible with settings collapsed');
 });
 
 test('cadence preview matches KST slots anchored to the selected minute, with bounded frequent-slot text', () => {

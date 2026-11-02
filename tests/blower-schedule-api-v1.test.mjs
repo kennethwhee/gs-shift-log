@@ -24,7 +24,7 @@ function fixture(t, withQueue = true) {
   installClock(t);
   const sqlite = new DatabaseSync(':memory:');
   t.after(() => sqlite.close());
-  if (withQueue) sqlite.exec(`CREATE TABLE ois_data_requests (id TEXT PRIMARY KEY,request_type TEXT,status TEXT);
+  if (withQueue) sqlite.exec(`CREATE TABLE ois_data_requests (id TEXT PRIMARY KEY,request_type TEXT,status TEXT,expires_at TEXT);
     CREATE TABLE existing_results (id TEXT PRIMARY KEY,value TEXT);
     INSERT INTO existing_results VALUES ('preserved','123.456');`);
   const state = { beforeRun: null };
@@ -91,7 +91,7 @@ test('status defaults disabled and requires no device registration', async t => 
   const reply = await f.call('status');
   assert.equal(reply.status, 200);
   assert.deepEqual(reply.data, { version: 'blower-schedule-v2', serverNow: SLOT, ok: true,
-    enabled: false, revision: 0, thisDevice: false, timing: {intervalHours: 24, startTime: '00:00', timeZone: 'Asia/Seoul'}, nextSlotAt: '2026-09-16T15:00:00.000Z', latestSlot: null });
+    enabled: false, revision: 0, thisDevice: false, timing: {intervalHours: 24, startTime: '00:00', timeZone: 'Asia/Seoul'}, nextSlotAt: '2026-09-16T15:00:00.000Z', dueSlotAt: null, latestSlot: null });
   assert.equal(reply.headers.get('cache-control'), 'no-store');
   assert.equal(f.sqlite.prepare('SELECT COUNT(*) n FROM blower_schedule_slots_v1').get().n, 0);
 });
@@ -142,14 +142,14 @@ test('disable requires designated device or superadmin and preserves revision gu
   assert.equal((await f.claim()).status, 403);
 });
 
-test('claim admits exact start and last millisecond, rejects past/future/noncanonical slots', async t => {
+test('claim admits the current interval until the next slot, rejects past/future/noncanonical slots', async t => {
   const f = fixture(t);
   await f.register();
   assert.equal((await f.claim()).data.acquired, true);
   at(RealDate.parse(SLOT) + 119999);
   assert.equal((await f.claim()).data.acquired, false);
   at(RealDate.parse(SLOT) + 120000);
-  assert.equal((await f.claim()).data.code, 'outside_slot_window');
+  assert.equal((await f.claim()).data.acquired, false, 'a claimed current slot remains immutable after two minutes');
   at(SLOT);
   assert.equal((await f.claim({ slotKey: '2026-09-14T15:00:00.000Z' })).data.code, 'outside_slot_window');
   assert.equal((await f.claim({ slotKey: '2026-09-15T23:00:00.000Z' })).data.code, 'outside_slot_window');
@@ -183,7 +183,7 @@ test('pending and processing Blower rows block claims without expiring or rewrit
   const f = fixture(t);
   await f.register();
   for (const state of ['pending', 'processing']) {
-    f.sqlite.prepare('INSERT INTO ois_data_requests VALUES (?,?,?)').run(state, 'blower_runtime_probe', state);
+    f.sqlite.prepare('INSERT INTO ois_data_requests (id,request_type,status) VALUES (?,?,?)').run(state, 'blower_runtime_probe', state);
     const before = JSON.stringify(f.sqlite.prepare('SELECT * FROM ois_data_requests ORDER BY id').all());
     assert.equal((await f.claim()).data.code, 'blower_busy');
     assert.equal(JSON.stringify(f.sqlite.prepare('SELECT * FROM ois_data_requests ORDER BY id').all()), before);
@@ -194,7 +194,7 @@ test('pending and processing Blower rows block claims without expiring or rewrit
 
 test('completed Blower and unrelated pending rows do not block a claim', async t => {
   const f = fixture(t);
-  f.sqlite.exec("INSERT INTO ois_data_requests VALUES ('done','blower_runtime_probe','complete'),('cofire','cofiring','pending')");
+  f.sqlite.exec("INSERT INTO ois_data_requests (id,request_type,status) VALUES ('done','blower_runtime_probe','complete'),('cofire','cofiring','pending')");
   await f.register();
   assert.equal((await f.claim()).data.acquired, true);
 });
@@ -221,7 +221,7 @@ test('configuration and queue changes at the insertion boundary invalidate claim
   f.state.beforeRun = sql => {
     if (sql.includes('INSERT INTO blower_schedule_slots_v1')) {
       f.state.beforeRun = null;
-      f.sqlite.exec("INSERT INTO ois_data_requests VALUES ('race','blower_runtime_probe','processing')");
+      f.sqlite.exec("INSERT INTO ois_data_requests (id,request_type,status) VALUES ('race','blower_runtime_probe','processing')");
     }
   };
   assert.equal((await f.claim()).data.code, 'blower_busy');
@@ -282,13 +282,13 @@ test('batch receipt commits atomically, returns through resume and prevents all 
   const guard = await prepareScheduledBatch(f.db, USER, f.metadata);
   const duplicateGuard = await prepareScheduledBatch(f.db, USER, f.metadata);
   await f.db.batch([...scheduledBatchStatements(f.db, guard, { ...RECEIPT, unsafeExtra: TOKEN }),
-    f.db.prepare("INSERT INTO ois_data_requests VALUES ('brb1_test_01_00','blower_runtime_probe','pending')")]);
+    f.db.prepare("INSERT INTO ois_data_requests (id,request_type,status) VALUES ('brb1_test_01_00','blower_runtime_probe','pending')")]);
   const resume = await f.call('check', { ...f.metadata, purpose: 'resume' });
   assert.deepEqual(resume.data.batchReceipt, RECEIPT);
   assert.equal((await f.call('check', { ...f.metadata, purpose: 'create' })).data.code, 'run_not_creatable');
   await assert.rejects(prepareScheduledBatch(f.db, USER, f.metadata), cause => cause.code === 'run_not_creatable');
   await assert.rejects(f.db.batch([...scheduledBatchStatements(f.db, duplicateGuard, RECEIPT),
-    f.db.prepare("INSERT INTO ois_data_requests VALUES ('duplicate','blower_runtime_probe','pending')")]), isScheduledBatchConflict);
+    f.db.prepare("INSERT INTO ois_data_requests (id,request_type,status) VALUES ('duplicate','blower_runtime_probe','pending')")]), isScheduledBatchConflict);
   assert.equal(f.sqlite.prepare('SELECT COUNT(*) n FROM ois_data_requests').get().n, 1);
   assert.equal(f.sqlite.prepare('SELECT COUNT(*) n FROM blower_schedule_assertions_v1').get().n, 0);
 });
@@ -299,11 +299,11 @@ test('batch configuration race and delayed create roll back receipt and request 
   const guard = await prepareScheduledBatch(f.db, USER, f.metadata);
   f.sqlite.exec('UPDATE blower_schedule_config_v1 SET revision = revision + 1');
   await assert.rejects(f.db.batch([...scheduledBatchStatements(f.db, guard, RECEIPT),
-    f.db.prepare("INSERT INTO ois_data_requests VALUES ('bad','blower_runtime_probe','pending')")]), isScheduledBatchConflict);
+    f.db.prepare("INSERT INTO ois_data_requests (id,request_type,status) VALUES ('bad','blower_runtime_probe','pending')")]), isScheduledBatchConflict);
   f.sqlite.exec('UPDATE blower_schedule_config_v1 SET revision = revision - 1');
   at(clock + 600001);
   await assert.rejects(f.db.batch([...scheduledBatchStatements(f.db, guard, RECEIPT),
-    f.db.prepare("INSERT INTO ois_data_requests VALUES ('late','blower_runtime_probe','pending')")]), isScheduledBatchConflict);
+    f.db.prepare("INSERT INTO ois_data_requests (id,request_type,status) VALUES ('late','blower_runtime_probe','pending')")]), isScheduledBatchConflict);
   assert.equal(f.sqlite.prepare('SELECT batch_receipt FROM blower_schedule_slots_v1').get().batch_receipt, null);
   assert.equal(f.sqlite.prepare('SELECT COUNT(*) n FROM ois_data_requests').get().n, 0);
 });
@@ -417,7 +417,7 @@ for (const intervalHours of [1,2,3,4,6,8,12,24]) {
       const result=await f.claim({slotKey});
       assert.equal(result.data.acquired,true,`${intervalHours}h minute ${minute}`);
       at(clock+120000);
-      assert.equal((await f.claim({slotKey})).data.code,'outside_slot_window');
+      assert.equal((await f.claim({slotKey})).data.acquired,false,'same current interval is not claimed twice');
     }
     at('2026-09-16T23:59:00+09:00');
     const status=await f.call('status',{deviceKey:DEVICE});
@@ -490,7 +490,7 @@ test('settings revision invalidates a stale coincident-boundary claim and an alr
   assert.equal((await f.claim({expectedRevision:1})).data.code,'configuration_changed');
   assert.equal((await f.claim({expectedRevision:undefined})).data.code,'invalid_revision');
   await assert.rejects(f.db.batch([...scheduledBatchStatements(f.db,guard,RECEIPT),
-    f.db.prepare("INSERT INTO ois_data_requests VALUES ('stale','blower_runtime_probe','pending')")]),isScheduledBatchConflict);
+    f.db.prepare("INSERT INTO ois_data_requests (id,request_type,status) VALUES ('stale','blower_runtime_probe','pending')")]),isScheduledBatchConflict);
   assert.deepEqual(f.sqlite.prepare('SELECT * FROM blower_schedule_slots_v1').all(),receiptBefore);
   assert.equal(f.sqlite.prepare('SELECT COUNT(*) n FROM ois_data_requests').get().n,0);
   assert.equal((await f.call('check',{...f.metadata,purpose:'resume',scheduleVersion:undefined})).data.allowed,true);
