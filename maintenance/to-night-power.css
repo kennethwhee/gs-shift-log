@@ -308,3 +308,40 @@
   background: #ffe8de;
   color: #853a25;
 }
+
+/* PC TO card: role at left, power action at upper right. Long status text
+   expands this header row so names and diary badges remain below it. */
+@media screen and (min-width: 901px) {
+  /* Before the inspection launcher groups the outer controls, keep a bare
+     notice above the TO card instead of sharing its power-action corner. */
+  html:not(.main-floating-notification-mobile-client) #statusView #shiftMemberGrid
+  .shift-member-card-wrap:has(> .shift-member-card.has-to-night-power > .to-night-power-button:not([hidden])):not(:has(> .role-card-top-actions)) > .role-notice-button {
+    top: -26px !important;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView #shiftMemberGrid
+  .shift-member-card.has-to-night-power:has(> .to-night-power-button:not([hidden])) {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    align-content: start;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView #shiftMemberGrid
+  .shift-member-card.has-to-night-power:has(> .to-night-power-button:not([hidden])) > * {
+    grid-column: 1 / -1;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView #shiftMemberGrid
+  .shift-member-card.has-to-night-power:has(> .to-night-power-button:not([hidden])) > .shift-member-card__role {
+    grid-area: 1 / 1;
+    padding-right: 0;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView #shiftMemberGrid
+  .shift-member-card.has-to-night-power:has(> .to-night-power-button:not([hidden])) > .to-night-power-button {
+    grid-area: 1 / 2;
+    justify-self: end;
+    align-self: start;
+    max-width: 100%;
+  }
+  html:not(.main-floating-notification-mobile-client) #statusView #shiftMemberGrid
+  .shift-member-card.has-to-night-power:has(> .to-night-power-button:not([hidden])) > .shift-member-card__status {
+    justify-self: start;
+  }
+}
