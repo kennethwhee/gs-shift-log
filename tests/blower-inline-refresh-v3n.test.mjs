@@ -6,6 +6,7 @@ import { createRequire } from 'node:module';
 
 const source = fs.readFileSync(new URL('../maintenance/blower-history.js', import.meta.url), 'utf8');
 const html = fs.readFileSync(new URL('../maintenance/blower-history.html', import.meta.url), 'utf8');
+const css = fs.readFileSync(new URL('../maintenance/blower-unified-refresh.css', import.meta.url), 'utf8');
 const realCore = createRequire(import.meta.url)('../maintenance/blower-unified-refresh.js');
 const marker = '  if (document.readyState === "loading") {';
 const now = '2026-11-02T12:30:00.000Z';
@@ -97,12 +98,21 @@ function assertNoMask(h) {
   assert.equal(h.ui.elements.overviewRefreshInlineStatus.hidden, false);
 }
 
+function assertNoRunningCounts(h) {
+  assert.equal(h.ui.elements.overviewRefreshCount.hidden, true);
+  assert.equal(h.count(), '');
+  assert.doesNotMatch(h.phase(), /\d|%/);
+}
+
 test('actual refresh stays inline through log work, duplicate click, long elapsed time, and final completion', async () => {
   const gate = defer(), h = harness({ logGate: gate });
   const running = h.run();
   assertNoMask(h);
   assert.match(h.phase(), /교체|업무일지/);
-  assert.equal(h.ui.elements.overviewRefreshCount.hidden, false, 'received log counts must actually be visible');
+  assertNoRunningCounts(h);
+  assert.equal(h.ui.state.unifiedRefreshLogCounts.replacement, 7);
+  assert.equal(h.ui.state.unifiedRefreshLogCounts.operation, 4);
+  assert.equal(h.ui.elements.overviewRefreshButtonLabel.textContent, '조회 중…');
   const count = h.count(), percent = h.ui.state.unifiedRefreshProgressPct;
   h.tick(125000);
   assertNoMask(h); assert.equal(h.count(), count);
@@ -114,9 +124,12 @@ test('actual refresh stays inline through log work, duplicate click, long elapse
   assert.equal(h.ui.elements.unifiedRefreshStatus.dataset.state, 'complete');
   assertNoMask(h); assert.equal(h.timers.size, 0);
   assert.equal(h.ui.state.unifiedRefreshBusy, false);
+  assert.equal(h.ui.elements.overviewRefreshButtonLabel.textContent, '전체 최신화');
+  assert.equal(h.ui.elements.overviewRefreshCount.hidden, false);
+  assert.match(h.count(), /반영\s*2대/);
 });
 
-test('observed request completion and accepted save responses remain separate, unique counts', () => {
+test('request and save observations remain separate and unique internally while running counts stay hidden', () => {
   const h = harness(), { ui } = h;
   ui.state.unifiedRefreshBusy = true; ui.state.unifiedRefreshProgressTarget = 2;
   ui.state.unifiedRefreshPhase = 'DataPARC 일괄 조회';
@@ -124,19 +137,24 @@ test('observed request completion and accepted save responses remain separate, u
     { id: 'request-1', status: 'complete' }, { id: 'request-1', status: 'complete' },
     { id: 'request-2', status: 'processing' }
   ]);
-  assert.equal(ui.elements.overviewRefreshCount.hidden, false);
-  assert.match(h.count(), /조회[^·]*1\s*\/\s*2/);
-  assert.match(h.count(), /저장 반영\s*0대/);
+  assertNoRunningCounts(h);
+  assert.equal(ui.state.unifiedRefreshQueryStatuses.length, 2);
+  assert.equal(ui.state.unifiedRefreshQueryStatuses.filter(item => item.status === 'complete').length, 1);
+  assert.equal(Object.keys(ui.state.unifiedRefreshAppliedRequests || {}).length, 0);
   const request = { method: 'POST', body: { action: 'dataparc_runtime_sync', requestId: 'request-1' } };
   ui.observeUnifiedRefreshApply(request, { ok: true, tagNumber: tags[0], requestId: 'request-1', applied: true });
   ui.observeUnifiedRefreshApply(request, { ok: true, tagNumber: tags[0], requestId: 'request-1', applied: true });
-  assert.match(h.count(), /저장 반영\s*1대/);
+  assertNoRunningCounts(h);
+  assert.equal(Object.keys(ui.state.unifiedRefreshAppliedRequests).length, 1);
+  assert.equal(ui.state.unifiedRefreshAppliedRequests['request-1'].applied, true);
   ui.observeUnifiedRefreshStatuses([{ id: 'request-2', status: 'complete' }, { id: 'request-1', status: 'complete' }]);
-  assert.match(h.count(), /조회[^·]*2\s*\/\s*2/);
-  assert.match(h.count(), /저장 반영\s*1대/);
+  assertNoRunningCounts(h);
+  assert.equal(ui.state.unifiedRefreshQueryStatuses.filter(item => item.status === 'complete').length, 2);
+  assert.equal(Object.keys(ui.state.unifiedRefreshAppliedRequests).length, 1);
   ui.observeUnifiedRefreshApply({ method: 'POST', body: { action: 'dataparc_runtime_sync', requestId: 'request-2' } },
     { ok: false, tagNumber: tags[1] });
-  assert.match(h.count(), /저장 반영\s*1대/);
+  assertNoRunningCounts(h);
+  assert.equal(Object.keys(ui.state.unifiedRefreshAppliedRequests).length, 1);
 });
 
 test('independent ledger proof and already-saved replay never count as newly applied official runtime', () => {
@@ -147,10 +165,13 @@ test('independent ledger proof and already-saved replay never count as newly app
     { ok: true, tagNumber: tags[0], requestId: 'ledger-only', applied: true });
   ui.observeUnifiedRefreshApply({ method: 'POST', body: { action: 'dataparc_runtime_sync', requestId: 'replayed' } },
     { ok: true, tagNumber: tags[1], requestId: 'replayed', applied: false, replayed: true });
-  assert.match(h.count(), /저장 반영\s*0대/);
+  assertNoRunningCounts(h);
+  assert.equal(Object.values(ui.state.unifiedRefreshAppliedRequests).filter(item => !item.previewOnly && item.applied).length, 0);
+  assert.equal(ui.state.unifiedRefreshAppliedRequests['ledger-only'].previewOnly, true);
+  assert.equal(ui.state.unifiedRefreshAppliedRequests.replayed.replayed, true);
 });
 
-test('real refresh wires live query and successful save observations into the same inline status', async () => {
+test('real refresh retains query and save observations without exposing running counts or ratios', async () => {
   const gate = defer(); let reached = false, h;
   h = harness({ batch: async (tasks, io) => {
     assert.equal(typeof io.onStatuses, 'function');
@@ -161,9 +182,9 @@ test('real refresh wires live query and successful save observations into the sa
   } });
   const running = h.run(); await until(() => reached);
   assertNoMask(h); assert.match(h.phase(), /운전시간 조회/);
-  assert.equal(h.ui.elements.overviewRefreshCount.hidden, false);
-  assert.match(h.count(), /조회 완료\s*2\s*\/\s*2대/);
-  assert.match(h.count(), /저장 반영\s*1대/);
+  assertNoRunningCounts(h);
+  assert.equal(h.ui.state.unifiedRefreshQueryStatuses.filter(item => item.status === 'complete').length, 2);
+  assert.equal(Object.keys(h.ui.state.unifiedRefreshAppliedRequests).length, 1);
   gate.resolve(); await running;
   assert.equal(h.ui.elements.unifiedRefreshStatus.dataset.state, 'complete');
 });
@@ -175,6 +196,7 @@ test('final saved-data reload remains a visible verification phase until it actu
   assert.equal(h.ui.state.unifiedRefreshBusy, true); assertNoMask(h);
   assert.match(h.phase(), /결과|저장.*확인/);
   assert.doesNotMatch(h.phase(), /^완료$|조회 완료$/);
+  assertNoRunningCounts(h);
   gate.resolve(); await running;
   assert.equal(h.ui.elements.unifiedRefreshStatus.dataset.state, 'complete');
 });
@@ -250,4 +272,10 @@ test('DOM has one inline live status and no duplicate percentage or blocking pro
   assert.match(html, /id="overviewRefreshPercent"[^>]*aria-hidden="true"[^>]*hidden/);
   assert.match(html, /id="overviewRefreshProgressTrack"[^>]*aria-hidden="true"/);
   assert.doesNotMatch(html, /id="overviewRefreshProgressTrack"[^>]*role="progressbar"/);
+  assert.equal((html.match(/id="overviewRefreshButtonLabel"/g) || []).length, 1);
+  assert.match(html, /id="refreshButton"[^>]*>[\s\S]*?<span id="overviewRefreshButtonLabel">전체 최신화<\/span>[\s\S]*?<\/button>/);
+  const buttonStyle = css.match(/#overviewRefreshPanel\s+#refreshButton\.overview-refresh-button\s*\{([^}]+)\}/)?.[1];
+  assert.ok(buttonStyle, 'the labeled action must have its own desktop sizing');
+  const minWidth = Number(buttonStyle.match(/min-width:\s*(\d+)px/)?.[1]);
+  assert.ok(minWidth > 48, 'a full visible action label must be wider than the previous icon-only button');
 });

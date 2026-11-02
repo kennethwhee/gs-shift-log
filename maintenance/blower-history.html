@@ -10,10 +10,10 @@
   <link rel="stylesheet" href="blower-history-mobile-dialog-close-v1.css?v=20260903-v1">
   <link rel="stylesheet" href="/maintenance/seal-pot-ois-shadow.css?v=20260901-v2">
   <script src="shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
-  <link rel="stylesheet" href="blower-unified-refresh.css?v=20261022-query-resource-v3-20261102-inline-v3n">
+  <link rel="stylesheet" href="blower-unified-refresh.css?v=20261022-query-resource-v3-20261102-inline-v3n-20261102-label-v3o">
   <script src="blower-refresh-timing.js?v=20260915-fast-timing-v12-20261102-inline-v3n" defer></script>
   <script src="blower-unified-refresh.js?v=20261031-limestone-ledger-v3g-20261102-auto-v3m-20261102-inline-v3n" defer></script>
-    <script src="blower-history.js?v=20261031-limestone-ledger-v3g-checkpoint-v3k-ui-20261102-auto-v3m-20261102-inline-v3n" defer></script>
+    <script src="blower-history.js?v=20261031-limestone-ledger-v3g-checkpoint-v3k-ui-20261102-auto-v3m-20261102-inline-v3n-20261102-label-v3o" defer></script>
   <script src="/maintenance/seal-pot-ois-shadow.js?v=20260909-unified-refresh-v1" defer></script>
   <link rel="stylesheet" href="/maintenance/blower-schedule-v1.css?v=20261029-settings-v2">
   <script src="/maintenance/blower-schedule-v1.js?v=20261031-limestone-ledger-v3g" defer></script>
@@ -140,11 +140,12 @@
               <small id="overviewLatestQueryDetail">저장된 마지막 조회 종료시각 이후 구간만 이어서 조회합니다.</small>
             </div>
             <div class="overview-refresh-action">
-              <button type="button" class="overview-refresh-button" id="refreshButton" title="전체 Blower를 저장된 마지막 조회시각 이후부터 통합조회" aria-label="전체 Blower 통합조회">
+              <button type="button" class="overview-refresh-button" id="refreshButton" title="전체 Blower를 저장된 마지막 조회시각 이후부터 통합조회">
                 <svg class="overview-refresh-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                   <path class="overview-refresh-icon-arrow" d="M20 7.5V3.8m0 3.7h-3.7"></path>
                   <path class="overview-refresh-icon-ring" d="M19.1 7.2A8.2 8.2 0 1 0 20 13"></path>
                 </svg>
+                <span id="overviewRefreshButtonLabel">전체 최신화</span>
               </button>
               <div class="overview-refresh-progress" id="overviewRefreshInlineStatus" data-state="idle" aria-label="전체 Blower 조회 상태">
                 <div class="overview-refresh-progress-head" role="status" aria-live="polite" aria-atomic="true">

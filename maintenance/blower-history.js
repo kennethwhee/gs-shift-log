@@ -172,7 +172,7 @@
       "blowerQueryOverlay", "blowerQueryPhase", "blowerQueryElapsed", "blowerQueryProgress",
       "blowerQueryDismiss", "unifiedRefreshResume",
       "unifiedRefreshDiagnostics", "unifiedRefreshDiagnosticText",
-      "overviewRefreshInlineStatus", "overviewRefreshCount", "overviewRefreshElapsed",
+      "overviewRefreshInlineStatus", "overviewRefreshCount", "overviewRefreshElapsed", "overviewRefreshButtonLabel",
       "historyRuntimeQueryButton",
       "dataparcRuntimeDialog",
       "dataparcRuntimeForm",
@@ -2063,7 +2063,6 @@
     host.hidden = false;
     const results = inlineRefreshResults();
     const target = Math.max(0, Math.floor(Number(state.unifiedRefreshProgressTarget) || 0));
-    const requested = Math.max(0, Math.floor(Number(state.unifiedRefreshRequestedCount) || 0));
     const applied = inlineRefreshApplied();
     const outcome = state.unifiedRefreshInlineOutcome || (state.unifiedRefreshBusy ? 'running' : 'idle');
     const running = state.unifiedRefreshBusy && outcome === 'running';
@@ -2081,19 +2080,10 @@
     if (running) {
       label = { '업무일지': '교체 이력 확인 중', '조회 계획': '조회 기준 확인 중',
         'DataPARC 일괄 조회': '운전시간 조회 중', '결과 확인': '결과 확인 중' }[state.unifiedRefreshPhase] || '조회 준비 중';
-      if (state.unifiedRefreshPhase === '업무일지' && state.unifiedRefreshLogCounts) {
-        const logs = state.unifiedRefreshLogCounts;
-        count = `교체 ${logs.replacement}건 · 운전 ${logs.operation}건 확인`;
-      } else if (state.unifiedRefreshPhase === 'DataPARC 일괄 조회') {
-        const statuses = state.unifiedRefreshQueryStatuses || [];
-        const complete = statuses.filter(item => item.status === 'complete').length;
-        const failed = statuses.filter(item => item.status === 'failed').length;
-        count = statuses.length
-          ? `조회 완료 ${complete}/${requested || statuses.length}대 · 저장 반영 ${applied}대${failed ? ` · 조회 실패 ${failed}대` : ''}`
-          : `조회 대상 ${requested || target}대 · 저장 반영 ${applied}대`;
-      } else if (state.unifiedRefreshPhase === '결과 확인') {
-        count = `저장 반영 ${Math.max(applied, counts.applied)}대 · 화면 갱신 중`;
-      } else if (target) count = `조회 대상 ${target}대`;
+      // Batch calculations often finish together. A live denominator or zero
+      // counter looks stalled even when the worker is active; show phase/time
+      // only, and retain observations for the terminal factual result below.
+      count = '';
     } else if (outcome !== 'idle') {
       const incomplete = counts.waiting + counts.failed + counts.skipped + missing;
       if (outcome === 'complete' && incomplete) visual = 'partial';
@@ -2304,11 +2294,15 @@
     }
     if (elements.overviewRefreshProgressBar) elements.overviewRefreshProgressBar.style.width = "";
     if (typeof renderInlineRefreshStatus === 'function') renderInlineRefreshStatus();
+    if (elements.overviewRefreshButtonLabel) {
+      const buttonText = state.unifiedRefreshBusy ? "조회 중…" : "전체 최신화";
+      if (elements.overviewRefreshButtonLabel.textContent !== buttonText) elements.overviewRefreshButtonLabel.textContent = buttonText;
+    }
     if (elements.refreshButton) {
       elements.refreshButton.classList.toggle("is-spinning", state.unifiedRefreshBusy);
       elements.refreshButton.setAttribute("aria-label", state.unifiedRefreshBusy
-        ? "전체 Blower 조회 중"
-        : "전체 Blower 통합조회");
+        ? "전체 최신화 조회 중"
+        : "전체 최신화");
       elements.refreshButton.title = state.unifiedRefreshBusy
         ? "Blower 조회 중"
         : "전체 Blower를 저장된 마지막 조회시각 이후부터 통합조회";

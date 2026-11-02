@@ -84,6 +84,15 @@
 #overviewRefreshInlineStatus[data-state="failed"] #overviewRefreshCount { color: #ae4141; }
 @keyframes blower-inline-refresh-slide { from { transform: translateX(-110%); } to { transform: translateX(400%); } }
 
+/* BLOWER_REFRESH_LABEL_V3O — readable action; keep the existing icon-only animation. */
+#overviewRefreshPanel #refreshButton.overview-refresh-button { flex: 0 0 auto; width: auto; min-width: 128px; height: 40px; box-sizing: border-box; gap: 8px; padding: 0 14px; border: 1px solid #2458c7; border-radius: 8px; background: #2563eb; color: #fff; font-size: 14px; font-weight: 750; line-height: 1; box-shadow: 0 2px 5px rgba(29, 78, 160, .12); }
+#overviewRefreshPanel #refreshButton.overview-refresh-button:hover:not(:disabled) { border-color: #1849b5; background: #1d4ed8; color: #fff; }
+#overviewRefreshPanel #refreshButton.overview-refresh-button:focus-visible { outline: 2px solid #173e80; outline-offset: 3px; }
+#overviewRefreshPanel #refreshButton.overview-refresh-button.is-spinning { border-color: #2458c7; background: #2563eb; color: #fff; }
+#overviewRefreshPanel #refreshButton.overview-refresh-button .overview-refresh-icon { flex: 0 0 18px; width: 18px; height: 18px; }
+#overviewRefreshButtonLabel { white-space: nowrap; }
+#overviewRefreshInlineStatus[data-state="running"] #overviewRefreshCount { display: none !important; }
+
 /* Details stay beside the same action, rather than forming a second result banner. */
 #overviewRefreshPanel > #unifiedRefreshStatus { flex: 1 0 100%; min-width: 0; width: 100%; box-sizing: border-box; margin: 0; padding: 7px 0 0; border: 0; border-top: 1px solid #e1e8ef; border-radius: 0; background: transparent; font-size: 12px; }
 #overviewRefreshPanel > #unifiedRefreshStatus details { margin-top: 0; }
