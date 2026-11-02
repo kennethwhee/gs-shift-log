@@ -15,6 +15,8 @@
  * on those planned/required additions. Indices refer to zero-based unit arrays.
  * An explicit combinedTarget is the daily goal for combined/support modes, not
  * a feeding cap. Only old callers that omit it use the sum of the unit goals.
+ * Global modes derive both unit baselines from half of that daily goal. Manual
+ * per-unit targets apply only in individual mode; no goal is rounded here.
  */
 function calculate(input) {
   const errors = [];
@@ -23,7 +25,8 @@ function calculate(input) {
     valid: false, state: 'invalid', errors: errors.slice(),
     mode: modes.includes(input && input.mode) ? input.mode : null,
     projectionAvailable: false, total: null, unitTargetTotal: null,
-    combinedTargetApplied: false, current: null, gaps: [null, null],
+    combinedTargetApplied: false, effectiveTargets: Object.freeze([null, null]),
+    current: null, gaps: [null, null],
     remaining: null, currentExcess: null, need: [null, null], rates: [null, null],
     final: [null, null], finalTotal: null, support: null, supportRate: null,
     short1: null, short2: null, credit1: null, credit2: null,
@@ -70,16 +73,22 @@ function calculate(input) {
     errors.push({ field: 'totals', code: 'overflow' });
     return invalid();
   }
-  const gaps = [Math.max(0, targets[0] - actual[0]), Math.max(0, targets[1] - actual[1])];
+  const half = total / 2;
+  if (input.mode !== 'individual' && total > 0 && half === 0) {
+    errors.push({ field: 'effectiveTargets', code: 'underflow' });
+    return invalid();
+  }
+  const effectiveTargets = Object.freeze(input.mode === 'individual' ? targets.slice() : [half, half]);
+  const gaps = [Math.max(0, effectiveTargets[0] - actual[0]), Math.max(0, effectiveTargets[1] - actual[1])];
   const remaining = Math.max(0, total - current);
-  const credit1 = Math.max(0, actual[0] - targets[0]);
-  const credit2 = Math.max(0, actual[1] - targets[1]);
+  const credit1 = Math.max(0, actual[0] - effectiveTargets[0]);
+  const credit2 = Math.max(0, actual[1] - effectiveTargets[1]);
   const rateKinds = ['required', 'required'];
   if (plannedIndex !== null) rateKinds[plannedIndex] = 'planned';
   const base = {
     valid: true, state: hours > 0 ? 'active' : 'closed', errors: [],
     mode: input.mode, projectionAvailable: hours > 0,
-    total, unitTargetTotal, combinedTargetApplied, current, gaps, remaining,
+    total, unitTargetTotal, combinedTargetApplied, effectiveTargets, current, gaps, remaining,
     currentExcess: Math.max(0, current - total),
     need: [null, null], rates: [null, null], final: [null, null], finalTotal: null,
     support: null, supportRate: null, short1: null, short2: null, credit1, credit2,
@@ -94,17 +103,12 @@ function calculate(input) {
   if (input.mode === 'individual') {
     need = gaps.slice();
   } else if (input.mode === 'combined') {
-    const gapTotal = gaps[0] + gaps[1];
     if (remaining === 0) need = [0, 0];
-    else if (!Number.isFinite(gapTotal)) {
-      errors.push({ field: 'allocation', code: 'invalid-gap-total' });
-      return invalid();
-    } else {
-      // One gap-ratio allocation covers the entire remaining daily goal. When
-      // neither unit has an own-goal deficit, share additional feed equally.
-      const first = Math.max(0, remaining * (gapTotal > 0 ? gaps[0] / gapTotal : 0.5));
-      // Allocate the residual once so the two amounts conserve the remaining
-      // combined target instead of independently rounding two percentages.
+    else {
+      // Match equal END totals while neither unit has exceeded its derived
+      // half. An irreversible surplus reduces only the other unit's remainder.
+      const first = Math.min(remaining, gaps[0]);
+      // The residual conserves the combined goal without rounding odd halves.
       need = [first, Math.max(0, remaining - first)];
     }
   } else {
@@ -124,10 +128,8 @@ function calculate(input) {
   if (plannedIndex !== null) rates[plannedIndex] = input[plannedField];
   const support = helperIndex === null ? 0 : Math.max(0, need[helperIndex] - gaps[helperIndex]);
   const supportRate = support / hours;
-  const short1 = Math.max(0, targets[0] - final[0]);
-  const short2 = Math.max(0, targets[1] - final[1]);
-  // These remain unit-goal reference values. With an independent combined goal
-  // they are not an arithmetic proof of the additional support requirement.
+  const short1 = Math.max(0, effectiveTargets[0] - final[0]);
+  const short2 = Math.max(0, effectiveTargets[1] - final[1]);
   const creditedTo1 = helperIndex === 1 ? Math.min(credit2, short1) : 0;
   const creditedTo2 = helperIndex === 0 ? Math.min(credit1, short2) : 0;
   const excess = Math.max(0, finalTotal - total);

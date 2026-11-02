@@ -58,17 +58,20 @@
   }
   function viewModel(result,preferences,options={}){
     const context=contextFor(result,options);
-    const targets=(preferences?.targets||[]).map(parseQuantity),mode=MODES.includes(preferences?.mode)?preferences.mode:'combined';
+    const manualTargets=(preferences?.targets||[]).map(parseQuantity),mode=MODES.includes(preferences?.mode)?preferences.mode:'combined';
+    const individual=mode==='individual',manualValid=manualTargets.length===2&&manualTargets.every(nonnegative)&&finite(manualTargets[0]+manualTargets[1]);
+    const unitTargetTotal=manualValid?manualTargets[0]+manualTargets[1]:null;
     const plannedRate1=parseQuantity(preferences?.plannedRate1),plannedRate2=parseQuantity(preferences?.plannedRate2);
     const helperIndex=mode==='support'?0:mode==='support2'?1:null,plannedIndex=helperIndex===null?null:1-helperIndex;
-    const goalsValid=targets.length===2&&targets.every(nonnegative)&&finite(targets[0]+targets[1]);
     const plannedValid=plannedIndex===null||(plannedIndex===0?plannedRate1:plannedRate2)!==null;
-    const unitTargetTotal=goalsValid?targets[0]+targets[1]:null;
-    // Only a missing API property gets legacy sum behavior. An explicit blank
-    // is an unfinished independent target and must never silently become a sum.
     const hasCombinedTarget=!!(preferences&&Object.hasOwn(preferences,'combinedTarget'));
     const combinedTarget=hasCombinedTarget?parseQuantity(preferences.combinedTarget):unitTargetTotal;
-    const combinedValid=mode==='individual'||nonnegative(combinedTarget);
+    const combinedValid=individual||nonnegative(combinedTarget),goalsValid=individual?manualValid:true;
+    // Derived global goals can contain a third decimal. They are numeric core
+    // inputs, never parsed as a two-decimal manual draft or saved over one.
+    const effectiveTargets=individual?manualTargets:combinedValid?[combinedTarget/2,combinedTarget/2]:[null,null];
+    const targets=effectiveTargets;
+    const precision=!individual&&nonnegative(combinedTarget)&&Math.abs(combinedTarget/2-Math.round(combinedTarget/2*100)/100)>1e-9?3:2;
     let calculation=null;
     if(context.valid&&goalsValid&&combinedValid&&plannedValid&&typeof core?.calculate==='function')calculation=core.calculate({targets,current:context.current,remainingHours:context.remainingHours,mode,plannedRate1,plannedRate2,...(hasCombinedTarget?{combinedTarget}:{})});
     let status=context.message;
@@ -79,15 +82,15 @@
       else if(!plannedValid)status=(plannedIndex+1)+'호기 예정 투입속도를 직접 입력해 주세요.';
       else if(!calculation?.valid)status='입력값 범위를 확인해 주세요.';
       else if(calculation.excess>1e-8)status=(mode==='individual'?'호기별 목표 합계보다 ':'입력한 합계 목표보다 ')+number(calculation.excess)+' t 초과 예상';
-      else status=helperIndex!==null?(helperIndex+1)+'호기 지원 · 입력한 합계 목표량 기준':mode==='combined'?(calculation.gaps.every(gap=>gap===0)&&calculation.remaining>0?'합계 목표량 기준 · 호기 목표 도달 후 남은 양은 1·2호기 동일 배분':'합계 목표량 기준 · 호기별 부족량 비율로 배분'):'각 호기의 목표량 기준';
+      else status=helperIndex!==null?(helperIndex+1)+'호기 지원 · 합계 목표의 절반씩 기준':mode==='combined'?'합계 목표의 절반씩 · 이미 초과한 양은 반대 호기에 반영':'각 호기의 목표량 기준';
     }
-    return {context,calculation,mode,helperIndex,plannedIndex,goalsValid,combinedValid,plannedValid,unitTargetTotal,targetTotal:mode==='individual'?unitTargetTotal:combinedTarget,status};
+    return {context,calculation,mode,helperIndex,plannedIndex,goalsValid,combinedValid,plannedValid,manualValid,effectiveTargets,precision,unitTargetTotal,targetTotal:mode==='individual'?unitTargetTotal:combinedTarget,status};
   }
   function readPreferences(){
     const preferences={targets:['361.4','361.4'],combinedTarget:'722.8',mode:'combined',plannedRate1:'',plannedRate2:''};
     try{
       const value=JSON.parse(root.localStorage?.getItem(KEY)||'null');
-      if(value&&Array.isArray(value.targets)&&value.targets.length===2&&value.targets.every(nonnegative)&&finite(value.targets[0]+value.targets[1]))preferences.targets=value.targets.map(String);
+      if(value&&Array.isArray(value.targets)&&value.targets.length===2&&value.targets.every(target=>nonnegative(target)&&parseQuantity(target)!==null)&&finite(value.targets[0]+value.targets[1]))preferences.targets=value.targets.map(String);
       if(MODES.includes(value?.mode))preferences.mode=value.mode;
       if(value&&typeof value==='object'&&!Array.isArray(value)){
         if(Object.hasOwn(value,'combinedTarget'))preferences.combinedTarget=value.combinedTarget==null?'':String(value.combinedTarget);
@@ -103,12 +106,12 @@
   function savePreferences(state){
     const targets=state.preferences.targets.map(parseQuantity),combined=parseQuantity(state.preferences.combinedTarget);
     if(combined!==null)state.lastValidCombinedTarget=combined;
-    if(!targets.every(nonnegative)||!finite(targets[0]+targets[1]))return;
-    // Persist valid preferences only. The last valid total is used for storage,
-    // never as a calculation fallback for an explicit unfinished total draft.
-    const storedCombined=combined??state.lastValidCombinedTarget;
-    if(!nonnegative(storedCombined))return;
-    try{root.localStorage?.setItem(KEY,JSON.stringify({targets,combinedTarget:storedCombined,mode:state.preferences.mode}));}catch(_){}
+    if(targets.length===2&&targets.every(target=>nonnegative(target)&&parseQuantity(target)!==null)&&finite(targets[0]+targets[1]))state.lastValidManualTargets=targets.slice();
+    // Last valid values are storage receipts only. Current manual/total drafts
+    // stay untouched, and an invalid individual draft never gets a fallback.
+    const storedCombined=combined??state.lastValidCombinedTarget,storedTargets=state.lastValidManualTargets;
+    if(!nonnegative(storedCombined)||!Array.isArray(storedTargets)||storedTargets.length!==2||!storedTargets.every(target=>nonnegative(target)&&parseQuantity(target)!==null)||!finite(storedTargets[0]+storedTargets[1]))return;
+    try{root.localStorage?.setItem(KEY,JSON.stringify({targets:storedTargets,combinedTarget:storedCombined,mode:state.preferences.mode}));}catch(_){}
   }
   function node(tag,className,text){const el=root.document.createElement(tag);if(className)el.className=className;if(text!=null)el.textContent=text;return el;}
   function attribute(el,key,value){el.setAttribute(key,String(value));return el;}
@@ -143,11 +146,11 @@
   function stateFor(container){
     let state=states.get(container);if(state)return state;
     const preferences=readPreferences();
-    state={container,preferences,lastValidCombinedTarget:parseQuantity(preferences.combinedTarget),result:null,options:{},query:{},invalidSelection:false,day:null,timer:null,planInputIndex:null,planCarets:[null,null],units:[],shared:null,handlers:[]};
+    state={container,preferences,lastValidCombinedTarget:parseQuantity(preferences.combinedTarget),lastValidManualTargets:preferences.targets.map(parseQuantity),result:null,options:{},query:{},invalidSelection:false,day:null,timer:null,planInputIndex:null,planCarets:[null,null],units:[],shared:null,handlers:[]};
     state.units=['unit1','unit2'].map((unit,index)=>createUnit(unit,index,state));state.shared=createShared(state);states.set(container,state);
     const input=event=>{
       const el=event.target;
-      if(el?.hasAttribute?.('data-bio-tonnage-target')){const index=el.getAttribute('data-bio-tonnage-target')==='unit1'?0:1;state.preferences.targets[index]=el.value;savePreferences(state);paint(state);}
+      if(el?.hasAttribute?.('data-bio-tonnage-target')){if(state.preferences.mode!=='individual'||el.readOnly){paint(state);return;}const index=el.getAttribute('data-bio-tonnage-target')==='unit1'?0:1;state.preferences.targets[index]=el.value;savePreferences(state);paint(state);}
       else if(el?.hasAttribute?.('data-bio-tonnage-combined-target')){state.preferences.combinedTarget=el.value;savePreferences(state);paint(state);}
       else if(el?.hasAttribute?.('data-bio-tonnage-plan')){const index=state.preferences.mode==='support2'?0:1;state.preferences['plannedRate'+(index+1)]=el.value;state.planCarets[index]=[el.selectionStart,el.selectionEnd];paint(state);}
       else if(el?.matches?.('[data-cfv7-date],[data-cfv8-start],[data-cfv8-end],[data-cfv8-mode]')){state.invalidSelection=true;paint(state);}
@@ -173,12 +176,15 @@
     const all=[...state.units,state.shared],put=(name,text)=>{for(const host of all){const el=host.querySelector('[data-bio-tonnage-field="'+name+'"]');if(el)el.textContent=text;}};
     const calculation=model.calculation,active=!!(model.context.valid&&calculation?.valid&&calculation.projectionAvailable&&model.context.status==='active');
     for(let index=0;index<2;index++){
-      const input=state.units[index].querySelector('[data-bio-tonnage-target]');input.disabled=!model.context.valid;input.setAttribute('aria-invalid',String(parseQuantity(state.preferences.targets[index])===null));
+      const input=state.units[index].querySelector('[data-bio-tonnage-target]'),individual=model.mode==='individual';
+      const goal=individual?state.preferences.targets[index]:nonnegative(model.effectiveTargets[index])?String(Number(model.effectiveTargets[index].toFixed(3))):'';
+      if(input.value!==goal){const focused=root.document.activeElement===input,start=input.selectionStart,end=input.selectionEnd;input.value=goal;if(focused&&Number.isInteger(start)&&Number.isInteger(end))try{input.setSelectionRange(Math.min(start,goal.length),Math.min(end,goal.length));}catch(_){}}
+      input.readOnly=!individual;input.disabled=!model.context.valid;input.placeholder=individual?'':'—';input.title=individual?'호기별 목표 직접 입력':'합계 목표의 절반 자동';input.setAttribute('aria-readonly',String(!individual));input.setAttribute('aria-label',(index+1)+'호기 Bio 목표량, '+(individual?'직접 입력':'합계 목표의 절반 자동')+', 톤');input.setAttribute('aria-invalid',String(individual?parseQuantity(state.preferences.targets[index])===null:!model.combinedValid));
       const planned=index===model.plannedIndex;put('rate-label'+index,planned?'예정':'필요');put('need-label'+index,planned?'예정 추가 ':'추가 ');
-      put('rate'+index,active?number(calculation.rates[index]):'—');put('need'+index,active?number(calculation.need[index]):'—');
-      put('tail'+index,active?(index===model.helperIndex&&calculation.support>1e-8?'그중 지원 '+number(calculation.support)+' t':'마감 예상 '+number(calculation.final[index])+' t'):'마감 예상 —');
+      put('rate'+index,active?number(calculation.rates[index]):'—');put('need'+index,active?number(calculation.need[index],model.precision):'—');
+      put('tail'+index,active?(index===model.helperIndex&&calculation.support>1e-8?'그중 지원 '+number(calculation.support,model.precision)+' t':'마감 예상 '+number(calculation.final[index],model.precision)+' t'):'마감 예상 —');
     }
-    put('target-total',finite(model.unitTargetTotal)?number(model.unitTargetTotal)+' t':'—');put('final-total',active?number(calculation.finalTotal)+' t':'—');
+    put('target-total',finite(model.unitTargetTotal)?number(model.unitTargetTotal)+' t':'—');put('final-total',active?number(calculation.finalTotal,model.precision)+' t':'—');
     const totalEditor=state.shared.querySelector('[data-bio-tonnage-total-editor]'),unitTotal=state.shared.querySelector('[data-bio-tonnage-unit-total]'),totalInput=state.shared.querySelector('[data-bio-tonnage-combined-target]');
     totalEditor.hidden=model.mode==='individual';unitTotal.hidden=model.mode!=='individual';totalInput.disabled=!model.context.valid||model.mode==='individual';totalInput.setAttribute('aria-invalid',String(model.mode!=='individual'&&!model.combinedValid));
     for(const button of state.shared.querySelectorAll('[data-bio-tonnage-mode]')){button.disabled=!model.context.valid;button.setAttribute('aria-pressed',String(button.getAttribute('data-bio-tonnage-mode')===model.mode));}
@@ -195,7 +201,7 @@
     const proof=state.shared.querySelector('[data-bio-tonnage-field="proof"]'),controls=state.shared.querySelector('.cfbt-controls'),body=state.shared.querySelector('.cfbt-settings-body');
     proof.hidden=!active;proof.className=isSupport?'cfbt-support-proof':'cfbt-proof';
     if(isSupport){if(proof.parentNode!==body)body.appendChild(proof);}else if(proof.parentNode!==controls)controls.appendChild(proof);
-    put('proof',active?(isSupport?'현재 합계 '+number(calculation.current)+' t + 1호기 '+(model.plannedIndex===0?'예정 ':'추가 ')+number(calculation.need[0])+' t + 2호기 '+(model.plannedIndex===1?'예정 ':'추가 ')+number(calculation.need[1])+' t → 마감 예상 '+number(calculation.finalTotal)+' t':'예상 마감량 · 1호기 '+number(calculation.final[0])+' t / 2호기 '+number(calculation.final[1])+' t'):'');
+    put('proof',active?(isSupport?'현재 합계 '+number(calculation.current,model.precision)+' t + 1호기 '+(model.plannedIndex===0?'예정 ':'추가 ')+number(calculation.need[0],model.precision)+' t + 2호기 '+(model.plannedIndex===1?'예정 ':'추가 ')+number(calculation.need[1],model.precision)+' t → 마감 예상 '+number(calculation.finalTotal,model.precision)+' t':'예상 마감량 · 1호기 '+number(calculation.final[0],model.precision)+' t / 2호기 '+number(calculation.final[1],model.precision)+' t'):'');
     const context=model.context;
     let basis=context.message;
     if(context.valid){const minutes=Math.max(0,Math.round(context.remainingHours*60)),remaining=minutes>=60?Math.floor(minutes/60)+'시간'+(minutes%60?' '+minutes%60+'분':''):minutes+'분';basis=context.status==='closed'?'조회일 종료 · 자료 '+context.dataAsOfLocal.replace('T',' ')+' 기준':'자료 '+context.dataAsOfLocal.slice(11)+' 기준 → 마감 24:00 · '+remaining+' 기준 · 자료 지연 '+number(context.lagMinutes,1)+'분';}
