@@ -1,10 +1,10 @@
 /* Scoped styles: preserve all other duty cards and their log status badges. */
 #shiftMemberGrid .shift-member-card.has-to-night-power { position: relative; }
 #shiftMemberGrid .to-night-power-button {
-  position: absolute; top: 10px; right: 10px; z-index: 2; margin: 0;
+  position: static; align-self: flex-start; flex: 0 0 auto; max-width: 100%; min-width: 0; margin: 0;
   min-height: 25px; padding: 4px 8px; border: 1px solid #9bc9f0; border-radius: 4px;
   background: #eaf4ff; color: #1767b4; font: 700 11px/1.3 system-ui, sans-serif; font-family: inherit;
-  font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap;
+  font-size: 11px; font-weight: 700; cursor: pointer; white-space: normal; text-align: left; overflow-wrap: anywhere;
   transition: background-color .15s ease, border-color .15s ease, color .15s ease;
 }
 #shiftMemberGrid .to-night-power-button[hidden] { display: none !important; }
@@ -280,21 +280,31 @@
   }
 }
 
-/* TO_POWER_READONLY_NEUTRAL_BUTTON_V3
-   Non-TO users have a stable read-only action, not an input/completion status color.
-   TO users keep the original blue -> green input state treatment.
+/* TO_POWER_DUTY_VISIBLE_V1
+   Read-only access retains the same saved completion status. In-flight and
+   unsuccessful reads have their own colors, including retained saved records.
 */
-#shiftMemberGrid .to-night-power-button.is-readonly {
+#shiftMemberGrid .to-night-power-button.is-readonly:not(.is-complete):not(.is-checking):not(.is-error) {
   border-color: #c8d3de;
   background: #f7f9fb;
   color: #53697f;
   box-shadow: none;
 }
-#shiftMemberGrid .to-night-power-button.is-readonly:hover:not(:disabled) {
+#shiftMemberGrid .to-night-power-button.is-readonly:not(.is-complete):not(.is-checking):not(.is-error):hover:not(:disabled) {
   border-color: #b6c4d1;
   background: #eef3f7;
   color: #3f566d;
 }
 #shiftMemberGrid .to-night-power-button.is-readonly:focus-visible {
   outline-color: #cbd6e1;
+}
+#shiftMemberGrid .to-night-power-button.is-error {
+  border-color: #dfb2a4;
+  background: #fff2ec;
+  color: #99472e;
+}
+#shiftMemberGrid .to-night-power-button.is-error:hover:not(:disabled) {
+  border-color: #d3937d;
+  background: #ffe8de;
+  color: #853a25;
 }

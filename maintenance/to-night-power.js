@@ -298,6 +298,7 @@
     const ownGeneration = generation, ownSession = session, controller = new AbortController();
     const previous = entry?.payload?.item ? entry.payload : null;
     cache.set(date, {status: 'loading', ...(previous ? {payload: previous, at: entry.at} : {})});
+    queueUI();
     const job = {controller, promise: null};
     job.promise = request(date, {controller}).then(payload => {
       checkSession();
@@ -327,36 +328,52 @@
     uiQueued = true; queueMicrotask(() => { uiQueued = false; syncCard(); });
   }
   function paintInputButton(button, entry, eligible) {
-    // TO_POWER_READONLY_VIEW_V1
+    // TO_POWER_DUTY_VISIBLE_V1: availability and saved status are independent
+    // of edit permission. An unsuccessful read must leave an explicit retry.
     const ready = eligible && entry?.status === 'ready';
     const checking = eligible && (!entry || entry.status === 'loading');
+    const failed = eligible && entry?.status === 'error';
+    const payload = eligible ? entry?.payload : null;
     const editable = ready && entry.payload?.canEdit === true;
-    const readOnly = ready && !editable;
-    const count = ready ? enteredCount(entry.payload?.item?.values) : 0;
+    const readOnly = payload?.canEdit === false;
+    const count = enteredCount(payload?.item?.values);
     const complete = count === FIELDS.length;
-    // TO_POWER_READONLY_NEUTRAL_BUTTON_V3
-    setHidden(button, !(ready || checking));
+    const savedStatus = complete ? '✓ 입력 완료' : `일부 입력 ${count}/4`;
+    setHidden(button, !eligible);
     button.disabled = checking;
     button.classList.toggle('is-readonly', readOnly);
-    button.classList.toggle('is-pending', editable && !complete);
-    button.classList.toggle('is-complete', editable && complete);
+    button.classList.toggle('is-pending', Boolean(payload) && !complete);
+    button.classList.toggle('is-complete', complete);
     button.classList.toggle('is-checking', checking);
+    button.classList.toggle('is-error', failed);
     if (checking) button.setAttribute('aria-busy', 'true');
     else button.removeAttribute('aria-busy');
-    if (checking) {
+    if (failed) {
+      setText(button, count > 0
+        ? `마지막 저장 · ${savedStatus} · 확인 실패 · 재시도`
+        : '전력 확인 실패 · 재시도');
+      button.title = (entry.error || '전력 저장자료를 확인하지 못했습니다.') + (count > 0
+        ? ' 마지막 확인된 저장값입니다. 클릭하여 권한과 최신 저장자료를 다시 확인해 주세요.'
+        : ' 클릭하여 권한과 저장자료를 다시 확인해 주세요.');
+    } else if (checking && count > 0) {
+      setText(button, `마지막 저장 · ${savedStatus} · 확인 중…`);
+      button.title = '마지막 확인된 저장값입니다. 권한과 최신 전력 입력 여부를 다시 확인하고 있습니다.';
+    } else if (checking) {
       setText(button, '확인 중…');
       button.title = '저장된 전력 입력 여부를 확인하고 있습니다.';
-    } else if (readOnly) {
-      setText(button, count > 0 && !complete ? `전력 확인 · 일부 입력 ${count}/4` : '전력 확인');
-      button.title = complete
-        ? 'TO가 저장한 전력 실적 확인 (읽기 전용)'
-        : 'TO 전력 실적 확인 (읽기 전용)';
     } else if (complete) {
       setText(button, '✓ 입력 완료');
-      button.title = '전력 입력 완료 · 클릭하여 저장값 확인/수정';
+      button.title = editable
+        ? '전력 입력 완료 · 클릭하여 저장값 확인/수정'
+        : 'TO 전력 입력 완료 · 클릭하여 저장값 확인 (읽기 전용)';
     } else if (count > 0) {
       setText(button, `일부 입력 ${count}/4`);
-      button.title = `전력 ${count}/4개 항목 저장 · 클릭하여 미입력 항목 추가`;
+      button.title = editable
+        ? `전력 ${count}/4개 항목 저장 · 클릭하여 미입력 항목 추가`
+        : `TO 전력 ${count}/4개 항목 저장 · 클릭하여 저장값 확인 (읽기 전용)`;
+    } else if (ready && readOnly) {
+      setText(button, '전력 미입력');
+      button.title = 'TO 전력 입력 대기 중 · 클릭하여 확인 (읽기 전용)';
     } else if (ready) {
       setText(button, '전력 입력');
       button.title = 'N/S TO 전력 실적 입력 (kWh)';
