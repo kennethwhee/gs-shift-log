@@ -1,14 +1,14 @@
-/* COFIRING_BIO_TONNAGE_COMPACT_V1 — browser-local planning only. */
-[data-cofiring-draft-root] .cfbt-card{margin-top:6px;padding:8px;background:rgba(36,134,112,.09);border:1px solid rgba(104,161,154,.32);border-radius:4px;color:inherit;font-size:11px;box-sizing:border-box}
-[data-cofiring-draft-root] .cfbt-main{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:5px}
-[data-cofiring-draft-root] .cfbt-goal{display:flex;align-items:center;gap:4px;font-size:11px;color:inherit}
-[data-cofiring-draft-root] .cfbt-card input,[data-cofiring-draft-root] .cfbt-shared input{font:inherit;color:inherit;border:1px solid rgba(123,151,172,.5);background:transparent;border-radius:4px;font-variant-numeric:tabular-nums;padding:5px;text-align:right;box-sizing:border-box}
-[data-cofiring-draft-root] .cfbt-goal input{width:68px;min-width:0;font-size:12px}
-[data-cofiring-draft-root] .cfbt-rate{display:flex;align-items:baseline;gap:4px;white-space:nowrap;font-size:11px}
+/* COFIRING_BIO_TONNAGE_COMPACT_V2 — browser-local planning only. */
+[data-cofiring-draft-root] .cfbt-card{margin-top:6px;padding:7px 8px;background:rgba(36,134,112,.09);border:1px solid rgba(104,161,154,.32);border-radius:4px;color:inherit;font-size:11px;box-sizing:border-box}
+[data-cofiring-draft-root] .cfbt-main{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:7px;min-width:0}
+[data-cofiring-draft-root] .cfbt-goal{display:flex;flex:none;align-items:center;gap:4px;font-size:11px;color:inherit;white-space:nowrap}
+[data-cofiring-draft-root] .cfbt-card input,[data-cofiring-draft-root] .cfbt-shared input{font:inherit;color:inherit;border:1px solid rgba(123,151,172,.5);background:transparent;border-radius:4px;font-variant-numeric:tabular-nums;padding:4px;text-align:right;box-sizing:border-box}
+[data-cofiring-draft-root] .cfbt-goal input{width:60px;min-width:0;font-size:12px}
+[data-cofiring-draft-root] .cfbt-rate{display:flex;flex:none;align-items:baseline;gap:3px;white-space:nowrap;font-size:11px}
 [data-cofiring-draft-root] .cfbt-rate strong{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
 [data-cofiring-draft-root] .cfbt-rate small{font-size:11px;opacity:.7}
-[data-cofiring-draft-root] .cfbt-sub{display:flex;flex-wrap:wrap;justify-content:space-between;gap:3px 9px;margin-top:6px;font-size:11px;opacity:.86;font-variant-numeric:tabular-nums}
-[data-cofiring-draft-root] .cfbt-sub strong{font-weight:600}
+[data-cofiring-draft-root] .cfbt-additional,[data-cofiring-draft-root] .cfbt-tail{white-space:nowrap;font-size:11px;opacity:.86;font-variant-numeric:tabular-nums}
+[data-cofiring-draft-root] .cfbt-additional strong{font-weight:600}
 [data-cofiring-draft-root] .cfbt-shared{grid-column:1/-1;min-width:0;font-size:11px;color:inherit}
 [data-cofiring-draft-root] .cfbt-settings{border:1px solid rgba(123,151,172,.32);border-radius:5px;background:rgba(100,133,155,.04)}
 [data-cofiring-draft-root] .cfbt-settings>summary{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 10px;padding:8px 10px;list-style:none;cursor:pointer;font-size:11px}
@@ -16,17 +16,20 @@
 [data-cofiring-draft-root] .cfbt-totals{display:flex;flex-wrap:wrap;gap:3px 12px}
 [data-cofiring-draft-root] .cfbt-totals strong{font-weight:600;font-variant-numeric:tabular-nums}
 [data-cofiring-draft-root] .cfbt-settings-label{white-space:nowrap;color:#5baba3}
-[data-cofiring-draft-root] .cfbt-settings-body{padding:10px;border-top:1px solid rgba(123,151,172,.24)}
-[data-cofiring-draft-root] .cfbt-modes{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}
-[data-cofiring-draft-root] .cfbt-modes button{padding:6px 10px;font:inherit;font-size:11px;border:1px solid rgba(123,151,172,.4);border-radius:4px;background:transparent;color:inherit;cursor:pointer}
+[data-cofiring-draft-root] .cfbt-settings-body{padding:8px 10px;border-top:1px solid rgba(123,151,172,.24)}
+[data-cofiring-draft-root] .cfbt-controls{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:7px 12px;min-width:0}
+[data-cofiring-draft-root] .cfbt-modes{display:flex;flex:none;flex-wrap:wrap;gap:5px;margin:0}
+[data-cofiring-draft-root] .cfbt-modes button{padding:6px 9px;font:inherit;font-size:11px;border:1px solid rgba(123,151,172,.4);border-radius:4px;background:transparent;color:inherit;cursor:pointer}
 [data-cofiring-draft-root] .cfbt-modes button[aria-pressed="true"]{background:#187568;color:#fff;border-color:#187568}
-[data-cofiring-draft-root] .cfbt-plan{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:11px}
-[data-cofiring-draft-root] .cfbt-plan input{width:80px;font-size:12px}
-[data-cofiring-draft-root] .cfbt-proof{margin:9px 0 0;padding:8px;background:rgba(123,151,172,.08);border-radius:4px;line-height:1.6;font-size:11px}
+[data-cofiring-draft-root] .cfbt-plan{display:flex;flex-wrap:nowrap;align-items:center;gap:5px;margin-left:auto;font-size:11px;white-space:nowrap}
+[data-cofiring-draft-root] .cfbt-plan input{width:74px;font-size:12px}
+[data-cofiring-draft-root] .cfbt-proof{margin:0 0 0 auto;padding:0;background:none;line-height:1.5;font-size:11px;white-space:nowrap}
+[data-cofiring-draft-root] .cfbt-support-proof{display:block;margin:5px 0 0;padding:0;background:none;line-height:1.5;font-size:11px;opacity:.8}
 [data-cofiring-draft-root] .cfbt-basis,[data-cofiring-draft-root] .cfbt-status{margin:5px 2px 0;padding:0;font-size:11px;line-height:1.5;opacity:.8}
 [data-cofiring-draft-root] .cfbt-status.is-warning{color:#b97b2b;opacity:1}
 [data-cofiring-draft-root] .cfbt-card input:disabled,[data-cofiring-draft-root] .cfbt-shared input:disabled,[data-cofiring-draft-root] .cfbt-modes button:disabled{opacity:.5;cursor:default}
 [data-cofiring-draft-root] .cfbt-card input[aria-invalid="true"],[data-cofiring-draft-root] .cfbt-shared input[aria-invalid="true"]{border-color:#d47e5f}
 [data-cofiring-draft-root] .cfbt-shared [hidden]{display:none!important}
+@media(max-width:680px){[data-cofiring-draft-root] .cfbt-main{flex-wrap:wrap;gap:5px 8px}[data-cofiring-draft-root] .cfbt-plan,[data-cofiring-draft-root] .cfbt-proof{margin-left:0;white-space:normal;flex-wrap:wrap}}
 @media(max-width:380px){[data-cofiring-draft-root] .cfbt-rate strong{font-size:17px}}
 @media(pointer:coarse){[data-cofiring-draft-root] .cfbt-modes button,[data-cofiring-draft-root] .cfbt-settings>summary{min-height:44px}[data-cofiring-draft-root] .cfbt-card input,[data-cofiring-draft-root] .cfbt-shared input{min-height:44px;font-size:16px}}

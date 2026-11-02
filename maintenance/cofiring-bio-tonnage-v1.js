@@ -7,7 +7,7 @@
   'use strict';
   const MINUTE=60000,HOUR=3600000,DAY=24*HOUR,KST=9*HOUR;
   const KEY='gs-shift-log.cofiring.bio-tonnage.v1';
-  const MODES=['individual','combined','support'];
+  const MODES=['individual','combined','support','support2'];
   const states=new WeakMap();
   const finite=n=>typeof n==='number'&&Number.isFinite(n);
   const nonnegative=n=>finite(n)&&n>=0;
@@ -59,31 +59,32 @@
   function viewModel(result,preferences,options={}){
     const context=contextFor(result,options);
     const targets=(preferences?.targets||[]).map(parseQuantity),mode=MODES.includes(preferences?.mode)?preferences.mode:'combined';
-    const plannedRate2=parseQuantity(preferences?.plannedRate2);
+    const plannedRate1=parseQuantity(preferences?.plannedRate1),plannedRate2=parseQuantity(preferences?.plannedRate2);
+    const helperIndex=mode==='support'?0:mode==='support2'?1:null,plannedIndex=helperIndex===null?null:1-helperIndex;
     const goalsValid=targets.length===2&&targets.every(nonnegative)&&finite(targets[0]+targets[1]);
-    const plannedValid=mode!=='support'||plannedRate2!==null;
+    const plannedValid=plannedIndex===null||(plannedIndex===0?plannedRate1:plannedRate2)!==null;
     let calculation=null;
-    if(context.valid&&goalsValid&&plannedValid&&typeof core?.calculate==='function')calculation=core.calculate({targets,current:context.current,remainingHours:context.remainingHours,mode,plannedRate2});
+    if(context.valid&&goalsValid&&plannedValid&&typeof core?.calculate==='function')calculation=core.calculate({targets,current:context.current,remainingHours:context.remainingHours,mode,plannedRate1,plannedRate2});
     let status=context.message;
     if(context.valid){
       if(context.status==='closed')status='조회일 종료 · 추가 투입 계획을 표시하지 않습니다.';
       else if(!goalsValid)status='목표량을 0 이상의 숫자로 입력해 주세요.';
-      else if(!plannedValid)status='2호기 예정 투입속도를 직접 입력해 주세요.';
+      else if(!plannedValid)status=(plannedIndex+1)+'호기 예정 투입속도를 직접 입력해 주세요.';
       else if(!calculation?.valid)status='입력값 범위를 확인해 주세요.';
       else if(calculation.excess>1e-8)status='합계 목표보다 '+number(calculation.excess)+' t 초과 예상';
-      else status=mode==='support'?'1호기 지원 · 두 호기 합계 목표 기준':mode==='combined'?'초과분을 다른 호기에 반영 · 합계 목표 기준':'각 호기의 목표량 기준';
+      else status=helperIndex!==null?(helperIndex+1)+'호기 지원 · 두 호기 합계 목표 기준':mode==='combined'?'초과분을 다른 호기에 반영 · 합계 목표 기준':'각 호기의 목표량 기준';
     }
-    return {context,calculation,mode,goalsValid,plannedValid,targetTotal:goalsValid?targets[0]+targets[1]:null,status};
+    return {context,calculation,mode,helperIndex,plannedIndex,goalsValid,plannedValid,targetTotal:goalsValid?targets[0]+targets[1]:null,status};
   }
   function readPreferences(){
-    const preferences={targets:['361.4','361.4'],mode:'combined',plannedRate2:''};
+    const preferences={targets:['361.4','361.4'],mode:'combined',plannedRate1:'',plannedRate2:''};
     try{const value=JSON.parse(root.localStorage?.getItem(KEY)||'null');if(value&&Array.isArray(value.targets)&&value.targets.length===2&&value.targets.every(nonnegative))preferences.targets=value.targets.map(String);if(MODES.includes(value?.mode))preferences.mode=value.mode;}catch(_){}
     return preferences;
   }
   function savePreferences(state){
     const targets=state.preferences.targets.map(parseQuantity);
     if(!targets.every(nonnegative)||!finite(targets[0]+targets[1]))return;
-    // An operator's planned Unit 2 rate is a draft, never an observed feed rate
+    // Both units' planned rates are separate drafts, never observed feed rates
     // or a persisted default for a later accounting day.
     try{root.localStorage?.setItem(KEY,JSON.stringify({targets,mode:state.preferences.mode}));}catch(_){}
   }
@@ -96,31 +97,30 @@
     input.type='text';input.inputMode='decimal';input.autocomplete='off';input.spellcheck=false;input.value=state.preferences.targets[index];input.setAttribute('aria-label',(index+1)+'호기 Bio 목표량, 톤');
     goal.append(input,node('span','','t'));
     const rate=node('span','cfbt-rate');rate.append(field('span','rate-label'+index,'','필요'),field('strong','rate'+index,'','—'),node('small','','t/h'));
-    main.append(goal,rate);
-    const sub=node('div','cfbt-sub'),need=node('span');need.append(field('span','need-label'+index,'','추가 '),field('strong','need'+index,'','—'),node('span','',' t'));
-    sub.append(need,field('span','tail'+index,'','마감 예상 —'));section.append(main,sub);return section;
+    const need=node('span','cfbt-additional');need.append(field('span','need-label'+index,'','추가 '),field('strong','need'+index,'','—'),node('span','',' t'));
+    main.append(goal,rate,need,field('span','tail'+index,'cfbt-tail','마감 예상 —'));section.append(main);return section;
   }
   function createShared(state){
     const wrapper=attribute(node('div','cfbt-shared'),'data-bio-tonnage-shared','');
     const details=attribute(node('details','cfbt-settings'),'data-bio-tonnage-settings',''),summary=node('summary'),totals=node('span','cfbt-totals');
     const total=node('span','','합계 목표 '),final=node('span','','마감 예상 ');total.append(field('strong','target-total','','—'));final.append(field('strong','final-total','','—'));totals.append(total,final);
     summary.append(totals,node('span','cfbt-settings-label','목표·지원 설정 ⌄'));
-    const body=node('div','cfbt-settings-body'),modes=attribute(node('div','cfbt-modes'),'role','group');modes.setAttribute('aria-label','목표량 계산 방식');
-    for(const [mode,label]of[['individual','호기별 목표'],['combined','합계 목표 조정'],['support','1호기 지원']]){const button=attribute(node('button','',label),'data-bio-tonnage-mode',mode);button.type='button';modes.append(button);}
-    const plan=attribute(node('label','cfbt-plan','2호기 예정 투입속도 '),'data-bio-tonnage-plan-row',''),input=attribute(node('input'),'data-bio-tonnage-plan','');
+    const body=node('div','cfbt-settings-body'),controls=node('div','cfbt-controls'),modes=attribute(node('div','cfbt-modes'),'role','group');modes.setAttribute('aria-label','목표량 계산 방식');
+    for(const [mode,label]of[['individual','호기별 목표'],['combined','합계 목표 조정'],['support','1호기 지원'],['support2','2호기 지원']]){const button=attribute(node('button','',label),'data-bio-tonnage-mode',mode);button.type='button';modes.append(button);}
+    const plan=attribute(node('label','cfbt-plan'),'data-bio-tonnage-plan-row',''),input=attribute(node('input'),'data-bio-tonnage-plan','');
     input.type='text';input.inputMode='decimal';input.autocomplete='off';input.spellcheck=false;input.value='';input.placeholder='직접 입력';input.setAttribute('aria-label','2호기 예정 투입속도, 시간당 톤');
-    plan.append(input,node('span','','t/h · 마감까지 유지 추정'));
-    const proof=field('p','proof','cfbt-proof','—');body.append(modes,plan,proof);details.append(summary,body);
+    plan.append(field('span','plan-label','','2호기 예정 투입속도'),input,node('span','','t/h · 마감까지 유지 추정'));
+    const proof=field('span','proof','cfbt-proof','');proof.hidden=true;controls.append(modes,plan,proof);body.append(controls);details.append(summary,body);
     wrapper.append(details,field('p','basis','cfbt-basis','당일 누적 조회 후 표시합니다.'),field('p','status','cfbt-status',''));return wrapper;
   }
   function stateFor(container){
     let state=states.get(container);if(state)return state;
-    state={container,preferences:readPreferences(),result:null,options:{},query:{},invalidSelection:false,day:null,timer:null,units:[],shared:null,handlers:[]};
+    state={container,preferences:readPreferences(),result:null,options:{},query:{},invalidSelection:false,day:null,timer:null,planInputIndex:null,planCarets:[null,null],units:[],shared:null,handlers:[]};
     state.units=['unit1','unit2'].map((unit,index)=>createUnit(unit,index,state));state.shared=createShared(state);states.set(container,state);
     const input=event=>{
       const el=event.target;
       if(el?.hasAttribute?.('data-bio-tonnage-target')){const index=el.getAttribute('data-bio-tonnage-target')==='unit1'?0:1;state.preferences.targets[index]=el.value;savePreferences(state);paint(state);}
-      else if(el?.hasAttribute?.('data-bio-tonnage-plan')){state.preferences.plannedRate2=el.value;paint(state);}
+      else if(el?.hasAttribute?.('data-bio-tonnage-plan')){const index=state.preferences.mode==='support2'?0:1;state.preferences['plannedRate'+(index+1)]=el.value;state.planCarets[index]=[el.selectionStart,el.selectionEnd];paint(state);}
       else if(el?.matches?.('[data-cfv7-date],[data-cfv8-start],[data-cfv8-end],[data-cfv8-mode]')){state.invalidSelection=true;paint(state);}
     };
     const click=event=>{const button=event.target?.closest?.('[data-bio-tonnage-mode]');if(!button||!container.contains(button)||button.disabled)return;const mode=button.getAttribute('data-bio-tonnage-mode');if(!MODES.includes(mode))return;state.preferences.mode=mode;savePreferences(state);paint(state);};
@@ -145,14 +145,27 @@
     const calculation=model.calculation,active=!!(model.context.valid&&calculation?.valid&&calculation.projectionAvailable&&model.context.status==='active');
     for(let index=0;index<2;index++){
       const input=state.units[index].querySelector('[data-bio-tonnage-target]');input.disabled=!model.context.valid;input.setAttribute('aria-invalid',String(parseQuantity(state.preferences.targets[index])===null));
-      const planned=index===1&&model.mode==='support';put('rate-label'+index,planned?'예정':'필요');put('need-label'+index,planned?'예정 추가 ':'추가 ');
+      const planned=index===model.plannedIndex;put('rate-label'+index,planned?'예정':'필요');put('need-label'+index,planned?'예정 추가 ':'추가 ');
       put('rate'+index,active?number(calculation.rates[index]):'—');put('need'+index,active?number(calculation.need[index]):'—');
-      put('tail'+index,active?(index===0&&model.mode==='support'&&calculation.support>1e-8?'그중 지원 '+number(calculation.support)+' t':'마감 예상 '+number(calculation.final[index])+' t'):'마감 예상 —');
+      put('tail'+index,active?(index===model.helperIndex&&calculation.support>1e-8?'그중 지원 '+number(calculation.support)+' t':'마감 예상 '+number(calculation.final[index])+' t'):'마감 예상 —');
     }
     put('target-total',finite(model.targetTotal)?number(model.targetTotal)+' t':'—');put('final-total',active?number(calculation.finalTotal)+' t':'—');
     for(const button of state.shared.querySelectorAll('[data-bio-tonnage-mode]')){button.disabled=!model.context.valid;button.setAttribute('aria-pressed',String(button.getAttribute('data-bio-tonnage-mode')===model.mode));}
-    const planRow=state.shared.querySelector('[data-bio-tonnage-plan-row]'),planInput=state.shared.querySelector('[data-bio-tonnage-plan]');planRow.hidden=model.mode!=='support';planInput.disabled=!model.context.valid||model.context.status!=='active';planInput.setAttribute('aria-invalid',String(model.context.status==='active'&&model.mode==='support'&&!model.plannedValid));
-    put('proof',active?(model.mode==='support'?'2호기 예상 부족 '+number(calculation.short2)+' t · 1호기 기존 초과 '+number(calculation.creditedTo2)+' t 반영 · 신규 지원 '+number(calculation.support)+' t ('+number(calculation.supportRate)+' t/h)':'예상 마감량 · 1호기 '+number(calculation.final[0])+' t / 2호기 '+number(calculation.final[1])+' t'):'—');
+    const planRow=state.shared.querySelector('[data-bio-tonnage-plan-row]'),planInput=state.shared.querySelector('[data-bio-tonnage-plan]');
+    const plannedIndex=model.plannedIndex??state.planInputIndex??1,isSupport=model.helperIndex!==null;
+    if(state.planInputIndex!==plannedIndex){
+      const focused=root.document.activeElement===planInput;
+      if(focused&&state.planInputIndex!==null)state.planCarets[state.planInputIndex]=[planInput.selectionStart,planInput.selectionEnd];
+      planInput.value=state.preferences['plannedRate'+(plannedIndex+1)];state.planInputIndex=plannedIndex;
+      if(focused){const caret=state.planCarets[plannedIndex];try{planInput.setSelectionRange(caret?.[0]??planInput.value.length,caret?.[1]??planInput.value.length);}catch(_){}}
+    }else if(planInput.value!==state.preferences['plannedRate'+(plannedIndex+1)])planInput.value=state.preferences['plannedRate'+(plannedIndex+1)];
+    put('plan-label',(plannedIndex+1)+'호기 예정 투입속도');planInput.setAttribute('aria-label',(plannedIndex+1)+'호기 예정 투입속도, 시간당 톤');
+    planRow.hidden=!isSupport;planInput.disabled=!model.context.valid||model.context.status!=='active';planInput.setAttribute('aria-invalid',String(model.context.status==='active'&&isSupport&&!model.plannedValid));
+    const proof=state.shared.querySelector('[data-bio-tonnage-field="proof"]'),controls=state.shared.querySelector('.cfbt-controls'),body=state.shared.querySelector('.cfbt-settings-body');
+    proof.hidden=!active;proof.className=isSupport?'cfbt-support-proof':'cfbt-proof';
+    if(isSupport){if(proof.parentNode!==body)body.appendChild(proof);}else if(proof.parentNode!==controls)controls.appendChild(proof);
+    const shortfall=isSupport?(model.plannedIndex===0?calculation?.short1:calculation?.short2):null,credit=isSupport?(model.helperIndex===0?calculation?.creditedTo2:calculation?.creditedTo1):null;
+    put('proof',active?(isSupport?(model.plannedIndex+1)+'호기 예상 부족 '+number(shortfall)+' t · '+(model.helperIndex+1)+'호기 기존 초과 '+number(credit)+' t 반영 · 신규 지원 '+number(calculation.support)+' t ('+number(calculation.supportRate)+' t/h)':'예상 마감량 · 1호기 '+number(calculation.final[0])+' t / 2호기 '+number(calculation.final[1])+' t'):'');
     const context=model.context;
     let basis=context.message;
     if(context.valid){const minutes=Math.max(0,Math.round(context.remainingHours*60)),remaining=minutes>=60?Math.floor(minutes/60)+'시간'+(minutes%60?' '+minutes%60+'분':''):minutes+'분';basis=context.status==='closed'?'조회일 종료 · 자료 '+context.dataAsOfLocal.replace('T',' ')+' 기준':'자료 '+context.dataAsOfLocal.slice(11)+' 기준 → 마감 24:00 · '+remaining+' 기준 · 자료 지연 '+number(context.lagMinutes,1)+'분';}
@@ -171,7 +184,7 @@
     const host=container.querySelector('[data-cfv52-summary-grid]');if(!host?.insertBefore)return false;
     try{
     const state=stateFor(container);state.result=result||null;state.options=options;state.invalidSelection=false;state.suspended=false;
-    const date=result?.period?.startLocal?.slice(0,10)||null;if(date&&state.day&&state.day!==date){state.preferences.plannedRate2='';state.shared.querySelector('[data-bio-tonnage-plan]').value='';}if(date)state.day=date;
+    const selectedStart=periodInstant(options.selectedPeriod||result?.period,'start'),date=finite(selectedStart)?new Date(selectedStart+KST).toISOString().slice(0,10):null;if(date&&state.day&&state.day!==date){state.preferences.plannedRate1='';state.preferences.plannedRate2='';state.planCarets=[null,null];state.shared.querySelector('[data-bio-tonnage-plan]').value='';}if(date)state.day=date;
     for(const [index,unit]of['unit1','unit2'].entries()){
       const card=[...host.querySelectorAll('[data-cfv52-unit="'+unit+'"]')].find(el=>el.getAttribute('data-adjustment-kind')!=='adjusted'&&!el.classList.contains('cfv-adjustment-card'));
       const target=card?.querySelector('[data-cfv6-target]');if(target?.parentNode)target.parentNode.insertBefore(state.units[index],target.nextSibling);else state.units[index].remove?.();
