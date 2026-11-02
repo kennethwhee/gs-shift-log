@@ -109,7 +109,23 @@ DP_TAGS.add("203HRJ01AN602");
         replacement === Date.parse('2026-09-22T00:00:00+09:00');
       const unresolved2A = candidate && a.tagNumber === '203HRJ01AN601' &&
         (!Number.isFinite(replacement) || replacement < Date.parse('2026-09-19T00:00:00+09:00'));
-      const previewOnly = candidate && (unresolvedDay || unresolved2A || a.hasUnverifiedDataParcHistory === true);
+      // A server-confirmed replacement basis is bound to this exact cycle and
+      // revision. In particular, an actual midnight replacement must not stay
+      // blocked merely because it matches the former date-only placeholder.
+      const basisConfirmed = candidate && a.limestoneBasisConfirmed === true &&
+        a.limestoneRunDisputed !== true;
+      const authoritativeDispute = candidate && typeof a.limestoneRunDisputed === 'boolean';
+      const disputed = candidate && !basisConfirmed && (authoritativeDispute
+        ? a.limestoneRunDisputed : unresolvedDay || unresolved2A);
+      // An explicitly resolved server cycle with unverified older history is
+      // not permission to requery and replace its saved total. It also cannot
+      // use the separate tracking apply route, which accepts disputed cycles.
+      if (candidate && !basisConfirmed && authoritativeDispute && !disputed &&
+          a.hasUnverifiedDataParcHistory === true) {
+        skip('기존 조회 기준 미검증 · 실제 V-Belt 교체 기준 확정 후 재조회 필요'); continue;
+      }
+      const previewOnly = candidate && !basisConfirmed &&
+        (disputed || !authoritativeDispute && a.hasUnverifiedDataParcHistory === true);
       const holdReason = unresolvedDay ? '9/22 실제 V-Belt 교체시각 미확정'
         : unresolved2A ? '2호기 #A 9/19 V-Belt 교체 완료 근거 충돌'
         : '기존 DataPARC 누적 기준 미검증';
@@ -151,10 +167,15 @@ DP_TAGS.add("203HRJ01AN602");
           queryStartAt: startAt, incremental: false, dataParcTag, previewOnly: true, holdReason });
         continue;
       }
-      const previous = a.dataParcRuntimeBasis || basisFor(a.tagNumber);
+      // Confirmation invalidates the prior checkpoint; a null server basis
+      // must not be replaced by cached browser history or the old RUN ledger.
+      // Once this new cycle has a verified basis, its normal append guard wins.
+      const previous = basisConfirmed ? a.dataParcRuntimeBasis || null
+        : a.dataParcRuntimeBasis || basisFor(a.tagNumber);
       // Preserve every already-confirmed result. Once a basis exists, the integrated refresh may
       // continue only from a server-verified append owner; it must never fall back to a full requery.
-      const startAt = previous?.startAt || (a.cycleStartState === 'started' && a.cycleStartedAt) || a.lastReplacementAt;
+      const startAt = previous?.startAt || (basisConfirmed ? a.lastReplacementAt
+        : (a.cycleStartState === 'started' && a.cycleStartedAt) || a.lastReplacementAt);
       const incremental = previous?.appendReady === true && previous?.dataParcTag === dataParcTag;
       if (previous && !incremental) {
         skip('기존 조회값 보호 · 증분 이어조회 기준 확인 필요 · 전체 재조회하지 않음');

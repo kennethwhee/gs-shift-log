@@ -671,6 +671,7 @@ async function ensureSchema(database) {
         cycle_runtime_anchor_at TEXT,
         cycle_runtime_state TEXT NOT NULL DEFAULT '',
         cycle_runtime_revision TEXT NOT NULL DEFAULT '',
+        limestone_basis_confirmation TEXT NOT NULL DEFAULT '',
         runtime_hours REAL NOT NULL DEFAULT 0,
         runtime_anchor_at TEXT,
         is_running INTEGER NOT NULL DEFAULT 0,
@@ -926,7 +927,8 @@ async function ensureAssetManagementSchema(database) {
     { name: "cycle_runtime_hours", definition: "cycle_runtime_hours REAL" },
     { name: "cycle_runtime_anchor_at", definition: "cycle_runtime_anchor_at TEXT" },
     { name: "cycle_runtime_state", definition: "cycle_runtime_state TEXT NOT NULL DEFAULT ''" },
-    { name: "cycle_runtime_revision", definition: "cycle_runtime_revision TEXT NOT NULL DEFAULT ''" }
+    { name: "cycle_runtime_revision", definition: "cycle_runtime_revision TEXT NOT NULL DEFAULT ''" },
+    { name: "limestone_basis_confirmation", definition: "limestone_basis_confirmation TEXT NOT NULL DEFAULT ''" }
   ];
 
   for (const required of requiredColumns) {
@@ -1021,7 +1023,7 @@ async function ensureBlowerHistorySchemaReady(database) {
     `).first();
 
     await database
-      .prepare(`SELECT asset_group, asset_revision, cycle_started_at, cycle_start_state, cycle_start_revision, cycle_runtime_hours, cycle_runtime_anchor_at, cycle_runtime_state, cycle_runtime_revision FROM blower_history_assets LIMIT 1`)
+      .prepare(`SELECT asset_group, asset_revision, cycle_started_at, cycle_start_state, cycle_start_revision, cycle_runtime_hours, cycle_runtime_anchor_at, cycle_runtime_state, cycle_runtime_revision, limestone_basis_confirmation FROM blower_history_assets LIMIT 1`)
       .first();
     const uninitializedCycleRuntime = await database
       .prepare(`SELECT COUNT(*) AS count FROM blower_history_assets WHERE cycle_runtime_hours IS NULL`)
@@ -1377,6 +1379,8 @@ function buildAssetState(asset, setting, latestProblem, latestReference, now = n
     displayName: asset.display_name,
     sortOrder: Number(asset.sort_order || 0),
     lastReplacementAt: normalizeText(asset.last_replacement_at),
+    limestoneBasisConfirmed: limestoneBasisConfirmed(asset),
+    limestoneRunDisputed: limestoneRunDisputed(asset),
     cycleStartedAt,
     cycleStoredStartedAt: normalizeText(asset.cycle_started_at),
     cycleStartState,
@@ -4270,15 +4274,119 @@ const LIMESTONE_RUN_LEDGER_TAGS = Object.freeze([
   '103HRJ01AN602', '203HRJ01AN601', '203HRJ01AN602'
 ]);
 const LIMESTONE_RUN_LEDGER_TABLE = 'blower_limestone_run_segments_v1';
+/* LIMESTONE_BASIS_CONFIRM_V3L: an explicit completion assertion certifies one
+ * exact replacement and cycle revision. It never certifies elapsed RUN hours.
+ * Existing replacement/history mutations change that revision or date and
+ * therefore invalidate this certificate without modifying its audit evidence.
+ */
+function limestoneBasisConfirmed(asset) {
+  if (asset?.blower_type !== 'limestone' ||
+      !LIMESTONE_RUN_LEDGER_TAGS.includes(asset.tag_number)) return false;
+  let proof;
+  try { proof = JSON.parse(asset.limestone_basis_confirmation || ''); } catch { return false; }
+  return proof?.version === 1 && typeof proof.id === 'string' && proof.id.length > 0 &&
+    proof.tagNumber === asset.tag_number &&
+    proof.replacementAt === normalizeText(asset.last_replacement_at) &&
+    proof.cycleStartRevision === normalizeText(asset.cycle_start_revision) &&
+    typeof proof.cycleStartRevision === 'string' && proof.cycleStartRevision.length > 0 &&
+    typeof proof.evidence === 'string' && proof.evidence.trim().length > 0 &&
+    typeof proof.confirmedById === 'string' && proof.confirmedById.length > 0 &&
+    Boolean(parseDataParcRuntimeInstant(proof.replacementAt)) &&
+    Boolean(parseDataParcRuntimeInstant(proof.confirmedAt));
+}
 function limestoneRunDisputed(asset) {
   if (!asset || asset.blower_type !== 'limestone' ||
       !LIMESTONE_RUN_LEDGER_TAGS.includes(asset.tag_number)) return false;
+  if (limestoneBasisConfirmed(asset)) return false;
   const anchor = Date.parse(normalizeText(asset.last_replacement_at));
   const dateOnlyB = ['103HRJ01AN602','203HRJ01AN602'].includes(asset.tag_number) &&
     anchor === Date.parse('2026-09-22T00:00:00+09:00');
   const conflicting2A = asset.tag_number === '203HRJ01AN601' &&
     (!Number.isFinite(anchor) || anchor < Date.parse('2026-09-19T00:00:00+09:00'));
   return dateOnlyB || conflicting2A;
+}
+async function confirmLimestoneBasis(database, user, body, options = {}) {
+  const fail = (message, status = 400, code = 'LIMESTONE_BASIS_INVALID') =>
+    jsonResponse({ ok: false, code, message }, status);
+  const actor = normalizeEmployeeNo(user?.employeeNo);
+  if (!actor || !buildPermissions(user).canWrite)
+    return fail('교체 기준 확정은 로그인 후 사용할 수 있습니다.', 403, 'LIMESTONE_BASIS_FORBIDDEN');
+  const tag = normalizeText(body?.tagNumber).toUpperCase();
+  if (!LIMESTONE_RUN_LEDGER_TAGS.includes(tag))
+    return fail('교체 기준 확인이 필요한 Limestone 3대만 확정할 수 있습니다.');
+  const replacement = parseDataParcRuntimeInstant(body?.replacementAt);
+  const capturedAt = options.now instanceof Date && Number.isFinite(options.now.getTime())
+    ? new Date(options.now.getTime()) : new Date();
+  const evidence = typeof body?.evidence === 'string' ? body.evidence.trim() : '';
+  if (!replacement || replacement.time > capturedAt.getTime())
+    return fail('실제 교체 완료일시를 시간대가 포함된 시각으로 입력해 주세요. 미래 시각은 사용할 수 없습니다.');
+  if (evidence.length < 10 || evidence.length > 1500)
+    return fail('실제 교체 완료를 확인한 근거를 10~1,500자로 입력해 주세요.');
+  if (typeof body.expectedLastReplacementAt !== 'string' ||
+      typeof body.expectedCycleStartRevision !== 'string' ||
+      typeof body.expectedCycleRuntimeRevision !== 'string')
+    return fail('현재 교체·RUN 기준을 다시 조회한 후 확정해 주세요.');
+  const asset = await findAsset(database, tag);
+  if (!asset || asset.blower_type !== 'limestone' || Number(asset.enabled) !== 1)
+    return fail('활성 Limestone 설비를 찾을 수 없습니다.', 404, 'LIMESTONE_BASIS_ASSET_UNAVAILABLE');
+  if (body.expectedLastReplacementAt !== normalizeText(asset.last_replacement_at) ||
+      body.expectedCycleStartRevision !== normalizeText(asset.cycle_start_revision) ||
+      body.expectedCycleRuntimeRevision !== normalizeText(asset.cycle_runtime_revision))
+    return fail('교체 또는 RUN 기준이 변경되었습니다. 새로 조회한 뒤 확정해 주세요.', 409, 'LIMESTONE_BASIS_STALE');
+
+  const now = capturedAt.toISOString();
+  const revision = crypto.randomUUID();
+  const runtimeRevision = crypto.randomUUID();
+  const certificate = { version: 1, id: crypto.randomUUID(), tagNumber: tag,
+    replacementAt: replacement.iso, cycleStartRevision: revision, evidence,
+    confirmedById: actor, confirmedByName: normalizeText(user.name), confirmedAt: now };
+  // Zero is only a non-null storage sentinel. Unknown state makes all read
+  // projections hide it until one complete, revision-pinned DataPARC query.
+  const patch = { last_replacement_at: replacement.iso,
+    cycle_started_at: null, cycle_start_state: 'legacy', cycle_start_revision: revision,
+    cycle_runtime_hours: 0, cycle_runtime_anchor_at: null, cycle_runtime_state: 'unknown',
+    cycle_runtime_revision: runtimeRevision, runtime_hours: 0, runtime_anchor_at: null,
+    is_running: 0, limestone_basis_confirmation: JSON.stringify(certificate),
+    last_modified_by_id: actor, last_modified_by_name: normalizeText(user.name), updated_at: now };
+  const after = { ...asset, ...patch };
+  const publicEvidence = { version: 1, tagNumber: tag, replacementAt: replacement.iso,
+    cycleStartRevision: revision, evidence, confirmedAt: now };
+  const event = { id: certificate.id, tag_number: tag, event_type: 'basis_confirmation',
+    event_date: now, runtime_hours: 0, issue_type: '', action_type: '실제 교체 기준 확정',
+    note: evidence, source_type: 'limestone_basis_confirmed', source_log_id: certificate.id,
+    source_text: JSON.stringify(publicEvidence), created_by_id: actor,
+    created_by_name: normalizeText(user.name), created_at: now, updated_at: now };
+  const audit = { id: crypto.randomUUID(), action_type: 'limestone_basis_confirm', tag_number: tag,
+    before_json: JSON.stringify({ asset }), after_json: JSON.stringify({ asset: after,
+      certificate, event, requiresFullRunRefresh: true }), change_note: evidence,
+    changed_by_id: actor, changed_by_name: normalizeText(user.name), changed_at: now };
+  const column = key => `"${key.replace(/"/g, '""')}"`;
+  const condition = row => Object.keys(row).map(key => `${column(key)} IS ?`).join(' AND ');
+  const exists = (table, row) => ({ sql: `EXISTS (SELECT 1 FROM ${table} WHERE ${condition(row)})`, values: Object.values(row) });
+  const insert = (table, row) => database.prepare(`INSERT INTO ${table}
+    (${Object.keys(row).map(column).join(',')}) VALUES (${Object.keys(row).map(() => '?').join(',')})`).bind(...Object.values(row));
+  const guardIds = [crypto.randomUUID(), crypto.randomUUID()];
+  const guard = (id, checks) => database.prepare(`INSERT INTO blower_history_atomic_guard(id,valid)
+    VALUES (?,CASE WHEN ${checks.map(check => `(${check.sql})`).join(' AND ')} THEN 1 ELSE 0 END)`)
+    .bind(id, ...checks.flatMap(check => check.values));
+  try {
+    await database.batch([
+      guard(guardIds[0], [exists('blower_history_assets', asset)]),
+      database.prepare(`UPDATE blower_history_assets SET ${Object.keys(patch).map(key => `${column(key)}=?`).join(',')}
+        WHERE ${condition(asset)}`).bind(...Object.values(patch), ...Object.values(asset)),
+      insert('blower_history_events', event), insert('blower_history_asset_history', audit),
+      guard(guardIds[1], [exists('blower_history_assets', after), exists('blower_history_events', event),
+        exists('blower_history_asset_history', audit)]),
+      database.prepare('DELETE FROM blower_history_atomic_guard WHERE id IN (?,?)').bind(...guardIds)
+    ]);
+  } catch (error) {
+    if (/CHECK constraint failed(?:: valid = 1|.*blower_history_atomic_guard)/i.test(String(error?.message || error)))
+      return fail('확정 중 교체 또는 RUN 기준이 변경되어 저장하지 않았습니다. 새로 조회해 주세요.', 409, 'LIMESTONE_BASIS_CONFLICT');
+    throw error;
+  }
+  return jsonResponse({ ok: true, tagNumber: tag, certificateId: certificate.id,
+    limestoneBasisConfirmed: true, limestoneRunDisputed: false, requiresFullRunRefresh: true,
+    message: '실제 교체 기준을 확정했습니다. 이전 누적은 이력에 보존했으며 확정 시각부터 RUN=1 구간을 새로 조회해야 합니다.' });
 }
 async function ensureLimestoneRunLedgerSchema(database) {
   await database.prepare(`CREATE TABLE IF NOT EXISTS blower_limestone_run_segments_v1 (
@@ -5845,6 +5953,8 @@ function planManualHistoryDeletion(asset, events, eventId, options = {}) {
   const fail = (message, code = "HISTORY_DELETE_BLOCKED", status = 409, extra = {}) => ({ ok: false, message, code, status, ...extra });
   const selected = events.find(event => event.id === eventId && event.event_type !== HISTORY_HIDDEN_EVENT_TYPE);
   if (!selected) return fail("삭제할 이력을 찾을 수 없습니다. 이력을 다시 열어 주세요.", "HISTORY_DELETE_NOT_FOUND", 404);
+  if (selected.source_type === 'limestone_basis_confirmed') return fail(
+    '교체 기준 확정 근거는 보존됩니다. 잘못 확정한 기준은 새 근거와 함께 다시 확정해 주세요.', 'LIMESTONE_BASIS_EVIDENCE_PROTECTED');
   if (manureInitialHistoryMutationBlocked(asset, events, selected, "", options.initialAudit)) return fail(
     "최초 기동 기준을 보존해야 하므로 이 운전 이력은 일반 삭제로 변경할 수 없습니다. 실제 V-Belt 교체는 교체 등록을 사용해 주세요.", "INITIAL_STARTUP_BASIS_PROTECTED");
   if (selected.tag_number !== asset.tag_number || !selected.updated_at || !Number.isFinite(historyDeleteTime(selected.event_date))) {
@@ -5997,6 +6107,8 @@ async function editAnyHistoryEvent(database, user, body, options = {}) {
   const events = Array.isArray(result.results) ? result.results : [];
   const selected = events.find(event => event.id === eventId);
   if (!selected) return fail("수정할 이력을 찾을 수 없습니다.", 404, "HISTORY_EDIT_NOT_FOUND");
+  if (selected.source_type === 'limestone_basis_confirmed') return fail(
+    '교체 기준 확정 근거는 보존됩니다. 잘못 확정한 기준은 새 근거와 함께 다시 확정해 주세요.', 409, 'LIMESTONE_BASIS_EVIDENCE_PROTECTED');
   const initialAudit = tagNumber === MANURE_INITIAL_RUN_CONFIG.tagNumber ? await loadManureInitialAudit(database) : null;
   if (manureInitialHistoryMutationBlocked(asset, events, selected, normalizeText(body.eventType), initialAudit)) return fail(
     "최초 기동 기준을 보존해야 하므로 이 운전 이력은 일반 수정으로 변경할 수 없습니다. 실제 V-Belt 교체는 교체 등록을 사용해 주세요.", 409, "INITIAL_STARTUP_BASIS_PROTECTED");
@@ -7442,9 +7554,18 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
   const held2A = asset.blower_type === 'limestone' &&
     asset.tag_number === '203HRJ01AN601' &&
     (!Number.isFinite(replacementTime) || replacementTime < Date.parse('2026-09-19T00:00:00+09:00'));
-  if (heldB || held2A) {
+  if ((heldB || held2A) && !limestoneBasisConfirmed(asset)) {
     return jsonResponse({ ok: false, code: 'LIMESTONE_VBELT_ANCHOR_UNCONFIRMED',
       message: 'DataPARC RUN 조회 결과는 확인할 수 있지만 실제 V-Belt 교체시각 확정 전에는 누적 운전시간에 반영할 수 없습니다.' }, 409);
+  }
+
+  // A certificate authorizes a full cycle measurement, not an arbitrary recent
+  // subrange labelled as its whole total. Subsequent appends must retain that
+  // same certified coverage start through their server-owned base receipt.
+  if (limestoneBasisConfirmed(asset) && !appendIntent &&
+      Date.parse(probe.startAt) !== Date.parse(asset.last_replacement_at)) {
+    return jsonResponse({ ok: false, code: 'LIMESTONE_BASIS_FULL_RANGE_REQUIRED',
+      message: '교체 기준 확정 후 첫 누적시간은 확정 교체시각부터 전체 RUN 구간을 조회해야 합니다.' }, 409);
   }
 
   const currentCycleStartState = normalizeText(asset.cycle_start_state);
@@ -7479,6 +7600,11 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
 
   if (appendIntent) {
     const base = await loadAppendBase(database, asset, probe.dataParcTag);
+    if (limestoneBasisConfirmed(asset) && base &&
+        Date.parse(base.startAt) !== Date.parse(asset.last_replacement_at)) {
+      return jsonResponse({ ok: false, code: 'LIMESTONE_BASIS_FULL_RANGE_REQUIRED',
+        message: '확정 교체시각부터 검증된 전체 RUN 누적 기준이 없어 증분 반영할 수 없습니다.' }, 409);
+    }
     if (!base || base.eventId !== appendIntent.base_event_id || base.cycleRuntimeRevision !== appendIntent.base_revision ||
         Date.parse(base.observedAt) !== Date.parse(appendIntent.base_observed_at) ||
         Date.parse(base.startAt) !== Date.parse(appendIntent.coverage_start_at) || base.runningSeconds !== Number(appendIntent.base_running_seconds)) {
@@ -14953,6 +15079,10 @@ async function handlePost(context, user, body) {
     return applyLimestoneRunTrack(database,user,body);
   }
 
+  if (action === 'limestone_basis_confirm') {
+    return confirmLimestoneBasis(database, user, body);
+  }
+
   if (action === "dataparc_runtime_sync") {
     return applyDataParcRuntimeSync(database, user, body);
   }
@@ -15133,6 +15263,7 @@ export const __blowerHistoryTest = {
   ensureHistoryRecoveryV12Schema,
   normalizeDataParcRuntimeProbeResult,
   applyDataParcRuntimeSync, readLimestoneRunTracking, applyLimestoneRunTrack, limestoneRunDisputed,
+  limestoneBasisConfirmed, confirmLimestoneBasis,
   v12ApplyConfirmedEvents,
   operationPositionFromToken,
   operationChangeoverPair,

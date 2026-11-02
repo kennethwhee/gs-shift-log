@@ -292,6 +292,9 @@
       "historyCycleSummary",
       "historyRuntimeStateButton",
       "historyRuntimeCorrectionButton",
+      "limestoneBasisButton", "limestoneBasisDialog", "limestoneBasisForm",
+      "limestoneBasisAsset", "limestoneBasisPrevious", "limestoneBasisAt",
+      "limestoneBasisEvidence", "limestoneBasisError", "limestoneBasisSave",
       "assetHistoryList",
       "toast"
     ].forEach(id => {
@@ -901,6 +904,7 @@
   function eventLabel(type) {
     return {
       replacement: "V-Belt 교체",
+      basis_confirmation: "교체 기준 확정",
       startup: "기동",
       operation_start: "재기동",
       operation_stop: "정지",
@@ -1335,9 +1339,16 @@
 
   /* LIMESTONE_SAFE_CHECKPOINT_DISPLAY_V3I: preserve last-known belt-cycle hours; RUN ledger remains separate. */
   const LIMESTONE_DISPUTED_RUN_TAGS = new Set(['103HRJ01AN602', '203HRJ01AN601', '203HRJ01AN602']);
+  function isLimestoneDisputedAsset(asset) {
+    if (asset?.blowerType !== 'limestone' || !LIMESTONE_DISPUTED_RUN_TAGS.has(String(asset.tagNumber || ''))) return false;
+    if (typeof asset.limestoneRunDisputed === 'boolean') return asset.limestoneRunDisputed;
+    // An older server cannot certify a disputed cycle. Keep its previous checkpoint.
+    return asset.limestoneBasisConfirmed !== true;
+  }
+
   function verifiedLimestoneRunDisplay(asset) {
     const tag = String(asset?.tagNumber || '');
-    if (asset?.blowerType !== 'limestone' || !LIMESTONE_DISPUTED_RUN_TAGS.has(tag)) return null;
+    if (typeof isLimestoneDisputedAsset === 'function' ? !isLimestoneDisputedAsset(asset) : asset.limestoneBasisConfirmed === true || asset.limestoneRunDisputed === false) return null;
     const entries = state.data?.limestoneRunTracking;
     if (!Array.isArray(entries)) return null;
     const entry = entries.find(item => item?.tagNumber === tag);
@@ -1366,7 +1377,7 @@
 
   function renderAssetCard(asset, setting) {
     // The disputed belt-cycle total stays provisional even if a RUN ledger is temporarily unavailable.
-    const disputedLimestone = asset?.blowerType === 'limestone' && typeof LIMESTONE_DISPUTED_RUN_TAGS !== 'undefined' && LIMESTONE_DISPUTED_RUN_TAGS.has(String(asset.tagNumber || ''));
+    const disputedLimestone = typeof isLimestoneDisputedAsset === 'function' ? isLimestoneDisputedAsset(asset) : asset?.blowerType === 'limestone' && asset.limestoneBasisConfirmed !== true && typeof LIMESTONE_DISPUTED_RUN_TAGS !== 'undefined' && LIMESTONE_DISPUTED_RUN_TAGS.has(String(asset.tagNumber || ''));
     // Tests/legacy isolated renderers may execute only this function body.
     // The complete page always provides the validated helper above.
     const verifiedLimestone = typeof verifiedLimestoneRunDisplay === 'function' ? verifiedLimestoneRunDisplay(asset) : null;
@@ -1802,7 +1813,7 @@
   }
 
   function renderAllOverviewCard(asset) {
-    const disputedLimestone = asset?.blowerType === 'limestone' && typeof LIMESTONE_DISPUTED_RUN_TAGS !== 'undefined' && LIMESTONE_DISPUTED_RUN_TAGS.has(String(asset.tagNumber || ''));
+    const disputedLimestone = typeof isLimestoneDisputedAsset === 'function' ? isLimestoneDisputedAsset(asset) : asset?.blowerType === 'limestone' && asset.limestoneBasisConfirmed !== true && typeof LIMESTONE_DISPUTED_RUN_TAGS !== 'undefined' && LIMESTONE_DISPUTED_RUN_TAGS.has(String(asset.tagNumber || ''));
     const trackedRun = verifiedLimestoneRunDisplay(asset);
     const underlyingView = allOverviewOperation(asset);
     // Only the current RUN state is from the latest ledger. The large number and
@@ -1824,7 +1835,7 @@
       : '';
     // Never draw a second counter under the compact overview card.
     const trackingLine = '';
-    const previewLine = !trackedRun && preview?.previewOnly === true && ['running','stopped'].includes(preview.previewState)
+    const previewLine = disputedLimestone && !trackedRun && preview?.previewOnly === true && ['running','stopped'].includes(preview.previewState)
       ? `<span class="all-overview-query-period" data-limestone-run-preview="true"><small>최근 RUN 확인 (누적 미반영)</small><strong>${escapeHtml(preview.previewState === 'running' ? 'RUN=1 · 기동' : 'RUN=0 · 정지')} · ${escapeHtml(formatKstDateTimeDisplay(preview.previewObservedAt))} · 구간 ${escapeHtml(Number(preview.previewHours).toFixed(1))}h</strong></span>`
       : '';
     return `
@@ -2096,8 +2107,9 @@
     const basis = new Map(snapshot.assets.map(asset => [asset.tagNumber, asset.dataParcRuntimeBasis]));
     // V3-F: the three disputed Limestone assets may run a bounded, read-only
     // RUN probe even when the server does not trust their old cumulative basis.
-    const isPreviewCandidate = asset => asset.blowerType === 'limestone' &&
-      ['103HRJ01AN602', '203HRJ01AN601', '203HRJ01AN602'].includes(asset.tagNumber);
+    const isPreviewCandidate = asset => typeof isLimestoneDisputedAsset === 'function'
+      ? isLimestoneDisputedAsset(asset) : asset.blowerType === 'limestone' && asset.limestoneBasisConfirmed !== true && asset.limestoneRunDisputed !== false &&
+        ['103HRJ01AN602', '203HRJ01AN601', '203HRJ01AN602'].includes(asset.tagNumber);
     // V3-G R2: Only held Limestone assets need the separate ledger read.
     // Do not inject this API call into the ordinary 24-asset refresh path:
     // it changes accepted-request timing and error/resume semantics.
@@ -2359,6 +2371,7 @@
   }
 
   function historySourceLabel(event) {
+    if (event?.sourceType === "limestone_basis_confirmed") return "교체 기준 확인";
     return evidenceSourceMeta(event).label;
   }
 
@@ -2446,11 +2459,11 @@
     const startupPending = cycleStartState === "pending";
     const actualStarted = cycleStartState === "started" && Boolean(asset.cycleStartedAt);
     const events = getAssetEvents(tagNumber)
-      .filter(event => ["replacement", "startup", "operation_start", "operation_stop", "runtime_correction", "problem"].includes(event.eventType));
+      .filter(event => ["replacement", "startup", "operation_start", "operation_stop", "runtime_correction", "problem", "basis_confirmation"].includes(event.eventType));
     const latestRuntimeEvent = latestExplicitRuntimeEvent(asset);
     const runView = window.BlowerUnifiedRefresh?.fbheSealRunView(asset, getLatestDataParcRuntimeBasis(tagNumber));
     const trackedRun = verifiedLimestoneRunDisplay(asset);
-    const disputedLimestone = asset?.blowerType === 'limestone' && typeof LIMESTONE_DISPUTED_RUN_TAGS !== 'undefined' && LIMESTONE_DISPUTED_RUN_TAGS.has(String(asset.tagNumber || ''));
+    const disputedLimestone = typeof isLimestoneDisputedAsset === 'function' ? isLimestoneDisputedAsset(asset) : asset?.blowerType === 'limestone' && asset.limestoneBasisConfirmed !== true && typeof LIMESTONE_DISPUTED_RUN_TAGS !== 'undefined' && LIMESTONE_DISPUTED_RUN_TAGS.has(String(asset.tagNumber || ''));
 
     elements.historyDialogTitle.textContent = `${asset.positionLabel} 이력`;
     elements.historyDialogAsset.textContent = `${asset.displayName} · ${asset.tagNumber}`;
@@ -2483,6 +2496,13 @@
     if (runView && asset.lastReplacementAt) {
       const legacy = asset.runRuntime?.legacyStoredHours;
       elements.historyCycleSummary.innerHTML += `<div class="run-history-note"><strong>${escapeHtml(runView.sourceLabel)}</strong>${runView.basis ? `<small>${escapeHtml(formatKstDateTimeDisplay(runView.basis.startAt))} → ${escapeHtml(formatKstDateTimeDisplay(runView.basis.observedAt))}</small>` : runView.manual ? `<small>${escapeHtml(formatKstDateTimeDisplay(runView.measuredAt))} 기준</small>` : ""}<span>${escapeHtml(runView.message)}</span>${!runView.verified && !runView.pending && Number.isFinite(legacy) ? `<small>기존 저장값 ${Number(legacy).toLocaleString("ko-KR", { maximumFractionDigits: 1 })}시간은 RUN 확인값이 아닙니다. 원본 이력과 변경 기록은 보존됩니다.</small>` : ""}</div>`;
+    }
+    if (elements.limestoneBasisButton) {
+      const allowed = hasAuthenticatedWriteAccess() && !isMobileMonitoringView() &&
+        asset.blowerType === 'limestone' && LIMESTONE_DISPUTED_RUN_TAGS.has(asset.tagNumber);
+      elements.limestoneBasisButton.hidden = !allowed;
+      elements.limestoneBasisButton.textContent = asset.limestoneBasisConfirmed === true ? '교체 기준 정정' : '교체 기준 확정';
+      elements.limestoneBasisButton.disabled = state.busy || state.unifiedRefreshBusy || state.dataparcRuntimeBusy;
     }
     if (elements.historyRuntimeQueryButton) {
       const allowed = hasAuthenticatedWriteAccess() && !isMobileMonitoringView() &&
@@ -2543,6 +2563,65 @@
     elements.historyDialog.showModal();
   }
 
+  function openLimestoneBasisDialog(tagNumber) {
+    if (stopMobileMutation() || !hasAuthenticatedWriteAccess() || state.busy || state.unifiedRefreshBusy || state.dataparcRuntimeBusy) return;
+    const asset = findAsset(tagNumber);
+    if (!asset || asset.blowerType !== 'limestone' || !LIMESTONE_DISPUTED_RUN_TAGS.has(tagNumber) || !elements.limestoneBasisDialog) return;
+    state.limestoneBasisSnapshot = Object.freeze({
+      tagNumber, expectedLastReplacementAt: String(asset.lastReplacementAt || ''),
+      expectedCycleStartRevision: String(asset.cycleStartRevision || ''),
+      expectedCycleRuntimeRevision: String(asset.cycleRuntimeRevision || '')
+    });
+    elements.limestoneBasisAsset.textContent = `${asset.displayName} · ${tagNumber}`;
+    elements.limestoneBasisPrevious.textContent = `현재 저장 기준: ${formatKstDateTimeDisplay(asset.lastReplacementAt)}${asset.limestoneBasisConfirmed === true ? '' : ' (미확정)'}`;
+    elements.limestoneBasisAt.value = '';
+    elements.limestoneBasisAt.max = formatKstDateTimeInput();
+    elements.limestoneBasisEvidence.value = '';
+    elements.limestoneBasisError.hidden = true;
+    elements.limestoneBasisSave.disabled = false;
+    elements.historyDialog.close();
+    elements.limestoneBasisDialog.showModal();
+    elements.limestoneBasisAt.focus();
+  }
+
+  async function saveLimestoneBasis(event) {
+    event.preventDefault();
+    if (stopMobileMutation(event) || !hasAuthenticatedWriteAccess() || state.busy || state.unifiedRefreshBusy || state.dataparcRuntimeBusy) return;
+    const saved = state.limestoneBasisSnapshot;
+    if (!saved || !elements.limestoneBasisDialog.open) return;
+    elements.limestoneBasisError.hidden = true;
+    let replacementAt, evidence;
+    try {
+      replacementAt = replacementEditTimestamp(elements.limestoneBasisAt.value);
+      evidence = elements.limestoneBasisEvidence.value.trim();
+      if (!replacementAt || new Date(replacementAt) > currentServerDate()) throw new Error('실제 교체 완료일시를 한국시간으로 입력해 주세요.');
+      if (evidence.length < 10) throw new Error('교체 완료를 확인한 기록이나 현장 확인 근거를 10자 이상 입력해 주세요.');
+    } catch (error) {
+      elements.limestoneBasisError.textContent = error.message;
+      elements.limestoneBasisError.hidden = false;
+      return;
+    }
+    setBusy(true);
+    elements.limestoneBasisSave.disabled = true;
+    try {
+      const result = await apiRequest({ method: 'POST', body: {
+        action: 'limestone_basis_confirm', ...saved, replacementAt, evidence
+      }});
+      if (result?.ok !== true || result.limestoneBasisConfirmed !== true || result.requiresFullRunRefresh !== true) throw new Error('교체 기준 저장 응답을 확인하지 못했습니다. 다시 조회해 주세요.');
+      elements.limestoneBasisDialog.close();
+      state.limestoneBasisSnapshot = null;
+      await loadData({ silent: true, syncOperations: false });
+      showToast('교체 기준을 확정했습니다. [전체 최신화]를 누르면 확정 시각부터 RUN을 다시 계산합니다.');
+      openAssetHistory(saved.tagNumber);
+    } catch (error) {
+      elements.limestoneBasisError.textContent = error.message || '교체 기준을 저장하지 못했습니다.';
+      elements.limestoneBasisError.hidden = false;
+    } finally {
+      elements.limestoneBasisSave.disabled = false;
+      setBusy(false);
+    }
+  }
+
   // [BLOWER-HISTORY-OPEN-EDIT-V1]
   function historyEditDateInput(value) {
     const date = new Date(value || "");
@@ -2561,7 +2640,7 @@
     state.historyEventEditSnapshot = snapshot;
     elements.historyEventEditAsset.textContent = `${asset.displayName} · ${asset.tagNumber}`;
     elements.historyEventEditSource.textContent = `${eventLabel(event.eventType)} · ${historySourceLabel(event)}${event.sourceLogId ? ` · 원본 ${event.sourceLogId}` : ""}`;
-    elements.historyEventEditType.value = ["replacement", "startup", "operation_start", "operation_stop", "runtime_correction", "problem"].includes(event.eventType) ? event.eventType : "problem";
+    elements.historyEventEditType.value = ["replacement", "startup", "operation_start", "operation_stop", "runtime_correction", "problem", "basis_confirmation"].includes(event.eventType) ? event.eventType : "problem";
     elements.historyEventEditDate.value = historyEditDateInput(event.eventDate);
     elements.historyEventEditDate.max = formatKstDateTimeInput();
     elements.historyEventEditRuntime.value = Number.isFinite(Number(event.runtimeHours)) ? String(Number(event.runtimeHours)) : "0";
@@ -2623,7 +2702,7 @@
   // [BLOWER-MANUAL-HISTORY-DELETE-V1]
   function canEditAnyHistoryEvent(asset, event) {
     return Boolean(hasAuthenticatedWriteAccess() && !isMobileMonitoringView() && asset && event &&
-      event.sourceType !== "initial_startup_confirmed" &&
+      event.sourceType !== "initial_startup_confirmed" && event.sourceType !== "limestone_basis_confirmed" &&
       (!isInitialStartupBasis(asset) || event.eventType === "problem") &&
       event.tagNumber === asset.tagNumber && event.id && event.updatedAt);
   }
@@ -11231,6 +11310,10 @@
       if (!button || !state.historyAssetTag) return;
       const action = button.dataset.historyAction;
       const tagNumber = state.historyAssetTag;
+      if (action === 'limestone_basis_confirm') {
+        openLimestoneBasisDialog(tagNumber);
+        return;
+      }
       if (action === "runtime_query_settings") {
         elements.historyDialog.close();
         const asset = findAsset(tagNumber);
@@ -11288,6 +11371,7 @@
     elements.settingsButton.addEventListener("click", openSettingsDialog);
     elements.assetManagerButton.addEventListener("click", openAssetManagerDialog);
     elements.auditHistoryButton.addEventListener("click", downloadHistoricalAudit);
+    elements.limestoneBasisForm?.addEventListener("submit", saveLimestoneBasis);
     elements.refreshButton.addEventListener("click", refreshAllBlowers);
     elements.unifiedRefreshResume?.addEventListener("click", refreshAllBlowers);
     elements.blowerQueryDismiss?.addEventListener("click", dismissUnifiedRefreshFeedback);
