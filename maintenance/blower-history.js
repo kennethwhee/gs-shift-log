@@ -1697,6 +1697,7 @@
       const blowerType = inventoryItems.find(item => item?.blowerType)?.blowerType || state.activeType;
 
       if (usesUnitRows(blowerType)) {
+        const unitSections = [];
         const entriesByUnit = new Map();
         for (const entry of standardEntries) {
           const unitNo = String(entry.item?.unitNo || "other");
@@ -1715,13 +1716,16 @@
           const unitItems = unitEntries.map(entry => entry.item);
           const cards = unitEntries.map(entry => renderDisplayEntry(entry, setting)).join("");
 
-          sections.push(`
+          unitSections.push(`
             <section class="unit-group is-unit-assets" data-unit-group="${escapeHtml(unitNo)}">
               <h3 class="unit-heading">${escapeHtml(unitRowLabel(unitNo, unitItems))} <span>${unitEntries.length}대</span></h3>
               <div class="asset-grid is-unit-grid">${cards}</div>
             </section>
           `);
         }
+        sections.push(blowerType === "limestone"
+          ? `<div class="limestone-unit-layout">${unitSections.join("")}</div>`
+          : unitSections.join(""));
       } else {
         const entriesByUnit = new Map();
         for (const entry of standardEntries) {

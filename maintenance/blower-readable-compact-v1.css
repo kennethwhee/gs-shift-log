@@ -495,3 +495,26 @@ button.all-overview-card[data-severity="overdue"]:hover { border-left-color: var
     padding: 9px 12px 10px;
   }
 }
+
+/* LIMESTONE_FOUR_CARD_ROW_V3R — one desktop row, keeping both unit headings. */
+@media (min-width: 1181px) {
+  .limestone-unit-layout {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 12px;
+  }
+  .limestone-unit-layout > .unit-group.is-unit-assets {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    margin-top: 0;
+  }
+  .limestone-unit-layout .asset-grid.is-unit-grid {
+    flex: 1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+  .limestone-unit-layout .asset-card { height: 100%; min-width: 0; box-sizing: border-box; }
+  .limestone-unit-layout .asset-actions { margin-top: auto; padding-top: 6px; }
+}
