@@ -63,8 +63,9 @@
 
 .overview-refresh-panel { flex-wrap: wrap; align-items: center; gap: 12px 22px; }
 .overview-refresh-latest { flex: 1 1 260px; }
-.overview-refresh-action { flex: 0 1 390px; width: auto; min-width: 280px; max-width: 100%; gap: 12px; }
-#overviewRefreshInlineStatus { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; min-width: 0; min-height: 42px; }
+/* BLOWER_REFRESH_RIGHT_V3P — status, elapsed time, then the rightmost action. */
+#overviewRefreshPanel .overview-refresh-action { flex: 0 1 auto; width: auto; min-width: 0; max-width: 100%; margin-left: auto; justify-content: flex-end; gap: 16px; }
+#overviewRefreshInlineStatus { display: grid; flex: 0 1 auto; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; min-width: 0; min-height: 42px; }
 #overviewRefreshInlineStatus .overview-refresh-progress-head { justify-content: flex-start; align-items: center; flex-wrap: wrap; gap: 3px 7px; min-width: 0; }
 #overviewRefreshProgressText { overflow: visible; color: #53677b; font-size: 12px; font-weight: 750; line-height: 1.5; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
 #overviewRefreshCount { overflow: visible; color: #617489; font-size: 11px; font-weight: 600; line-height: 1.5; text-overflow: clip; white-space: normal; font-variant-numeric: tabular-nums; }
@@ -103,7 +104,7 @@
 @media (max-width: 700px), (max-width: 1024px) and (hover: none) and (pointer: coarse) {
   .overview-refresh-latest { flex-basis: auto; }
   /* Preserve the monitoring-only mobile button policy while showing query state. */
-  .overview-refresh-action { display: flex !important; flex: 0 0 auto; width: 100%; min-width: 0; }
+  #overviewRefreshPanel .overview-refresh-action { display: flex !important; flex: 0 0 auto; width: 100%; min-width: 0; margin-left: 0; }
   #refreshButton.overview-refresh-button { display: none !important; }
   #overviewRefreshInlineStatus { width: 100%; min-height: 28px; gap: 3px 10px; }
   #overviewRefreshProgressText { font-size: 11px; }
