@@ -65,3 +65,27 @@
 [data-cofiring-draft-root] .cfbt-settings{margin-bottom:5px}
 [data-cofiring-draft-root] .cfbt-basis,[data-cofiring-draft-root] .cfbt-status{display:inline;margin:0}
 [data-cofiring-draft-root] .cfbt-status:not(:empty)::before{content:" · "}
+
+/* V8: separate the Bio tonnage guide from the percent target row. */
+[data-cofiring-draft-root] .cfbt-card{background:#fff8e7;border-color:#e7d7a9}
+
+/* Center the closing estimate across the entire summary, with equal side tracks. */
+[data-cofiring-draft-root] .cfbt-shared{container-name:cfbt-footer;container-type:inline-size}
+[data-cofiring-draft-root] .cfbt-settings>summary{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:4px 10px}
+[data-cofiring-draft-root] .cfbt-totals{display:contents}
+[data-cofiring-draft-root] .cfbt-totals>.cfbt-total-edit,
+[data-cofiring-draft-root] .cfbt-totals>.cfbt-unit-total{grid-column:1;grid-row:1;justify-self:start}
+[data-cofiring-draft-root] .cfbt-totals>span:has(>[data-bio-tonnage-field="final-total"]){grid-column:2;grid-row:1;justify-self:center;text-align:center;white-space:nowrap}
+[data-cofiring-draft-root] .cfbt-settings-label{grid-column:3;grid-row:1;justify-self:end}
+
+/* At narrow panel widths the estimate gets a centered, full-width second row. */
+@container cfbt-footer (max-width:620px){
+[data-cofiring-draft-root] .cfbt-settings>summary{grid-template-columns:minmax(0,1fr) auto}
+[data-cofiring-draft-root] .cfbt-settings-label{grid-column:2}
+[data-cofiring-draft-root] .cfbt-totals>span:has(>[data-bio-tonnage-field="final-total"]){grid-column:1/-1;grid-row:2}
+}
+@media(max-width:680px){
+[data-cofiring-draft-root] .cfbt-settings>summary{grid-template-columns:minmax(0,1fr) auto}
+[data-cofiring-draft-root] .cfbt-settings-label{grid-column:2}
+[data-cofiring-draft-root] .cfbt-totals>span:has(>[data-bio-tonnage-field="final-total"]){grid-column:1/-1;grid-row:2}
+}
