@@ -518,3 +518,19 @@ button.all-overview-card[data-severity="overdue"]:hover { border-left-color: var
   .limestone-unit-layout .asset-card { height: 100%; min-width: 0; box-sizing: border-box; }
   .limestone-unit-layout .asset-actions { margin-top: auto; padding-top: 6px; }
 }
+
+/* FLYASH_BAG_CARD_ALIGN_V3S — align desktop cards with different detail lengths. */
+@media (min-width: 1181px) {
+  .unit-group.is-unified-assets[data-blower-type="flyash_bag"] .asset-grid.is-unified-grid {
+    align-items: stretch;
+  }
+  .unit-group.is-unified-assets[data-blower-type="flyash_bag"] .asset-card {
+    height: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  .unit-group.is-unified-assets[data-blower-type="flyash_bag"] .asset-actions {
+    margin-top: auto;
+    padding-top: 6px;
+  }
+}

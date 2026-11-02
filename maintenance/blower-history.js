@@ -1752,7 +1752,7 @@
           .join("");
 
         sections.push(`
-          <section class="unit-group is-unified-assets">
+          <section class="unit-group is-unified-assets"${blowerType === "flyash_bag" ? ' data-blower-type="flyash_bag"' : ""}>
             <h3 class="unit-heading">${escapeHtml(unifiedGroupLabel(inventoryItems))} <span>${standardEntries.length}대</span></h3>
             <div class="asset-grid is-unified-grid">${unitRows}</div>
           </section>
