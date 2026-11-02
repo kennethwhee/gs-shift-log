@@ -105,6 +105,9 @@ DP_TAGS.add("203HRJ01AN602");
       const replacement = time(a.lastReplacementAt);
       const heldLimestoneTags = ['103HRJ01AN602', '203HRJ01AN601', '203HRJ01AN602'];
       const candidate = a.blowerType === 'limestone' && heldLimestoneTags.includes(a.tagNumber);
+      // This server capability permits measured RUN from the existing stored
+      // baseline without asserting an actual V-Belt replacement completion.
+      const automaticLimestone = candidate && a.limestoneAutoApply === true;
       const unresolvedDay = candidate && ['103HRJ01AN602', '203HRJ01AN602'].includes(a.tagNumber) &&
         replacement === Date.parse('2026-09-22T00:00:00+09:00');
       const unresolved2A = candidate && a.tagNumber === '203HRJ01AN601' &&
@@ -120,11 +123,11 @@ DP_TAGS.add("203HRJ01AN602");
       // An explicitly resolved server cycle with unverified older history is
       // not permission to requery and replace its saved total. It also cannot
       // use the separate tracking apply route, which accepts disputed cycles.
-      if (candidate && !basisConfirmed && authoritativeDispute && !disputed &&
+      if (!automaticLimestone && candidate && !basisConfirmed && authoritativeDispute && !disputed &&
           a.hasUnverifiedDataParcHistory === true) {
         skip('기존 조회 기준 미검증 · 실제 V-Belt 교체 기준 확정 후 재조회 필요'); continue;
       }
-      const previewOnly = candidate && !basisConfirmed &&
+      const previewOnly = !automaticLimestone && candidate && !basisConfirmed &&
         (disputed || !authoritativeDispute && a.hasUnverifiedDataParcHistory === true);
       const holdReason = unresolvedDay ? '9/22 실제 V-Belt 교체시각 미확정'
         : unresolved2A ? '2호기 #A 9/19 V-Belt 교체 완료 근거 충돌'
@@ -132,7 +135,8 @@ DP_TAGS.add("203HRJ01AN602");
       if (!Number.isFinite(replacement)) { skip('교체일 등록 필요 · 이력 보기 / V-Belt 교체 등록'); continue; }
       if (replacement >= end) { skip('교체일이 현재 시각 이후입니다.'); continue; }
       if (!DP_TAGS.has(a.tagNumber)) { skip('연결된 운전시간 조회 방식이 없습니다.'); continue; }
-      const dataParcTag = a.tagNumber === '104ETH03AN602' ? SIGNAL : String(a.dataParcTag || (a.blowerType === 'limestone' ? a.limestoneSignalCandidate : '') || '').trim();
+      const dataParcTag = automaticLimestone ? `GSPOGE.ABB_DCS.${a.tagNumber}XB04`
+        : a.tagNumber === '104ETH03AN602' ? SIGNAL : String(a.dataParcTag || (a.blowerType === 'limestone' ? a.limestoneSignalCandidate : '') || '').trim();
       if (!/^GSPOGE\.ABB_DCS\.[A-Z0-9][A-Z0-9._-]*$/.test(dataParcTag) || dataParcTag.length > 200 || (a.tagNumber !== '104ETH03AN602' && dataParcTag === SIGNAL)) {
         skip('RUN TAG 설정 필요 · 이력 보기 → 조회 기준·상세'); continue;
       }
@@ -170,14 +174,24 @@ DP_TAGS.add("203HRJ01AN602");
       // Confirmation invalidates the prior checkpoint; a null server basis
       // must not be replaced by cached browser history or the old RUN ledger.
       // Once this new cycle has a verified basis, its normal append guard wins.
-      const previous = basisConfirmed ? a.dataParcRuntimeBasis || null
+      const previous = automaticLimestone || basisConfirmed ? a.dataParcRuntimeBasis || null
         : a.dataParcRuntimeBasis || basisFor(a.tagNumber);
+      // Only a verified complete-baseline receipt may continue incrementally.
+      // Older partial, unverified or non-appendable receipts require an actual
+      // full RUN remeasurement, never saved hours plus the separate RUN ledger.
+      const automaticAppend = automaticLimestone && previous?.appendReady === true &&
+        previous.dataParcTag === dataParcTag && time(previous.startAt) === replacement &&
+        Number.isFinite(time(previous.observedAt)) && time(previous.observedAt) > replacement &&
+        time(previous.observedAt) <= end;
+      const limestoneAutoRebuild = automaticLimestone && !automaticAppend;
       // Preserve every already-confirmed result. Once a basis exists, the integrated refresh may
       // continue only from a server-verified append owner; it must never fall back to a full requery.
-      const startAt = previous?.startAt || (basisConfirmed ? a.lastReplacementAt
-        : (a.cycleStartState === 'started' && a.cycleStartedAt) || a.lastReplacementAt);
-      const incremental = previous?.appendReady === true && previous?.dataParcTag === dataParcTag;
-      if (previous && !incremental) {
+      const startAt = automaticLimestone ? automaticAppend ? previous.startAt : a.lastReplacementAt
+        : previous?.startAt || (basisConfirmed ? a.lastReplacementAt
+          : (a.cycleStartState === 'started' && a.cycleStartedAt) || a.lastReplacementAt);
+      const incremental = automaticLimestone ? automaticAppend
+        : previous?.appendReady === true && previous?.dataParcTag === dataParcTag;
+      if (!automaticLimestone && previous && !incremental) {
         skip('기존 조회값 보호 · 증분 이어조회 기준 확인 필요 · 전체 재조회하지 않음');
         continue;
       }
@@ -189,7 +203,8 @@ DP_TAGS.add("203HRJ01AN602");
       if (!Number.isFinite(start) || !Number.isFinite(queryStart) || start < replacement || queryStart < start || queryStart >= end || end - queryStart > 366 * DAY) {
         skip('조회 기준이 현재 교체 Cycle 또는 366일 한도와 맞지 않습니다.'); continue;
       }
-      tasks.push({ kind: 'dataparc', asset: a, snapshot: snapshot(a), startAt, queryStartAt, incremental, dataParcTag });
+      tasks.push({ kind: 'dataparc', asset: a, snapshot: snapshot(a), startAt, queryStartAt, incremental, dataParcTag,
+        ...(limestoneAutoRebuild ? { limestoneAutoRebuild: true } : {}) });
     }
     return { tasks, skipped, targetCount: (assets || []).filter(a => a.enabled !== false && a.enabled !== 0).length };
   }
@@ -257,7 +272,7 @@ DP_TAGS.add("203HRJ01AN602");
     const s = task.snapshot;
     return {
       action: 'create_blower_runtime_probe', unifiedRefresh: true,
-      incrementalRefresh: task.previewOnly !== true,
+      incrementalRefresh: task.previewOnly !== true && task.limestoneAutoRebuild !== true,
       ...(task.previewOnly === true ? { limestoneTrackingOnly: true } : {}),
       requireIncrementalAppend: task.incremental === true, assetTag: s.tagNumber,
       dataParcTag: task.dataParcTag, confirmRunSignal: true, startAt: task.startAt,

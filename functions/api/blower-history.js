@@ -1380,7 +1380,9 @@ function buildAssetState(asset, setting, latestProblem, latestReference, now = n
     sortOrder: Number(asset.sort_order || 0),
     lastReplacementAt: normalizeText(asset.last_replacement_at),
     limestoneBasisConfirmed: limestoneBasisConfirmed(asset),
-    limestoneRunDisputed: limestoneRunDisputed(asset),
+    limestoneAutoApply: limestoneAutoApply(asset, now),
+    limestoneBasisReviewRequired: limestoneBasisReviewRequired(asset),
+    limestoneRunDisputed: limestoneAutoApply(asset, now) ? false : limestoneRunDisputed(asset),
     cycleStartedAt,
     cycleStoredStartedAt: normalizeText(asset.cycle_started_at),
     cycleStartState,
@@ -1708,7 +1710,8 @@ function currentDataParcRuntimeBasis(asset, rows) {
         row.id !== dataParcRuntimeSyncEventId(source.requestId) || row.source_log_id !== source.requestId ||
         !isSupportedDataParcRuntimePair(asset.tag_number, source.dataParcTag) ||
         !Number.isFinite(start) || !Number.isFinite(observed) || start < replacement || observed < start ||
-        (Number.isFinite(explicitCycleStart) && start < explicitCycleStart) ||
+        (Number.isFinite(explicitCycleStart) && start < explicitCycleStart &&
+          !(limestoneAutoApply(asset) && start === replacement)) ||
         source.manualOverride === true || Boolean(source.manualOverride?.changedAt) ||
         normalizeText(row.updated_at) !== normalizeText(row.created_at) ||
         Date.parse(source.expectedLastReplacementAt) !== replacement ||
@@ -4294,7 +4297,17 @@ function limestoneBasisConfirmed(asset) {
     Boolean(parseDataParcRuntimeInstant(proof.replacementAt)) &&
     Boolean(parseDataParcRuntimeInstant(proof.confirmedAt));
 }
-function limestoneRunDisputed(asset) {
+/* LIMESTONE_SAVED_BASELINE_AUTO_V3M: measured runtime may use the saved cycle
+ * baseline even when its historical maintenance timestamp needs review. This
+ * policy changes no date, certificate, or revision during reads/planning.
+ */
+function limestoneAutoApply(asset, now = new Date()) {
+  if (asset?.blower_type !== 'limestone' || Number(asset.enabled) !== 1 ||
+      !LIMESTONE_RUN_LEDGER_TAGS.includes(asset.tag_number)) return false;
+  const baseline = parseDataParcRuntimeInstant(asset.last_replacement_at);
+  return Boolean(baseline && baseline.time < now.getTime());
+}
+function limestoneBasisReviewRequired(asset) {
   if (!asset || asset.blower_type !== 'limestone' ||
       !LIMESTONE_RUN_LEDGER_TAGS.includes(asset.tag_number)) return false;
   if (limestoneBasisConfirmed(asset)) return false;
@@ -4304,6 +4317,11 @@ function limestoneRunDisputed(asset) {
   const conflicting2A = asset.tag_number === '203HRJ01AN601' &&
     (!Number.isFinite(anchor) || anchor < Date.parse('2026-09-19T00:00:00+09:00'));
   return dateOnlyB || conflicting2A;
+}
+function limestoneRunDisputed(asset) {
+  // Preserve the legacy ledger-resume contract. The public operational
+  // projection above separately authorizes normal saved-baseline measurement.
+  return limestoneBasisReviewRequired(asset);
 }
 async function confirmLimestoneBasis(database, user, body, options = {}) {
   const fail = (message, status = 400, code = 'LIMESTONE_BASIS_INVALID') =>
@@ -7470,6 +7488,13 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
       message: "DataPARC 요청에 확정한 설비·운전 TAG·기간·Cycle 기준과 조회 결과가 일치하지 않습니다. 새로 조회해 주세요."
     }, 409);
   }
+  // Separate historical RUN tracking is not an official cycle measurement.
+  // In particular, an old completed ledger request cannot become cumulative
+  // proof merely because the operational saved-baseline policy has changed.
+  if (String(intent.reuse_key || '').startsWith('limestone-run-ledger-v1:')) {
+    return jsonResponse({ ok: false, code: 'LIMESTONE_LEDGER_ONLY_INTENT',
+      message: '이전 별도 RUN 추적 요청은 누적시간에 반영하지 않습니다. 저장된 교체 기준부터 새 RUN 조회를 실행해 주세요.' }, 409);
+  }
 
   const signalOnlyPrefix = "signal-only-v1:";
   const signalOnlyWireRevision = normalizeText(intent.expected_cycle_start_revision);
@@ -7554,7 +7579,8 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
   const held2A = asset.blower_type === 'limestone' &&
     asset.tag_number === '203HRJ01AN601' &&
     (!Number.isFinite(replacementTime) || replacementTime < Date.parse('2026-09-19T00:00:00+09:00'));
-  if ((heldB || held2A) && !limestoneBasisConfirmed(asset)) {
+  const savedBaselineAuto = limestoneAutoApply(asset, runtimeOptions.now || new Date());
+  if ((heldB || held2A) && !limestoneBasisConfirmed(asset) && !savedBaselineAuto) {
     return jsonResponse({ ok: false, code: 'LIMESTONE_VBELT_ANCHOR_UNCONFIRMED',
       message: 'DataPARC RUN 조회 결과는 확인할 수 있지만 실제 V-Belt 교체시각 확정 전에는 누적 운전시간에 반영할 수 없습니다.' }, 409);
   }
@@ -7562,10 +7588,10 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
   // A certificate authorizes a full cycle measurement, not an arbitrary recent
   // subrange labelled as its whole total. Subsequent appends must retain that
   // same certified coverage start through their server-owned base receipt.
-  if (limestoneBasisConfirmed(asset) && !appendIntent &&
+  if ((limestoneBasisConfirmed(asset) || savedBaselineAuto) && !appendIntent &&
       Date.parse(probe.startAt) !== Date.parse(asset.last_replacement_at)) {
     return jsonResponse({ ok: false, code: 'LIMESTONE_BASIS_FULL_RANGE_REQUIRED',
-      message: '교체 기준 확정 후 첫 누적시간은 확정 교체시각부터 전체 RUN 구간을 조회해야 합니다.' }, 409);
+      message: 'Limestone 누적시간은 저장된 교체 기준시각부터 전체 RUN 구간을 조회해야 합니다.' }, 409);
   }
 
   const currentCycleStartState = normalizeText(asset.cycle_start_state);
@@ -7600,10 +7626,10 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
 
   if (appendIntent) {
     const base = await loadAppendBase(database, asset, probe.dataParcTag);
-    if (limestoneBasisConfirmed(asset) && base &&
+    if ((limestoneBasisConfirmed(asset) || savedBaselineAuto) && base &&
         Date.parse(base.startAt) !== Date.parse(asset.last_replacement_at)) {
       return jsonResponse({ ok: false, code: 'LIMESTONE_BASIS_FULL_RANGE_REQUIRED',
-        message: '확정 교체시각부터 검증된 전체 RUN 누적 기준이 없어 증분 반영할 수 없습니다.' }, 409);
+        message: '저장된 교체 기준시각부터 검증된 전체 RUN 누적 기준이 없어 증분 반영할 수 없습니다.' }, 409);
     }
     if (!base || base.eventId !== appendIntent.base_event_id || base.cycleRuntimeRevision !== appendIntent.base_revision ||
         Date.parse(base.observedAt) !== Date.parse(appendIntent.base_observed_at) ||
@@ -15264,6 +15290,7 @@ export const __blowerHistoryTest = {
   normalizeDataParcRuntimeProbeResult,
   applyDataParcRuntimeSync, readLimestoneRunTracking, applyLimestoneRunTrack, limestoneRunDisputed,
   limestoneBasisConfirmed, confirmLimestoneBasis,
+  limestoneAutoApply, limestoneBasisReviewRequired,
   v12ApplyConfirmedEvents,
   operationPositionFromToken,
   operationChangeoverPair,

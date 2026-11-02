@@ -12,8 +12,8 @@
   <script src="shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
   <link rel="stylesheet" href="blower-unified-refresh.css?v=20261022-query-resource-v3">
   <script src="blower-refresh-timing.js?v=20260915-fast-timing-v12" defer></script>
-  <script src="blower-unified-refresh.js?v=20261031-limestone-ledger-v3g-20261102-basis-v3l" defer></script>
-    <script src="blower-history.js?v=20261031-limestone-ledger-v3g-checkpoint-v3k-ui-20261102-basis-v3l" defer></script>
+  <script src="blower-unified-refresh.js?v=20261031-limestone-ledger-v3g-20261102-auto-v3m" defer></script>
+    <script src="blower-history.js?v=20261031-limestone-ledger-v3g-checkpoint-v3k-ui-20261102-auto-v3m" defer></script>
   <script src="/maintenance/seal-pot-ois-shadow.js?v=20260909-unified-refresh-v1" defer></script>
   <link rel="stylesheet" href="/maintenance/blower-schedule-v1.css?v=20261029-settings-v2">
   <script src="/maintenance/blower-schedule-v1.js?v=20261031-limestone-ledger-v3g" defer></script>
@@ -791,12 +791,12 @@
   <dialog class="dialog" id="limestoneBasisDialog">
     <form id="limestoneBasisForm">
       <header class="dialog-header">
-        <div><h2>교체 기준 확정</h2><p id="limestoneBasisAsset"></p></div>
+        <div><h2>교체 기준 정정</h2><p id="limestoneBasisAsset"></p></div>
         <button type="button" class="icon-button" data-close-dialog="limestoneBasisDialog" aria-label="닫기">×</button>
       </header>
       <div class="dialog-body">
         <p id="limestoneBasisPrevious"></p>
-        <p>가장 최근 V-Belt 교체가 완료된 시각과 확인 근거를 입력해 주세요. 저장 후 [전체 최신화]를 누르면 이 시각부터 실제 RUN을 다시 계산합니다.</p>
+        <p>운전시간은 현재 저장된 교체 기준으로 자동 갱신됩니다. 새로운 교체 완료 기록이 확인되면 이곳에서 기준을 정정할 수 있습니다.</p>
         <label class="field"><span>실제 교체 완료일시 (한국시간)</span><input id="limestoneBasisAt" type="datetime-local" required></label>
         <label class="field"><span>교체 완료 확인 근거</span><textarea id="limestoneBasisEvidence" required minlength="10" maxlength="1500" rows="4" placeholder="완료 업무일지·정비 기록 또는 현장 확인 내용과 확인자"></textarea></label>
         <p>정확한 완료시각이 확인되지 않았다면 저장을 보류해 주세요.</p>

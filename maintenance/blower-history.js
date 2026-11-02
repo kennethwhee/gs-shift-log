@@ -1341,6 +1341,7 @@
   const LIMESTONE_DISPUTED_RUN_TAGS = new Set(['103HRJ01AN602', '203HRJ01AN601', '203HRJ01AN602']);
   function isLimestoneDisputedAsset(asset) {
     if (asset?.blowerType !== 'limestone' || !LIMESTONE_DISPUTED_RUN_TAGS.has(String(asset.tagNumber || ''))) return false;
+    if (asset.limestoneAutoApply === true) return false;
     if (typeof asset.limestoneRunDisputed === 'boolean') return asset.limestoneRunDisputed;
     // An older server cannot certify a disputed cycle. Keep its previous checkpoint.
     return asset.limestoneBasisConfirmed !== true;
@@ -1348,7 +1349,7 @@
 
   function verifiedLimestoneRunDisplay(asset) {
     const tag = String(asset?.tagNumber || '');
-    if (typeof isLimestoneDisputedAsset === 'function' ? !isLimestoneDisputedAsset(asset) : asset.limestoneBasisConfirmed === true || asset.limestoneRunDisputed === false) return null;
+    if (typeof isLimestoneDisputedAsset === 'function' ? !isLimestoneDisputedAsset(asset) : asset.limestoneAutoApply === true || asset.limestoneBasisConfirmed === true || asset.limestoneRunDisputed === false) return null;
     const entries = state.data?.limestoneRunTracking;
     if (!Array.isArray(entries)) return null;
     const entry = entries.find(item => item?.tagNumber === tag);
@@ -1377,7 +1378,7 @@
 
   function renderAssetCard(asset, setting) {
     // The disputed belt-cycle total stays provisional even if a RUN ledger is temporarily unavailable.
-    const disputedLimestone = typeof isLimestoneDisputedAsset === 'function' ? isLimestoneDisputedAsset(asset) : asset?.blowerType === 'limestone' && asset.limestoneBasisConfirmed !== true && typeof LIMESTONE_DISPUTED_RUN_TAGS !== 'undefined' && LIMESTONE_DISPUTED_RUN_TAGS.has(String(asset.tagNumber || ''));
+    const disputedLimestone = typeof isLimestoneDisputedAsset === 'function' ? isLimestoneDisputedAsset(asset) : asset?.blowerType === 'limestone' && asset.limestoneAutoApply !== true && asset.limestoneBasisConfirmed !== true && typeof LIMESTONE_DISPUTED_RUN_TAGS !== 'undefined' && LIMESTONE_DISPUTED_RUN_TAGS.has(String(asset.tagNumber || ''));
     // Tests/legacy isolated renderers may execute only this function body.
     // The complete page always provides the validated helper above.
     const verifiedLimestone = typeof verifiedLimestoneRunDisplay === 'function' ? verifiedLimestoneRunDisplay(asset) : null;
@@ -1448,7 +1449,7 @@
     // The old parallel tracking strip is intentionally hidden: the card now
     // displays the proven RUN hours in the single primary metric.
     const trackingDetail = '';
-    const previewDetail = !verifiedLimestone && preview?.previewOnly === true && ['running','stopped'].includes(preview.previewState)
+    const previewDetail = disputedLimestone && !verifiedLimestone && preview?.previewOnly === true && ['running','stopped'].includes(preview.previewState)
       ? `<div class="dataparc-runtime-row" data-limestone-run-preview="true"><div class="dataparc-runtime-basis"><span>최근 RUN 확인 · 누적 미반영</span><strong>${escapeHtml(preview.previewState === 'running' ? 'RUN=1 · 기동' : 'RUN=0 · 정지')} · ${escapeHtml(formatKstDateTimeDisplay(preview.previewObservedAt))}</strong><small>조회 구간 ${escapeHtml(formatKstDateTimeDisplay(preview.previewStartAt))} → ${escapeHtml(formatKstDateTimeDisplay(preview.previewObservedAt))} · RUN=1 합 ${escapeHtml(Number(preview.previewHours).toFixed(1))}h · 실제 교체시각 확인 전 누적시간에 더하지 않음</small></div></div>`
       : '';
     // The saved V-Belt checkpoint and its own observed interval must remain paired.
@@ -1486,7 +1487,7 @@
         <div class="asset-card-header">
           <div class="asset-identity">
             <strong class="asset-position" data-mobile-position="${escapeHtml(String(asset.positionLabel || "").trim() || cardPosition)}">${escapeHtml(cardPosition)}</strong>
-            <span class="asset-tag">${escapeHtml(asset.tagNumber)}</span>
+            <span class="asset-tag">${escapeHtml(asset.tagNumber)}</span>${asset.limestoneAutoApply === true && asset.limestoneBasisReviewRequired === true ? '<small data-limestone-saved-basis="true">저장된 교체 기준으로 계산</small>' : ''}
           </div>
           ${intermittent ? "" : `<div class="asset-status-group">
             <span class="operation-pill ${escapeHtml(operationState)}">${escapeHtml(operationStateLabel)}</span>
@@ -1813,7 +1814,7 @@
   }
 
   function renderAllOverviewCard(asset) {
-    const disputedLimestone = typeof isLimestoneDisputedAsset === 'function' ? isLimestoneDisputedAsset(asset) : asset?.blowerType === 'limestone' && asset.limestoneBasisConfirmed !== true && typeof LIMESTONE_DISPUTED_RUN_TAGS !== 'undefined' && LIMESTONE_DISPUTED_RUN_TAGS.has(String(asset.tagNumber || ''));
+    const disputedLimestone = typeof isLimestoneDisputedAsset === 'function' ? isLimestoneDisputedAsset(asset) : asset?.blowerType === 'limestone' && asset.limestoneAutoApply !== true && asset.limestoneBasisConfirmed !== true && typeof LIMESTONE_DISPUTED_RUN_TAGS !== 'undefined' && LIMESTONE_DISPUTED_RUN_TAGS.has(String(asset.tagNumber || ''));
     const trackedRun = verifiedLimestoneRunDisplay(asset);
     const underlyingView = allOverviewOperation(asset);
     // Only the current RUN state is from the latest ledger. The large number and
@@ -1843,7 +1844,7 @@
         data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(overviewOperationState)}" data-operation-mode="${view.intermittent ? "intermittent" : "standard"}"${disputedLimestone ? ' data-limestone-display="previous-checkpoint"' : ''}
         aria-label="${escapeHtml(`${position} 이력 보기`)}">
         <span class="all-overview-card-head">
-          <span class="all-overview-identity"><strong>${escapeHtml(position)}</strong><small>${escapeHtml(asset.tagNumber)}</small>${disputedLimestone ? '<small title="표시된 큰 숫자는 이전 저장 누적값이며, 최신 RUN 추적 누적과 합산하지 않았습니다. 정확한 V-Belt 교체시각 확인 후 재산정이 필요합니다.">이전 저장값 · 교체 기준 확인 필요</small>' : asset.limestoneSignalCandidate && !asset.dataParcRuntimeBasis ? `<small title="${escapeHtml(asset.limestoneSignalCandidate)} / RUN=1·0 신호 실측 확인 전">RUN 신호 확인 대기</small>` : ""}${latestRunAsOf}</span>
+          <span class="all-overview-identity"><strong>${escapeHtml(position)}</strong><small>${escapeHtml(asset.tagNumber)}</small>${asset.limestoneAutoApply === true && asset.limestoneBasisReviewRequired === true ? '<small data-limestone-saved-basis="true" title="현재 저장된 교체 기준부터 실제 RUN을 계산합니다. 실제 교체 완료시각이 새로 확정된 것은 아닙니다.">저장된 교체 기준으로 계산</small>' : ''}${disputedLimestone ? '<small title="표시된 큰 숫자는 이전 저장 누적값이며, 최신 RUN 추적 누적과 합산하지 않았습니다. 정확한 V-Belt 교체시각 확인 후 재산정이 필요합니다.">이전 저장값 · 교체 기준 확인 필요</small>' : asset.limestoneSignalCandidate && !asset.dataParcRuntimeBasis ? `<small title="${escapeHtml(asset.limestoneSignalCandidate)} / RUN=1·0 신호 실측 확인 전">RUN 신호 확인 대기</small>` : ""}${latestRunAsOf}</span>
           <span class="all-overview-status-badges">
             ${view.intermittent ? '<span class="operation-mode-pill intermittent">간헐운전</span>' : ''}
             ${showOperationStateBadge ? `<span class="operation-pill ${escapeHtml(view.state)}">${escapeHtml(view.label)}</span>` : ''}
@@ -2108,7 +2109,7 @@
     // V3-F: the three disputed Limestone assets may run a bounded, read-only
     // RUN probe even when the server does not trust their old cumulative basis.
     const isPreviewCandidate = asset => typeof isLimestoneDisputedAsset === 'function'
-      ? isLimestoneDisputedAsset(asset) : asset.blowerType === 'limestone' && asset.limestoneBasisConfirmed !== true && asset.limestoneRunDisputed !== false &&
+      ? isLimestoneDisputedAsset(asset) : asset.blowerType === 'limestone' && asset.limestoneAutoApply !== true && asset.limestoneBasisConfirmed !== true && asset.limestoneRunDisputed !== false &&
         ['103HRJ01AN602', '203HRJ01AN601', '203HRJ01AN602'].includes(asset.tagNumber);
     // V3-G R2: Only held Limestone assets need the separate ledger read.
     // Do not inject this API call into the ordinary 24-asset refresh path:
@@ -2463,7 +2464,7 @@
     const latestRuntimeEvent = latestExplicitRuntimeEvent(asset);
     const runView = window.BlowerUnifiedRefresh?.fbheSealRunView(asset, getLatestDataParcRuntimeBasis(tagNumber));
     const trackedRun = verifiedLimestoneRunDisplay(asset);
-    const disputedLimestone = typeof isLimestoneDisputedAsset === 'function' ? isLimestoneDisputedAsset(asset) : asset?.blowerType === 'limestone' && asset.limestoneBasisConfirmed !== true && typeof LIMESTONE_DISPUTED_RUN_TAGS !== 'undefined' && LIMESTONE_DISPUTED_RUN_TAGS.has(String(asset.tagNumber || ''));
+    const disputedLimestone = typeof isLimestoneDisputedAsset === 'function' ? isLimestoneDisputedAsset(asset) : asset?.blowerType === 'limestone' && asset.limestoneAutoApply !== true && asset.limestoneBasisConfirmed !== true && typeof LIMESTONE_DISPUTED_RUN_TAGS !== 'undefined' && LIMESTONE_DISPUTED_RUN_TAGS.has(String(asset.tagNumber || ''));
 
     elements.historyDialogTitle.textContent = `${asset.positionLabel} 이력`;
     elements.historyDialogAsset.textContent = `${asset.displayName} · ${asset.tagNumber}`;
@@ -2501,7 +2502,7 @@
       const allowed = hasAuthenticatedWriteAccess() && !isMobileMonitoringView() &&
         asset.blowerType === 'limestone' && LIMESTONE_DISPUTED_RUN_TAGS.has(asset.tagNumber);
       elements.limestoneBasisButton.hidden = !allowed;
-      elements.limestoneBasisButton.textContent = asset.limestoneBasisConfirmed === true ? '교체 기준 정정' : '교체 기준 확정';
+      elements.limestoneBasisButton.textContent = asset.limestoneAutoApply === true || asset.limestoneBasisConfirmed === true ? '교체 기준 정정' : '교체 기준 확정';
       elements.limestoneBasisButton.disabled = state.busy || state.unifiedRefreshBusy || state.dataparcRuntimeBusy;
     }
     if (elements.historyRuntimeQueryButton) {
