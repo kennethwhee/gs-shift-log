@@ -1769,7 +1769,7 @@ const INSPECTION_AUTO_COMPLETION_DEFAULT_SCHEDULES = [
         "weekly",
 
       days: [
-        0
+        1
       ]
     }
   },
