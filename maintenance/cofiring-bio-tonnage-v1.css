@@ -56,3 +56,12 @@
 /* V6: emphasize operator-entered numbers. */
 [data-cofiring-draft-root] .cfbt-card input:not([readonly]):not(:disabled),
 [data-cofiring-draft-root] .cfbt-shared input:not([readonly]):not(:disabled){font-weight:700}
+
+/* V7: let the existing percent editor occupy its own row while open. */
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target:has([data-cfv-target-control]:not([hidden])){display:flex!important;flex-wrap:wrap!important}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-results-dark > [data-cfv52-summary-grid] > .cfv52-card[data-cfv52-unit]:not(.cfv-adjustment-card) > .cfv6-target.cfv10-target > .cfv10-target-head > .cfv-target-inline:has([data-cfv-target-control]:not([hidden])){flex:0 0 100%;width:auto;max-width:100%}
+
+/* Keep source time and planning basis on one line when space permits. */
+[data-cofiring-draft-root] .cfbt-settings{margin-bottom:5px}
+[data-cofiring-draft-root] .cfbt-basis,[data-cofiring-draft-root] .cfbt-status{display:inline;margin:0}
+[data-cofiring-draft-root] .cfbt-status:not(:empty)::before{content:" · "}
