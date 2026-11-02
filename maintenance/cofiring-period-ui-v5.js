@@ -10,6 +10,7 @@
   const manualApi=root.CofiringPeriodManualStorage;
   const adjustmentApi=root.CofiringPeriodAdjustmentV56||(typeof require==='function'?require('./cofiring-period-adjustment-v56.js'):null);
   const deadlineTargetApi=root.CofiringDeadlineTargetV1||(typeof require==='function'?require('./cofiring-deadline-target-v1.js'):null);
+  const bioTonnageApi=root.CofiringBioTonnageV1;
   const FUEL_LABEL={coal:'Coal',bio:'Bio',organic:'유기성',manure:'축분'};
   const FUEL_KEYS=['coal','bio','organic','manure'];
   const UNITS=['unit1','unit2'];
@@ -409,12 +410,20 @@
   }
   function renderSummary(container,result,manualValues,targetError=''){
     const state=container?.__cfvAdjustedComparisonState;
+    let restoreTonnage=()=>{};try{restoreTonnage=bioTonnageApi?.retain?.(container)||restoreTonnage;}catch(_){}
+    const paintTonnage=()=>{
+      let selectedPeriod=null;try{selectedPeriod=periodSpec(container);}catch(_){}
+      // Use the unprojected source and decorate original cards after comparison cloning.
+      const source=result&&state?.active&&state.base&&state.adjusted?state.base:result;
+      try{bioTonnageApi?.render?.(container,source,{selectedPeriod,targetError});}catch(_){}
+      try{restoreTonnage();}catch(_){}
+    };
     if(!result||!state?.active||!state.base||!state.adjusted){
       if(!result&&container)container.__cfvAdjustedComparisonState={active:false,base:null,adjusted:null};
-      return renderSummaryOriginal(container,result,manualValues,targetError);
+      renderSummaryOriginal(container,result,manualValues,targetError);paintTonnage();return;
     }
     const host=container.querySelector('[data-cfv52-summary-grid]');
-    if(!host||!root.document?.createElement)return renderSummaryOriginal(container,state.base,manualValues,targetError);
+    if(!host||!root.document?.createElement){renderSummaryOriginal(container,state.base,manualValues,targetError);paintTonnage();return;}
 
     renderSummaryOriginal(container,state.base,manualValues,targetError);
     const originalChildren=[...host.children];
@@ -430,6 +439,7 @@
 
     host.replaceChildren(...originalCards,...adjustedCards,...trailingOriginal);
     const note=container.querySelector('[data-cfv52-summary-note]');if(note)note.textContent='혼소 조정 적용';
+    paintTonnage();
   }
 
   function retainBioTargetEditor(container){
@@ -1455,6 +1465,7 @@
       if(showDayUnavailable()||!sameSelectedPeriod(s?.period))return;
       const item=s?.item,state=container.querySelector('[data-cfv5-live-state]'),active=item?.active,queryButton=container.querySelector('[data-cfv5-query]');
       const presentation=liveRequestPresentation(s,{conflictRetrying}),hardBusy=presentation.busy,failureMessage=presentation.failureMessage,requery=container.querySelector('[data-cfv5-requery]');
+      try{bioTonnageApi?.setQueryState?.(container,{busy:hardBusy||!!active,failed:!!item?.error||!!failureMessage,authenticated:s?.authenticated===true});}catch(_){}
       queryButton.disabled=mobile||!s?.canQuery||hardBusy;
       queryButton.textContent=presentation.buttonText;
       if(requery)requery.disabled=mobile||!s?.canQuery||!item?.saved||hardBusy||!!active;
@@ -1662,7 +1673,7 @@
         }
       });
     }
-    const observer=root.MutationObserver?new root.MutationObserver(()=>{if(visible()){if(showDayUnavailable()){cfvSummaryLayoutPending(false);return;}if(selectedStoreKey!==storeKey())void periodChanged();else{void adjustmentSync?.refresh({force:true});void inventoryCorrections?.refresh({force:true});if(displayResult)renderSummary(container,displayResult,currentManualFromFields(),deadlineInputError);void syncReceiptTotals();scheduleDeadlineRefresh();scheduleFastPrep(0);}}else{cfvSummaryLayoutPending(false);restoringSaved=false;clearDayBoundary();clearDeadlineRefresh();clickTiming?.cancel('화면 닫힘');fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}live?.pause();}}):null;const view=container.closest?.('[data-efficiency-view]'),modal=root.document?.getElementById?.('efficiencyTeamModal');for(const node of [view,modal])if(node&&observer)observer.observe(node,{attributes:true,attributeFilter:['hidden','aria-hidden']});
+    const observer=root.MutationObserver?new root.MutationObserver(()=>{if(visible()){if(showDayUnavailable()){cfvSummaryLayoutPending(false);return;}if(selectedStoreKey!==storeKey())void periodChanged();else{void adjustmentSync?.refresh({force:true});void inventoryCorrections?.refresh({force:true});if(displayResult)renderSummary(container,displayResult,currentManualFromFields(),deadlineInputError);void syncReceiptTotals();scheduleDeadlineRefresh();scheduleFastPrep(0);}}else{bioTonnageApi?.suspend?.(container);cfvSummaryLayoutPending(false);restoringSaved=false;clearDayBoundary();clearDeadlineRefresh();clickTiming?.cancel('화면 닫힘');fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}live?.pause();}}):null;const view=container.closest?.('[data-efficiency-view]'),modal=root.document?.getElementById?.('efficiencyTeamModal');for(const node of [view,modal])if(node&&observer)observer.observe(node,{attributes:true,attributeFilter:['hidden','aria-hidden']});
     const receiptMessageHandler=event=>{if(event.origin!==root.location?.origin||event.data?.type!=='solid-fuel:receipt-changed')return;if(queryMode(container)==='daily')void syncReceiptTotals();void inventoryCorrections?.refresh({force:true});};
     root.addEventListener?.('message',receiptMessageHandler);
     statusRefreshers.set(container,refreshStatusLine);
@@ -1677,7 +1688,7 @@
         if(JSON.stringify(actual.estimation)!==JSON.stringify(incoming.estimation))return false;
         renderDisplay(candidate,{adjusted:false});
         return true;
-      },getSnapshotInputs:()=>{const values=readManual(container);validateOrganicAllocationBeforeSave(values);return {settings:readSettings(container),manual:values,sourceRequestId:renderedRequestId,organicCorrections:organicUsageState?.corrections||[]};},getSpec:currentSpec,dispose(){inventoryCorrections?.dispose();adjustmentSync?.dispose?.();statusRefreshers.delete(container);root.removeEventListener?.('message',receiptMessageHandler);receiptSyncGeneration++;clearInputRecalc();clearDayBoundary();clearDeadlineRefresh();clickTiming?.dispose();paintQueryOverlay({status:"idle"});queryOverlay?.remove?.();disposed=true;fastPrepGeneration++;if(fastPrepTimer)root.clearTimeout?.(fastPrepTimer);observer?.disconnect();morningCardObserver?.disconnect();if(morningCardBindTimer!==null)root.clearTimeout?.(morningCardBindTimer);adjuster?.dispose?.();settings?.dispose();manual?.dispose();live?.dispose();}};
+      },getSnapshotInputs:()=>{const values=readManual(container);validateOrganicAllocationBeforeSave(values);return {settings:readSettings(container),manual:values,sourceRequestId:renderedRequestId,organicCorrections:organicUsageState?.corrections||[]};},getSpec:currentSpec,dispose(){bioTonnageApi?.dispose?.(container);inventoryCorrections?.dispose();adjustmentSync?.dispose?.();statusRefreshers.delete(container);root.removeEventListener?.('message',receiptMessageHandler);receiptSyncGeneration++;clearInputRecalc();clearDayBoundary();clearDeadlineRefresh();clickTiming?.dispose();paintQueryOverlay({status:"idle"});queryOverlay?.remove?.();disposed=true;fastPrepGeneration++;if(fastPrepTimer)root.clearTimeout?.(fastPrepTimer);observer?.disconnect();morningCardObserver?.disconnect();if(morningCardBindTimer!==null)root.clearTimeout?.(morningCardBindTimer);adjuster?.dispose?.();settings?.dispose();manual?.dispose();live?.dispose();}};
   }
   root.CofiringPeriodV5={mount,periodSpec,dailySpec,dailySelectionSpec,dayAvailability,defaultCalculationDate,queryMode,customSpec,currentDaySpec,selectedAvailability,targetReferenceMarkup,fuelUsageMarkup,markup,readSettings,readManual,manualForCalculation,coalBioHeat,coalBioRatio,combinedCoalBio,cachedReference,liveRequestPresentation};if(typeof module==='object'&&module.exports)module.exports=root.CofiringPeriodV5;
   if(root.document){const init=()=>{const container=root.document.querySelector('[data-cofiring-draft-root]');if(container)root.__cofiringPeriodV5Controller=mount(container);};if(root.document.readyState==='loading')root.document.addEventListener('DOMContentLoaded',init,{once:true});else init();}
