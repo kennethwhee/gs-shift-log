@@ -1,4 +1,4 @@
-/* COFIRING_BIO_TONNAGE_COMPACT_V2 — browser-local planning only. */
+/* COFIRING_BIO_TONNAGE_COMPACT_V3 — browser-local planning only. */
 [data-cofiring-draft-root] .cfbt-card{margin-top:6px;padding:7px 8px;background:rgba(36,134,112,.09);border:1px solid rgba(104,161,154,.32);border-radius:4px;color:inherit;font-size:11px;box-sizing:border-box}
 [data-cofiring-draft-root] .cfbt-main{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:7px;min-width:0}
 [data-cofiring-draft-root] .cfbt-goal{display:flex;flex:none;align-items:center;gap:4px;font-size:11px;color:inherit;white-space:nowrap}
@@ -33,3 +33,6 @@
 @media(max-width:680px){[data-cofiring-draft-root] .cfbt-main{flex-wrap:wrap;gap:5px 8px}[data-cofiring-draft-root] .cfbt-plan,[data-cofiring-draft-root] .cfbt-proof{margin-left:0;white-space:normal;flex-wrap:wrap}}
 @media(max-width:380px){[data-cofiring-draft-root] .cfbt-rate strong{font-size:17px}}
 @media(pointer:coarse){[data-cofiring-draft-root] .cfbt-modes button,[data-cofiring-draft-root] .cfbt-settings>summary{min-height:44px}[data-cofiring-draft-root] .cfbt-card input,[data-cofiring-draft-root] .cfbt-shared input{min-height:44px;font-size:16px}}
+
+[data-cofiring-draft-root] .cfbt-total-edit{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;font-size:11px}
+[data-cofiring-draft-root] .cfbt-total-edit input{width:76px;min-width:0;font-size:12px;padding:3px 5px}

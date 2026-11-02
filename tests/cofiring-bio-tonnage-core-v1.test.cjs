@@ -318,3 +318,137 @@ test('support directions are symmetric under unit permutation with conservation 
     }
   }
 });
+
+test('independent combined goals use the existing deficit ratio for all remaining feed', () => {
+  const input = { targets: [500, 300], current: [100, 200], remainingHours: 2, mode: 'combined' };
+  const lower = calculate({ ...input, combinedTarget: 600 }); normal(lower);
+  assert.equal(lower.unitTargetTotal, 800); assert.equal(lower.total, 600);
+  assert.equal(lower.combinedTargetApplied, true); assert.deepEqual(lower.need, [240, 60]);
+  assert.deepEqual(lower.final, [340, 260]); assert.equal(lower.finalTotal, 600);
+  const higher = calculate({ ...input, combinedTarget: 1000 }); normal(higher);
+  // Apply 400:100 to the entire 700t remainder; no second allocation stage.
+  assert.deepEqual(higher.need, [560, 140]); assert.deepEqual(higher.final, [660, 340]);
+  assert.equal(higher.finalTotal, 1000); assert.equal(higher.unitTargetTotal, 800);
+});
+
+test('independent goals can add beyond met unit targets using an equal-addition fallback', () => {
+  for (const [targets, current, combinedTarget, expected] of [
+    [[500, 300], [500, 300], 1000, [100, 100]],
+    [[500, 300], [600, 400], 1100, [50, 50]],
+    [[0, 0], [10, 20], 100, [35, 35]],
+    [[0, 0], [0, 0], 100, [50, 50]]
+  ]) {
+    const r = calculate({ targets, current, combinedTarget, remainingHours: 2, mode: 'combined' }); normal(r);
+    assert.deepEqual(r.gaps, [0, 0]); assert.deepEqual(r.need, expected);
+    assert.equal(r.finalTotal, combinedTarget); assert.equal(r.combinedTargetApplied, true);
+  }
+});
+
+test('explicit zero combined goal is honored without capping an operator plan', () => {
+  const r = calculate({ ...example, mode: 'combined', combinedTarget: 0 }); normal(r);
+  assert.equal(r.total, 0); assert.equal(r.remaining, 0); assert.equal(r.currentExcess, 600);
+  assert.deepEqual(r.need, [0, 0]); assert.equal(r.finalTotal, 600);
+  const planned = calculate({ ...example, combinedTarget: 0 }); normal(planned);
+  assert.deepEqual(planned.need, [0, 80]); assert.equal(planned.rates[1], 20);
+  assert.equal(planned.finalTotal, 680); assert.equal(planned.excess, 680);
+});
+
+test('only an omitted combinedTarget property falls back to legacy unit-goal sum', () => {
+  const legacy = calculate({ ...example, mode: 'combined' }); normal(legacy);
+  near(legacy.total, 722.8); assert.equal(legacy.combinedTargetApplied, false);
+  near(legacy.unitTargetTotal, 722.8);
+  for (const combinedTarget of [undefined, null, '', '700', -1, NaN, Infinity, new Number(700)]) {
+    for (const mode of ['combined', 'support', 'support2']) {
+      const r = calculate({ ...example, mode, plannedRate1: 20, combinedTarget });
+      assert.equal(r.valid, false); assert.ok(r.errors.some(error => error.field === 'combinedTarget'));
+      assert.equal(r.total, null); assert.equal(r.unitTargetTotal, null);
+      assert.equal(r.combinedTargetApplied, false); assert.deepEqual(r.need, [null, null]);
+    }
+  }
+});
+
+test('individual mode ignores the independent goal even when it is explicitly invalid', () => {
+  const baseline = calculate({ ...example, mode: 'individual' }); normal(baseline);
+  for (const combinedTarget of [0, 1000, undefined, null, '', -1, NaN, Infinity]) {
+    const r = calculate({ ...example, mode: 'individual', combinedTarget });
+    assert.deepEqual(r, baseline); assert.equal(r.combinedTargetApplied, false);
+    near(r.total, 722.8); near(r.unitTargetTotal, 722.8);
+  }
+  const getter = { ...example, mode: 'individual' };
+  Object.defineProperty(getter, 'combinedTarget', { get() { throw new Error('Unused independent target must not be read.'); } });
+  assert.deepEqual(calculate(getter), baseline);
+});
+
+test('both support directions meet the independent goal with mirrored manual plans', () => {
+  for (const [combinedTarget, expectedHelper] of [[700, 20], [800, 120]]) {
+    const r = calculate({ ...example, combinedTarget }); normal(r);
+    near(r.need[0], expectedHelper); near(r.need[1], 80); near(r.finalTotal, combinedTarget);
+    near(r.support, expectedHelper); near(r.unitTargetTotal, 722.8);
+    // Own-goal references stay unchanged even when their old proof no longer applies.
+    near(r.short2, 81.4); near(r.credit1, 38.6); near(r.creditedTo2, 38.6);
+    assert.ok(Math.abs(r.creditedTo2 + r.support - r.short2) > 1);
+    const mirrored = calculate({ ...example, current: [200, 400], mode: 'support2', plannedRate1: 20, combinedTarget }); normal(mirrored);
+    near(mirrored.need[0], 80); near(mirrored.need[1], expectedHelper);
+    near(mirrored.finalTotal, combinedTarget); near(mirrored.support, r.support);
+    near(mirrored.short1, r.short2); near(mirrored.credit2, r.credit1);
+  }
+});
+
+test('independent goal planning remains unavailable at or after midnight', () => {
+  for (const mode of ['combined', 'support', 'support2']) for (const remainingHours of [0, -1]) {
+    const r = calculate({ ...example, mode, plannedRate1: 20, combinedTarget: 900, remainingHours });
+    assert.equal(r.valid, true); assert.equal(r.state, 'closed'); assert.equal(r.projectionAvailable, false);
+    assert.equal(r.total, 900); near(r.unitTargetTotal, 722.8); assert.equal(r.remaining, 300);
+    assert.equal(r.combinedTargetApplied, true); assert.deepEqual(r.need, [null, null]);
+    assert.deepEqual(r.rates, [null, null]); assert.deepEqual(r.final, [null, null]);
+    assert.equal(r.finalTotal, null); assert.equal(r.support, null); assert.equal(r.excess, null);
+  }
+});
+
+test('independent goals retain overflow protection for referenced totals and resulting rates', () => {
+  const cases = [
+    { ...example, mode: 'combined', combinedTarget: Number.MAX_VALUE, remainingHours: Number.MIN_VALUE },
+    { ...example, combinedTarget: 1000, plannedRate2: Number.MAX_VALUE },
+    { ...example, mode: 'support2', combinedTarget: 1000, plannedRate1: Number.MAX_VALUE },
+    { ...example, targets: [Number.MAX_VALUE, Number.MAX_VALUE], combinedTarget: 1000 },
+    { ...example, mode: 'combined', current: [Number.MAX_VALUE, Number.MAX_VALUE], combinedTarget: 1000 }
+  ];
+  for (const input of cases) {
+    const r = calculate(input); assert.equal(r.valid, false);
+    assert.equal(r.unitTargetTotal, null); assert.equal(r.total, null); assert.equal(r.finalTotal, null);
+    assert.deepEqual(r.rates, [null, null]);
+  }
+});
+
+test('independent combined goals conserve all remaining feed across target and actual permutations', () => {
+  const reverse = values => [values[1], values[0]];
+  for (const targets of [[0, 0], [0, 100], [361.4, 361.4], [500, 300]]) {
+    for (const current of [[0, 0], [10, 20], [100, 200], [400, 200], [800, 900]]) {
+      for (const combinedTarget of [0, 100, 700, 1000, 2000]) {
+        const input = { targets, current, remainingHours: 58 / 60, combinedTarget };
+        const r = calculate({ ...input, mode: 'combined' }); normal(r);
+        near(r.need[0] + r.need[1], Math.max(0, combinedTarget - current[0] - current[1]));
+        near(r.finalTotal, Math.max(combinedTarget, current[0] + current[1]));
+        assert.ok(r.need.every(value => value >= 0));
+        for (const plannedRate of [0, 20, 1000]) {
+          const one = calculate({ ...input, mode: 'support', plannedRate2: plannedRate }); normal(one);
+          const two = calculate({ ...input, targets: reverse(targets), current: reverse(current), mode: 'support2', plannedRate1: plannedRate }); normal(two);
+          near(one.need[0], two.need[1]); near(one.need[1], two.need[0]);
+          near(one.support, two.support); near(one.supportRate, two.supportRate);
+          near(one.finalTotal, Math.max(combinedTarget, one.current + plannedRate * input.remainingHours));
+          near(two.finalTotal, one.finalTotal);
+          assert.ok(one.support >= 0 && one.support <= one.need[0]);
+          assert.ok(two.support >= 0 && two.support <= two.need[1]);
+        }
+      }
+    }
+  }
+});
+
+test('independent goal does not mutate a frozen caller object or its unit target arrays', () => {
+  const targets = Object.freeze([500, 300]); const current = Object.freeze([100, 200]);
+  const input = Object.freeze({ targets, current, combinedTarget: 1000, remainingHours: 2, mode: 'combined' });
+  const r = calculate(input); normal(r); r.need[0] = 999;
+  assert.deepEqual(targets, [500, 300]); assert.deepEqual(current, [100, 200]);
+  assert.equal(input.combinedTarget, 1000); assert.deepEqual(calculate(input).need, [560, 140]);
+});
