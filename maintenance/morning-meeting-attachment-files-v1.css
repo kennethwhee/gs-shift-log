@@ -159,3 +159,77 @@
     padding-left: 10px;
   }
 }
+
+/* GS_MORNING_COAL_THREE_COLUMNS_V1: full filenames, compact desktop layout. */
+@media (min-width: 769px) {
+  #efficiencyMorningMeetingView .morning-meeting-coal-file-reference {
+    padding-right: 8px;
+    padding-left: 8px;
+    container: morning-coal-files / inline-size;
+  }
+
+  #efficiencyMorningMeetingView .morning-meeting-coal-file-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    column-gap: 3px;
+  }
+
+  #efficiencyMorningMeetingView .morning-meeting-coal-file-row {
+    gap: 1px;
+    min-height: 24px;
+  }
+
+  #efficiencyMorningMeetingView .morning-meeting-coal-file-name {
+    color: #213b51;
+    font-size: 9px;
+    font-weight: 400;
+    letter-spacing: -0.1px;
+  }
+
+  #efficiencyMorningMeetingView .morning-meeting-coal-file-remove {
+    height: 24px;
+    min-height: 24px;
+  }
+
+  @media (pointer: coarse) {
+    #efficiencyMorningMeetingView .morning-meeting-coal-file-list {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    #efficiencyMorningMeetingView .morning-meeting-coal-file-row {
+      grid-template-columns: minmax(0, 1fr) 44px;
+      min-height: 44px;
+    }
+
+    #efficiencyMorningMeetingView .morning-meeting-coal-file-name {
+      font-size: 10px;
+      letter-spacing: normal;
+    }
+
+    #efficiencyMorningMeetingView .morning-meeting-coal-file-remove {
+      width: 44px;
+      height: 44px;
+      min-height: 44px;
+    }
+
+    #efficiencyMorningMeetingView .morning-meeting-coal-file-undo__button {
+      min-height: 44px;
+    }
+  }
+
+  @container morning-coal-files (max-width: 300px) {
+    #efficiencyMorningMeetingView .morning-meeting-coal-file-list {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    #efficiencyMorningMeetingView .morning-meeting-coal-file-name {
+      font-size: 10px;
+      letter-spacing: normal;
+    }
+  }
+
+  @container morning-coal-files (max-width: 215px) {
+    #efficiencyMorningMeetingView .morning-meeting-coal-file-list {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+}
