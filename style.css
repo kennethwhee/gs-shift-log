@@ -121442,3 +121442,37 @@ html body #efficiencyArmRollTab.efficiency-team-tab .icon {
   white-space: nowrap;
 }
 /* GS_MAIN_LOG_METADATA_STACK_V1_END */
+
+/* GS_MAIN_LOG_INFO_DIVIDER_V2_START */
+/* Desktop metadata: 6px more room per side, with a short role separator. */
+@media screen and (min-width: 769px) {
+  #statusView .log-table > thead > tr > .log-table__metadata-heading,
+  #statusView #logTableBody > tr > .log-row__metadata-cell {
+    width: 116px !important;
+    min-width: 116px !important;
+    max-width: 116px !important;
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+  }
+
+  #statusView #logTableBody .log-row__metadata-stack > .log-row__role {
+    color: #294766;
+    font-weight: 700;
+    letter-spacing: .25px;
+  }
+
+  #statusView #logTableBody .log-row__metadata-stack > .log-row__role::after {
+    content: "";
+    display: block;
+    width: 30px;
+    height: 1px;
+    margin: 8px auto 2px;
+    background: #c4d1de;
+  }
+
+  #statusView #logTableBody .log-row__metadata-stack .log-row__author {
+    color: #3b4d61;
+    font-weight: 600;
+  }
+}
+/* GS_MAIN_LOG_INFO_DIVIDER_V2_END */
