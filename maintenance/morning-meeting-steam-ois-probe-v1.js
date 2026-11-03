@@ -158,12 +158,59 @@
     return new Promise(resolve => window.setTimeout(resolve, milliseconds));
   }
 
-  async function waitForCompletion(id) {
+  function cancellationError() {
+    const error = new Error("기준일 또는 로그인 상태가 변경되어 이전 증기 조회 대기를 중단했습니다.");
+    error.code = "STEAM_QUERY_CANCELLED";
+    return error;
+  }
+
+  function validateRequestIdentity(item, id, targetDate) {
+    if (!item || text(item.id) !== id) throw new Error("OIS 증기 조회 요청 ID가 일치하지 않습니다.");
+    const requestType = text(item.requestType || item.request_type || item.result?.requestType || item.result?.sourceRequestType)
+      .toLowerCase().replace(/[\s-]+/g, "_");
+    const requestDate = text(item.targetDate || item.target_date || item.result?.targetDate || item.result?.sourceDate);
+    if (requestType !== "steam_status" || requestDate !== targetDate) {
+      throw new Error("OIS 증기 조회 요청 종류 또는 기준일이 일치하지 않습니다.");
+    }
+    for (const value of [item.result?.targetDate, item.result?.sourceDate]) {
+      if (text(value) && text(value) !== targetDate) throw new Error("OIS 증기 결과의 기준일이 일치하지 않습니다.");
+    }
+    return item;
+  }
+
+  async function waitForCompletion(id, targetDate, isCurrent) {
+    const assertCurrent = () => { if (!isCurrent()) throw cancellationError(); };
+    assertCurrent();
+    // Share ID polling with water/limestone/turbine/Silo. This changes only
+    // status reads; it neither starts another Agent job nor parallelizes OIS.
+    if (typeof window.waitForSharedOisRequestCompletion === "function") {
+      let identityError = null;
+      const item = await window.waitForSharedOisRequestCompletion(id, {
+        maximumWaitMs: MAXIMUM_WAIT,
+        isCancelled: () => !isCurrent() || Boolean(identityError),
+        notFoundMessage: "OIS 증기 조회 요청을 찾지 못했습니다.",
+        timeoutMessage: "OIS 증기 생산·판매 조회 응답 시간이 초과되었습니다.",
+        failureMessage: value => text(value?.errorMessage || value?.error_message) || "OIS 증기 생산·판매 조회에 실패했습니다.",
+        onUpdate: value => {
+          if (!isCurrent()) return;
+          try { validateRequestIdentity(value, id, targetDate); } catch (error) { identityError = error; return; }
+          applySourceOwnership();
+        }
+      });
+      assertCurrent();
+      if (identityError) throw identityError;
+      if (!item) throw cancellationError();
+      validateRequestIdentity(item, id, targetDate);
+      if (text(item.status).toLowerCase() !== "complete") throw new Error("OIS 증기 조회가 완료되지 않았습니다.");
+      return item;
+    }
+
     const startedAt = Date.now();
     while (Date.now() - startedAt < MAXIMUM_WAIT) {
+      assertCurrent();
       const data = await getRequest(id);
-      const item = data.item;
-      if (!item) throw new Error("OIS 증기 조회 요청을 찾지 못했습니다.");
+      assertCurrent();
+      const item = validateRequestIdentity(data.item, id, targetDate);
 
       const status = text(item.status).toLowerCase();
       if (status === "complete") return item;
@@ -703,6 +750,15 @@ async function run(button, options = {}) {
         throw new Error("오전회의 증기 조회 기준일을 확인하지 못했습니다.");
       }
 
+      const authorization = () => {
+        const currentHeaders = headers();
+        return text(currentHeaders.Authorization || currentHeaders.authorization);
+      };
+      const initialAuthorization = authorization();
+      const isCurrent = () => resolveTargetDate() === targetDate && authorization() === initialAuthorization;
+      const assertCurrent = () => { if (!isCurrent()) throw cancellationError(); };
+      if (text(options.targetDate) && text(options.targetDate) !== targetDate) throw cancellationError();
+
       const forceRefresh = options.forceRefresh === true;
       const ignoreSaved = options.ignoreSaved === true;
       const silent = options.silent === true;
@@ -727,11 +783,14 @@ async function run(button, options = {}) {
         if (!isCompleteSteamResult(stored)) {
           try {
             const history = await loadStoredSteamResult(targetDate);
+            assertCurrent();
             stored = mergeSteamResults(stored, history, targetDate) || stored || history;
           } catch (error) {
             console.warn("저장된 증기 조회 기록 확인 실패:", error);
           }
         }
+
+        assertCurrent();
 
         if (hasAnyCompleteSteamSide(stored)) {
           commitOisState(stored, isCompleteSteamResult(stored) ? "complete" : "partial");
@@ -750,7 +809,9 @@ async function run(button, options = {}) {
 
       try {
         const id = await createRequest(targetDate, { forceRefresh: true });
-        const item = await waitForCompletion(id);
+        assertCurrent();
+        const item = await waitForCompletion(id, targetDate, isCurrent);
+        assertCurrent();
         const fresh = normalizeResult(item, targetDate);
         const merged = ignoreSaved
           ? fresh
@@ -767,6 +828,16 @@ async function run(button, options = {}) {
         );
         return lastResult;
       } catch (error) {
+        if (error?.code === "STEAM_QUERY_CANCELLED" || !isCurrent()) {
+          // Do not publish an old result/error or restore old-date fallback
+          // over a newly selected date. Release only this run's loading badge.
+          const panel = document.getElementById(PANEL_ID);
+          if (phase === "loading" && panel?.dataset.steamStatusTargetDate === targetDate) {
+            phase = "idle";
+            panel.dataset.steamStatusStatus = "idle";
+          }
+          throw cancellationError();
+        }
         if (!ignoreSaved && hasAnyCompleteSteamSide(stored)) {
           const partial = {
             ...stored,

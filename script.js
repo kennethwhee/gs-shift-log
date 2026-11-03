@@ -230095,11 +230095,12 @@ function initializeLimestoneSlipCameraPicker() {
         .toLowerCase();
 
 
-    return limestoneSourceStatus ===
+    return !forceRefresh && (
+      limestoneSourceStatus ===
       "complete" ||
       hasBulkCompleteStatus([
         "efficiencyMorningMeetingAutoLimestoneStatus"
-      ])
+      ]))
       ? true
       : result;
   }
@@ -230418,6 +230419,7 @@ function initializeLimestoneSlipCameraPicker() {
           result ===
             undefined
         ) &&
+        !forceRefresh &&
         hasBulkSourceCompleteStatus(
           item
         )
@@ -230475,7 +230477,8 @@ function initializeLimestoneSlipCameraPicker() {
   /*
    * MORNING_MEETING_OIS_SERIAL_LANE_V1_R2A_V23
    *
-   * Shared Morning Meeting OIS work uses one serial lane.
+   * Shared Morning Meeting OIS browser work uses the Agent's single serial lane.
+   * Frontend saved-value reads and request creation are prequeued together.
    *
    * OIS:
    *   water
@@ -230484,8 +230487,8 @@ function initializeLimestoneSlipCameraPicker() {
    *   silo-level
    *   daily-data
    *
-   * daily-data is the retained compatibility key and currently
-   * routes to the Steam/OIS status loader.
+   * daily-data is retained only as a compatibility key. The current bulk
+   * item list excludes steam; the all-query coordinator starts it separately.
    *
    * SMP and Weather remain parallel.
    */
@@ -230538,76 +230541,30 @@ function initializeLimestoneSlipCameraPicker() {
         )
       );
 
-    /*
-     * Shared OIS lane:
-     * concurrency = 1
+    /* MORNING_MEETING_NORMAL_OIS_PREQUEUE_V1
+     * Start independent saved-value reads / request creation together.
+     * The company-PC Agent remains the sole, single-request OIS browser owner;
+     * this removes browser-side gaps between its queued jobs, not that lock.
      */
-    const oisResults =
-      [];
-
-    for (
-      const item
-      of oisItems
-    ) {
-      const key =
-        String(
-          item?.key ||
-          "unknown"
-        );
-
-      const startedAt =
-        Date.now();
-
-      console.info?.(
-        "[MORNING OIS R2A V2.3] START",
-        key
-      );
-
-      try {
-
-        const value =
-          await runBulkLookupItem(
-            item,
-            button
-          );
-
-        oisResults.push({
-          status:
-            "fulfilled",
-          value
-        });
-
-        console.info?.(
-          "[MORNING OIS R2A V2.3] DONE",
-          key,
-          Date.now() -
-            startedAt,
-          "ms"
-        );
-
-      } catch (
-        reason
-      ) {
-
-        oisResults.push({
-          status:
-            "rejected",
-          reason
-        });
-
-        console.warn(
-          "[MORNING OIS R2A V2.3] FAILED",
-          key,
-          Date.now() -
-            startedAt,
-          "ms",
-          reason
-        );
-      }
-    }
-
-    const parallelResults =
-      await parallelPromise;
+    const oisPromise = Promise.allSettled(
+      oisItems.map(async item => {
+        const key = String(item?.key || "unknown");
+        const startedAt = Date.now();
+        console.info?.("[MORNING OIS PREQUEUE V1] QUEUE", key);
+        try {
+          const value = await runBulkLookupItem(item, button);
+          console.info?.("[MORNING OIS PREQUEUE V1] DONE", key, Date.now() - startedAt, "ms");
+          return value;
+        } catch (reason) {
+          console.warn?.("[MORNING OIS PREQUEUE V1] FAILED", key, Date.now() - startedAt, "ms", reason);
+          throw reason;
+        }
+      })
+    );
+    const [oisResults, parallelResults] = await Promise.all([
+      oisPromise,
+      parallelPromise
+    ]);
 
     const resultByKey =
       new Map();

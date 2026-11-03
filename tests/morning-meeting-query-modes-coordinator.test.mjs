@@ -120,12 +120,13 @@ function harness() {
 
 const request = { userInitiated: true, targetDate: '2026-09-04' };
 
-test('actual operations hook starts parallel non-OIS plus one OIS item, then serializes remaining OIS work', async () => {
+test('actual operations hook prequeues all source loaders and reuses the active operation', async () => {
   const h = harness(), pending = deferred();
   for (const key of Object.keys(LOADERS)) h.behaviors[key] = () => pending.promise;
   const firstRun = h.run(request);
   assert.equal(h.run(request), firstRun, 'A duplicate operation must reuse its active promise.');
-  assert.deepEqual(h.calls.map(call => call.key).sort(), ['smp', 'weather', 'water'].sort());
+  assert.deepEqual(h.calls.map(call => call.key).sort(), Object.keys(LOADERS).sort(),
+    'Independent saved-value reads and request creation start before any source finishes; Agent execution remains separate.');
   assert.ok(h.calls.every(call => call.options.forceRefresh === false));
   pending.resolve({ complete: true });
   const results = plain(await firstRun);

@@ -33,6 +33,19 @@ const BUTTON_LABELS = { all: "전체조회", operations: "운영정보조회", r
   let morningElapsedTimer = null;
   const morningElapsedNow = () => window.performance?.now?.() ?? Date.now();
 
+  function formatMorningSourceTimings(timings, now = Date.now()) {
+    const labels = { operations: "운영정보(수처리·석회석·터빈·Silo·SMP·날씨)", steam: "증기 OIS", power: "TO 전력", closed: "혼소·유기성 마감자료" };
+    return Object.entries(labels).flatMap(([key, label]) => {
+      const item = timings?.[key];
+      if (!item || !Number.isFinite(item.startedAt)) return [];
+      const ended = Number.isFinite(item.durationMs);
+      const ms = ended ? item.durationMs : Math.max(0, now - item.startedAt);
+      const status = !ended ? "조회 중" : item.status === "rejected" ? "실패" : "응답 완료";
+      const error = text(item.error).replace(/\s+/g, " ").slice(0, 180);
+      return [`${label}: ${(Math.max(0, ms) / 1000).toFixed(1)}초 · ${status}${error ? " · " + error : ""}`];
+    });
+  }
+
   function renderMorningElapsed() {
     const date = targetDate();
     const toolbar = byId(TOOLBAR_ID);
@@ -59,8 +72,13 @@ const BUTTON_LABELS = { all: "전체조회", operations: "운영정보조회", r
     }[run.status] || "조회 종료";
     setText(badge, `${run.kind === "requery" ? "새로 조회 · " : ""}${label} ${(elapsed / 1000).toFixed(1)}초`);
     if (badge.dataset.state !== run.status) badge.dataset.state = run.status;
-    const title = `${run.date} · ${run.kind === "requery" ? "재조회 확인 후" : "전체조회 시작부터"} 전체 조회 처리 종료까지의 경과시간 (저장값 조회 포함)`;
+    const timings = morningElapsedRun === run && activeRequest?.date === run.date
+      ? activeRequest.timings : run.sourceTimings;
+    const details = formatMorningSourceTimings(timings);
+    const title = [`${run.date} · ${run.kind === "requery" ? "재조회 확인 후" : "전체조회 시작부터"} 전체 조회 처리 종료까지의 경과시간 (저장값 조회 포함)`,
+      ...details, ...(details.length ? ["항목은 함께 진행되므로 각 소요시간의 합계와 전체시간은 다릅니다."] : [])].join("\n");
     if (badge.title !== title) badge.title = title;
+    badge.setAttribute("aria-label", `${badge.textContent}\n${details.join("\n")}`);
   }
 
   function clearMorningElapsedTick() {
@@ -946,12 +964,8 @@ const BUTTON_LABELS = { all: "전체조회", operations: "운영정보조회", r
       }
       recordAllSteamFlow(current, "operations-settled", { operationsSucceeded });
       if (source === "all") {
-        /*
-          Steam remains OIS work.
-
-          It starts only after the operating R2A
-          serial lane has settled.
-        */
+        // Steam and other sources were requested above. Await their existing
+        // promises; actual OIS navigation stays serialized by the PC Agent.
         const currentSourceTasks = [
           ["power", earlyCurrentSourceTasks?.power],
           ["steam", earlyCurrentSourceTasks?.steam],
@@ -1035,6 +1049,11 @@ const BUTTON_LABELS = { all: "전체조회", operations: "운영정보조회", r
           sources: { ...current.timings }
         };
         window.__morningMeetingAllLastTiming = summary;
+        if (morningElapsedRun?.date === date) {
+          morningElapsedRun.sourceTimings = Object.fromEntries(
+            Object.entries(current.timings).map(([name, timing]) => [name, { ...timing }])
+          );
+        }
         console.info?.("[MORNING ALL PERF V12] SUMMARY", summary);
       }
       if (activeRequest === current) activeRequest = null;
