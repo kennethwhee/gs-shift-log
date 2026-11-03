@@ -53398,40 +53398,42 @@ function renderSearchResults(
               title="업무일지 상세보기"
             >
 
-              <td class="search-log-date-cell">
-                ${escapeHtml(
-                  log.date ||
-                  "-"
-                )}
+              <td class="search-log-date-shift-cell search-log-meta-cell">
+                <div class="search-log-meta">
+                  <span class="search-log-meta__date">
+                    ${escapeHtml(
+                      log.date ||
+                      "-"
+                    )}
+                  </span>
+                  <span class="search-log-meta__divider" aria-hidden="true"></span>
+                  <span class="search-log-meta__shift">
+                    ${escapeHtml(
+                      getShiftDisplayName(
+                        log.shift
+                      )
+                    )}
+                  </span>
+                </div>
               </td>
 
 
-              <td class="search-log-shift-cell">
-                ${escapeHtml(
-                  getShiftDisplayName(
-                    log.shift
-                  )
-                )}
-              </td>
-
-
-              <td class="search-log-role-cell">
-                ${escapeHtml(
-                  log.role ||
-                  "-"
-                )}
-              </td>
-
-
-              <td class="search-log-author-cell">
-
-                <strong>
-                  ${escapeHtml(
-                    log.author ||
-                    "-"
-                  )}
-                </strong>
-
+              <td class="search-log-role-author-cell search-log-meta-cell">
+                <div class="search-log-meta">
+                  <span class="search-log-meta__role">
+                    ${escapeHtml(
+                      log.role ||
+                      "-"
+                    )}
+                  </span>
+                  <span class="search-log-meta__divider" aria-hidden="true"></span>
+                  <strong class="search-log-meta__author">
+                    ${escapeHtml(
+                      log.author ||
+                      "-"
+                    )}
+                  </strong>
+                </div>
               </td>
 
 

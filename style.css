@@ -121539,3 +121539,91 @@ html body #efficiencyArmRollTab.efficiency-team-tab .icon {
   #attachmentPreviewPreviousButton { left: 6px !important; width: 34px !important; height: 48px !important; }
   #attachmentPreviewNextButton { right: 6px !important; width: 34px !important; height: 48px !important; }
 }
+
+/* GS_SEARCH_LOG_STACKED_INFO_V1_START */
+/* Search table only: date/shift and role/author share two compact columns.
+   Explicit widths replace the legacy six-column nth-child rules. */
+#searchView .search-result-table--stacked-info {
+  width: 100% !important;
+  min-width: 0 !important;
+  table-layout: fixed !important;
+}
+
+#searchView .search-result-table--stacked-info .search-result-table__date-shift,
+#searchView .search-result-table--stacked-info .search-log-date-shift-cell {
+  width: 112px !important;
+  min-width: 112px !important;
+  max-width: 112px !important;
+}
+
+#searchView .search-result-table--stacked-info .search-result-table__role-author,
+#searchView .search-result-table--stacked-info .search-log-role-author-cell {
+  width: 96px !important;
+  min-width: 96px !important;
+  max-width: 96px !important;
+}
+
+#searchView .search-result-table--stacked-info .search-result-table__content,
+#searchView .search-result-table--stacked-info .search-log-preview-cell {
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  border-right: 1px solid #dbe5f0 !important;
+  border-left: 1px solid #dbe5f0 !important;
+}
+
+#searchView .search-result-table--stacked-info .search-result-table__attachment,
+#searchView .search-result-table--stacked-info .search-log-attachment-cell {
+  width: 42px !important;
+  min-width: 42px !important;
+  max-width: 42px !important;
+  padding-right: 3px !important;
+  padding-left: 3px !important;
+  border-right: 0 !important;
+  text-align: center !important;
+}
+
+#searchView .search-result-table--stacked-info .search-log-meta-cell {
+  padding: 12px 7px !important;
+  color: #2d425e !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  line-height: 1.45 !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+  white-space: normal !important;
+}
+
+#searchView .search-result-table--stacked-info .search-log-meta {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+#searchView .search-result-table--stacked-info .search-log-meta > span,
+#searchView .search-result-table--stacked-info .search-log-meta > strong {
+  max-width: 100%;
+  font: inherit;
+  overflow-wrap: anywhere;
+}
+
+#searchView .search-result-table--stacked-info .search-log-meta__date {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+#searchView .search-result-table--stacked-info .search-log-meta__shift {
+  color: #2160b4;
+  white-space: nowrap;
+}
+
+#searchView .search-result-table--stacked-info .search-log-meta__divider {
+  display: block;
+  flex: 0 0 1px;
+  width: 30px;
+  height: 1px;
+  background: #bfd0e4;
+}
+/* GS_SEARCH_LOG_STACKED_INFO_V1_END */
