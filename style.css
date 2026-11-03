@@ -121770,3 +121770,14 @@ html body #efficiencyArmRollTab.efficiency-team-tab .icon {
 }
 
 /* GS_MECHANICAL_PREVIEW_LAYOUT_V4_END */
+
+
+/* GS_MECHANICAL_PREVIEW_PAIR_V4_R1_BEGIN */
+/* Keep mechanical and electrical cards beside each other in the existing
+   desktop team grid. Their content stays stacked inside each card. */
+#efficiencyMorningMeetingPreviewList [data-morning-meeting-preview-team="mechanical"] {
+  grid-column: auto;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* GS_MECHANICAL_PREVIEW_PAIR_V4_R1_END */
