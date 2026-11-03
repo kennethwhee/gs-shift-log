@@ -13,13 +13,14 @@ const OVERLAY_CREATED = '2026-10-22T09:33:42.000Z';
 const NOW = '2026-10-29T00:37:20.000Z';
 const CASES = [
   { tag: '104HHL60AP611', seconds: 40, delta: 0, replacement: '2026-09-04T00:00:00+09:00',
-    coverage: '2026-09-04T01:50:00.000Z', startRevision: 'fixture-cycle-a', oldState: 'stopped', newState: 'running' },
+    coverage: '2026-09-04T00:00:00+09:00', startRevision: 'fixture-cycle-a', oldState: 'stopped', newState: 'running' },
   { tag: '104HHL60AP631', seconds: 1776665, delta: 1932, replacement: '2026-08-27T00:00:00+09:00',
     coverage: '2026-08-26T15:00:00.000Z', startRevision: '', oldState: 'running', newState: 'stopped' }
 ];
 
-// Synthetic fixtures preserve the reported A/C boundary shapes and integer RUN
-// seconds. Request IDs, revision IDs, log IDs and log text are test-only values.
+// Synthetic fixtures preserve operation-boundary shapes with complete recorded
+// cycle coverage. Actual leading-gap rejection is covered by blower-cycle-coverage-v1.
+// Request IDs, revision IDs, log IDs and log text are test-only values.
 function sample(item = CASES[0]) {
   const signal = 'GSPOGE.ABB_DCS.TEST_ONLY_BINARY_' + item.tag;
   const hours = item.seconds / 3600;

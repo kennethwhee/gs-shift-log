@@ -201,7 +201,7 @@ async function fixture(assetTag, legacy) {
   const sqlite = database.raw();
   const clock = floorToSecond(Date.now());
   const replacementAt = new Date(clock - 3 * 86400000).toISOString();
-  const startAt = new Date(clock - 2 * 86400000).toISOString();
+  const startAt = legacy ? replacementAt : new Date(clock - 2 * 86400000).toISOString();
   sqlite.exec(`CREATE TABLE users (employee_no TEXT PRIMARY KEY, name TEXT, role TEXT, is_active INTEGER);
     CREATE TABLE shift_log_sessions (token_hash TEXT PRIMARY KEY, employee_no TEXT, expires_at TEXT, last_used_at TEXT);
     CREATE TABLE ois_data_requests (

@@ -1,5 +1,5 @@
 import { handleBlowerSchedule } from "../_shared/blower-schedule-v1.js";
-import { incrementalEvidence, verifiedAppendBase, loadAppendBase, loadAppendIntent, combineAppendProbe } from "../_shared/blower-incremental.js";
+import { incrementalEvidence, verifiedAppendBase, loadAppendBase, loadAppendIntent, combineAppendProbe, cycleRuntimeCoverage } from "../_shared/blower-incremental.js";
 import { MANURE_INITIAL_RUN_CONFIG, initializeManureInitialRun, manureInitialRunBasis,
   manureInitialRunProjection, loadManureInitialAudit, configuredManureRunSignal,
   isProtectedManureInitialEvent } from "../_shared/blower-manure-initial-run-v1.js";
@@ -1741,10 +1741,20 @@ function currentDataParcRuntimeBasis(asset, rows) {
         (source.expectedCycleStartState !== actualCycleStartState && !signalOnlyPending) ||
         String(source.expectedCycleStartRevision || "") !== String(asset.cycle_start_revision || "") ||
         (actualCycleStartState === "started" && Date.parse(source.expectedCycleStartedAt) !== Date.parse(asset.cycle_started_at))) continue;
+    // A later manual correction may own a different total. Never project an
+    // older period's value over it, or search past a newer mismatched receipt
+    // for an older coincidentally equal number.
+    const currentHours = toNullableNumber(asset.cycle_runtime_hours);
+    const basisHours = toNullableNumber(row.runtime_hours);
+    if (typeof asset.cycle_runtime_hours === "boolean" || typeof row.runtime_hours === "boolean" ||
+        currentHours === null || basisHours === null || Math.abs(currentHours - basisHours) > 0.000001) return null;
     const append = verifiedAppendBase(asset, rows, source.dataParcTag);
+    const coverage = cycleRuntimeCoverage(asset, coverageStartAt);
     return { startAt: coverageStartAt, observedAt: source.observedAt || source.endAt, requestId: source.requestId,
       runtimeHours: Number(row.runtime_hours), dataParcTag: source.dataParcTag,
-      appendReady: Boolean(append && append.requestId === source.requestId),
+      coverageComplete: coverage.complete, requiredStartAt: coverage.requiredStartAt,
+      missingLeadingSeconds: coverage.missingLeadingSeconds,
+      appendReady: Boolean(coverage.complete && append && append.requestId === source.requestId),
       runningSeconds: incremental ? incremental.totalRunningSeconds : source.runningSeconds,
       lastQueryStartAt: source.startAt, lastAddedSeconds: incremental ? incremental.deltaRunningSeconds : null };
   }
@@ -1923,6 +1933,8 @@ async function loadAssetStates(database, settings, options = {}) {
       limestoneSignalCandidate: LIMESTONE_RUN_SIGNAL_CANDIDATES[asset.tag_number] || "",
       dataParcRuntimeBasis: runtimeBasis,
       ...(runRuntime ? { runRuntime } : {}),
+      ...(runtimeBasis?.coverageComplete === false
+        ? { remainingHours: null, progressPct: null, severity: "runtime_unknown" } : {}),
       // A lightweight plan must not turn an unverified saved result into a
       // fresh full-range query merely because event-list fallback was removed.
       ...(options.planning ? { hasUnverifiedDataParcHistory: !runtimeBasis && runtimeRows.some(row =>
@@ -2108,6 +2120,7 @@ function buildSummaryFromAssets(assets) {
     warning: 2,
     unset: 1,
     startup_pending: 1,
+    runtime_unknown: 1,
     reference: 1,
     uninitialized: 1,
     normal: 0
@@ -2128,6 +2141,7 @@ function buildSummaryFromAssets(assets) {
     overdue: 0,
     unset: 0,
     startup_pending: 0,
+    runtime_unknown: 0,
     reference: 0,
     uninitialized: 0
   };
@@ -7650,6 +7664,14 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
       code: "DATAPARC_RUNTIME_CYCLE_CONFLICT",
       message: "조회 후 Blower 교체·기동·운전 상태가 변경되었습니다. 새 DataPARC 조회로 다시 확인해 주세요."
     }, 409);
+  }
+
+  const coverage = cycleRuntimeCoverage(asset, probe.incremental?.coverageStartAt || probe.startAt);
+  if (!coverage.complete) {
+    return jsonResponse({ ok: false, code: "DATAPARC_RUNTIME_FULL_CYCLE_REQUIRED",
+      message: "누적 운전시간은 저장된 교체·기동 기준부터 전체 RUN 구간을 확인해야 합니다. 기존 누적값은 유지합니다.",
+      requiredStartAt: coverage.requiredStartAt, coverageStartAt: coverage.coverageStartAt,
+      missingLeadingSeconds: coverage.missingLeadingSeconds }, 409);
   }
 
   if (appendIntent) {

@@ -11,6 +11,23 @@ const SUPPORTED_BINARY_RUN_ASSET = /^(?:(?:104|204)(?:HHL(?:60AP|10AN)(?:611|621
 const instant = v => typeof v === 'string' && /(?:Z|[+-]\d{2}:\d{2})$/.test(v) ? Date.parse(v) : NaN;
 const number = v => v !== null && v !== undefined && v !== '' && typeof v !== 'boolean' && Number.isFinite(Number(v)) ? Number(v) : NaN;
 const near = (a, b) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) < 0.000001;
+/* Certify the recorded range only, not a physical replacement instant or RUN
+ * signal quality. A confirmed startup may bound a stopped prefix; legacy and
+ * pending cycles must include their saved replacement baseline. Keep existing
+ * measured values intact when their range omits an earlier part of the cycle.
+ * This is necessary range evidence; existing stricter API guards still apply. */
+export function cycleRuntimeCoverage(asset, startAt) {
+  const state = asset?.cycle_start_state || 'legacy';
+  const requiredStartAt = typeof (state === 'started' ? asset?.cycle_started_at : asset?.last_replacement_at) === 'string'
+    ? (state === 'started' ? asset.cycle_started_at : asset.last_replacement_at) : '';
+  const coverageStartAt = typeof startAt === 'string' ? startAt : '';
+  const replacement = instant(asset?.last_replacement_at), required = instant(requiredStartAt), start = instant(coverageStartAt);
+  const valid = ['legacy','pending','started'].includes(state) && Number.isFinite(replacement) &&
+    Number.isFinite(required) && required >= replacement && Number.isFinite(start);
+  return { complete: valid && start >= replacement && start <= required,
+    requiredStartAt, coverageStartAt,
+    missingLeadingSeconds: valid ? Math.max(0, (start - required) / 1000) : null };
+}
 export function incrementalEvidence(source) {
   const x = source?.incremental;
   if (!x) return null;
@@ -57,6 +74,7 @@ function strictVerifiedAppendBase(asset, rows, dataParcTag) {
   const startAt = x ? x.coverageStartAt : s.startAt;
   const start = instant(startAt);
   if (!Number.isSafeInteger(seconds) || seconds < 0 || !Number.isFinite(start) || start < instant(asset.last_replacement_at) || start >= anchor ||
+      !cycleRuntimeCoverage(asset, startAt).complete ||
       // Compare raw stored hours, retaining exact integer seconds across appends.
       !near(seconds / 3600, stored)) return null;
   return { eventId: row.id, requestId: s.requestId, startAt, observedAt: s.observedAt || s.endAt,

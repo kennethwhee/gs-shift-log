@@ -545,9 +545,7 @@ test("V13 legacy revision survives queue, Agent validation, completion and atomi
       WHERE tag_number = ?
     `).run(fixture.replacementAt, revision, ASSET_TAG);
 
-    const selectedStart = new Date(
-      Date.parse(fixture.replacementAt) + 36 * 60 * 60 * 1000
-    ).toISOString();
+    const selectedStart = fixture.replacementAt;
     const created = await browserCreate(fixture.database, {
       action: "create_blower_runtime_probe",
       startAt: selectedStart

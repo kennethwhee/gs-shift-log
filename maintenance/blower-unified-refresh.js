@@ -55,6 +55,23 @@ DP_TAGS.add("203HRJ01AN602");
     return /^(?:104|204)HHL(?:60AP|10AN)(?:611|621|631)$/.test(String(a?.tagNumber || '').trim().toUpperCase());
   }
   function fbheSealRunView(a, basis = null) {
+    const coverage = a?.dataParcRuntimeBasis || basis;
+    const storedHours = a?.cycleElapsedHours ?? a?.runtimeHours;
+    const staleCoverage = coverage?.runtimeHours !== null && coverage?.runtimeHours !== undefined && coverage?.runtimeHours !== '' &&
+      storedHours !== null && storedHours !== undefined && storedHours !== '' &&
+      Number.isFinite(Number(coverage.runtimeHours)) && Number.isFinite(Number(storedHours)) &&
+      Math.abs(Number(coverage.runtimeHours) - Number(storedHours)) > 0.000001;
+    if (coverage?.coverageComplete === false && !staleCoverage) {
+      const hours = Number(coverage.runtimeHours ?? a.cycleElapsedHours);
+      const state = [a.runRuntime?.state, a.cycleRuntimeState].find(value => ['running', 'stopped'].includes(value)) || 'unknown';
+      return { verified: false, partial: true, manual: false, pending: false, state,
+        hours: Number.isFinite(hours) && hours >= 0 ? hours : null,
+        primary: Number.isFinite(hours) && hours >= 0
+          ? `${hours.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간` : '확인 필요',
+        message: '일부 기간 누적 · 앞 구간 RUN 확인 필요',
+        measuredAt: coverage.observedAt || '', sourceLabel: 'DataPARC · 일부 기간', basis: coverage,
+        stateLabel: state === 'running' ? '기동중' : state === 'stopped' ? '정지중' : 'RUN 미확인' };
+    }
     // Keep the established FBHE/Seal view contract and also use verified RUN
     // evidence for pending replacements on every other supported Blower.
     if (!fbheSealRunAsset(a) && !(DP_TAGS.has(a?.tagNumber) && a.cycleStartState === 'pending')) return null;
@@ -140,6 +157,12 @@ DP_TAGS.add("203HRJ01AN602");
       if (!/^GSPOGE\.ABB_DCS\.[A-Z0-9][A-Z0-9._-]*$/.test(dataParcTag) || dataParcTag.length > 200 || (a.tagNumber !== '104ETH03AN602' && dataParcTag === SIGNAL)) {
         skip('RUN TAG 설정 필요 · 이력 보기 → 조회 기준·상세'); continue;
       }
+      const previous = automaticLimestone || basisConfirmed ? a.dataParcRuntimeBasis || null
+        : a.dataParcRuntimeBasis || basisFor(a.tagNumber);
+      if (previous?.coverageComplete === false) {
+        skip('일부 기간 누적 · 앞 구간 RUN 확인 필요 · 기존 조회값 보호 · 전체 재조회하지 않음');
+        continue;
+      }
       if (previewOnly) {
         // An absolute last-24h window is independent of a disputed historical
         // maintenance reset. The existing read-only probe can safely observe
@@ -174,11 +197,9 @@ DP_TAGS.add("203HRJ01AN602");
       // Confirmation invalidates the prior checkpoint; a null server basis
       // must not be replaced by cached browser history or the old RUN ledger.
       // Once this new cycle has a verified basis, its normal append guard wins.
-      const previous = automaticLimestone || basisConfirmed ? a.dataParcRuntimeBasis || null
-        : a.dataParcRuntimeBasis || basisFor(a.tagNumber);
       // Only a verified complete-baseline receipt may continue incrementally.
-      // Older partial, unverified or non-appendable receipts require an actual
-      // full RUN remeasurement, never saved hours plus the separate RUN ledger.
+      // A partial receipt stays visible until an explicit full RUN remeasurement;
+      // integrated refresh never replaces it or adds a separate RUN ledger.
       const automaticAppend = automaticLimestone && previous?.appendReady === true &&
         previous.dataParcTag === dataParcTag && time(previous.startAt) === replacement &&
         Number.isFinite(time(previous.observedAt)) && time(previous.observedAt) > replacement &&
@@ -323,6 +344,13 @@ DP_TAGS.add("203HRJ01AN602");
     const resume = io.runtimeResume;
     const source = (resume?.tasks || tasks || []).filter(task => task?.snapshot?.tagNumber);
     if (!source.length) return [];
+    const partialTags = new Set(source.filter(task =>
+      task.asset?.dataParcRuntimeBasis?.coverageComplete === false ||
+      io.currentAssetFor?.(task.snapshot.tagNumber)?.dataParcRuntimeBasis?.coverageComplete === false
+    ).map(task => task.snapshot.tagNumber));
+    if (!resume && partialTags.size) {
+      throw error('일부 기간 누적 · 앞 구간 RUN 확인 필요 · 기존 조회값을 유지합니다.', 'BLOWER_CYCLE_COVERAGE_INCOMPLETE');
+    }
     io.assertWritable?.();
     io.progress?.(resume ? `${source.length}대 이전 조회 결과 확인 중` : `${source.length}대 증분 조회 요청 등록 중`);
 
@@ -382,6 +410,12 @@ DP_TAGS.add("203HRJ01AN602");
     const resultByTag = new Map((resume?.outcomes || []).filter(item =>
       sourceTags.includes(item?.tagNumber) && ['complete', 'failed'].includes(item?.status)
     ).map(item => [item.tagNumber, item]));
+    for (const task of source) {
+      if (partialTags.has(task.snapshot.tagNumber)) resultByTag.set(task.snapshot.tagNumber, {
+        tagNumber: task.snapshot.tagNumber, displayName: task.asset?.displayName || task.snapshot.tagNumber,
+        status: 'skipped', message: '일부 기간 누적 · 앞 구간 RUN 확인 필요 · 이전 요청 자동 반영 보류 · 기존 값 유지'
+      });
+    }
     const saveCheckpoint = () => io.runtimeCheckpoint?.({ version: 1,
       tasks: source.map(task => ({ ...task, asset: { tagNumber: task.snapshot.tagNumber,
         displayName: task.asset?.displayName || task.snapshot.tagNumber } })),

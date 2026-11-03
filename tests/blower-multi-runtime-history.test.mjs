@@ -78,9 +78,9 @@ const B = "104ETH03AN602";
 const B_SOURCE = "GSPOGE.ABB_DCS.003ETH03AN602XB04";
 const OWNER = { employeeNo: "test-owner", name: "조회자" };
 const NOW = new Date("2026-09-08T13:00:00.000Z");
-const START = "2026-09-01T00:00:00+09:00";
-const END = "2026-09-08T21:59:30+09:00";
 const REPLACED = "2026-08-20T00:00:00.000Z";
+const START = REPLACED;
+const END = "2026-09-08T21:59:30+09:00";
 const sourceFor = tag => tag === B ? B_SOURCE : `GSPOGE.ABB_DCS.TEST_CONFIRMED_${tag}_RUN`;
 const rawProbe = (tag, source = sourceFor(tag), stopped = false) => ({
   schemaVersion: 1, requestType: "blower_runtime_probe", requestId: `multi-${tag}`, ok: true, readOnly: true,

@@ -267,7 +267,7 @@ test("future boundary prevents a correction that would not supersede it", async 
 
 function storeProbeForCurrentCycle(sqlite) {
   const a = asset(sqlite);
-  const startAt = "2026-09-01T00:00:00.000Z";
+  const startAt = a.cycle_start_state === "started" ? a.cycle_started_at : a.last_replacement_at;
   const endAt = "2026-09-08T14:59:30.000Z";
   const probe = {
     schemaVersion: 1, requestType: "blower_runtime_probe", requestId: "probe-before-edit", ok: true, readOnly: true,

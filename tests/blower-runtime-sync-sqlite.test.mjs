@@ -530,6 +530,8 @@ test("replays a previously applied V1 RUN note without changing stored history",
 test("preserves and checks the nonempty legacy revision created by V13 recovery", async () => {
   const revision = "a14e35df76aa4b59a841fa1a02718c50";
   const result = probeResult({
+    startAt: REPLACEMENT_AT,
+    chunks: [{ ...probeResult().chunks[0], startAt: REPLACEMENT_AT }],
     expectedCycleStartState: "legacy",
     expectedCycleStartedAt: "",
     expectedCycleStartRevision: revision,
@@ -578,6 +580,8 @@ test("preserves and checks the nonempty legacy revision created by V13 recovery"
 
 test("applies a selected DataPARC baseline to a legacy cycle without inventing a cycle start", async () => {
   const result = probeResult({
+    startAt: REPLACEMENT_AT,
+    chunks: [{ ...probeResult().chunks[0], startAt: REPLACEMENT_AT }],
     expectedCycleStartState: "legacy",
     expectedCycleStartedAt: "",
     expectedCycleStartRevision: "",
@@ -621,7 +625,7 @@ test("applies a selected DataPARC baseline to a legacy cycle without inventing a
     );
     assert.ok(event);
     const source = JSON.parse(event.source_text);
-    assert.equal(source.startAt, RAW_START_AT);
+    assert.equal(source.startAt, REPLACEMENT_AT);
     assert.equal(source.expectedCycleStartState, "legacy");
     assert.equal(source.expectedCycleStartedAt, "");
     assert.equal(source.expectedCycleStartRevision, "");

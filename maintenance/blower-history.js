@@ -864,6 +864,7 @@
   }
 
   function formatSignedRemaining(asset) {
+    if (typeof commonRunCoverage === "function" && commonRunCoverage(asset)) return "일부 기간 누적 · 앞 구간 RUN 확인 필요";
     if (!asset.lastReplacementAt) return "확정된 V-Belt 교체 이력이 없습니다.";
     if (asset.cycleStartState === "pending" && asset.runRuntime?.verified !== true)
       return isDataParcRuntimeAsset(asset) ? "RUN 조회 후 주기 계산" : "기동 등록 전 · 주기 계산 대기";
@@ -895,6 +896,7 @@
   }
 
   function displaySeverity(asset) {
+    if (typeof commonRunCoverage === "function" && commonRunCoverage(asset)) return "runtime_unknown";
     if (!asset?.lastReplacementAt) return "unknown";
     if (isAssetAwaitingBackfill(asset)) return "unknown";
     return ["normal", "warning", "critical", "overdue", "startup_pending", "runtime_unknown", "unset"].includes(asset.severity)
@@ -1001,6 +1003,7 @@
       ["critical", "교체 임박", counts.critical || 0],
       ["overdue", "주기 초과", counts.overdue || 0],
       ["startup_pending", "기동 대기", counts.startup_pending || 0],
+      ["runtime_unknown", "운전시간 확인", counts.runtime_unknown || 0],
       ["unknown", "교체일 미확인", counts.unknown || 0],
       ["unset", "기준 미설정", counts.unset || 0]
     ];
@@ -1160,6 +1163,28 @@
     }
 
     return null;
+  }
+
+  // The retained number is measured within this receipt, not a certified whole-cycle total.
+  function commonRunCoverage(asset) {
+    const basis = asset?.dataParcRuntimeBasis || (asset?.tagNumber ? getLatestDataParcRuntimeBasis(asset.tagNumber) : null);
+    if (basis?.coverageComplete !== false) return null;
+    const storedHours = asset.cycleElapsedHours ?? asset.runtimeHours;
+    if (basis.runtimeHours !== null && basis.runtimeHours !== undefined && basis.runtimeHours !== "" &&
+        storedHours !== null && storedHours !== undefined && storedHours !== "" &&
+        Number.isFinite(Number(basis.runtimeHours)) && Number.isFinite(Number(storedHours)) &&
+        Math.abs(Number(basis.runtimeHours) - Number(storedHours)) > 0.000001) return null;
+    const hours = Number(basis.runtimeHours ?? asset.cycleElapsedHours);
+    return { basis, hours: Number.isFinite(hours) && hours >= 0 ? hours : null,
+      runtime: Number.isFinite(hours) && hours >= 0
+        ? `${hours.toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간` : "확인 필요",
+      warning: "일부 기간 누적 · 앞 구간 RUN 확인 필요" };
+  }
+
+  function commonRunCoverageNotice(coverage) {
+    if (!coverage) return "";
+    const required = coverage.basis.requiredStartAt;
+    return `<div class="run-history-note" data-run-coverage="partial"><strong>${escapeHtml(coverage.warning)}</strong>${required ? `<small>필요한 조회 시작 ${escapeHtml(formatKstDateTimeDisplay(required))}</small>` : ""}<small>앞 구간은 누락된 조회 기간이며, 그 기간 전체가 RUN 시간이라는 뜻은 아닙니다. 저장된 일부 기간 값은 유지하며 전체 Cycle 주기 계산에는 사용하지 않습니다.</small></div>`;
   }
 
   function shouldHideAutomaticData(backfill = state.data?.backfill) {
@@ -1378,6 +1403,7 @@
   }
 
   function renderAssetCard(asset, setting) {
+    const partialCoverage = typeof commonRunCoverage === "function" ? commonRunCoverage(asset) : null;
     // The disputed belt-cycle total stays provisional even if a RUN ledger is temporarily unavailable.
     const disputedLimestone = typeof isLimestoneDisputedAsset === 'function' ? isLimestoneDisputedAsset(asset) : asset?.blowerType === 'limestone' && asset.limestoneAutoApply !== true && asset.limestoneBasisConfirmed !== true && typeof LIMESTONE_DISPUTED_RUN_TAGS !== 'undefined' && LIMESTONE_DISPUTED_RUN_TAGS.has(String(asset.tagNumber || ''));
     // Tests/legacy isolated renderers may execute only this function body.
@@ -1385,7 +1411,7 @@
     const verifiedLimestone = typeof verifiedLimestoneRunDisplay === 'function' ? verifiedLimestoneRunDisplay(asset) : null;
     const runView = window.BlowerUnifiedRefresh?.fbheSealRunView(asset, getLatestDataParcRuntimeBasis(asset.tagNumber));
     // Fail closed during a mixed deployment; never display the legacy value as a RUN measurement.
-    if (runView && !runView.verified && !runView.pending) asset = { ...asset,
+    if (runView && !runView.verified && !runView.pending && !partialCoverage) asset = { ...asset,
       measurementRequired: true, cycleElapsedHours: null, severity: "runtime_unknown" };
     const intermittent = asset.blowerType === "organic_fuel" || asset.assetGroup === "manure";
     const cycleDays = Number(setting?.cycleDays);
@@ -1396,7 +1422,7 @@
     const confirmed = Boolean(asset.lastReplacementAt) && !awaitingBackfill;
     const cycleStartState = String(asset.cycleStartState || "legacy");
     const startupPending = confirmed && cycleStartState === "pending";
-    const effectiveStartupPending = startupPending && !runView?.verified;
+    const effectiveStartupPending = startupPending && !runView?.verified && !partialCoverage;
     const actualStarted = confirmed && cycleStartState === "started" && Boolean(asset.cycleStartedAt);
     const cycleRuntimeTracked = confirmed && !effectiveStartupPending && Boolean(asset.cycleRuntimeTracked);
     const runtimeUnknown = confirmed && (asset.cycleRuntimeState === "unknown" || asset.measurementRequired === true ||
@@ -1418,7 +1444,7 @@
     const evidence = readableEvidence(replacementEvent);
     const fullEvidence = fullEvidenceText(replacementEvent);
     const evidenceMeta = evidenceSourceMeta(replacementEvent);
-    const cycleHours = !intermittent && cycleDays > 0 ? cycleDays * 24 : null;
+    const cycleHours = !partialCoverage && !intermittent && cycleDays > 0 ? cycleDays * 24 : null;
     const rawProgress = cycleHours ? (cycleElapsedHours / cycleHours) * 100 : 0;
     const progress = Math.max(0, Math.min(100, rawProgress));
     const nextReplacementAt = !cycleHours || runtimeUnknown
@@ -1431,7 +1457,7 @@
         ? formatOperatingDday(asset.remainingHours)
         : formatRemainingDday(nextReplacementAt))
       : "-";
-    const remainingDetail = cycleHours ? formatSignedRemaining(asset) : "교체주기 미설정";
+    const remainingDetail = partialCoverage ? partialCoverage.warning : cycleHours ? formatSignedRemaining(asset) : "교체주기 미설정";
     const evidenceText = fullEvidence || (isInitialStartupBasis(asset)
       ? `${cycleReferenceDisplay(asset)} 최초 기동을 RUN 조회 시작 기준으로 사용합니다.`
       : emptyEvidenceMessage(replacementEvent));
@@ -1473,15 +1499,15 @@
           </div>
         </div>`
       : "";
-    const cyclePrimaryLabel = disputedLimestone ? "이전 저장 누적" : isDataparcRuntimeAsset && !effectiveStartupPending ? "누적 기동시간" : effectiveStartupPending
+    const cyclePrimaryLabel = partialCoverage ? "일부 기간 누적" : disputedLimestone ? "이전 저장 누적" : isDataparcRuntimeAsset && !effectiveStartupPending ? "누적 기동시간" : effectiveStartupPending
       ? "주기 상태"
       : (cycleRuntimeTracked ? "누적 운전" : (actualStarted ? "기동 경과" : "교체 경과"));
-    const cyclePrimaryMobileLabel = disputedLimestone ? "이전 누적" : isDataparcRuntimeAsset && !effectiveStartupPending ? "누적 기동" : effectiveStartupPending
+    const cyclePrimaryMobileLabel = partialCoverage ? "일부 기간 누적" : disputedLimestone ? "이전 누적" : isDataparcRuntimeAsset && !effectiveStartupPending ? "누적 기동" : effectiveStartupPending
       ? "상태"
       : (cycleRuntimeTracked ? "누적" : (actualStarted ? "기동" : "교체"));
     const measuredLabel = `${(effectiveStartupPending ? 0 : cycleElapsedHours).toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간`;
-    const cyclePrimaryValue = disputedLimestone ? allOverviewOperation(asset).runtime : runView ? runView.primary : runtimeUnknown ? "최신화 필요" : intermittent ? measuredLabel : effectiveStartupPending ? "기동 대기" : formatDaysHours(cycleElapsedHours);
-    const cyclePrimaryMobileValue = disputedLimestone ? allOverviewOperation(asset).runtime : runView ? runView.primary : runtimeUnknown ? "최신화 필요" : intermittent ? measuredLabel : effectiveStartupPending ? "기동 대기" : formatCompactDaysHours(cycleElapsedHours);
+    const cyclePrimaryValue = partialCoverage ? partialCoverage.runtime : disputedLimestone ? allOverviewOperation(asset).runtime : runView ? runView.primary : runtimeUnknown ? "최신화 필요" : intermittent ? measuredLabel : effectiveStartupPending ? "기동 대기" : formatDaysHours(cycleElapsedHours);
+    const cyclePrimaryMobileValue = partialCoverage ? partialCoverage.runtime : disputedLimestone ? allOverviewOperation(asset).runtime : runView ? runView.primary : runtimeUnknown ? "최신화 필요" : intermittent ? measuredLabel : effectiveStartupPending ? "기동 대기" : formatCompactDaysHours(cycleElapsedHours);
 
     return `
       <article class="asset-card" data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(operationState)}" data-tag="${escapeHtml(asset.tagNumber)}"${unitAttribute}${runView ? ` data-run-view="${runView.verified ? "verified" : "unverified"}"` : ""}${disputedLimestone ? ' data-limestone-display="previous-checkpoint"' : ''}>
@@ -1496,6 +1522,7 @@
         </div>
 
         ${dataparcRuntimeBasisLine}
+        ${partialCoverage ? commonRunCoverageNotice(partialCoverage) : ""}
         ${trackingDetail}
         ${previewDetail}
 
@@ -1784,6 +1811,10 @@
 
   function allOverviewOperation(asset) {
     const intermittent = asset.blowerType === "organic_fuel" || asset.assetGroup === "manure";
+    const coverage = typeof commonRunCoverage === "function" ? commonRunCoverage(asset) : null;
+    if (coverage) return { state: ["running", "stopped"].includes(asset.cycleRuntimeState) ? asset.cycleRuntimeState : "unknown",
+      label: asset.cycleRuntimeState === "running" ? "기동중" : asset.cycleRuntimeState === "stopped" ? "정지중" : "확인 필요",
+      runtime: coverage.runtime, basis: coverage.basis, intermittent };
     const runView = window.BlowerUnifiedRefresh?.fbheSealRunView(asset, getLatestDataParcRuntimeBasis(asset.tagNumber));
     if (runView) {
       return {
@@ -1819,6 +1850,7 @@
   }
 
   function renderAllOverviewCard(asset) {
+    const partialCoverage = typeof commonRunCoverage === "function" ? commonRunCoverage(asset) : null;
     const disputedLimestone = typeof isLimestoneDisputedAsset === 'function' ? isLimestoneDisputedAsset(asset) : asset?.blowerType === 'limestone' && asset.limestoneAutoApply !== true && asset.limestoneBasisConfirmed !== true && typeof LIMESTONE_DISPUTED_RUN_TAGS !== 'undefined' && LIMESTONE_DISPUTED_RUN_TAGS.has(String(asset.tagNumber || ''));
     const trackedRun = verifiedLimestoneRunDisplay(asset);
     const underlyingView = allOverviewOperation(asset);
@@ -1856,13 +1888,14 @@
           </span>
         </span>
         <span class="all-overview-metrics">
-          <span><small>${disputedLimestone ? '이전 저장 누적' : '누적 기동시간'}</small><strong>${escapeHtml(view.runtime)}</strong></span>
+          <span><small>${partialCoverage ? '일부 기간 누적' : disputedLimestone ? '이전 저장 누적' : '누적 기동시간'}</small><strong>${escapeHtml(view.runtime)}</strong></span>
           <span><small>${escapeHtml(cycleReferenceLabel(asset))}</small><strong>${escapeHtml(replacement)}</strong></span>
         </span>
         <span class="all-overview-query-period">
           <small>데이터 조회 기간</small>
           <strong>${escapeHtml(allOverviewBasisText(view.basis))}</strong>
         </span>
+        ${partialCoverage ? `<span class="all-overview-query-period" data-run-coverage="partial"><strong style="white-space:normal;overflow-wrap:anywhere">${escapeHtml(partialCoverage.warning)}</strong></span>` : ""}
         ${trackingLine}
         ${previewLine}
       </button>`;
@@ -1889,7 +1922,10 @@
     // Their instantaneous RUN 1/0 end-state must not appear as a dashboard 기동중/정지중 status.
     const running = operationViews.filter(view => !view.intermittent && view.state === "running").length;
     const stopped = operationViews.filter(view => !view.intermittent && view.state === "stopped").length;
-    const needsCheck = operationViews.filter(view => ["unknown", "unconfirmed", "startup_pending"].includes(view.state)).length + missingSlots.length;
+    const needsCheck = assets.filter((asset, index) =>
+      (typeof commonRunCoverage === "function" && commonRunCoverage(asset)) ||
+      ["unknown", "unconfirmed", "startup_pending"].includes(operationViews[index].state)
+    ).length + missingSlots.length;
     const intermittentCount = assets.filter(asset => asset.blowerType === "organic_fuel" || asset.assetGroup === "manure").length;
     const replacementAlerts = assets.filter(asset => ["warning", "critical", "overdue"].includes(displaySeverity(asset))).length;
     const summary = `
@@ -2589,6 +2625,7 @@
     if (!asset || !elements.historyDialog) return;
 
     state.historyAssetTag = tagNumber;
+    const partialCoverage = commonRunCoverage(asset);
     const severity = displaySeverity(asset);
     const awaitingBackfill = isAssetAwaitingBackfill(asset);
     const cycleStartState = String(asset.cycleStartState || "legacy");
@@ -2608,7 +2645,7 @@
         <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(severityLabel(severity))}</span>
         <div><span>${escapeHtml(cycleReferenceLabel(asset))}</span><strong>${escapeHtml(cycleReferenceDisplay(asset))}</strong></div>
         ${runView ? `<div><span>확인 상태</span><strong>${escapeHtml(runView.stateLabel)}</strong></div>` : asset.runtimeAccumulationMode === "measured_only" || asset.blowerType === "organic_fuel" ? "" : `<div><span>현재 운전상태</span><strong>${startupPending ? "기동 대기" : asset.cycleRuntimeState === "unknown" ? "확인 필요" : asset.isRunning ? "기동중" : "정지중"}</strong></div>`}
-        <div><span>${disputedLimestone ? "이전 저장 누적" : runView || asset.blowerType === "organic_fuel" ? "누적 기동시간" : "누적 운전시간"}</span><strong>${disputedLimestone ? escapeHtml(allOverviewOperation(asset).runtime) : runView ? escapeHtml(runView.primary) : startupPending ? "0시간" : asset.cycleRuntimeState === "unknown" || asset.measurementRequired ? "최신화 필요" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
+        <div><span>${partialCoverage ? "일부 기간 누적" : disputedLimestone ? "이전 저장 누적" : runView || asset.blowerType === "organic_fuel" ? "누적 기동시간" : "누적 운전시간"}</span><strong>${partialCoverage ? escapeHtml(partialCoverage.runtime) : disputedLimestone ? escapeHtml(allOverviewOperation(asset).runtime) : runView ? escapeHtml(runView.primary) : startupPending ? "0시간" : asset.cycleRuntimeState === "unknown" || asset.measurementRequired ? "최신화 필요" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
       `
       : awaitingBackfill
         ? `
@@ -2620,6 +2657,7 @@
         <div class="history-unknown"><strong>확정된 V-Belt 교체 이력이 없습니다.</strong><span>검토 대기 후보를 확인하거나 최초 이력을 직접 등록해 주세요.</span></div>
       `;
 
+    if (partialCoverage) elements.historyCycleSummary.innerHTML += commonRunCoverageNotice(partialCoverage);
     if (trackedRun) {
       const originalHours = Number(asset.cycleElapsedHours);
       elements.historyCycleSummary.innerHTML += `<div class="run-history-note" data-limestone-run-audit="true">
@@ -2631,7 +2669,7 @@
     }
     if (runView && asset.lastReplacementAt) {
       const legacy = asset.runRuntime?.legacyStoredHours;
-      elements.historyCycleSummary.innerHTML += `<div class="run-history-note"><strong>${escapeHtml(runView.sourceLabel)}</strong>${runView.basis ? `<small>${escapeHtml(formatKstDateTimeDisplay(runView.basis.startAt))} → ${escapeHtml(formatKstDateTimeDisplay(runView.basis.observedAt))}</small>` : runView.manual ? `<small>${escapeHtml(formatKstDateTimeDisplay(runView.measuredAt))} 기준</small>` : ""}<span>${escapeHtml(runView.message)}</span>${!runView.verified && !runView.pending && Number.isFinite(legacy) ? `<small>기존 저장값 ${Number(legacy).toLocaleString("ko-KR", { maximumFractionDigits: 1 })}시간은 RUN 확인값이 아닙니다. 원본 이력과 변경 기록은 보존됩니다.</small>` : ""}</div>`;
+      elements.historyCycleSummary.innerHTML += `<div class="run-history-note"><strong>${escapeHtml(runView.sourceLabel)}</strong>${runView.basis ? `<small>${escapeHtml(formatKstDateTimeDisplay(runView.basis.startAt))} → ${escapeHtml(formatKstDateTimeDisplay(runView.basis.observedAt))}</small>` : runView.manual ? `<small>${escapeHtml(formatKstDateTimeDisplay(runView.measuredAt))} 기준</small>` : ""}<span>${escapeHtml(runView.message)}</span>${!runView.verified && !runView.pending && !runView.partial && Number.isFinite(legacy) ? `<small>기존 저장값 ${Number(legacy).toLocaleString("ko-KR", { maximumFractionDigits: 1 })}시간은 RUN 확인값이 아닙니다. 원본 이력과 변경 기록은 보존됩니다.</small>` : ""}</div>`;
     }
     if (elements.limestoneBasisButton) {
       const allowed = hasAuthenticatedWriteAccess() && !isMobileMonitoringView() &&
@@ -10069,7 +10107,7 @@
       : replacementMinuteCeiling;
     const minimumInput = minimumDate ? formatKstDateTimeInput(minimumDate) : "";
     const previousBasis = getLatestDataParcRuntimeBasis(normalizedTag);
-    const previousBasisDate = previousBasis
+    const previousBasisDate = previousBasis && previousBasis.coverageComplete !== false
       ? new Date(previousBasis.startAt)
       : null;
     const previousInput = previousBasisDate && !Number.isNaN(previousBasisDate.getTime())
@@ -10087,7 +10125,7 @@
       : "현재 V-Belt 교체 이후의 시각을 선택해 주세요.";
     elements.dataparcRuntimePreviousBasis.hidden = !previousBasis;
     elements.dataparcRuntimePreviousBasis.textContent = previousBasis
-      ? `최근 조회: ${formatKstDateTimeDisplay(previousBasis.startAt)} → ${formatKstDateTimeDisplay(previousBasis.observedAt)}`
+      ? `최근 조회: ${formatKstDateTimeDisplay(previousBasis.startAt)} → ${formatKstDateTimeDisplay(previousBasis.observedAt)}${previousBasis.coverageComplete === false ? " · 일부 기간 누적 · 앞 구간 RUN 확인 필요" : ""}`
       : "";
 
     const savedSignal = savedDataParcRunSignal(asset);
@@ -11206,7 +11244,7 @@
         state.unifiedLogResume = null;
       }
       state.unifiedLogResumeOwner = state.unifiedRefreshToken;
-      const io = { runtimeResume, runtimeCheckpoint: value => saveUnifiedRuntimeResume(value ? {
+      const io = { runtimeResume, currentAssetFor: tagNumber => (state.data?.assets || []).find(asset => asset.tagNumber === tagNumber), runtimeCheckpoint: value => saveUnifiedRuntimeResume(value ? {
           ...value, logNote, logPartial: partial,
           skipped: state.unifiedRefreshResults.filter(item => item.status === "skipped" || item.unchanged === true),
           targetCount: state.unifiedRefreshProgressTarget
@@ -11770,7 +11808,7 @@
       throw fail('설비 식별 정보가 예상과 다릅니다.', 'WRONG_ASSET');
     }
     const base = asset.dataParcRuntimeBasis;
-    if (!base || base.appendReady !== true || asset.hasUnverifiedDataParcHistory === true) {
+    if (!base || base.coverageComplete === false || base.appendReady !== true || asset.hasUnverifiedDataParcHistory === true) {
       throw fail('서버에서 이전 DataPARC 누적 기준을 검증하지 못했습니다. 기존 값은 유지합니다.', 'UNVERIFIED_BASE');
     }
     if (!secondsValid(Number(base.runningSeconds)) || !Number.isFinite(Number(base.runtimeHours)) ||
