@@ -186,7 +186,7 @@
   ====================================================== -->
   <link
     rel="stylesheet"
-    href="style.css?v=20260920-daily-formal-recovery-v1-r2"
+    href="style.css?v=20260920-daily-formal-recovery-v1-r2&amp;mainLogMetadata=20261103-v1"
   >
   <!-- Morning meeting: TURBINE + SILO LEVEL merged card -->
   <link
@@ -244,7 +244,7 @@
 <script src="maintenance/efficiency-daily-work-expanded-mode.js?v=20260927-structure-v15" defer></script>
 <script src="maintenance/shift-log-search-matched-items.js?v=20260927-structure-v14" defer></script>
 <script
-  src="script.js?v=20260927-structure-v15&amp;limestone=20260925-v1&amp;closedcards=20260927-v1&amp;toNightPower=20260928-v1-r6-state1&amp;mmNoDailyDataExcel=20260928-v12&amp;structure16=20260927-v1&amp;longHolidayCofiring=20260928-v1&amp;organicMiniExplicit=20260928-v4-r4&amp;longHolidayLayout=20260928-v3&amp;finalWorkbookCurrentSources=20260928-v9-correct-owner&amp;finalHistoryAlign=20260929-v10&amp;autoHistoryCurrentSources=20261002-v3&amp;auxToolbarLayout=20261005-v1&amp;savedWorkbook=20261005-v2&amp;holidaySaved=20261005-v1&amp;holidayNoFill=20261005-v1&amp;waterEndDate=20261006-v1&amp;limestoneDateSync=20261014-v1&amp;dailyOperation=20261018-v1&amp;weekendTeamDate=20261019-v1&amp;partialPower=20261019-v2&amp;morningExport=20261019-v3&amp;xlsxCompat=20261019-v1&amp;mechanicalOutsource=20261020-single-divider-v1&amp;efficiencyMobile=20261030-v1"
+  src="script.js?v=20260927-structure-v15&amp;limestone=20260925-v1&amp;closedcards=20260927-v1&amp;toNightPower=20260928-v1-r6-state1&amp;mmNoDailyDataExcel=20260928-v12&amp;structure16=20260927-v1&amp;longHolidayCofiring=20260928-v1&amp;organicMiniExplicit=20260928-v4-r4&amp;longHolidayLayout=20260928-v3&amp;finalWorkbookCurrentSources=20260928-v9-correct-owner&amp;finalHistoryAlign=20260929-v10&amp;autoHistoryCurrentSources=20261002-v3&amp;auxToolbarLayout=20261005-v1&amp;savedWorkbook=20261005-v2&amp;holidaySaved=20261005-v1&amp;holidayNoFill=20261005-v1&amp;waterEndDate=20261006-v1&amp;limestoneDateSync=20261014-v1&amp;dailyOperation=20261018-v1&amp;weekendTeamDate=20261019-v1&amp;partialPower=20261019-v2&amp;morningExport=20261019-v3&amp;xlsxCompat=20261019-v1&amp;mechanicalOutsource=20261020-single-divider-v1&amp;efficiencyMobile=20261030-v1&amp;mainLogMetadata=20261103-v1"
   defer
 ></script>
 <script src="maintenance/efficiency-daily-work-worklog-picker-v1.js?v=20260920-11"></script>
@@ -2100,41 +2100,33 @@
             <table class="log-table">
               <thead>
                 <tr>
-                  <th scope="col">보직</th>
-                  <th scope="col">작성자</th>
-                  <th scope="col">상태</th>
-                  <th scope="col">업무 내용</th>
-                  <th scope="col">관리</th>
-                  <th scope="col">첨부</th>
+                  <th scope="col" class="log-table__metadata-heading">작성 정보</th>
+                  <th scope="col" class="log-table__preview-heading">업무 내용</th>
+                  <th scope="col" class="log-table__actions-heading">관리</th>
+                  <th scope="col" class="log-table__attachment-heading">첨부</th>
                 </tr>
               </thead>
 
               <tbody id="logTableBody">
 
                 <tr class="log-row">
-                  <td class="log-row__role">파트장</td>
-
-                  <td>
-                    <strong class="log-row__author">홍길동</strong>
-                  </td>
-
-                  <td>
-                    <span class="status-badge is-approved">
+                  <td class="log-row__metadata-cell">
+                    <div class="log-row__metadata-stack">
+                      <div class="log-row__role"><span class="log-row__metadata-label">보직: </span>파트장</div>
+                      <div class="log-row__author-cell">
+                        <span class="log-row__metadata-label">작성자: </span>
+                        <div class="log-row__author-wrap"><strong class="log-row__author">홍길동</strong></div>
+                      </div>
+                      <div class="log-row__status-cell">
+                        <span class="log-row__metadata-label">상태: </span>
+                        <span class="status-badge is-approved">
                       결재완료
                     </span>
+                      </div>
+                    </div>
                   </td>
 
-                  <td>
-                    <button
-                      type="button"
-                      class="attachment-count"
-                      aria-label="첨부파일 2개"
-                    >
-                      2
-                    </button>
-                  </td>
-
-                  <td>
+                  <td class="log-row__preview-cell">
                     <button
                       type="button"
                       class="log-preview"
@@ -2161,7 +2153,7 @@
                     </button>
                   </td>
 
-                  <td>
+                  <td class="log-row__actions-cell">
                     <div class="row-actions">
                       <button
                         type="button"
@@ -2182,27 +2174,37 @@
                       </button>
                     </div>
                   </td>
+
+                  <td class="log-row__attachment-cell">
+                    <button
+                      type="button"
+                      class="attachment-count"
+                      aria-label="첨부파일 2개"
+                    >
+                      2
+                    </button>
+                  </td>
                 </tr>
 
 
                 <tr class="log-row">
-                  <td class="log-row__role">TGO</td>
-
-                  <td>
-                    <strong class="log-row__author">김철수</strong>
-                  </td>
-
-                  <td>
-                    <span class="status-badge is-writing">
+                  <td class="log-row__metadata-cell">
+                    <div class="log-row__metadata-stack">
+                      <div class="log-row__role"><span class="log-row__metadata-label">보직: </span>TGO</div>
+                      <div class="log-row__author-cell">
+                        <span class="log-row__metadata-label">작성자: </span>
+                        <div class="log-row__author-wrap"><strong class="log-row__author">김철수</strong></div>
+                      </div>
+                      <div class="log-row__status-cell">
+                        <span class="log-row__metadata-label">상태: </span>
+                        <span class="status-badge is-writing">
                       작성중
                     </span>
+                      </div>
+                    </div>
                   </td>
 
-                  <td>
-                    <span class="attachment-count is-empty">0</span>
-                  </td>
-
-                  <td>
+                  <td class="log-row__preview-cell">
                     <button
                       type="button"
                       class="log-preview"
@@ -2222,7 +2224,7 @@
                     </button>
                   </td>
 
-                  <td>
+                  <td class="log-row__actions-cell">
                     <div class="row-actions">
                       <button
                         type="button"
@@ -2234,33 +2236,31 @@
                       </button>
                     </div>
                   </td>
+
+                  <td class="log-row__attachment-cell">
+                    <span class="attachment-count is-empty">0</span>
+                  </td>
                 </tr>
 
 
                 <tr class="log-row">
-                  <td class="log-row__role">BCO1</td>
-
-                  <td>
-                    <strong class="log-row__author">이영희</strong>
-                  </td>
-
-                  <td>
-                    <span class="status-badge is-saved">
+                  <td class="log-row__metadata-cell">
+                    <div class="log-row__metadata-stack">
+                      <div class="log-row__role"><span class="log-row__metadata-label">보직: </span>BCO1</div>
+                      <div class="log-row__author-cell">
+                        <span class="log-row__metadata-label">작성자: </span>
+                        <div class="log-row__author-wrap"><strong class="log-row__author">이영희</strong></div>
+                      </div>
+                      <div class="log-row__status-cell">
+                        <span class="log-row__metadata-label">상태: </span>
+                        <span class="status-badge is-saved">
                       저장완료
                     </span>
+                      </div>
+                    </div>
                   </td>
 
-                  <td>
-                    <button
-                      type="button"
-                      class="attachment-count"
-                      aria-label="첨부파일 1개"
-                    >
-                      1
-                    </button>
-                  </td>
-
-                  <td>
+                  <td class="log-row__preview-cell">
                     <button
                       type="button"
                       class="log-preview"
@@ -2280,7 +2280,7 @@
                     </button>
                   </td>
 
-                  <td>
+                  <td class="log-row__actions-cell">
                     <div class="row-actions">
                       <button
                         type="button"
@@ -2300,6 +2300,16 @@
                         수정
                       </button>
                     </div>
+                  </td>
+
+                  <td class="log-row__attachment-cell">
+                    <button
+                      type="button"
+                      class="attachment-count"
+                      aria-label="첨부파일 1개"
+                    >
+                      1
+                    </button>
                   </td>
                 </tr>
 

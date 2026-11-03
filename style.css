@@ -121358,3 +121358,87 @@ html body #efficiencyArmRollTab.efficiency-team-tab .icon {
   }
 }
 /* GS_ADMIN_EMPLOYEE_POSITION_V1_END */
+
+
+/* GS_MAIN_LOG_METADATA_STACK_V1_START */
+/* Main work-log table: role, author and status share one cell. */
+#statusView .log-list-section .log-table {
+  width: 100%;
+  min-width: 0 !important;
+  table-layout: fixed;
+}
+
+#statusView .log-table > thead > tr > .log-table__metadata-heading,
+#statusView #logTableBody > tr > .log-row__metadata-cell {
+  box-sizing: border-box;
+  width: 104px !important;
+  min-width: 104px !important;
+  max-width: 104px !important;
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+  text-align: center;
+  vertical-align: middle;
+}
+
+#statusView .log-table > thead > tr > .log-table__preview-heading,
+#statusView #logTableBody > tr > .log-row__preview-cell {
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+}
+
+#statusView .log-table > thead > tr > .log-table__actions-heading,
+#statusView #logTableBody > tr > .log-row__actions-cell {
+  box-sizing: border-box;
+  width: 92px !important;
+  min-width: 92px !important;
+  max-width: 92px !important;
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+  border-left: 1px solid #d9e3ed;
+  text-align: center;
+}
+
+#statusView .log-table > thead > tr > .log-table__attachment-heading,
+#statusView #logTableBody > tr > .log-row__attachment-cell {
+  box-sizing: border-box;
+  width: 58px !important;
+  min-width: 58px !important;
+  max-width: 58px !important;
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+  text-align: center;
+}
+
+#statusView #logTableBody .log-row__metadata-stack {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+#statusView #logTableBody .log-row__metadata-stack > div {
+  min-width: 0;
+  max-width: 100%;
+}
+
+#statusView #logTableBody .log-row__metadata-stack .log-row__author-wrap {
+  justify-content: center;
+}
+
+#statusView #logTableBody .log-row__metadata-stack .log-row__author {
+  overflow-wrap: anywhere;
+}
+
+#statusView #logTableBody .log-row__metadata-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* GS_MAIN_LOG_METADATA_STACK_V1_END */

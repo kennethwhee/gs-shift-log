@@ -45217,59 +45217,56 @@ const roleEntries =
       )}"
     >
       <td
-        class="log-row__role"
+        class="log-row__metadata-cell"
       >
-        ${escapeHtml(
-          log?.role || "-"
-        )}
-      </td>
-
-
-      <td
-        class="log-row__author-cell"
-      >
-        <div
-          class="log-row__author-wrap"
-        >
-          <strong
-            class="log-row__author"
-          >
+        <div class="log-row__metadata-stack">
+          <div class="log-row__role">
+            <span class="log-row__metadata-label">보직: </span>
             ${escapeHtml(
-              log?.author || "-"
+              log?.role || "-"
             )}
-          </strong>
+          </div>
 
-          ${
-            log?.isSubstitute ===
-            true
-              ? `
-                <span
-                  class="substitute-work-badge"
-                >
-                  대근
-                </span>
-              `
-              : ""
-          }
+          <div class="log-row__author-cell">
+            <div class="log-row__author-wrap">
+              <strong class="log-row__author">
+                <span class="log-row__metadata-label">작성자: </span>
+                ${escapeHtml(
+                  log?.author || "-"
+                )}
+              </strong>
+
+              ${
+                log?.isSubstitute ===
+                true
+                  ? `
+                    <span
+                      class="substitute-work-badge"
+                    >
+                      대근
+                    </span>
+                  `
+                  : ""
+              }
+            </div>
+          </div>
+
+          <div class="log-row__status-cell">
+            <span class="log-row__metadata-label">상태: </span>
+            <span
+              class="
+                status-badge
+                ${getStatusClass(
+                  log?.status
+                )}
+              "
+            >
+              ${escapeHtml(
+                log?.status || "-"
+              )}
+            </span>
+          </div>
         </div>
-      </td>
-
-
-      <td
-        class="log-row__status-cell"
-      >
-        <span
-          class="
-            status-badge
-            ${getStatusClass(
-              log?.status
-            )}
-          "
-        >
-          ${escapeHtml(
-            log?.status || "-"
-          )}
-        </span>
       </td>
 
 
