@@ -150425,6 +150425,33 @@ function findMorningMeetingContentRowRecord(
   기준 취합본에서 팀별 현재 위치와 서식 탐색
 ===================================================== */
 
+/* =====================================================
+  MORNING MEETING OPTIONAL DIARY ROWS V1
+
+  A previous export can legitimately contain empty optional sections.
+  Reuse their row styles without requiring yesterday's text to exist.
+  Fallbacks are detached, style-only clones: no old values or formulas
+  may enter a section whose source file was not supplied.
+===================================================== */
+
+function resolveMorningMeetingOptionalRowTemplate(record, ...fallbackRecords) {
+  if (record?.element) return record;
+
+  const fallback = fallbackRecords.find(candidate => candidate?.element);
+  if (!fallback) return null;
+
+  const element = cloneMorningMeetingDynamicRow(
+    fallback.element.ownerDocument, fallback.element, fallback.rowNumber, ""
+  );
+  getMorningMeetingDirectXmlChildren(element, "c").forEach(cell => {
+    while (cell.firstChild) cell.removeChild(cell.firstChild);
+    cell.removeAttribute("t");
+  });
+
+  return {...fallback, element, text: ""};
+}
+
+
 function inspectMorningMeetingDynamicLayout(
   worksheetDocument,
   sharedStrings
@@ -150622,64 +150649,79 @@ function inspectMorningMeetingDynamicLayout(
 
 
       const blankAfterTitleRecord =
-        findMorningMeetingBlankRowRecord(
-          rowRecords,
-          startRecord.rowNumber +
-            1,
-          previousHeadingRecord.rowNumber -
-            1
-        ) ||
-        rowRecords.find(
-          record => {
-            return (
-              record.rowNumber ===
-              startRecord.rowNumber +
-                1
-            );
-          }
+        resolveMorningMeetingOptionalRowTemplate(
+          findMorningMeetingBlankRowRecord(
+            rowRecords,
+            startRecord.rowNumber +
+              1,
+            previousHeadingRecord.rowNumber -
+              1
+          ) ||
+          rowRecords.find(
+            record => {
+              return (
+                record.rowNumber ===
+                startRecord.rowNumber +
+                  1
+              );
+            }
+          ),
+          startRecord
         );
 
 
       const previousContentRecord =
-        findMorningMeetingContentRowRecord(
-          rowRecords,
-          previousHeadingRecord.rowNumber +
-            1,
-          scheduleHeadingRecord.rowNumber -
-            1
+        resolveMorningMeetingOptionalRowTemplate(
+          findMorningMeetingContentRowRecord(
+            rowRecords,
+            previousHeadingRecord.rowNumber +
+              1,
+            scheduleHeadingRecord.rowNumber -
+              1
+          ),
+          findMorningMeetingBlankRowRecord(rowRecords, previousHeadingRecord.rowNumber + 1, scheduleHeadingRecord.rowNumber - 1), blankAfterTitleRecord, previousHeadingRecord
         );
 
 
       const separatorBlankRecord =
-        findMorningMeetingBlankRowRecord(
-          rowRecords,
-          previousHeadingRecord.rowNumber +
-            1,
-          scheduleHeadingRecord.rowNumber -
-            1,
-          true
-        ) ||
-        blankAfterTitleRecord;
+        resolveMorningMeetingOptionalRowTemplate(
+          findMorningMeetingBlankRowRecord(
+            rowRecords,
+            previousHeadingRecord.rowNumber +
+              1,
+            scheduleHeadingRecord.rowNumber -
+              1,
+            true
+          ) ||
+          blankAfterTitleRecord,
+          previousContentRecord, previousHeadingRecord
+        );
 
 
       const scheduleContentRecord =
-        findMorningMeetingContentRowRecord(
-          rowRecords,
-          scheduleHeadingRecord.rowNumber +
-            1,
-          sectionEndRow
+        resolveMorningMeetingOptionalRowTemplate(
+          findMorningMeetingContentRowRecord(
+            rowRecords,
+            scheduleHeadingRecord.rowNumber +
+              1,
+            sectionEndRow
+          ),
+          findMorningMeetingBlankRowRecord(rowRecords, scheduleHeadingRecord.rowNumber + 1, sectionEndRow), blankAfterTitleRecord, previousContentRecord, scheduleHeadingRecord
         );
 
 
       const finalBlankRecord =
-        findMorningMeetingBlankRowRecord(
-          rowRecords,
-          scheduleHeadingRecord.rowNumber +
-            1,
-          sectionEndRow,
-          true
-        ) ||
-        blankAfterTitleRecord;
+        resolveMorningMeetingOptionalRowTemplate(
+          findMorningMeetingBlankRowRecord(
+            rowRecords,
+            scheduleHeadingRecord.rowNumber +
+              1,
+            sectionEndRow,
+            true
+          ) ||
+          blankAfterTitleRecord,
+          scheduleContentRecord, scheduleHeadingRecord
+        );
 
 
       const requiredTemplates = {
@@ -153173,17 +153215,20 @@ function inspectMorningMeetingShiftPartLayout(
   */
 
   const contentTemplateRecord =
-    shiftAreaRecords.find(
-      record => {
-        return (
-          record.rowNumber >
-            shiftHeadingRecord.rowNumber &&
+    resolveMorningMeetingOptionalRowTemplate(
+      shiftAreaRecords.find(
+        record => {
+          return (
+            record.rowNumber >
+              shiftHeadingRecord.rowNumber &&
 
-          Boolean(
-            record.text
-          )
-        );
-      }
+            Boolean(
+              record.text
+            )
+          );
+        }
+      ),
+      shiftAreaRecords.find(record => record.rowNumber > shiftHeadingRecord.rowNumber && !record.text), shiftHeadingRecord
     );
 
 
@@ -153193,15 +153238,18 @@ function inspectMorningMeetingShiftPartLayout(
   */
 
   const blankTemplateRecord =
-    [
-      ...shiftAreaRecords
-    ]
-      .reverse()
-      .find(
-        record => {
-          return !record.text;
-        }
-      );
+    resolveMorningMeetingOptionalRowTemplate(
+      [
+        ...shiftAreaRecords
+      ]
+        .reverse()
+        .find(
+          record => {
+            return !record.text;
+          }
+        ),
+      contentTemplateRecord, shiftHeadingRecord
+    );
 
 
   if (
@@ -156875,31 +156923,37 @@ function inspectMorningMeetingFuelAreaLayout(
 
 
   const contentTemplateRecord =
-    fuelAreaRecords.find(
-      record => {
-        return (
-          record.rowNumber >
-            fuelHeadingRecord
-              .rowNumber &&
+    resolveMorningMeetingOptionalRowTemplate(
+      fuelAreaRecords.find(
+        record => {
+          return (
+            record.rowNumber >
+              fuelHeadingRecord
+                .rowNumber &&
 
-          Boolean(
-            record.text
-          )
-        );
-      }
+            Boolean(
+              record.text
+            )
+          );
+        }
+      ),
+      fuelAreaRecords.find(record => record.rowNumber > fuelHeadingRecord.rowNumber && !record.text), fuelHeadingRecord
     );
 
 
   const blankTemplateRecord =
-    [
-      ...fuelAreaRecords
-    ]
-      .reverse()
-      .find(
-        record => {
-          return !record.text;
-        }
-      );
+    resolveMorningMeetingOptionalRowTemplate(
+      [
+        ...fuelAreaRecords
+      ]
+        .reverse()
+        .find(
+          record => {
+            return !record.text;
+          }
+        ),
+      contentTemplateRecord, fuelHeadingRecord
+    );
 
 
   if (
@@ -158003,35 +158057,8 @@ function inspectMorningMeetingTmAreaLayout(
   ====================================================== */
 
   const operationContentRecord =
-    rowRecords.find(
-      record => {
-        return (
-          record.rowNumber >
-            operationHeadingRecord
-              .rowNumber &&
-
-          record.rowNumber <
-            fuelHeadingRecord
-              .rowNumber &&
-
-          Boolean(
-            record.text
-          )
-        );
-      }
-    );
-
-
-  /* =====================================================
-    설비 운영과 연료 설비 사이의 빈 행
-  ====================================================== */
-
-  const separatorBlankRecord =
-    [
-      ...rowRecords
-    ]
-      .reverse()
-      .find(
+    resolveMorningMeetingOptionalRowTemplate(
+      rowRecords.find(
         record => {
           return (
             record.rowNumber >
@@ -158042,10 +158069,43 @@ function inspectMorningMeetingTmAreaLayout(
               fuelHeadingRecord
                 .rowNumber &&
 
-            !record.text
+            Boolean(
+              record.text
+            )
           );
         }
-      );
+      ),
+      rowRecords.find(record => record.rowNumber > operationHeadingRecord.rowNumber && record.rowNumber < fuelHeadingRecord.rowNumber && !record.text), operationHeadingRecord
+    );
+
+
+  /* =====================================================
+    설비 운영과 연료 설비 사이의 빈 행
+  ====================================================== */
+
+  const separatorBlankRecord =
+    resolveMorningMeetingOptionalRowTemplate(
+      [
+        ...rowRecords
+      ]
+        .reverse()
+        .find(
+          record => {
+            return (
+              record.rowNumber >
+                operationHeadingRecord
+                  .rowNumber &&
+
+              record.rowNumber <
+                fuelHeadingRecord
+                  .rowNumber &&
+
+              !record.text
+            );
+          }
+        ),
+      operationContentRecord, operationHeadingRecord
+    );
 
 
   /* =====================================================
@@ -158053,21 +158113,24 @@ function inspectMorningMeetingTmAreaLayout(
   ====================================================== */
 
   const fuelContentRecord =
-    rowRecords.find(
-      record => {
-        return (
-          record.rowNumber >
-            fuelHeadingRecord
-              .rowNumber &&
+    resolveMorningMeetingOptionalRowTemplate(
+      rowRecords.find(
+        record => {
+          return (
+            record.rowNumber >
+              fuelHeadingRecord
+                .rowNumber &&
 
-          record.rowNumber <=
-            lastRowNumber &&
+            record.rowNumber <=
+              lastRowNumber &&
 
-          Boolean(
-            record.text
-          )
-        );
-      }
+            Boolean(
+              record.text
+            )
+          );
+        }
+      ),
+      rowRecords.find(record => record.rowNumber > fuelHeadingRecord.rowNumber && !record.text), operationContentRecord, fuelHeadingRecord
     );
 
 
@@ -158079,22 +158142,25 @@ function inspectMorningMeetingTmAreaLayout(
   ====================================================== */
 
   const finalBlankRecord =
-    [
-      ...rowRecords
-    ]
-      .reverse()
-      .find(
-        record => {
-          return (
-            record.rowNumber >
-              fuelHeadingRecord
-                .rowNumber &&
+    resolveMorningMeetingOptionalRowTemplate(
+      [
+        ...rowRecords
+      ]
+        .reverse()
+        .find(
+          record => {
+            return (
+              record.rowNumber >
+                fuelHeadingRecord
+                  .rowNumber &&
 
-            !record.text
-          );
-        }
-      ) ||
-    separatorBlankRecord;
+              !record.text
+            );
+          }
+        ) ||
+      separatorBlankRecord,
+      fuelContentRecord, fuelHeadingRecord
+    );
 
 
   if (
