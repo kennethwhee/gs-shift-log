@@ -2285,6 +2285,29 @@
     }
     return result;
   }
+  // A completed source scan can change ownership after the displayed cards
+  // were loaded. Use the fully validated planning read for this run only;
+  // never replace the display payload with the smaller planning projection.
+  function createUnifiedRuntimeAssetResolver() {
+    let planning = null;
+    const displayedData = state.data, displayedAssets = displayedData?.assets || [];
+    const displayed = new Map(displayedAssets.map(asset => [asset.tagNumber,
+      { asset, fingerprint: JSON.stringify(asset) }]));
+    return {
+      adopt(assets) {
+        planning = new Map(assets.map(asset => [asset.tagNumber, asset]));
+      },
+      current(tagNumber) {
+        const current = (state.data?.assets || []).find(asset => asset.tagNumber === tagNumber) || null;
+        if (!planning || state.data !== displayedData || state.data?.assets !== displayedAssets) return current;
+        const baseline = displayed.get(tagNumber);
+        // A later reload, edit or deletion wins over the captured plan. The
+        // server still checks the request's exact cycle/revision at create/apply.
+        if (!baseline || current !== baseline.asset || JSON.stringify(current) !== baseline.fingerprint) return current;
+        return planning.get(tagNumber) || null;
+      }
+    };
+  }
   async function readUnifiedRefreshPlan(core, io) {
     let cursor = "", snapshot = null;
     const deadline = Date.now() + 60000;
@@ -2365,6 +2388,8 @@
       message: ledgerWarning && isPreviewCandidate(asset) ? ledgerWarning :
         "기존 조회값 보호 · 증분 이어조회 기준 확인 필요 · 전체 재조회하지 않음" })));
     planned.targetCount += blocked.length;
+    // Publish atomically only after every page, permission and plan guard passes.
+    io.runtimePlanningAssets?.(snapshot.assets);
     return planned;
   }
 
@@ -11284,7 +11309,9 @@
         state.unifiedLogResume = null;
       }
       state.unifiedLogResumeOwner = state.unifiedRefreshToken;
-      const io = { runtimeResume, currentAssetFor: tagNumber => (state.data?.assets || []).find(asset => asset.tagNumber === tagNumber), runtimeCheckpoint: value => saveUnifiedRuntimeResume(value ? {
+      const runtimeAssets = createUnifiedRuntimeAssetResolver();
+      const io = { runtimeResume, currentAssetFor: tagNumber => runtimeAssets.current(tagNumber),
+        runtimePlanningAssets: assets => runtimeAssets.adopt(assets), runtimeCheckpoint: value => saveUnifiedRuntimeResume(value ? {
           ...value, logNote, logPartial: partial,
           skipped: state.unifiedRefreshResults.filter(item => item.status === "skipped" || item.unchanged === true),
           targetCount: state.unifiedRefreshProgressTarget
