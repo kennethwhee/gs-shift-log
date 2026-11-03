@@ -1,0 +1,85 @@
+/* Mechanical outsourced-work preview only. Source data and XLSX export retain
+   their original six columns, source widths and print formatting. */
+#efficiencyMorningMeetingView [data-morning-meeting-outsourced-work="mechanical"] {
+  min-width: 0;
+}
+
+#efficiencyMorningMeetingView [data-morning-meeting-outsourced-work="mechanical"] > div[style] {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  max-height: 260px;
+  max-height: min(32vh, 260px);
+  overflow: auto !important;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid #ccd8e5;
+  border-radius: 4px;
+}
+
+#efficiencyMorningMeetingView [data-morning-meeting-outsourced-work="mechanical"] table {
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  table-layout: fixed !important;
+  font-family: inherit !important;
+  font-size: 11px !important;
+  line-height: 1.35 !important;
+}
+
+#efficiencyMorningMeetingView [data-morning-meeting-outsourced-work="mechanical"] col:nth-child(1) { width: 7% !important; }
+#efficiencyMorningMeetingView [data-morning-meeting-outsourced-work="mechanical"] col:nth-child(2) { width: 37% !important; }
+#efficiencyMorningMeetingView [data-morning-meeting-outsourced-work="mechanical"] col:nth-child(3) { width: 13% !important; }
+#efficiencyMorningMeetingView [data-morning-meeting-outsourced-work="mechanical"] col:nth-child(4) { width: 16% !important; }
+#efficiencyMorningMeetingView [data-morning-meeting-outsourced-work="mechanical"] col:nth-child(5) { width: 14% !important; }
+#efficiencyMorningMeetingView [data-morning-meeting-outsourced-work="mechanical"] col:nth-child(6) { width: 13% !important; }
+
+#efficiencyMorningMeetingView [data-morning-meeting-outsourced-work="mechanical"] th,
+#efficiencyMorningMeetingView [data-morning-meeting-outsourced-work="mechanical"] td {
+  height: auto !important;
+  padding: 3px 4px !important;
+  border: 0 !important;
+  border-right: 1px solid #e2e8f0 !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  color: #263c55 !important;
+  font-size: 11px !important;
+  line-height: 1.35 !important;
+  text-align: center !important;
+  vertical-align: top !important;
+  white-space: pre-line !important;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+}
+
+#efficiencyMorningMeetingView [data-morning-meeting-outsourced-work="mechanical"] th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 4px 3px !important;
+  background: #dceaf7 !important;
+  font-weight: 700 !important;
+  vertical-align: middle !important;
+}
+
+#efficiencyMorningMeetingView [data-morning-meeting-outsourced-work="mechanical"] td:nth-child(2),
+#efficiencyMorningMeetingView [data-morning-meeting-outsourced-work="mechanical"] td:nth-child(6) {
+  text-align: left !important;
+}
+
+#efficiencyMorningMeetingView [data-morning-meeting-outsourced-work="mechanical"] th:last-child,
+#efficiencyMorningMeetingView [data-morning-meeting-outsourced-work="mechanical"] td:last-child {
+  border-right: 0 !important;
+}
+
+#efficiencyMorningMeetingView [data-morning-meeting-outsourced-work="mechanical"] tbody tr:last-child td {
+  border-bottom: 0 !important;
+}
+
+@media (max-width: 600px) {
+  #efficiencyMorningMeetingView [data-morning-meeting-outsourced-work="mechanical"] table {
+    min-width: 440px !important;
+  }
+}
