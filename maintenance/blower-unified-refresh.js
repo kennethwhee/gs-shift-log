@@ -809,6 +809,18 @@ DP_TAGS.add("203HRJ01AN602");
     return e?.retryable !== false && [0,429,502,503,504].includes(Number(e?.status || 0)) &&
       !['INVALID_LOG_PAGE','BLOWER_LOG_PAGE_INVALID','WRITE_ACCESS_CHANGED'].includes(e?.code);
   }
+  // Preserve only the already-sanitized public error fields. Never retain a
+  // request, payload, headers, token, raw response body or nested cause here.
+  function logContinuationFailure(e) {
+    const boundedText = (value, maximum) => typeof value === 'string'
+      ? value.replace(/[\u0000-\u001f]/g, ' ').slice(0, maximum) : '';
+    const status = Number(e?.status || 0);
+    const failure = { message: boundedText(e?.message, 700) || '연결 오류',
+      status: Number.isInteger(status) && status >= 0 && status <= 599 ? status : 0,
+      code: boundedText(e?.code, 120), cfRay: boundedText(e?.cfRay, 100),
+      cloudflareCode: boundedText(e?.cloudflareCode, 16), responseKind: boundedText(e?.responseKind, 16) };
+    return { ...failure, label: errorLabel(failure) };
+  }
   async function readWithRetry(read, io, label = '현황 다시 읽기', options = {}) {
     const sleep = options.sleep || (ms => new Promise(r => setTimeout(r, ms)));
     const clock = options.clock || Date.now;
@@ -949,7 +961,8 @@ DP_TAGS.add("203HRJ01AN602");
       return { complete: false, totals: e.logTotals || null, warning,
         ...(replacementV3 ? { replacementComplete: e.replacementComplete === true, runtimeAllowed } : {}),
         ...(options._continuationDetails ? { continuationCode: e.code || 'TRANSIENT_LOG_PAGE_FAILED',
-          continuationTransient: transient(e) } : {}) };
+          continuationTransient: transient(e),
+          continuationFailure: e.code === 'LOG_REFRESH_PAUSED' ? null : logContinuationFailure(e) } : {}) };
     }
   }
 
@@ -962,13 +975,19 @@ DP_TAGS.add("203HRJ01AN602");
     const maximumChunks = bounded(options.maxContinuationChunks, 12, 12);
     const maximumStrikes = bounded(options.maxContinuationStrikes, 3, 3);
     const sliceBudget = bounded(options.timeBudgetMs, 120000, 120000);
-    let checkpoint = options.resume || null, chunks = 0, strikes = 0, last = null;
+    let checkpoint = options.resume || null, chunks = 0, strikes = 0, last = null, lastFailure = null;
     const sourceCount = value => Math.max(0, Number(value?.totals?.scannedReplacementLogs) || 0);
     const stop = reason => {
-      const { continuationCode, continuationTransient, ...result } = last || { totals: checkpoint?.totals || null };
+      const { continuationCode, continuationTransient, continuationFailure, ...result } = last || { totals: checkpoint?.totals || null };
+      const completedDate = /^\d{4}-\d\d-\d\d$/.test(String(checkpoint?.cursor?.workDate || ''))
+        ? checkpoint.cursor.workDate : '';
+      const position = { phase: 'replacement', processedSourceCount: sourceCount(checkpoint),
+        lastCompletedWorkDate: completedDate, pageLimit: Math.max(1, Math.min(8, Number(checkpoint?.limit) || 2)) };
+      const cause = lastFailure ? ` · 마지막 오류: ${lastFailure.label}${completedDate ? ` · 마지막 완료 업무일지 ${completedDate}` : ''} · 누적 확인 ${position.processedSourceCount}건 · 요청당 ${position.pageLimit}건` : '';
       return { ...result, complete: false, replacementComplete: false, runtimeAllowed: false,
-        warning: `교체 원문 자동 이어처리 ${reason} · 완료된 처리 위치는 보존했습니다. RUN 조회는 시작하지 않았습니다.`,
-        automaticContinuation: { chunks, strikes, stopped: reason } };
+        warning: `교체 원문 자동 이어처리 ${reason} · 완료된 처리 위치는 보존했습니다. RUN 조회는 시작하지 않았습니다.${cause}`,
+        automaticContinuation: { chunks, strikes, stopped: reason,
+          ...(lastFailure ? { lastFailure: { ...lastFailure, ...position } } : {}) } };
     };
     while (chunks < maximumChunks) {
       io.assertWritable?.();
@@ -981,8 +1000,9 @@ DP_TAGS.add("203HRJ01AN602");
       // No failed page is skipped and no runtime request is created here.
       last = await refreshLogsForRuntime(passIo, { ...options, autoContinue: false, _continuationDetails: true,
         resume: checkpoint, timeBudgetMs: Math.max(1, Math.min(sliceBudget, remaining)) });
+      if (last.continuationFailure) lastFailure = last.continuationFailure;
       if (last.complete || last.runtimeAllowed === true) {
-        const { continuationCode, continuationTransient, ...result } = last;
+        const { continuationCode, continuationTransient, continuationFailure, ...result } = last;
         return { ...result, automaticContinuation: { chunks, strikes, stopped: '' } };
       }
       const progressed = sourceCount(checkpoint) > before;

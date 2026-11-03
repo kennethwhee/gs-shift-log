@@ -555,8 +555,8 @@
       const error = new Error(safeText(result.message) || (cfProblem ? safeText(result.title) : "") || `요청 실패 (HTTP ${response.status})`);
       error.status = response.status;
       error.cloudflareCode = /^(?:1[0-9]{3}|5[0-9]{2})$/.test(cfCode) ? cfCode : "";
-      error.code = String(result.code || (error.cloudflareCode ? "CLOUDFLARE_" + error.cloudflareCode : "HTTP_ERROR"));
-      error.retryable = cfProblem && result.retryable === false ? false : result.retryable === true || [429, 502, 503, 504].includes(response.status);
+      error.code = safeText(result.code).slice(0, 120) || (error.cloudflareCode ? "CLOUDFLARE_" + error.cloudflareCode : "HTTP_ERROR");
+      error.retryable = result.retryable === false ? false : result.retryable === true || [429, 502, 503, 504].includes(response.status);
       error.retryAfterMs = parseRetryAfterMs(response.headers.get("Retry-After"));
       if (!error.retryAfterMs && cfProblem && Number.isFinite(result.retry_after) && result.retry_after >= 0) error.retryAfterMs = Math.min(30000, result.retry_after * 1000);
       error.cfRay = safeText(response.headers.get("CF-Ray") || (cfProblem ? result.ray_id || result.instance : ""));

@@ -15451,6 +15451,35 @@ async function reflectApprovedReplacementPageV3(database, user, body, options = 
     sourceCoverageIssues: page.coverageIssues || [] });
 }
 
+// D1_ERROR is a prefix, not a retry instruction. Quotas and deterministic
+// query errors cannot recover by replaying the same source page fifteen times.
+// Keep this classification local to the bounded work-log endpoint.
+function classifyBlowerLogFailure(error) {
+  const original = error instanceof Error ? error.message : '업무일지 묶음 처리 중 오류가 발생했습니다.';
+  const detail = `${original}\n${error?.cause instanceof Error ? error.cause.message : ''}`.slice(0, 8192);
+  const message = original.replace(/[\u0000-\u001f]/g, ' ').slice(0, 600);
+  const suppliedCode = typeof error?.code === 'string' ? error.code.replace(/[\u0000-\u001f]/g, '').slice(0, 100) : '';
+  const suppliedStatus = Number(error?.status);
+  const explicitStatus = Number.isInteger(suppliedStatus) && suppliedStatus >= 400 && suppliedStatus <= 599 ? suppliedStatus : null;
+  const explicitDenial = explicitStatus !== null && explicitStatus >= 400 && explicitStatus < 500 && explicitStatus !== 429;
+  let code = '', failureKind = '';
+  if (/D1.{0,100}daily\s+(?:row|rows)\s+(?:read|write)\s+limit/i.test(detail)) {
+    code = 'BLOWER_LOG_D1_DAILY_LIMIT'; failureKind = 'daily_limit';
+  } else if (/D1.{0,100}(?:maximum account storage limit|rows?\s+(?:read|write)\s+limit\s+(?:exceeded|reached))|Exceeded maximum DB size/i.test(detail)) {
+    code = 'BLOWER_LOG_D1_CAPACITY_LIMIT'; failureKind = 'capacity_limit';
+  } else if (/too many API requests by single Worker invocation|too many subrequests(?:\b|$)|too many queries (?:by|in|per|for) (?:a |the |single )?(?:Worker )?(?:request|invocation)\b/i.test(detail)) {
+    code = 'BLOWER_LOG_D1_REQUEST_LIMIT'; failureKind = 'request_limit';
+  } else if (/too many SQL variables|too many arguments (?:on|to) function|SQL(?: statement)? (?:is )?too (?:long|large)|SQL statement.{0,80}(?:maximum|limit)|statement.{0,60}exceeds.{0,40}(?:size|length)|SQLITE_TOOBIG/i.test(detail)) {
+    code = 'BLOWER_LOG_D1_QUERY_LIMIT'; failureKind = 'query_limit';
+  } else if (/D1_TYPE_ERROR|D1_COLUMN_NOTFOUND|no such (?:table|column)|syntax error|datatype mismatch/i.test(detail)) {
+    code = 'BLOWER_LOG_D1_QUERY_INVALID'; failureKind = 'invalid_query';
+  }
+  const retryable = !explicitDenial && error?.retryable !== false && !failureKind &&
+    /D1_ERROR|SQLITE_BUSY|database is locked|overload|too many (?:subrequests|queries)|temporar|timeout|timed out|Network connection lost|Replica disconnected from primary/i.test(detail);
+  return { message, code: suppliedCode || code || 'BLOWER_LOG_PAGE_FAILED', retryable,
+    status: explicitStatus || (retryable ? 503 : 500), ...(failureKind ? { failureKind } : {}) };
+}
+
 async function latestLogsStep(database, user, body, options = {}) {
   try {
     if (body.phase === "replacement" && body.replacementAutoVersion === 3) {
@@ -15483,11 +15512,9 @@ async function latestLogsStep(database, user, body, options = {}) {
       suppressedDuplicateFragments: Number(result.suppressedDuplicateFragments || 0)
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : '업무일지 묶음 처리 중 오류가 발생했습니다.';
-    const retryable = /D1_ERROR|SQLITE_BUSY|database is locked|overload|too many (?:subrequests|queries)|temporar|timeout|timed out/i.test(message);
+    const { status, ...failure } = classifyBlowerLogFailure(error);
     console.error('Blower bounded log refresh:', body?.phase, error);
-    return jsonResponse({ ok: false, code: error?.code || 'BLOWER_LOG_PAGE_FAILED', phase: body?.phase,
-      message, retryable }, Number(error?.status) || (retryable ? 503 : 500));
+    return jsonResponse({ ok: false, phase: body?.phase, ...failure }, status);
   }
 }
 
@@ -15705,6 +15732,7 @@ export async function onRequestPost(context) {
 
 /* Node 회귀 테스트에서 V13 복구와 Cycle 상태 경계를 실제 SQLite로 검증한다. */
 export const __blowerHistoryTest = {
+  classifyBlowerLogFailure,
   collectReplacementFactsForRolePriority,
   normalizationRangeAuthorized,
   registerStartup,
