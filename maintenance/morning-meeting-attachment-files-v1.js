@@ -27,9 +27,6 @@
     let busy = false;
     let panel = null;
     let list = null;
-    let undoRow = null;
-    let undoCount = null;
-    let undoButton = null;
     let announcement = null;
 
     function make(tag, className, text) {
@@ -59,12 +56,6 @@
       return Array.isArray(files)
         ? files.filter(file => file && typeof file === "object" && typeof file.name === "string")
         : [];
-    }
-
-    function getRemovedCount() {
-      if (typeof window.getEfficiencyMorningMeetingRemovedCoalLogCount !== "function") return 0;
-      const count = Number(window.getEfficiencyMorningMeetingRemovedCoalLogCount());
-      return Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
     }
 
     function currentReferences() {
@@ -107,17 +98,14 @@
       panel.setAttribute("role", "group");
       panel.setAttribute("aria-label", "운탄일지 첨부파일");
       list = make("ul", "morning-meeting-coal-file-list");
-      undoRow = make("div", "morning-meeting-coal-file-undo");
-      undoCount = make("span", "morning-meeting-coal-file-undo__count");
-      undoButton = make("button", "morning-meeting-coal-file-undo__button", "모두 되돌리기");
-      undoButton.type = "button";
-      undoButton.dataset.morningMeetingCoalUndo = "true";
-      undoButton.title = "제외한 운탄일지를 원래 순서로 다시 첨부합니다.";
-      announcement = make("span", "morning-meeting-file-announcement");
-      announcement.setAttribute("role", "status");
-      announcement.setAttribute("aria-live", "polite");
-      undoRow.append(undoCount, undoButton);
-      panel.append(list, undoRow, announcement);
+      if (!announcement) {
+        announcement = make("span", "morning-meeting-file-announcement");
+        announcement.setAttribute("role", "status");
+        announcement.setAttribute("aria-live", "polite");
+        // Remain available after the final file hides the reference panel.
+        view.appendChild(announcement);
+      }
+      panel.append(list);
       // The card is a file-input label. Interactive controls must be siblings,
       // never descendants of that label, so excluding a file cannot open it.
       shell.insertBefore(panel, coalCard.nextSibling);
@@ -132,27 +120,25 @@
     function render() {
       queued = false;
       const files = getFiles();
-      const removedCount = getRemovedCount();
       const refs = currentReferences();
       const shell = coalCard?.closest(".efficiency-morning-meeting-upload-shell");
       const readOnly = isReadOnly();
       const exporting = isExporting();
       const canRemove = typeof window.removeEfficiencyMorningMeetingCoalLogFile === "function";
-      const canUndo = typeof window.undoEfficiencyMorningMeetingCoalLogFiles === "function";
       const nextReferenceSignature = JSON.stringify(refs.map(ref => [ref.key, fileKey(ref.file), ref.text]));
       if (referenceSignature !== nextReferenceSignature) {
         referenceSignature = nextReferenceSignature;
         refs.forEach(renderReference);
       }
       const nextSignature = JSON.stringify([
-        files.map(fileKey), removedCount, readOnly, exporting, busy, canRemove, canUndo,
+        files.map(fileKey), readOnly, exporting, busy, canRemove,
         Boolean(shell), Boolean(panel?.isConnected)
       ]);
       if (signature === nextSignature) return;
       signature = nextSignature;
       if (!shell) return;
       ensurePanel(shell);
-      const hasReference = files.length > 0 || removedCount > 0;
+      const hasReference = files.length > 0;
       panel.hidden = !hasReference;
       shell.classList.toggle("morning-meeting-has-coal-file-reference", hasReference);
       list.replaceChildren();
@@ -170,10 +156,6 @@
         row.append(name, remove);
         list.append(row);
       }
-      undoRow.hidden = !removedCount;
-      undoCount.textContent = removedCount + "개 제외";
-      undoButton.textContent = removedCount > 1 ? "모두 되돌리기" : "되돌리기";
-      undoButton.disabled = readOnly || exporting || busy || !canUndo;
     }
 
     function scheduleRender() {
@@ -189,16 +171,14 @@
       event.stopPropagation();
       if (button.disabled || busy || isReadOnly() || isExporting()) return;
       const file = removeTargets.get(button);
-      const restoring = button.dataset.morningMeetingCoalUndo === "true";
-      const action = restoring
-        ? window.undoEfficiencyMorningMeetingCoalLogFiles
-        : window.removeEfficiencyMorningMeetingCoalLogFile;
-      if (typeof action !== "function" || (!restoring && !file)) return;
+      const action = window.removeEfficiencyMorningMeetingCoalLogFile;
+      if (typeof action !== "function" || !file) return;
+      const buttonIndex = Array.from(list.querySelectorAll("button")).indexOf(button);
       busy = true;
       render();
       let success = false;
       try {
-        success = (await action.call(window, ...(restoring ? [] : [file]))) === true;
+        success = (await action.call(window, file)) === true;
       } catch (_) {
         success = false;
       } finally {
@@ -206,12 +186,16 @@
         render();
       }
       announcement.textContent = success
-        ? (restoring ? "제외한 운탄일지를 다시 첨부했습니다." : file.name + " 첨부에서 제외했습니다. 원본 파일은 유지됩니다.")
+        ? file.name + " 첨부에서 제외했습니다. 원본 파일은 유지됩니다."
         : "첨부 목록을 변경하지 못했습니다. 다시 확인해 주세요.";
-      const focusTarget = !restoring && success && !undoRow.hidden
-        ? undoButton
-        : list.querySelector("button");
-      focusTarget?.focus({preventScroll: true});
+      const remainingButtons = Array.from(list.querySelectorAll("button:not(:disabled)"));
+      const focusTarget = remainingButtons[Math.min(Math.max(0, buttonIndex), remainingButtons.length - 1)];
+      if (focusTarget) {
+        focusTarget.focus({preventScroll: true});
+      } else if (coalCard) {
+        if (!coalCard.hasAttribute("tabindex")) coalCard.setAttribute("tabindex", "-1");
+        coalCard.focus({preventScroll: true});
+      }
     }
 
     window.refreshEfficiencyMorningMeetingAttachmentFiles = scheduleRender;
