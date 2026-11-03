@@ -367,7 +367,7 @@ test('a simulated successful 27-asset append reports eight basis-review targets 
   ui.renderStatusFilters();
   const chip = ui.elements.statusFilters.innerHTML.match(/<button\b[^>]*data-status-filter="runtime_unknown"[^>]*>[\s\S]*?<\/button>/)?.[0];
   assert.ok(chip);
-  assert.match(chip, /<span>운전시간 확인<\/span>\s*<strong>8<\/strong>/);
+  assert.match(chip, /<span>기준·구간 확인<\/span>\s*<strong>8<\/strong>/);
   const dashboard = ui.renderAllOverviewDashboard(assets, []);
   assert.match(dashboard, /<span>확인 필요<\/span><strong>8대<\/strong>/);
 
@@ -377,7 +377,7 @@ test('a simulated successful 27-asset append reports eight basis-review targets 
     message: 'Fixture simulated append completion' }));
   const originalResults = structuredClone(simulated);
   ui.renderUnifiedRefreshProgress('Fixture simulated results', simulated);
-  assert.match(ui.elements.unifiedRefreshSummary.textContent, /기준 확인 대상 이어조회 8대/);
+  assert.match(ui.elements.unifiedRefreshSummary.textContent, /일부 구간 이어조회 8대/);
   assert.match(ui.elements.unifiedRefreshSummary.textContent, /조회 보류 0대/);
   assert.deepEqual(simulated, originalResults, 'progress presentation does not rewrite result records');
   assert.deepEqual(assets, before, 'summary and planning do not alter the original 27 counters or basis dates');

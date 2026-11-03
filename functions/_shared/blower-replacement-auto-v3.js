@@ -94,6 +94,42 @@ export function isReplacementAutoRevision(asset) {
   return text(asset?.cycle_start_revision || asset?.cycleStartRevision).startsWith('replacement-auto-v3:');
 }
 
+// Clock certainty is independent of arrival order. Reconcile only strong
+// server-created evidence tied to the very same active replacement owner.
+// Source supersession is already rejected by sourceMetadata; an old clock
+// cannot regain reset/query authority through this read-only projection.
+function reconciledCompletionClock(asset,events,candidates,current) {
+  const ownerFor=item=>{
+    const id=text(item.source.replacementEventId);
+    const owner=events.find(event=>event.id===id && event.tag_number===asset.tag_number && event.event_type==='replacement' &&
+      instant(event.event_date)===instant(asset.last_replacement_at));
+    return owner?owner.id:'';
+  };
+  const owner=ownerFor(current);
+  if(!owner)return null;
+  const sameOwner=candidates.filter(item=>ownerFor(item)===owner);
+  const physical=id=>text(id).replace(/^legacy-/,'');
+  const strong=sameOwner.filter(({event,source})=>{
+    let key;try{key=JSON.parse(source.sourceKey);}catch{return false;}
+    return source.timePrecision==='minute' && /^[a-f0-9]{64}$/.test(text(source.sourceSnapshotSha256)) &&
+      Array.isArray(key) && key.length===4 && physical(key[0])===physical(event.source_log_id) &&
+      key[1]===asset.tag_number && typeof key[2]==='string' && !!key[2].trim() &&
+      ((Number.isSafeInteger(key[3]) && key[3]>=0) || key[3]==='author-confirmed-v1');
+  });
+  const clocks=[...new Set(strong.map(({source})=>instant(source.sourceCompletionAt || source.currentLastReplacementAt)))];
+  const conflict=sameOwner.some(item=>item.source.completionClockConflict===true) ||
+    clocks.some(clock=>!Number.isFinite(clock) || clock!==instant(asset.last_replacement_at));
+  if(conflict || clocks.length>1)return {conflict:true};
+  if(clocks.length!==1)return null;
+  // Only an already-owned measured range may gain a stronger display basis.
+  // This cannot issue a fresh zero/reset checkpoint for an unmeasured cycle.
+  if(!currentVerifiedRange(asset,events))return null;
+  const selected=strong[0];
+  return {conflict:false,at:text(selected.source.currentLastReplacementAt),
+    eventId:selected.event.id,sourceLogId:selected.event.source_log_id,
+    sourceSnapshotSha256:selected.source.sourceSnapshotSha256};
+}
+
 /** Metadata for projection and narrowly authorized fresh RUN rebuilding.
  * A query certificate is consumed naturally when either cycle revision changes.
  * Historical DataPARC receipts can never regain ownership of the new cycle.
@@ -115,13 +151,24 @@ export function replacementAutoCycleProof(asset,events) {
   const fresh=resetAuthority && source.cycleRuntimeRevision===text(asset.cycle_runtime_revision) && asset.cycle_start_state==='pending' &&
     !text(asset.cycle_started_at) && Number(asset.cycle_runtime_hours)===0 && Number(asset.runtime_hours)===0;
   const rangeTrackingAllowed=validRangeSeed(source);
-  return {schemaVersion:3,normalizationVersion:source.normalizationVersion===4?4:undefined,rangeTrackingAllowed,
+  const proof={schemaVersion:3,normalizationVersion:source.normalizationVersion===4?4:undefined,rangeTrackingAllowed,
     rangeStartAt:rangeTrackingAllowed?source.rangeStartAt:'',rangeQueryEligible:rangeTrackingAllowed && fresh && source.registeredRuntimeRange!==true,
     registeredRuntimeRange:source.normalizationVersion===4 && source.registeredRuntimeRange===true,
     completionClockConflict:source.normalizationVersion===4 && source.completionClockConflict===true,eventId:event.id,confirmationOnly:source.confirmationOnly===true,cycleStartRevision:source.cycleStartRevision,cycleRuntimeRevision:source.cycleRuntimeRevision,replacementEventId:source.replacementEventId || (event.event_type==='replacement'?event.id:''),
     timePrecision:source.timePrecision,clockKnown,registeredBaseline,storedRuntimeHours:Number(asset.cycle_runtime_hours),storedLegacyRuntimeHours:Number(asset.runtime_hours),requiredStartAt:clockKnown || registeredBaseline || rangeTrackingAllowed?source.currentLastReplacementAt:'',
     freshQueryEligible:(clockKnown || registeredBaseline) && fresh,requiresRunRefresh:fresh,sourceLogId:event.source_log_id,
     sourceSnapshotSha256:source.sourceSnapshotSha256};
+  const completion=reconciledCompletionClock(asset,events,candidates,current);
+  if(completion?.conflict)return {...proof,normalizationVersion:4,clockKnown:false,
+    completionClockConflict:true,confirmedReplacementAt:'',freshQueryEligible:false,rangeQueryEligible:false};
+  if(!completion)return proof;
+  return {...proof,normalizationVersion:4,timePrecision:'minute',clockKnown:true,
+    completionClockReconciled:true,confirmedReplacementAt:completion.at,
+    confirmedClockEventId:completion.eventId,confirmedClockSourceLogId:completion.sourceLogId,
+    confirmedClockSourceSnapshotSha256:completion.sourceSnapshotSha256,
+    completionClockConflict:false,registeredRuntimeRange:false,rangeTrackingAllowed:false,
+    rangeStartAt:'',rangeQueryEligible:false,freshQueryEligible:false,requiresRunRefresh:false,
+    requiredStartAt:completion.at};
 }
 
 /** Caller supplies completed belt facts from an approved server-loaded source.

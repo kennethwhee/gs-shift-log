@@ -361,7 +361,7 @@ test('status filters and the dashboard count partial coverage once while retaini
   ui.renderStatusFilters();
   const chip = ui.elements.statusFilters.innerHTML.match(/<button\b[^>]*data-status-filter="runtime_unknown"[^>]*>[\s\S]*?<\/button>/)?.[0];
   assert.ok(chip, 'partially measured cycles have a visible status filter');
-  assert.match(chip, /<span>운전시간 확인<\/span>\s*<strong>7<\/strong>/);
+  assert.match(chip, /<span>기준·구간 확인<\/span>\s*<strong>7<\/strong>/);
   const dashboard = ui.renderAllOverviewDashboard(assets, []);
   assert.match(dashboard, /<span>확인 필요<\/span><strong>7대<\/strong>/,
     'one partial cycle whose state is also unknown is not counted twice');

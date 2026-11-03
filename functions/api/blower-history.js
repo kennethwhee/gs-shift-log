@@ -1985,6 +1985,24 @@ async function loadAssetStates(database, settings, options = {}) {
     }
     const replacementAutoCycle = normalizeText(asset.last_replacement_at)
       ? replacementAutoCycleProof(asset, runtimeRows) : null;
+    // A reconciled completion clock fixes a source downgrade, not missing RUN.
+    // Compare this proven physical boundary to the owned measured range instead
+    // of treating a later registered startup as proof of an unqueried prefix.
+    const confirmedReplacementAt = replacementAutoCycle?.completionClockReconciled === true &&
+      replacementAutoCycle.clockKnown === true && replacementAutoCycle.completionClockConflict !== true &&
+      Date.parse(replacementAutoCycle.confirmedReplacementAt) === Date.parse(asset.last_replacement_at)
+      ? replacementAutoCycle.confirmedReplacementAt : "";
+    if (confirmedReplacementAt && runtimeBasis) {
+      const missingLeadingSeconds = Math.max(0, Math.ceil((Date.parse(runtimeBasis.startAt) - Date.parse(confirmedReplacementAt)) / 1000));
+      runtimeBasis.requiredStartAt = confirmedReplacementAt;
+      runtimeBasis.missingLeadingSeconds = missingLeadingSeconds;
+      runtimeBasis.coverageComplete = missingLeadingSeconds === 0;
+      runtimeBasis.cycleBasisConfirmed = true;
+    }
+    const confirmedRangeReview = confirmedReplacementAt && runtimeBasis?.coverageComplete === false
+      ? { code: "CONFIRMED_REPLACEMENT_RUN_GAP", cycleBasisConfirmed: true, measuredRangeMayContinue: true,
+        message: "교체 완료시각은 확인됐지만 앞 RUN 조회구간이 빠져 있습니다. 저장된 조회구간을 이어 계산하며 누락 구간을 추정하지 않습니다." }
+      : null;
     const normalizationReview = replacementAutoCycle?.normalizationVersion === 4 &&
       (replacementAutoCycle.registeredRuntimeRange || replacementAutoCycle.rangeTrackingAllowed || replacementAutoCycle.completionClockConflict)
       ? { code: replacementAutoCycle.registeredRuntimeRange ? "VERIFIED_RUNTIME_RANGE" : "REPLACEMENT_RECORDED_RANGE",
@@ -1995,14 +2013,14 @@ async function loadAssetStates(database, settings, options = {}) {
             ? "승인 원문의 완료 시각이 기존 등록 기준과 달라 등록값과 검증된 RUN 구간을 보존했습니다."
             : "교체 완료 사실을 반영하고 작업일지 근무 종료 이후의 확인 가능한 RUN 구간만 계산합니다. 미확인 앞 구간을 추정하지 않습니다." }
       : null;
-    const cycleSourceReview = normalizationReview || reviewedCycleSourceWarning(asset, runtimeRows) ||
+    const cycleSourceReview = confirmedRangeReview || normalizationReview || reviewedCycleSourceWarning(asset, runtimeRows) ||
       (replacementAutoCycle && !replacementAutoCycle.clockKnown && !replacementAutoCycle.registeredBaseline
         ? { code: "REPLACEMENT_COMPLETION_TIME_MISSING", cycleBasisConfirmed: false,
           measuredRangeMayContinue: false,
           message: "승인 업무일지의 벨트 교체 완료는 자동 반영됐습니다. 완료 시각은 미기록이므로 날짜를 자정 완료로 간주하지 않습니다." }
         : null);
     if (cycleSourceReview && runtimeBasis) {
-      runtimeBasis.cycleBasisConfirmed = false;
+      runtimeBasis.cycleBasisConfirmed = cycleSourceReview.cycleBasisConfirmed === true;
       if (normalizationReview) runtimeBasis.coverageComplete = false;
     }
     const initialBasis = manureInitialRunProjection(asset, runtimeRows, initialRunAudit);
@@ -2018,8 +2036,9 @@ async function loadAssetStates(database, settings, options = {}) {
       limestoneSignalCandidate: LIMESTONE_RUN_SIGNAL_CANDIDATES[asset.tag_number] || "",
       dataParcRuntimeBasis: runtimeBasis,
       ...(replacementAutoCycle ? { replacementAutoCycle } : {}),
-      ...(cycleSourceReview ? { cycleSourceReview, actualLastReplacementAt: "",
-        cycleBasisKind: replacementAutoCycle?.registeredRuntimeRange ? "verified_runtime_range" : "replacement_source_review" } : {}),
+      ...(cycleSourceReview ? { cycleSourceReview, actualLastReplacementAt: cycleSourceReview.cycleBasisConfirmed === true ? confirmedReplacementAt : "",
+        cycleBasisKind: cycleSourceReview.cycleBasisConfirmed === true ? "replacement"
+          : replacementAutoCycle?.registeredRuntimeRange ? "verified_runtime_range" : "replacement_source_review" } : {}),
       ...(runRuntime ? { runRuntime } : {}),
       ...(runtimeBasis?.coverageComplete === false || cycleSourceReview
         ? { remainingHours: null, progressPct: null, severity: "runtime_unknown" } : {}),
