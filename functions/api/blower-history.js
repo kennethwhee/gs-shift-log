@@ -1,5 +1,6 @@
 import { handleBlowerSchedule } from "../_shared/blower-schedule-v1.js";
 import { incrementalEvidence, verifiedAppendBase, loadAppendBase, loadAppendIntent, combineAppendProbe, cycleRuntimeCoverage } from "../_shared/blower-incremental.js";
+import { reviewedCycleSourceWarning } from "../_shared/blower-cycle-source-review.js";
 import { MANURE_INITIAL_RUN_CONFIG, initializeManureInitialRun, manureInitialRunBasis,
   manureInitialRunProjection, loadManureInitialAudit, configuredManureRunSignal,
   isProtectedManureInitialEvent } from "../_shared/blower-manure-initial-run-v1.js";
@@ -1754,7 +1755,7 @@ function currentDataParcRuntimeBasis(asset, rows) {
       runtimeHours: Number(row.runtime_hours), dataParcTag: source.dataParcTag,
       coverageComplete: coverage.complete, requiredStartAt: coverage.requiredStartAt,
       missingLeadingSeconds: coverage.missingLeadingSeconds,
-      appendReady: Boolean(coverage.complete && append && append.requestId === source.requestId),
+      appendReady: Boolean(append && append.requestId === source.requestId),
       runningSeconds: incremental ? incremental.totalRunningSeconds : source.runningSeconds,
       lastQueryStartAt: source.startAt, lastAddedSeconds: incremental ? incremental.deltaRunningSeconds : null };
   }
@@ -1858,7 +1859,7 @@ async function loadAssetStates(database, settings, options = {}) {
   const runtimeResult = tags.length ? await database.prepare(`
     SELECT id, tag_number, event_type, event_date, runtime_hours, source_type, source_log_id, source_text, created_at, updated_at, issue_type, action_type, note
     FROM blower_history_events
-    WHERE event_type IN ('runtime_correction', 'startup', 'operation_start', 'operation_stop')
+    WHERE event_type IN ('runtime_correction', 'startup', 'operation_start', 'operation_stop', 'replacement')
       AND tag_number IN (${useJsonTagFilter ? 'SELECT value FROM json_each(?)' : tags.map(() => '?').join(',')})
     ORDER BY created_at DESC, event_date DESC, id DESC
   `).bind(...(useJsonTagFilter ? [JSON.stringify(tags)] : tags)).all() : { results: [] };
@@ -1920,6 +1921,8 @@ async function loadAssetStates(database, settings, options = {}) {
       asset.runtime_measured_at = manual && (!runtimeBasis || Date.parse(manual.event_date) > Date.parse(runtimeBasis.observedAt))
         ? manual.event_date : runtimeBasis?.observedAt || "";
     }
+    const cycleSourceReview = reviewedCycleSourceWarning(asset, runtimeRows);
+    if (cycleSourceReview && runtimeBasis) runtimeBasis.cycleBasisConfirmed = false;
     const initialBasis = manureInitialRunProjection(asset, runtimeRows, initialRunAudit);
     return { ...buildAssetState(
       asset,
@@ -1932,8 +1935,10 @@ async function loadAssetStates(database, settings, options = {}) {
       dataParcTag: latestSuccessfulDataParcTag(asset.tag_number, runtimeRows) || configuredManureRunSignal(asset),
       limestoneSignalCandidate: LIMESTONE_RUN_SIGNAL_CANDIDATES[asset.tag_number] || "",
       dataParcRuntimeBasis: runtimeBasis,
+      ...(cycleSourceReview ? { cycleSourceReview, actualLastReplacementAt: "",
+        cycleBasisKind: "replacement_source_review" } : {}),
       ...(runRuntime ? { runRuntime } : {}),
-      ...(runtimeBasis?.coverageComplete === false
+      ...(runtimeBasis?.coverageComplete === false || cycleSourceReview
         ? { remainingHours: null, progressPct: null, severity: "runtime_unknown" } : {}),
       // A lightweight plan must not turn an unverified saved result into a
       // fresh full-range query merely because event-list fallback was removed.
@@ -7667,7 +7672,7 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
   }
 
   const coverage = cycleRuntimeCoverage(asset, probe.incremental?.coverageStartAt || probe.startAt);
-  if (!coverage.complete) {
+  if (!coverage.complete && !appendIntent) {
     return jsonResponse({ ok: false, code: "DATAPARC_RUNTIME_FULL_CYCLE_REQUIRED",
       message: "누적 운전시간은 저장된 교체·기동 기준부터 전체 RUN 구간을 확인해야 합니다. 기존 누적값은 유지합니다.",
       requiredStartAt: coverage.requiredStartAt, coverageStartAt: coverage.coverageStartAt,
@@ -7683,7 +7688,8 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
     }
     if (!base || base.eventId !== appendIntent.base_event_id || base.cycleRuntimeRevision !== appendIntent.base_revision ||
         Date.parse(base.observedAt) !== Date.parse(appendIntent.base_observed_at) ||
-        Date.parse(base.startAt) !== Date.parse(appendIntent.coverage_start_at) || base.runningSeconds !== Number(appendIntent.base_running_seconds)) {
+        Date.parse(base.startAt) !== Date.parse(appendIntent.coverage_start_at) || base.runningSeconds !== Number(appendIntent.base_running_seconds) ||
+        !probe.incremental || Date.parse(probe.incremental.coverageStartAt) !== Date.parse(base.startAt)) {
       return jsonResponse({ ok: false, code: "DATAPARC_APPEND_BASE_CHANGED",
         message: "증분 조회 중 이전 누적시간·교체 기준이 변경되었습니다. 기존 값은 유지하며 조회 기준을 다시 확인해 주세요." }, 409);
     }
@@ -8195,6 +8201,12 @@ function fragmentStableKey(fragment) {
   ].join("::");
 }
 
+// Keep source text verbatim for audit receipts. Only the recognition view fixes
+// the common V-Blet transposition found in historical work headings.
+function replacementRecognitionText(value) {
+  return normalizeText(value).replace(/\bV\s*[-/]?\s*BLET\b/gi, "V-Belt");
+}
+
 function splitMixedAssetLine(value) {
   const line = normalizeText(value);
   if (!line) return [];
@@ -8395,6 +8407,9 @@ function collectCanonicalShiftLogFragments(parsedLog, row, assets = []) {
       let runningStructuredTags = [...effectiveStructuredTags];
       let structuredTagConflictActive = structuredTagIdentityConflict;
       let contentTagConflictActive = false;
+      let replacementWorkIdentity = "";
+      let replacementWorkSourceText = "";
+      let foreignEquipmentContext = false;
 
       for (const clause of splitCanonicalEntryClauses(content)) {
         const inlineTime = normalizeCanonicalEntryTime(clause);
@@ -8410,6 +8425,16 @@ function collectCanonicalShiftLogFragments(parsedLog, row, assets = []) {
         const explicitPositions = explicitTagResolution.positions;
         const explicitTagAssets = explicitTagResolution.assets;
         const compatibleExplicitTags = explicitTagResolution.tags;
+        const sourceIdentity = v13IdentityFromText(evidence, sourceRole, assets);
+        const foreignEquipment = v13IsForeignEquipmentText(evidence, sourceIdentity) ||
+          v13MixedForeignWorkBoundary(evidence);
+        if (foreignEquipment) {
+          foreignEquipmentContext = true;
+          replacementWorkIdentity = "";
+          replacementWorkSourceText = "";
+        } else if (sourceIdentity.hasManagedIdentity) {
+          foreignEquipmentContext = false;
+        }
         const explicitTagIdentityConflict = (
           explicitTags.length > 0 && !explicitTagResolution.consistent
         );
@@ -8565,6 +8590,14 @@ function collectCanonicalShiftLogFragments(parsedLog, row, assets = []) {
           }
         }
 
+        // Operation selectors such as "#C 정지, #B 기동" may update operation
+        // context, but must not move a subsequent Belt completion from C to B.
+        // A genuinely new type/unit/TAG starts a different maintenance job.
+        if (typeBoundaryChanged || unitBoundaryChanged || groupBoundaryChanged || tagBoundaryChanged) {
+          replacementWorkIdentity = "";
+          replacementWorkSourceText = "";
+        }
+
         if (
           explicitPositions.length === 0 &&
           (typeBoundaryChanged || unitBoundaryChanged || groupBoundaryChanged || tagBoundaryChanged)
@@ -8629,13 +8662,42 @@ function collectCanonicalShiftLogFragments(parsedLog, row, assets = []) {
           identityTags.length === 0 &&
           explicitTypes.length === 0
         );
-        const identityText = [
+        let identityText = [
           identityTags.join(" "),
           trustedManureGroup ? "축분 Blower" : "",
           trustedType ? TYPE_IDENTITY_LABELS[trustedType] : "",
           trustedUnit ? `#${trustedUnit} BLR` : "",
           trustedPosition
         ].filter(Boolean).join(" ");
+        const workText = replacementRecognitionText(evidence);
+        const beltWork = hasBeltWord(workText) && hasReplacementKeyword(workText);
+        const directBeltPositions = v13DirectBeltPositions(workText);
+        const directWorkLocator = explicitTags.length > 0 || directBeltPositions.length > 0 ||
+          (explicitPositions.length > 0 && !/(?:교체\s*운전|정지|기동|->|→)/i.test(workText));
+        const identityConflict = structuredTagConflictActive || contentTagConflictActive || foreignEquipmentContext;
+        let replacementEvidenceText = "";
+        if (beltWork && !identityConflict) {
+          if (directWorkLocator) {
+            replacementWorkIdentity = v13ContextIdentityText(
+              v13IdentityFromText(workText, sourceRole, assets, identityText)
+            );
+            replacementWorkSourceText = evidence;
+          } else if (replacementWorkIdentity) {
+            identityText = replacementWorkIdentity;
+            replacementEvidenceText = [replacementWorkSourceText, evidence].filter(Boolean).join(" → ");
+          }
+        } else if (!identityConflict && sourceIdentity.hasManagedIdentity && !v13IsOperationOnlyLocator(evidence)) {
+          if (sourceIdentity.tags.length > 0 || sourceIdentity.explicitPositions.length > 0) {
+            replacementWorkIdentity = v13ContextIdentityText(
+              v13IdentityFromText(workText, sourceRole, assets, identityText)
+            );
+            replacementWorkSourceText = evidence;
+          } else if (replacementWorkIdentity) {
+            // An unpositioned component note in the same work entry must not
+            // reintroduce the last operation selector as the maintenance owner.
+            identityText = replacementWorkIdentity;
+          }
+        }
         const fragmentKey = [
           compactEquipmentText(identityText),
           sourceRole,
@@ -8649,7 +8711,8 @@ function collectCanonicalShiftLogFragments(parsedLog, row, assets = []) {
           identityText,
           sourceTime: inlineTime || entryTime,
           sourceRole,
-          identityConflict: structuredTagConflictActive || contentTagConflictActive
+          identityConflict,
+          ...(replacementEvidenceText ? { replacementEvidenceText } : {})
         });
       }
   };
@@ -13303,7 +13366,7 @@ function v13HistoricalPositionLabels(text) {
 }
 
 function v13DirectBeltPositions(text) {
-  const normalized = normalizeText(text).toUpperCase();
+  const normalized = replacementRecognitionText(text).toUpperCase();
   const found = new Set();
   const beltWord = '(?:V\\s*[-/]?\\s*BELT|VBELT|BELT|V\\s*[-/]?\\s*벨트|V벨트|벨트)';
 
@@ -13435,7 +13498,16 @@ function v13IdentityFromText(text, role, assets, structuredText = '') {
 function v13IsForeignEquipmentText(text, identity) {
   if (identity?.hasManagedIdentity) return false;
   const normalized = normalizeText(text);
-  return /(?:limestone|bed\s*ash|bed\s*material|dust\s*collector|dosing\s*conveyor|ahu[-\s]*\d*|hvac|fin\s*fan|vent\s*filter\s*fan|vent\s*fan|screw\s*feeder|보조보일러)/i.test(normalized);
+  return /(?:limestone|bed\s*ash|bed\s*material|dust\s*collector|dosing\s*conveyor|ahu[-\s]*\d*|hvac|fin\s*fan|vent\s*filter\s*fan|vent\s*fan|ventilation\s*fan|screw\s*feeder|환기\s*(?:팬|fan)|보조보일러)/i.test(normalized);
+}
+
+function v13MixedForeignWorkBoundary(text) {
+  const normalized = replacementRecognitionText(text);
+  if (!v13SoftPlanReplacement(normalized)) return false;
+  const foreign = normalized.split(/\r?\n|\s*(?:->|=>|→|➡|⇒)\s*/g).some(clause =>
+    v13IsForeignEquipmentText(clause, v13IdentityFromText(clause, "", []))
+  );
+  return foreign && !v13ActualBeltReplacement(normalized, "", false);
 }
 
 function v13ContextBucket(record) {
@@ -13443,6 +13515,11 @@ function v13ContextBucket(record) {
   const indexed = field.match(/^(.+?\[\d+\])/);
   if (indexed) return indexed[1];
   return field.split('.').slice(0, 2).join('.') || field;
+}
+
+function v13IsOperationOnlyLocator(text) {
+  const normalized = replacementRecognitionText(text);
+  return !hasBeltWord(normalized) && /(?:교체\s*운전|정지|기동|운전)/i.test(normalized);
 }
 
 function v13MergeContext(previous, own, sourceText) {
@@ -13519,7 +13596,7 @@ function v13ContextualizeAuditRecords(records, assets) {
       continue;
     }
 
-    if (v13IsForeignEquipmentText(record?.sourceText, own)) {
+    if (v13IsForeignEquipmentText(record?.sourceText, own) || v13MixedForeignWorkBoundary(record?.sourceText)) {
       active.delete(key);
       output.push({ ...record, v13Context: own, v13EvidenceText: normalizeText(record?.sourceText) });
       continue;
@@ -13528,7 +13605,8 @@ function v13ContextualizeAuditRecords(records, assets) {
     const previous = active.get(key) || null;
     const context = v13MergeContext(previous, own, record?.sourceText);
 
-    if (context?.hasManagedIdentity || (previous && (own.explicitUnits?.length || own.explicitPositions?.length))) {
+    if (!v13IsOperationOnlyLocator(record?.sourceText) &&
+        (context?.hasManagedIdentity || (previous && (own.explicitUnits?.length || own.explicitPositions?.length)))) {
       active.set(key, context);
     }
 
@@ -13587,14 +13665,15 @@ function v13ContextualizeScanFragments(fragments, row, assets) {
       continue;
     }
 
-    if (v13IsForeignEquipmentText(fragmentSourceText(fragment), own)) {
+    if (v13IsForeignEquipmentText(fragmentSourceText(fragment), own) || v13MixedForeignWorkBoundary(fragmentSourceText(fragment))) {
       active = null;
       output.push({ ...fragment, v13Context: own, v13EvidenceText: fragmentSourceText(fragment) });
       continue;
     }
 
     const context = v13MergeContext(active, own, fragmentSourceText(fragment));
-    if (context?.hasManagedIdentity || (active && (own.explicitUnits?.length || own.explicitPositions?.length))) {
+    if (!v13IsOperationOnlyLocator(fragmentSourceText(fragment)) &&
+        (context?.hasManagedIdentity || (active && (own.explicitUnits?.length || own.explicitPositions?.length)))) {
       active = context;
     }
 
@@ -13602,7 +13681,7 @@ function v13ContextualizeScanFragments(fragments, row, assets) {
       ...fragment,
       identityText: [fragmentIdentityText(fragment), v13ContextIdentityText(context)].filter(Boolean).join(' '),
       v13Context: context,
-      v13EvidenceText: normalizeText(context?.evidenceText || fragmentSourceText(fragment))
+      v13EvidenceText: normalizeText(fragment.replacementEvidenceText || context?.evidenceText || fragmentSourceText(fragment))
     });
   }
 
@@ -13677,7 +13756,7 @@ function v13BareReplacementAction(text) {
 }
 
 function v13ActualBeltReplacement(text, workDate, allowHistoricalReference = true) {
-  const normalized = normalizeText(text);
+  const normalized = replacementRecognitionText(text);
   if (!normalized || !hasBeltWord(normalized) || !hasReplacementKeyword(normalized)) return false;
   if (!v13HasDirectBeltAction(normalized) && !hasBeltReplacementPhrase(normalized)) return false;
   if (hasBeltAccessoryReplacementPhrase(normalized) && !hasDirectCompletedBeltReplacement(normalized)) return false;
@@ -13693,8 +13772,17 @@ function v13ActualBeltReplacement(text, workDate, allowHistoricalReference = tru
   // "교체 요청 (작업 완료)"처럼 요청 처리 완료를 실제 Belt 교체로 오인하지 않는다.
   // 요청/예정 뒤에 별도의 두 번째 교체 완료 표현이 있을 때만 아래 완료 판정을 허용한다.
   if (softPlan && replacementMentions < 2) return false;
+  if (softPlan) {
+    // A separate completed Belt job may resolve a preceding request, but a
+    // kitchen/ventilation fan's completion cannot complete a Blower request.
+    // Inspect each work clause before any combined-evidence fallback is used.
+    return normalized.split(/\r?\n|\s*(?:->|=>|→|➡|⇒)\s*/g).some(clause => {
+      if (v13SoftPlanReplacement(clause) || v13HardNegativeReplacement(clause)) return false;
+      const identity = v13IdentityFromText(clause, "", []);
+      return !v13IsForeignEquipmentText(clause, identity) && v13StrongReplacementCompletion(clause);
+    });
+  }
   if (v13StrongReplacementCompletion(normalized)) return true;
-  if (softPlan) return false;
 
   if (allowHistoricalReference && v12ExtractDateTokens(normalized, workDate).length > 0) {
     return true;

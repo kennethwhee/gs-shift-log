@@ -54,6 +54,38 @@ DP_TAGS.add("203HRJ01AN602");
   function fbheSealRunAsset(a) {
     return /^(?:104|204)HHL(?:60AP|10AN)(?:611|621|631)$/.test(String(a?.tagNumber || '').trim().toUpperCase());
   }
+  function partialAppendBase(a, basis, dataParcTag, end = Infinity) {
+    if ((basis?.coverageComplete !== false && a?.cycleSourceReview?.measuredRangeMayContinue !== true) ||
+        basis?.appendReady !== true || basis.dataParcTag !== dataParcTag ||
+        typeof basis.requestId !== 'string' || !basis.requestId ||
+        !Number.isFinite(time(a?.lastReplacementAt)) || !Number.isFinite(time(basis.startAt)) ||
+        !Number.isFinite(time(basis.observedAt)) || time(basis.startAt) < time(a.lastReplacementAt) ||
+        time(basis.observedAt) <= time(basis.startAt) || time(basis.observedAt) > end ||
+        !Number.isSafeInteger(basis.runningSeconds) || basis.runningSeconds < 0 ||
+        typeof basis.runtimeHours !== 'number' || !Number.isFinite(basis.runtimeHours) || basis.runtimeHours < 0 ||
+        Math.abs(basis.runtimeHours * 3600 - basis.runningSeconds) > 2) return null;
+    const stored = a.cycleElapsedHours ?? a.runtimeHours;
+    if (stored !== null && stored !== undefined && stored !== '' && Number.isFinite(Number(stored)) &&
+        Math.abs(Number(stored) - basis.runtimeHours) > 0.000001) return null;
+    return { requestId: basis.requestId, startAt: basis.startAt, observedAt: basis.observedAt,
+      runtimeHours: basis.runtimeHours, runningSeconds: basis.runningSeconds, dataParcTag };
+  }
+  function recognizedPartialAppend(task, current, acceptedId = '') {
+    const base = task?.partialBase, s = task?.snapshot;
+    if (task?.partialRange !== true || task.incremental !== true || task.previewOnly === true || !base || !s ||
+        time(task.startAt) !== time(base.startAt) || time(task.queryStartAt) !== time(base.observedAt) ||
+        task.dataParcTag !== base.dataParcTag || !partialAppendBase({ lastReplacementAt: s.lastReplacementAt,
+          cycleElapsedHours: base.runtimeHours }, { ...base, coverageComplete: false, appendReady: true }, task.dataParcTag)) return false;
+    if (current === null) return false;
+    if (!current) return true; // The accepted server intent remains the final owner check.
+    const saved = current.dataParcRuntimeBasis;
+    const currentSnapshot = snapshot(current);
+    const samePhysicalCycle = Object.keys(s).filter(key => key !== 'cycleRuntimeRevision').every(key => currentSnapshot[key] === s[key]);
+    if (acceptedId && saved?.requestId === acceptedId && samePhysicalCycle) return true;
+    const currentBase = partialAppendBase(current, saved, task.dataParcTag);
+    return samePhysicalCycle && currentSnapshot.cycleRuntimeRevision === s.cycleRuntimeRevision && !!currentBase &&
+      Object.keys(base).every(key => currentBase[key] === base[key]);
+  }
   function fbheSealRunView(a, basis = null) {
     const coverage = a?.dataParcRuntimeBasis || basis;
     const storedHours = a?.cycleElapsedHours ?? a?.runtimeHours;
@@ -61,15 +93,21 @@ DP_TAGS.add("203HRJ01AN602");
       storedHours !== null && storedHours !== undefined && storedHours !== '' &&
       Number.isFinite(Number(coverage.runtimeHours)) && Number.isFinite(Number(storedHours)) &&
       Math.abs(Number(coverage.runtimeHours) - Number(storedHours)) > 0.000001;
-    if (coverage?.coverageComplete === false && !staleCoverage) {
-      const hours = Number(coverage.runtimeHours ?? a.cycleElapsedHours);
+    const sourceReview = a?.cycleSourceReview;
+    if (coverage?.coverageComplete === false && !staleCoverage || sourceReview) {
+      const manual = a?.runRuntime?.verified === true && a.runRuntime.source === 'manual';
+      const selectedHours = manual || staleCoverage ? storedHours : coverage?.runtimeHours ?? storedHours;
+      const hours = selectedHours === null || selectedHours === undefined ||
+        typeof selectedHours === 'string' && selectedHours.trim() === '' ||
+        typeof selectedHours === 'boolean' ? NaN : Number(selectedHours);
       const state = [a.runRuntime?.state, a.cycleRuntimeState].find(value => ['running', 'stopped'].includes(value)) || 'unknown';
-      return { verified: false, partial: true, manual: false, pending: false, state,
+      return { verified: false, partial: true, sourceReview: Boolean(sourceReview), manual, pending: false, state,
         hours: Number.isFinite(hours) && hours >= 0 ? hours : null,
         primary: Number.isFinite(hours) && hours >= 0
           ? `${hours.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간` : '확인 필요',
-        message: '일부 기간 누적 · 앞 구간 RUN 확인 필요',
-        measuredAt: coverage.observedAt || '', sourceLabel: 'DataPARC · 일부 기간', basis: coverage,
+        message: sourceReview ? '조회구간 RUN 누적 · 교체 기준 확인 필요' : '일부 기간 RUN 누적 · 교체 기준 확인 필요',
+        measuredAt: manual ? a.runRuntime.measuredAt || '' : coverage?.observedAt || '',
+        sourceLabel: manual ? '수동 보정 · 교체 기준 확인 필요' : 'DataPARC · 조회구간 RUN', basis: manual ? null : coverage,
         stateLabel: state === 'running' ? '기동중' : state === 'stopped' ? '정지중' : 'RUN 미확인' };
     }
     // Keep the established FBHE/Seal view contract and also use verified RUN
@@ -159,8 +197,15 @@ DP_TAGS.add("203HRJ01AN602");
       }
       const previous = automaticLimestone || basisConfirmed ? a.dataParcRuntimeBasis || null
         : a.dataParcRuntimeBasis || basisFor(a.tagNumber);
-      if (previous?.coverageComplete === false) {
-        skip('일부 기간 누적 · 앞 구간 RUN 확인 필요 · 기존 조회값 보호 · 전체 재조회하지 않음');
+      const sourceReviewRange = a.cycleSourceReview?.measuredRangeMayContinue === true;
+      const partialRange = previous?.coverageComplete === false || sourceReviewRange;
+      const partialBase = partialRange ? partialAppendBase(a, previous, dataParcTag, end) : null;
+      if (partialRange && !partialBase) {
+        skip('일부 기간 RUN 누적 · 교체 기준 확인 필요 · 기존 조회값 보호 · 전체 재조회하지 않음');
+        continue;
+      }
+      if ((automaticLimestone || basisConfirmed) && partialRange && time(previous.startAt) !== replacement) {
+        skip('Limestone 저장 교체기준부터 검증된 RUN 범위 확인 필요 · 기존 조회값 보호 · 전체 재조회하지 않음');
         continue;
       }
       if (previewOnly) {
@@ -197,9 +242,8 @@ DP_TAGS.add("203HRJ01AN602");
       // Confirmation invalidates the prior checkpoint; a null server basis
       // must not be replaced by cached browser history or the old RUN ledger.
       // Once this new cycle has a verified basis, its normal append guard wins.
-      // Only a verified complete-baseline receipt may continue incrementally.
-      // A partial receipt stays visible until an explicit full RUN remeasurement;
-      // integrated refresh never replaces it or adds a separate RUN ledger.
+      // A verified partial receipt may advance its own measured range. It does
+      // not certify the omitted leading interval or a physical replacement time.
       const automaticAppend = automaticLimestone && previous?.appendReady === true &&
         previous.dataParcTag === dataParcTag && time(previous.startAt) === replacement &&
         Number.isFinite(time(previous.observedAt)) && time(previous.observedAt) > replacement &&
@@ -225,6 +269,8 @@ DP_TAGS.add("203HRJ01AN602");
         skip('조회 기준이 현재 교체 Cycle 또는 366일 한도와 맞지 않습니다.'); continue;
       }
       tasks.push({ kind: 'dataparc', asset: a, snapshot: snapshot(a), startAt, queryStartAt, incremental, dataParcTag,
+        ...(partialRange ? { partialRange: true, partialBase } : {}),
+        ...(sourceReviewRange ? { sourceReviewRange: true } : {}),
         ...(limestoneAutoRebuild ? { limestoneAutoRebuild: true } : {}) });
     }
     return { tasks, skipped, targetCount: (assets || []).filter(a => a.enabled !== false && a.enabled !== 0).length };
@@ -344,12 +390,17 @@ DP_TAGS.add("203HRJ01AN602");
     const resume = io.runtimeResume;
     const source = (resume?.tasks || tasks || []).filter(task => task?.snapshot?.tagNumber);
     if (!source.length) return [];
-    const partialTags = new Set(source.filter(task =>
-      task.asset?.dataParcRuntimeBasis?.coverageComplete === false ||
-      io.currentAssetFor?.(task.snapshot.tagNumber)?.dataParcRuntimeBasis?.coverageComplete === false
-    ).map(task => task.snapshot.tagNumber));
+    const currentFor = task => io.currentAssetFor ? io.currentAssetFor(task.snapshot.tagNumber)
+      : task.asset?.dataParcRuntimeBasis ? task.asset : undefined;
+    const acceptedIdFor = task => String(resume?.createdBatch?.results?.find(row => row.assetTag === task.snapshot.tagNumber)?.item?.id || '');
+    const partialTags = new Set(source.filter(task => {
+      const current = currentFor(task);
+      return (task.partialRange === true || task.asset?.dataParcRuntimeBasis?.coverageComplete === false ||
+        current?.dataParcRuntimeBasis?.coverageComplete === false || task.asset?.cycleSourceReview || current?.cycleSourceReview) &&
+        !recognizedPartialAppend(task, current, acceptedIdFor(task));
+    }).map(task => task.snapshot.tagNumber));
     if (!resume && partialTags.size) {
-      throw error('일부 기간 누적 · 앞 구간 RUN 확인 필요 · 기존 조회값을 유지합니다.', 'BLOWER_CYCLE_COVERAGE_INCOMPLETE');
+      throw error('일부 기간 RUN 누적 · 교체 기준 확인 필요 · 기존 조회값을 유지합니다.', 'BLOWER_CYCLE_COVERAGE_INCOMPLETE');
     }
     io.assertWritable?.();
     io.progress?.(resume ? `${source.length}대 이전 조회 결과 확인 중` : `${source.length}대 증분 조회 요청 등록 중`);
@@ -413,7 +464,7 @@ DP_TAGS.add("203HRJ01AN602");
     for (const task of source) {
       if (partialTags.has(task.snapshot.tagNumber)) resultByTag.set(task.snapshot.tagNumber, {
         tagNumber: task.snapshot.tagNumber, displayName: task.asset?.displayName || task.snapshot.tagNumber,
-        status: 'skipped', message: '일부 기간 누적 · 앞 구간 RUN 확인 필요 · 이전 요청 자동 반영 보류 · 기존 값 유지'
+        status: 'skipped', message: '일부 기간 RUN 누적 · 교체 기준 확인 필요 · 이전 요청 자동 반영 보류 · 기존 값 유지'
       });
     }
     const saveCheckpoint = () => io.runtimeCheckpoint?.({ version: 1,
@@ -514,11 +565,16 @@ DP_TAGS.add("203HRJ01AN602");
             }
           }
         try {
+          if (task.partialRange === true && !recognizedPartialAppend(task, currentFor(task), String(entry.item.id))) {
+            return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber, status: 'skipped',
+              message: '이어조회 중 저장 기준 변경 · 기존 일부 기간 누적 유지' };
+          }
           const applied = await io.api({ method: 'POST', timeoutMs: 30000, body: { action: 'dataparc_runtime_sync', requestId: entry.item.id } });
           appliedCount += 1;
           io.progress?.(`조회 결과 저장 중 · ${appliedCount}/${pending.length}`);
           return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber, status: 'complete',
-            message: applied.message || '증분 운전시간 반영 완료' };
+            ...(task.partialRange === true ? { partialRange: true } : {}),
+            message: task.partialRange === true ? '일부 기간 RUN 이어조회 완료 · 교체 기준 확인 필요' : applied.message || '증분 운전시간 반영 완료' };
         } catch (cause) {
           if ([401, 403].includes(Number(cause?.status))) throw cause;
           const uncertain = [0, 429, 502, 503, 504].includes(Number(cause?.status || 0));

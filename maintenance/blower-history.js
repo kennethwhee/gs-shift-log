@@ -864,7 +864,8 @@
   }
 
   function formatSignedRemaining(asset) {
-    if (typeof commonRunCoverage === "function" && commonRunCoverage(asset)) return "일부 기간 누적 · 앞 구간 RUN 확인 필요";
+    const coverage = typeof commonRunCoverage === "function" ? commonRunCoverage(asset) : null;
+    if (coverage) return coverage.warning;
     if (!asset.lastReplacementAt) return "확정된 V-Belt 교체 이력이 없습니다.";
     if (asset.cycleStartState === "pending" && asset.runRuntime?.verified !== true)
       return isDataParcRuntimeAsset(asset) ? "RUN 조회 후 주기 계산" : "기동 등록 전 · 주기 계산 대기";
@@ -1168,23 +1169,29 @@
   // The retained number is measured within this receipt, not a certified whole-cycle total.
   function commonRunCoverage(asset) {
     const basis = asset?.dataParcRuntimeBasis || (asset?.tagNumber ? getLatestDataParcRuntimeBasis(asset.tagNumber) : null);
-    if (basis?.coverageComplete !== false) return null;
+    const sourceReview = asset?.cycleSourceReview;
+    if (basis?.coverageComplete !== false && !sourceReview) return null;
     const storedHours = asset.cycleElapsedHours ?? asset.runtimeHours;
-    if (basis.runtimeHours !== null && basis.runtimeHours !== undefined && basis.runtimeHours !== "" &&
+    const stale = basis?.runtimeHours !== null && basis?.runtimeHours !== undefined && basis?.runtimeHours !== "" &&
         storedHours !== null && storedHours !== undefined && storedHours !== "" &&
         Number.isFinite(Number(basis.runtimeHours)) && Number.isFinite(Number(storedHours)) &&
-        Math.abs(Number(basis.runtimeHours) - Number(storedHours)) > 0.000001) return null;
-    const hours = Number(basis.runtimeHours ?? asset.cycleElapsedHours);
-    return { basis, hours: Number.isFinite(hours) && hours >= 0 ? hours : null,
+        Math.abs(Number(basis.runtimeHours) - Number(storedHours)) > 0.000001;
+    if (stale && !sourceReview) return null;
+    const manual = asset.runRuntime?.verified === true && asset.runRuntime.source === "manual";
+    const selectedHours = stale || manual ? storedHours : basis?.runtimeHours ?? storedHours;
+    const hours = selectedHours === null || selectedHours === undefined ||
+      typeof selectedHours === "string" && selectedHours.trim() === "" ||
+      typeof selectedHours === "boolean" ? NaN : Number(selectedHours);
+    return { basis: stale ? null : basis, sourceReview, hours: Number.isFinite(hours) && hours >= 0 ? hours : null,
       runtime: Number.isFinite(hours) && hours >= 0
         ? `${hours.toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간` : "확인 필요",
-      warning: "일부 기간 누적 · 앞 구간 RUN 확인 필요" };
+      warning: sourceReview ? "조회구간 RUN 누적 · 교체 기준 확인 필요" : "일부 기간 RUN 누적 · 교체 기준 확인 필요" };
   }
 
   function commonRunCoverageNotice(coverage) {
     if (!coverage) return "";
-    const required = coverage.basis.requiredStartAt;
-    return `<div class="run-history-note" data-run-coverage="partial"><strong>${escapeHtml(coverage.warning)}</strong>${required ? `<small>필요한 조회 시작 ${escapeHtml(formatKstDateTimeDisplay(required))}</small>` : ""}<small>앞 구간은 누락된 조회 기간이며, 그 기간 전체가 RUN 시간이라는 뜻은 아닙니다. 저장된 일부 기간 값은 유지하며 전체 Cycle 주기 계산에는 사용하지 않습니다.</small></div>`;
+    const required = coverage.basis?.requiredStartAt;
+    return `<div class="run-history-note" data-run-coverage="partial"><strong>${escapeHtml(coverage.warning)}</strong>${coverage.sourceReview?.message ? `<small>${escapeHtml(coverage.sourceReview.message)}</small>` : ""}${required ? `<small>등록 기준 ${escapeHtml(formatKstDateTimeDisplay(required))}</small>` : ""}<small>조회된 구간의 RUN=1만 합산합니다. 교체 기준 확인 전에는 전체 Cycle 누적·주기 계산으로 확정하지 않습니다. 검증된 조회구간은 마지막 성공 이후를 이어서 확인합니다.</small></div>`;
   }
 
   function shouldHideAutomaticData(backfill = state.data?.backfill) {
@@ -1499,10 +1506,10 @@
           </div>
         </div>`
       : "";
-    const cyclePrimaryLabel = partialCoverage ? "일부 기간 누적" : disputedLimestone ? "이전 저장 누적" : isDataparcRuntimeAsset && !effectiveStartupPending ? "누적 기동시간" : effectiveStartupPending
+    const cyclePrimaryLabel = partialCoverage ? partialCoverage.sourceReview ? "조회구간 RUN 누적" : "일부 기간 RUN 누적" : disputedLimestone ? "이전 저장 누적" : isDataparcRuntimeAsset && !effectiveStartupPending ? "누적 기동시간" : effectiveStartupPending
       ? "주기 상태"
       : (cycleRuntimeTracked ? "누적 운전" : (actualStarted ? "기동 경과" : "교체 경과"));
-    const cyclePrimaryMobileLabel = partialCoverage ? "일부 기간 누적" : disputedLimestone ? "이전 누적" : isDataparcRuntimeAsset && !effectiveStartupPending ? "누적 기동" : effectiveStartupPending
+    const cyclePrimaryMobileLabel = partialCoverage ? partialCoverage.sourceReview ? "조회구간 RUN" : "일부 기간 RUN" : disputedLimestone ? "이전 누적" : isDataparcRuntimeAsset && !effectiveStartupPending ? "누적 기동" : effectiveStartupPending
       ? "상태"
       : (cycleRuntimeTracked ? "누적" : (actualStarted ? "기동" : "교체"));
     const measuredLabel = `${(effectiveStartupPending ? 0 : cycleElapsedHours).toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간`;
@@ -1558,7 +1565,7 @@
           ` : (effectiveStartupPending && cycleHours ? `<div class="cycle-progress-block is-placeholder" aria-hidden="true"><div class="progress-track"></div></div>` : "")}
 
           ${intermittent ? `<div class="cycle-date-line"><span><em>${escapeHtml(cycleReferenceLabel(asset, true))}</em><strong>${escapeHtml(cycleReferenceDisplay(asset))}</strong></span></div>` : runView ? `
-            <div class="cycle-date-line run-cycle-date"><span><em>최근 교체</em><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></span>
+            <div class="cycle-date-line run-cycle-date"><span><em>${partialCoverage?.sourceReview ? "등록기준 · 교체 기준 확인 필요" : "최근 교체"}</em><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></span>
               ${cycleHours ? `<span title="조회 시점부터 연속 운전한다고 가정한 예상일입니다."><em>예상</em><strong>${escapeHtml(nextReplacementAt)}</strong></span><small>기준 ${cycleBasisLabel}</small>` : ""}
             </div>` : actualStarted || startupPending ? `
             <div class="cycle-date-line${startupPending ? " is-startup-pending" : " has-cycle-start"}">
@@ -1577,7 +1584,7 @@
 
           <details class="asset-evidence${evidence ? "" : " is-empty"}">
             <summary class="evidence-heading">
-              <span>${isInitialStartupBasis(asset) ? "최초 기동 등록 근거" : "교체 등록 근거"}</span>
+              <span>${partialCoverage?.sourceReview ? "등록 기준 근거 · 교체 기준 확인 필요" : isInitialStartupBasis(asset) ? "최초 기동 등록 근거" : "교체 등록 근거"}</span>
               <em class="evidence-source-badge ${escapeHtml(evidenceMeta.className)}">${escapeHtml(evidenceMeta.label)}</em>
             </summary>
             <p>${escapeHtml(evidenceText)}</p>
@@ -1888,14 +1895,14 @@
           </span>
         </span>
         <span class="all-overview-metrics">
-          <span><small>${partialCoverage ? '일부 기간 누적' : disputedLimestone ? '이전 저장 누적' : '누적 기동시간'}</small><strong>${escapeHtml(view.runtime)}</strong></span>
-          <span><small>${escapeHtml(cycleReferenceLabel(asset))}</small><strong>${escapeHtml(replacement)}</strong></span>
+          <span><small>${partialCoverage ? partialCoverage.sourceReview ? '조회구간 RUN 누적' : '일부 기간 RUN 누적' : disputedLimestone ? '이전 저장 누적' : '누적 기동시간'}</small><strong>${escapeHtml(view.runtime)}</strong></span>
+          <span><small>${partialCoverage?.sourceReview ? '등록기준' : escapeHtml(cycleReferenceLabel(asset))}</small><strong>${escapeHtml(replacement)}</strong></span>
         </span>
         <span class="all-overview-query-period">
           <small>데이터 조회 기간</small>
           <strong>${escapeHtml(allOverviewBasisText(view.basis))}</strong>
         </span>
-        ${partialCoverage ? `<span class="all-overview-query-period" data-run-coverage="partial"><strong style="white-space:normal;overflow-wrap:anywhere">${escapeHtml(partialCoverage.warning)}</strong></span>` : ""}
+        ${partialCoverage ? `<span class="all-overview-query-period" data-run-coverage="partial"><strong style="white-space:normal;overflow-wrap:anywhere">${escapeHtml(partialCoverage.warning)}</strong>${partialCoverage.sourceReview?.message ? `<small>${escapeHtml(partialCoverage.sourceReview.message)}</small>` : ""}</span>` : ""}
         ${trackingLine}
         ${previewLine}
       </button>`;
@@ -2643,9 +2650,9 @@
     elements.historyCycleSummary.innerHTML = asset.lastReplacementAt && !awaitingBackfill
       ? `
         <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(severityLabel(severity))}</span>
-        <div><span>${escapeHtml(cycleReferenceLabel(asset))}</span><strong>${escapeHtml(cycleReferenceDisplay(asset))}</strong></div>
+        <div><span>${partialCoverage?.sourceReview ? "등록기준 · 교체 기준 확인 필요" : escapeHtml(cycleReferenceLabel(asset))}</span><strong>${escapeHtml(cycleReferenceDisplay(asset))}</strong></div>
         ${runView ? `<div><span>확인 상태</span><strong>${escapeHtml(runView.stateLabel)}</strong></div>` : asset.runtimeAccumulationMode === "measured_only" || asset.blowerType === "organic_fuel" ? "" : `<div><span>현재 운전상태</span><strong>${startupPending ? "기동 대기" : asset.cycleRuntimeState === "unknown" ? "확인 필요" : asset.isRunning ? "기동중" : "정지중"}</strong></div>`}
-        <div><span>${partialCoverage ? "일부 기간 누적" : disputedLimestone ? "이전 저장 누적" : runView || asset.blowerType === "organic_fuel" ? "누적 기동시간" : "누적 운전시간"}</span><strong>${partialCoverage ? escapeHtml(partialCoverage.runtime) : disputedLimestone ? escapeHtml(allOverviewOperation(asset).runtime) : runView ? escapeHtml(runView.primary) : startupPending ? "0시간" : asset.cycleRuntimeState === "unknown" || asset.measurementRequired ? "최신화 필요" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
+        <div><span>${partialCoverage ? partialCoverage.sourceReview ? "조회구간 RUN 누적" : "일부 기간 RUN 누적" : disputedLimestone ? "이전 저장 누적" : runView || asset.blowerType === "organic_fuel" ? "누적 기동시간" : "누적 운전시간"}</span><strong>${partialCoverage ? escapeHtml(partialCoverage.runtime) : disputedLimestone ? escapeHtml(allOverviewOperation(asset).runtime) : runView ? escapeHtml(runView.primary) : startupPending ? "0시간" : asset.cycleRuntimeState === "unknown" || asset.measurementRequired ? "최신화 필요" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
       `
       : awaitingBackfill
         ? `
@@ -10107,7 +10114,7 @@
       : replacementMinuteCeiling;
     const minimumInput = minimumDate ? formatKstDateTimeInput(minimumDate) : "";
     const previousBasis = getLatestDataParcRuntimeBasis(normalizedTag);
-    const previousBasisDate = previousBasis && previousBasis.coverageComplete !== false
+    const previousBasisDate = previousBasis
       ? new Date(previousBasis.startAt)
       : null;
     const previousInput = previousBasisDate && !Number.isNaN(previousBasisDate.getTime())
@@ -10125,7 +10132,7 @@
       : "현재 V-Belt 교체 이후의 시각을 선택해 주세요.";
     elements.dataparcRuntimePreviousBasis.hidden = !previousBasis;
     elements.dataparcRuntimePreviousBasis.textContent = previousBasis
-      ? `최근 조회: ${formatKstDateTimeDisplay(previousBasis.startAt)} → ${formatKstDateTimeDisplay(previousBasis.observedAt)}${previousBasis.coverageComplete === false ? " · 일부 기간 누적 · 앞 구간 RUN 확인 필요" : ""}`
+      ? `최근 조회: ${formatKstDateTimeDisplay(previousBasis.startAt)} → ${formatKstDateTimeDisplay(previousBasis.observedAt)}${previousBasis.coverageComplete === false ? " · 일부 기간 RUN 누적 · 교체 기준 확인 필요" : ""}`
       : "";
 
     const savedSignal = savedDataParcRunSignal(asset);
@@ -10137,7 +10144,9 @@
     elements.dataparcRuntimeSourceSettings.open = !savedSignal;
     elements.dataparcRuntimeConfirmSignal.checked = Boolean(savedSignal);
     elements.dataparcRuntimeConfirmField.hidden = fixedSignal;
-    elements.dataparcRuntimeSourceHelp.textContent = fixedSignal
+    elements.dataparcRuntimeSourceHelp.textContent = previousBasis?.coverageComplete === false || asset.cycleSourceReview
+      ? "저장된 조회구간을 표시합니다. [최신화]로 마지막 성공 이후 RUN을 이어서 확인하며, 교체 기준 확인 전에는 전체 Cycle 누적으로 확정하지 않습니다."
+      : fixedSignal
       ? "Silo #B에서 확인된 운전 신호입니다."
       : isInitialStartupBasis(asset)
         ? "확인된 최초 기동 시각부터 실제 RUN=1 구간만 합산합니다. 최초 조회에 성공하면 통합조회에서 마지막 성공 시각 이후를 이어서 조회합니다."
@@ -11177,8 +11186,9 @@
     const skipped = results.filter(x => x.status === "skipped").length;
     const waiting = results.filter(x => x.status === "waiting").length;
     const previews = results.filter(x => x.status === 'complete' && x.previewOnly === true).length;
+    const partialContinued = results.filter(x => x.status === 'complete' && x.partialRange === true).length;
     const unchanged = results.filter(x => x.status === "complete" && (typeof inlineRefreshKeptResult === "function" ? inlineRefreshKeptResult(x) : x.unchanged === true) && x.previewOnly !== true).length;
-    elements.unifiedRefreshSummary.textContent = `통합조회 결과 · 반영 ${complete - unchanged - previews}대${previews ? ` · RUN 확인(누적 미반영) ${previews}대` : ""}${unchanged ? ` · 유지 ${unchanged}대` : ""}${waiting ? ` · 확인 대기 ${waiting}대` : ""}${skipped ? ` · 조회 보류 ${skipped}대` : ""}${failed ? ` · 실패 ${failed}대` : ""}`;
+    elements.unifiedRefreshSummary.textContent = `통합조회 결과 · 반영 ${complete - unchanged - previews}대${previews ? ` · RUN 확인(누적 미반영) ${previews}대` : ""}${unchanged ? ` · 유지 ${unchanged}대` : ""}${partialContinued ? ` · 기준 확인 대상 이어조회 ${partialContinued}대` : ""}${waiting ? ` · 확인 대기 ${waiting}대` : ""}${skipped || partialContinued ? ` · 조회 보류 ${skipped}대` : ""}${failed ? ` · 실패 ${failed}대` : ""}`;
     // Presentation only: keep the original result array, requests, and receipts intact.
     // Surface true failures above protected skipped assets, with stable order inside groups.
     const priority = { failed: 0, waiting: 1, skipped: 2, complete: 3 };

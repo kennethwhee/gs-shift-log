@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 
 const source = fs.readFileSync(new URL('../maintenance/blower-history.js', import.meta.url), 'utf8');
 const core = createRequire(import.meta.url)('../maintenance/blower-unified-refresh.js');
-const WARNING = '일부 기간 누적 · 앞 구간 RUN 확인 필요';
+const WARNING = '일부 기간 RUN 누적 · 교체 기준 확인 필요';
 const REPLACEMENT = '2026-10-01T00:00:00+09:00';
 const START = '2026-10-03T01:02:03.000Z';
 const PARTIAL_START = '2026-10-20T00:00:00.000Z';
@@ -198,10 +198,12 @@ test('the real core RUN view labels partial measurements without certifying a co
 });
 
 test('query settings default to the actual cycle start, never a later partial-coverage start', () => {
+  // This historical case name is retained. The conservative v2 policy now
+  // prefills the owned measured interval rather than suggesting a midnight requery.
   const assets = CASES.map(assetFor), { ui } = harness(assets);
   for (const a of assets) {
     ui.openDataParcRuntimeDialog(a.tagNumber);
-    assert.equal(ui.elements.dataparcRuntimeStartAt.value, '2026-10-03T10:03', a.tagNumber);
+    assert.equal(ui.elements.dataparcRuntimeStartAt.value, '2026-10-20T09:00', a.tagNumber);
     assert.equal(ui.elements.dataparcRuntimeStartAt.min, '2026-10-03T10:03', a.tagNumber);
     assert.equal(ui.elements.dataparcRuntimeSourceTag.value, a.dataParcTag, a.tagNumber);
     assert.ok(ui.elements.dataparcRuntimePreviousBasis.textContent.includes('2026-10-20'), 'keep the previous partial interval visible as evidence');
@@ -209,11 +211,12 @@ test('query settings default to the actual cycle start, never a later partial-co
 });
 
 test('pending-cycle query settings begin at the confirmed replacement instead of a later partial receipt', () => {
+  // Keep the original registered minimum, but do not turn it into an automatic full-query default.
   const asset = assetFor(CASES[0]);
   Object.assign(asset, { cycleStartState: 'pending', cycleStoredStartedAt: '', cycleStartedAt: '' });
   const { ui } = harness([asset]);
   ui.openDataParcRuntimeDialog(asset.tagNumber);
-  assert.equal(ui.elements.dataparcRuntimeStartAt.value, '2026-10-01T00:00');
+  assert.equal(ui.elements.dataparcRuntimeStartAt.value, '2026-10-20T09:00');
   assert.equal(ui.elements.dataparcRuntimeStartAt.min, '2026-10-01T00:00');
 });
 
@@ -301,7 +304,7 @@ test('an accepted resume rechecks current partial coverage and retires its local
   assert.equal(result.length, 1);
   assert.equal(result[0].tagNumber, asset.tagNumber);
   assert.equal(result[0].status, 'skipped');
-  assert.match(result[0].message, /일부 기간 누적.*앞 구간 RUN 확인 필요/);
+  assert.match(result[0].message, /일부 기간 RUN 누적.*교체 기준 확인 필요/);
   assert.equal(apiCalls.length, 0, 'accepted request is never requeued, reset, polled, cancelled or applied');
   assert.ok(checkpoints.length > 0);
   assert.equal(checkpoints.at(-1), null, 'no stale local resume remains eligible for later apply');

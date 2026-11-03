@@ -40,6 +40,9 @@ function measured(tag, { state = 'legacy', replacement = REPLACEMENT, startup = 
 
 // These timestamp relationships reproduce the seven leading-range omissions in
 // the read-only audit. Their test totals are synthetic; no RUN time is inferred.
+// Historical case names stay stable for baseline comparison. V2 permits only
+// server-owned tracked-range appends; these receipts remain partial, never a
+// certificate of the complete V-Belt cycle or permission for a fresh partial sync.
 const GAPS = [
   ['104ETH03AN602','2026-05-04T00:00:00+09:00','2026-05-09T15:00:00.000Z',144 * 3600],
   ['104HHL10AN611','2026-08-03T00:00:00+09:00','2026-08-03T00:15:00.000Z',9.25 * 3600],
@@ -57,7 +60,10 @@ for (const [tag, replacement, start, gap, state = 'legacy'] of GAPS) {
     const before = JSON.stringify(f);
     assert.deepEqual(cycleRuntimeCoverage(f.asset, start), { complete: false,
       requiredStartAt: replacement, coverageStartAt: start, missingLeadingSeconds: gap });
-    assert.equal(verifiedAppendBase(f.asset, [f.row], f.source.dataParcTag), null);
+    const base = verifiedAppendBase(f.asset, [f.row], f.source.dataParcTag);
+    assert.equal(base.coverageComplete, false);
+    assert.equal(base.startAt, start);
+    assert.equal(base.missingLeadingSeconds, gap);
     const basis = api.currentDataParcRuntimeBasis(f.asset, [f.row]);
     assert.equal(basis.runtimeHours, f.asset.cycle_runtime_hours);
     assert.equal(basis.startAt, start);
@@ -65,7 +71,7 @@ for (const [tag, replacement, start, gap, state = 'legacy'] of GAPS) {
     assert.equal(basis.coverageComplete, false);
     assert.equal(basis.requiredStartAt, replacement);
     assert.equal(basis.missingLeadingSeconds, gap);
-    assert.equal(basis.appendReady, false);
+    assert.equal(basis.appendReady, true);
     assert.equal(JSON.stringify(f), before, 'projection and append checks preserve stored evidence');
   });
 }
@@ -114,7 +120,8 @@ for (const mode of ['manual','automatic']) test(`${mode} boundaries cannot resto
     f.asset.cycle_runtime_anchor_at = boundary;
     f.asset.cycle_runtime_state = 'stopped';
     const base = verifiedAppendBase(f.asset, [overlay, f.row], f.source.dataParcTag);
-    assert.equal(Boolean(base), complete);
+    assert.ok(base);
+    assert.equal(base.coverageComplete, complete);
     if (base) assert.equal(base.observedAt, END, 'resume from measured observation, not the later boundary');
   }
 });
@@ -129,8 +136,12 @@ test('a mathematically valid incremental receipt cannot conceal its leading gap'
     deltaRunningSeconds: 1, totalRunningSeconds: 3601 };
   f.row.source_text = JSON.stringify(f.source);
   assert.ok(incrementalEvidence(f.source));
-  assert.equal(verifiedAppendBase(f.asset, [f.row], f.source.dataParcTag), null);
-  assert.equal(api.currentDataParcRuntimeBasis(f.asset, [f.row]).appendReady, false);
+  const base = verifiedAppendBase(f.asset, [f.row], f.source.dataParcTag);
+  assert.equal(base.coverageComplete, false);
+  assert.equal(base.startAt, STARTUP);
+  const basis = api.currentDataParcRuntimeBasis(f.asset, [f.row]);
+  assert.equal(basis.coverageComplete, false);
+  assert.equal(basis.appendReady, true);
 });
 
 function memoryD1() {

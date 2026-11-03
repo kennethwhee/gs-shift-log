@@ -11,6 +11,9 @@ const SUPPORTED_BINARY_RUN_ASSET = /^(?:(?:104|204)(?:HHL(?:60AP|10AN)(?:611|621
 const instant = v => typeof v === 'string' && /(?:Z|[+-]\d{2}:\d{2})$/.test(v) ? Date.parse(v) : NaN;
 const number = v => v !== null && v !== undefined && v !== '' && typeof v !== 'boolean' && Number.isFinite(Number(v)) ? Number(v) : NaN;
 const near = (a, b) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) < 0.000001;
+/* A timestamp-owned measured range may continue from its immutable endpoint
+ * even when it does not cover the whole recorded belt cycle. Keep that range
+ * and its partial status; never rebuild or certify the unmeasured prefix. */
 /* Certify the recorded range only, not a physical replacement instant or RUN
  * signal quality. A confirmed startup may bound a stopped prefix; legacy and
  * pending cycles must include their saved replacement baseline. Keep existing
@@ -73,12 +76,15 @@ function strictVerifiedAppendBase(asset, rows, dataParcTag) {
   const seconds = x ? x.totalRunningSeconds : s.runningSeconds;
   const startAt = x ? x.coverageStartAt : s.startAt;
   const start = instant(startAt);
+  const coverage = cycleRuntimeCoverage(asset, startAt);
   if (!Number.isSafeInteger(seconds) || seconds < 0 || !Number.isFinite(start) || start < instant(asset.last_replacement_at) || start >= anchor ||
-      !cycleRuntimeCoverage(asset, startAt).complete ||
+      coverage.missingLeadingSeconds === null ||
       // Compare raw stored hours, retaining exact integer seconds across appends.
       !near(seconds / 3600, stored)) return null;
   return { eventId: row.id, requestId: s.requestId, startAt, observedAt: s.observedAt || s.endAt,
     dataParcTag: s.dataParcTag, runningSeconds: seconds, runtimeHours: stored,
+    coverageComplete: coverage.complete, requiredStartAt: coverage.requiredStartAt,
+    missingLeadingSeconds: coverage.missingLeadingSeconds,
     state: s.endState, cycleRuntimeRevision: asset.cycle_runtime_revision };
 }
 
