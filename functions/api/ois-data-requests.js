@@ -1,6 +1,7 @@
 import dailyOperationQueryContract from "../../daily-operation/daily-operation-query-contract.js";
 import { prepareScheduledBatch, scheduledBatchStatements, isScheduledBatchConflict } from "../_shared/blower-schedule-v1.js";
 import { loadAppendBase, verifiedAppendBase, ensureAppendSchema, appendIntentStatement, BLOWER_LIMESTONE_INCREMENTAL_VERSION } from "../_shared/blower-incremental.js";
+import { replacementAutoCycleProof, isReplacementAutoRevision } from "../_shared/blower-replacement-auto-v3.js";
 import bedAshMinuteContract from "../../efficiency/bed-ash-minute-contract.js";
 
 "use strict";
@@ -18772,6 +18773,49 @@ function blowerRuntimeProbeCreatePayload(
 }
 
 
+// Only auto-reconciled cycles need this metadata read. A date-only completion
+// may be registered in history without authorizing a fabricated midnight RUN
+// window. Batch callers share one indexed lookup for all prefixed assets.
+async function loadBlowerReplacementAutoProofs(database, assets) {
+  const selected = (assets || []).filter(isReplacementAutoRevision);
+  const proofsByTag = new Map();
+  if (!selected.length) return proofsByTag;
+  const tags = [...new Set(selected.map(asset => normalizeText(asset.tag_number)))];
+  const result = await database.prepare(`SELECT * FROM blower_history_events INDEXED BY idx_blower_history_events_tag_date
+    WHERE tag_number IN (SELECT value FROM json_each(?))
+      AND event_type IN ('replacement','cycle_source_reconcile')
+    ORDER BY created_at DESC,id DESC`).bind(JSON.stringify(tags)).all();
+  const eventsByTag = new Map();
+  for (const event of result.results || []) {
+    const tag = normalizeText(event.tag_number);
+    if (!eventsByTag.has(tag)) eventsByTag.set(tag, []);
+    eventsByTag.get(tag).push(event);
+  }
+  for (const asset of selected) proofsByTag.set(normalizeText(asset.tag_number),
+    replacementAutoCycleProof(asset, eventsByTag.get(normalizeText(asset.tag_number)) || []));
+  return proofsByTag;
+}
+
+function blowerReplacementAutoProbeFailure(asset, proof) {
+  if (!isReplacementAutoRevision(asset)) return null;
+  const valid = proof?.schemaVersion === 3 && ['minute','day'].includes(proof.timePrecision) &&
+    typeof proof.eventId === 'string' && Boolean(proof.eventId.trim()) &&
+    typeof proof.sourceLogId === 'string' && Boolean(proof.sourceLogId.trim()) &&
+    /^[a-f0-9]{64}$/.test(String(proof.sourceSnapshotSha256 || ''));
+  if (!valid) return jsonResponse({ ok: false, code: 'BLOWER_REPLACEMENT_PROOF_REQUIRED',
+    message: '자동 교체 등록의 근거와 현재 Cycle Revision을 확인할 수 없어 RUN 조회를 시작하지 않았습니다.' }, 409);
+  if (proof.timePrecision === 'day' && proof.registeredBaseline !== true) {
+    return jsonResponse({ ok: false, code: 'BLOWER_REPLACEMENT_TIME_REQUIRED',
+      message: '교체 완료일은 자동 등록됐지만 완료 시각이 없어 RUN 조회를 시작하지 않았습니다. 완료 시각 확인 후 조회해 주세요.' }, 409);
+  }
+  if ((proof.clockKnown !== true && proof.registeredBaseline !== true) ||
+      normalizeText(proof.requiredStartAt) !== normalizeText(asset.last_replacement_at)) {
+    return jsonResponse({ ok: false, code: 'BLOWER_REPLACEMENT_PROOF_REQUIRED',
+      message: '자동 교체 등록의 시각 근거가 현재 Cycle과 달라 RUN 조회를 시작하지 않았습니다.' }, 409);
+  }
+  return null;
+}
+
 async function createBlowerRuntimeProbeRequest(
   context,
   body,
@@ -18865,6 +18909,14 @@ async function createBlowerRuntimeProbeRequest(
       },
       409
     );
+  }
+
+  if (isReplacementAutoRevision(asset)) {
+    const proofs = internalOptions.replacementAutoProofsByTag instanceof Map
+      ? internalOptions.replacementAutoProofsByTag
+      : await loadBlowerReplacementAutoProofs(database, [asset]);
+    const failure = blowerReplacementAutoProbeFailure(asset, proofs.get(assetTag));
+    if (failure) return failure;
   }
 
 
@@ -19683,7 +19735,9 @@ async function loadBlowerRuntimeProbeBatchPreparation(database, mappings) {
       assetsByTag.get(mapping.assetTag), eventsByTag.get(mapping.assetTag) || [], mapping.dataParcTag
     ));
   }
-  return {assetsByTag, appendBasesByTag};
+  const autoAssets = [...assetsByTag.values()].filter(isReplacementAutoRevision);
+  return {assetsByTag, appendBasesByTag,
+    ...(autoAssets.length ? { replacementAutoProofsByTag: await loadBlowerReplacementAutoProofs(database, autoAssets) } : {})};
 }
 
 async function loadBlowerRuntimeProbeBatchReuseRequests(

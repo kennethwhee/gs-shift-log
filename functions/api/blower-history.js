@@ -1,6 +1,9 @@
 import { handleBlowerSchedule } from "../_shared/blower-schedule-v1.js";
 import { incrementalEvidence, verifiedAppendBase, loadAppendBase, loadAppendIntent, combineAppendProbe, cycleRuntimeCoverage } from "../_shared/blower-incremental.js";
 import { reviewedCycleSourceWarning } from "../_shared/blower-cycle-source-review.js";
+import { reconcileApprovedReplacementLog, replacementAutoCycleProof, isReplacementAutoRevision } from "../_shared/blower-replacement-auto-v3.js";
+import { collectApprovedReplacementFacts } from "../_shared/blower-replacement-facts-v3.js";
+import { REPLACEMENT_ANALYSIS_VERSION, loadApprovedReplacementPage, storeReplacementLogReceipts, replacementSourceGuard } from "../_shared/blower-replacement-log-source-v3.js";
 import { MANURE_INITIAL_RUN_CONFIG, initializeManureInitialRun, manureInitialRunBasis,
   manureInitialRunProjection, loadManureInitialAudit, configuredManureRunSignal,
   isProtectedManureInitialEvent } from "../_shared/blower-manure-initial-run-v1.js";
@@ -1505,6 +1508,7 @@ async function loadEvents(database, limit = 300) {
       INNER JOIN blower_history_assets AS asset
         ON asset.tag_number = event.tag_number
       WHERE event.event_type <> '_deleted'
+        AND event.event_type <> '_retracted_replacement'
       ORDER BY event.event_date DESC, event.created_at DESC
       LIMIT ?
     `)
@@ -1530,8 +1534,44 @@ async function loadEvents(database, limit = 300) {
     createdById: normalizeText(row.created_by_id),
     createdByName: normalizeText(row.created_by_name),
     createdAt: normalizeText(row.created_at),
-    updatedAt: normalizeText(row.updated_at)
+    updatedAt: normalizeText(row.updated_at),
+    ...publicReplacementAutoSource(row)
   }));
+}
+
+function publicReplacementAutoSource(row) {
+  if (row.source_type !== "shift_log_auto_v3") return {};
+  let source;
+  try { source = JSON.parse(row.source_text); } catch { return {}; }
+  if (source?.schemaVersion !== 3 || source.replacementAutoV3 !== true) return {};
+  return { replacementAutoV3: true, sourceTimePrecision: source.timePrecision,
+    sourceText: normalizeText(source.sourceText),
+    registeredBaseline: source.registeredBaseline === true };
+}
+
+// Observations from a superseded cycle do not obstruct a newly applied belt.
+// Unknown/corrupt current evidence stays protected; only explicit old ownership
+// is excluded, never a same-cycle manual correction or unverifiable receipt.
+function dataParcRecordBelongsToCurrentCycle(asset, row) {
+  if (row.tag_number !== asset.tag_number || row.event_type !== "runtime_correction" ||
+      row.source_type !== DATAPARC_RUNTIME_SYNC_SOURCE_TYPE ||
+      !(Date.parse(row.event_date) >= Date.parse(asset.last_replacement_at || ""))) return false;
+  let source;
+  try { source = JSON.parse(row.source_text); } catch { return true; }
+  if (!source || typeof source !== "object" || Array.isArray(source) ||
+      !parseDataParcRuntimeInstant(source.expectedLastReplacementAt) ||
+      typeof source.expectedCycleStartRevision !== "string") return true;
+  const revision = source.expectedCycleStartRevision.replace(/^signal-only-v1:/, "");
+  return Date.parse(source.expectedLastReplacementAt) === Date.parse(asset.last_replacement_at || "") &&
+    revision === normalizeText(asset.cycle_start_revision);
+}
+
+async function readReplacementAutoCycleProof(database, asset) {
+  if (!isReplacementAutoRevision(asset)) return null;
+  const result = await database.prepare(`SELECT * FROM blower_history_events
+    WHERE tag_number=? AND event_type IN ('replacement','cycle_source_reconcile')
+    ORDER BY created_at DESC,id DESC`).bind(asset.tag_number).all();
+  return replacementAutoCycleProof(asset, result.results || []);
 }
 
 async function loadCandidates(database, status = "pending", limit = 200) {
@@ -1859,7 +1899,7 @@ async function loadAssetStates(database, settings, options = {}) {
   const runtimeResult = tags.length ? await database.prepare(`
     SELECT id, tag_number, event_type, event_date, runtime_hours, source_type, source_log_id, source_text, created_at, updated_at, issue_type, action_type, note
     FROM blower_history_events
-    WHERE event_type IN ('runtime_correction', 'startup', 'operation_start', 'operation_stop', 'replacement')
+    WHERE event_type IN ('runtime_correction', 'startup', 'operation_start', 'operation_stop', 'replacement', 'cycle_source_reconcile')
       AND tag_number IN (${useJsonTagFilter ? 'SELECT value FROM json_each(?)' : tags.map(() => '?').join(',')})
     ORDER BY created_at DESC, event_date DESC, id DESC
   `).bind(...(useJsonTagFilter ? [JSON.stringify(tags)] : tags)).all() : { results: [] };
@@ -1921,7 +1961,14 @@ async function loadAssetStates(database, settings, options = {}) {
       asset.runtime_measured_at = manual && (!runtimeBasis || Date.parse(manual.event_date) > Date.parse(runtimeBasis.observedAt))
         ? manual.event_date : runtimeBasis?.observedAt || "";
     }
-    const cycleSourceReview = reviewedCycleSourceWarning(asset, runtimeRows);
+    const replacementAutoCycle = normalizeText(asset.last_replacement_at)
+      ? replacementAutoCycleProof(asset, runtimeRows) : null;
+    const cycleSourceReview = reviewedCycleSourceWarning(asset, runtimeRows) ||
+      (replacementAutoCycle && !replacementAutoCycle.clockKnown && !replacementAutoCycle.registeredBaseline
+        ? { code: "REPLACEMENT_COMPLETION_TIME_MISSING", cycleBasisConfirmed: false,
+          measuredRangeMayContinue: false,
+          message: "승인 업무일지의 벨트 교체 완료는 자동 반영됐습니다. 완료 시각은 미기록이므로 날짜를 자정 완료로 간주하지 않습니다." }
+        : null);
     if (cycleSourceReview && runtimeBasis) runtimeBasis.cycleBasisConfirmed = false;
     const initialBasis = manureInitialRunProjection(asset, runtimeRows, initialRunAudit);
     return { ...buildAssetState(
@@ -1935,17 +1982,22 @@ async function loadAssetStates(database, settings, options = {}) {
       dataParcTag: latestSuccessfulDataParcTag(asset.tag_number, runtimeRows) || configuredManureRunSignal(asset),
       limestoneSignalCandidate: LIMESTONE_RUN_SIGNAL_CANDIDATES[asset.tag_number] || "",
       dataParcRuntimeBasis: runtimeBasis,
+      ...(replacementAutoCycle ? { replacementAutoCycle } : {}),
       ...(cycleSourceReview ? { cycleSourceReview, actualLastReplacementAt: "",
         cycleBasisKind: "replacement_source_review" } : {}),
       ...(runRuntime ? { runRuntime } : {}),
       ...(runtimeBasis?.coverageComplete === false || cycleSourceReview
         ? { remainingHours: null, progressPct: null, severity: "runtime_unknown" } : {}),
+      ...(replacementAutoCycle?.requiresRunRefresh ? {
+        runtimeHours: null, cycleElapsedHours: null, remainingHours: null, progressPct: null,
+        severity: "runtime_unknown", measurementRequired: true,
+        runRuntime: { verified: false, source: "replacement_auto", state: "unknown", needsQuery: true,
+          measuredAt: "", legacyStoredHours: 0 }
+      } : {}),
       // A lightweight plan must not turn an unverified saved result into a
       // fresh full-range query merely because event-list fallback was removed.
-      ...(options.planning ? { hasUnverifiedDataParcHistory: !runtimeBasis && runtimeRows.some(row =>
-        row.tag_number === asset.tag_number && row.event_type === "runtime_correction" &&
-        row.source_type === DATAPARC_RUNTIME_SYNC_SOURCE_TYPE &&
-        Date.parse(row.event_date) >= Date.parse(asset.last_replacement_at || "")) } : {}) };
+      ...(options.planning ? { hasUnverifiedDataParcHistory: !runtimeBasis &&
+        !replacementAutoCycle?.freshQueryEligible && runtimeRows.some(row => dataParcRecordBelongsToCurrentCycle(asset, row)) } : {}) };
   });
 }
 
@@ -6283,6 +6335,14 @@ async function registerStartup(database, user, body, source = {}) {
     return jsonResponse({ ok: false, message: "기동일은 현재 이후로 등록할 수 없습니다." }, 400);
   }
 
+  if (isReplacementAutoRevision(asset) && normalizeText(source.sourceType) === OPERATION_AUTO_SOURCE_TYPE) {
+    const proof = await readReplacementAutoCycleProof(database, asset);
+    if (!proof || (!proof.clockKnown && !proof.registeredBaseline)) {
+      return jsonResponse({ ok: false, code: "REPLACEMENT_COMPLETION_CLOCK_REQUIRED",
+        message: "교체 완료는 자동 반영됐지만 완료 시각이 없어 이후 기동을 새 벨트의 첫 기동으로 단정하지 않습니다." }, 409);
+    }
+  }
+
   const latestRuntimeBoundary = await loadLatestExplicitRuntimeBoundary(database, asset);
   const latestRuntimeBoundaryAt = new Date(latestRuntimeBoundary?.event_date);
   if (
@@ -6431,6 +6491,17 @@ async function registerProblem(database, user, body, source = {}) {
 async function loadLatestExplicitRuntimeBoundary(database, asset) {
   const lastReplacementAt = normalizeText(asset?.last_replacement_at);
   if (!lastReplacementAt) return null;
+
+  if (isReplacementAutoRevision(asset)) {
+    const result = await database.prepare(`SELECT * FROM blower_history_events
+      WHERE tag_number = ?
+        AND event_type IN ('startup', 'operation_start', 'operation_stop', 'runtime_correction')
+        AND datetime(event_date) >= datetime(?)
+      ORDER BY datetime(event_date) DESC, created_at DESC, id DESC`)
+      .bind(asset.tag_number, lastReplacementAt).all();
+    return (result.results || []).find(row => row.source_type !== DATAPARC_RUNTIME_SYNC_SOURCE_TYPE ||
+      dataParcRecordBelongsToCurrentCycle(asset, row)) || null;
+  }
 
   return database
     .prepare(`
@@ -7615,6 +7686,14 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
     }, 404);
   }
 
+  if (isReplacementAutoRevision(asset)) {
+    const proof = await readReplacementAutoCycleProof(database, asset);
+    if (!proof || (!proof.clockKnown && !proof.registeredBaseline)) {
+      return jsonResponse({ ok: false, code: "BLOWER_REPLACEMENT_TIME_REQUIRED",
+        message: "교체 완료 이력은 자동 반영됐습니다. 완료 시각 미기록 값을 자정으로 간주해 RUN을 합산하지 않습니다." }, 409);
+    }
+  }
+
   // V3-F: even a crafted or old client must not certify a V-Belt cycle
   // from the known date-only Limestone placeholders or disputed 2A repair.
   // A completed historical sync above remains idempotently readable; a new
@@ -8411,7 +8490,7 @@ function collectCanonicalShiftLogFragments(parsedLog, row, assets = []) {
       let replacementWorkSourceText = "";
       let foreignEquipmentContext = false;
 
-      for (const clause of splitCanonicalEntryClauses(content)) {
+      for (const [v3ClauseIndex, clause] of splitCanonicalEntryClauses(content).entries()) {
         const inlineTime = normalizeCanonicalEntryTime(clause);
         const evidence = clause;
         const explicitTags = extractRecognizedBlowerTags(evidence, assets);
@@ -8712,6 +8791,22 @@ function collectCanonicalShiftLogFragments(parsedLog, row, assets = []) {
           sourceTime: inlineTime || entryTime,
           sourceRole,
           identityConflict,
+          // Fact extraction needs the originating entry to distinguish a
+          // completion's own clock from a work/changeover heading's clock.
+          // This metadata never changes the original work-log source text.
+          v3Origin: {
+            entryId: normalizeText(entry.id),
+            entryTime: normalizeCanonicalEntryTime(entry.time),
+            entryTimeText: normalizeText(entry.time),
+            entryContent: content,
+            collectionName,
+            entryIndex,
+            structuredIdentityText: [effectiveStructuredTags.join(" "),
+              entryEquipmentSemanticIdentity, structuredUnit ? `#${structuredUnit} BLR` : "",
+              structuredPosition, structuredManureContext ? "축분 Blower" : ""].filter(Boolean).join(" ")
+          },
+          v3ClauseIndex,
+          v3InlineTime: inlineTime,
           ...(replacementEvidenceText ? { replacementEvidenceText } : {})
         });
       }
@@ -15148,8 +15243,67 @@ async function storeIncrementalLogReceipts(database, phase, logs, now = new Date
     .bind(row.id, row.source_snapshot, replacement, operation, now.toISOString())));
 }
 
+async function reflectApprovedReplacementPageV3(database, user, body, options = {}) {
+  if (body.incrementalLogs !== true || body.autoApplyConfirmedReplacements !== true) {
+    return jsonResponse({ ok: false, code: "REPLACEMENT_AUTO_INTENT_REQUIRED",
+      message: "승인 업무일지 교체 자동 반영 단계를 확인해 주세요." }, 400);
+  }
+  await ensureIncrementalLogSchema(database);
+  const page = await loadApprovedReplacementPage(database, body, options);
+  const stored = await database.prepare(`SELECT * FROM blower_history_assets ORDER BY sort_order,tag_number`).all();
+  const recognitionAssets = stored.results || [];
+  const activeAssets = recognitionAssets.filter(asset => Number(asset.enabled) === 1);
+  const aliases = [...new Set(page.logs.flatMap(row => [row.id,...(row.sourceAliases || [])]))];
+  const excluded = aliases.length ? (await database.prepare(`SELECT tag_number,source_log_id,source_text
+    FROM blower_history_candidates WHERE status='excluded' AND detected_type='replacement'
+      AND source_log_id IN (SELECT value FROM json_each(?))`).bind(JSON.stringify(aliases)).all()).results || [] : [];
+  const comparable = value => normalizeText(value).replace(/\s+/g, " ");
+  const totals = { applied: 0, corrected: 0, retracted: 0, historical: 0, linked: 0, protected: 0, confirmed: 0 };
+  let detectedCount = 0, pendingReplacementTimeCount = 0;
+  const adapters = {
+    parseFragments: parseShiftLogFragments, contextualizeFragments: v13ContextualizeScanFragments,
+    sourceText: fragmentSourceText, identityText: fragmentIdentityText, sourceRole: fragmentSourceRole,
+    sourceTime: fragmentSourceTime, resolveTargets: v13ResolveTargets,
+    actualBeltReplacement: v13ActualBeltReplacement, detectDateTime: detectionDateTime,
+    normalizeTime: normalizeCanonicalEntryTime, normalizeRole: normalizeDutyPosition
+  };
+  const actor = { employeeNo: LATEST_REPLACEMENT_AUTO_CREATED_BY_ID, name: LATEST_REPLACEMENT_AUTO_CREATED_BY_NAME };
+  for (const row of page.logs) {
+    const detected = collectApprovedReplacementFacts(row, recognitionAssets, adapters)
+      .filter(fact => activeAssets.some(asset => asset.tag_number === fact.tagNumber));
+    const facts = detected.filter(fact => !excluded.some(candidate =>
+      candidate.tag_number === fact.tagNumber && [row.id,...(row.sourceAliases || [])].includes(candidate.source_log_id) &&
+      [fact.sourceText,...(fact.candidateTexts || [])].some(text => comparable(text) === comparable(candidate.source_text))));
+    totals.protected += detected.length - facts.length;
+    detectedCount += detected.length;
+    const applied = await reconcileApprovedReplacementLog(database, actor, row, facts,
+      { now: options.now || new Date(), sourceGuard: replacementSourceGuard(row) });
+    if (!applied.ok) return jsonResponse({ ok: false, code: applied.code,
+      message: "업무일지 또는 교체 기준이 처리 중 바뀌었습니다. 완료된 원문은 보존하고 변경된 원문은 다시 확인합니다." }, applied.status || 409);
+    for (const key of Object.keys(totals)) totals[key] += Number(applied[key] || 0);
+    pendingReplacementTimeCount += (applied.results || []).filter(result =>
+      ["applied","corrected"].includes(result.kind) && result.timePrecision === "day").length;
+  }
+  // A failed/incomplete page never gets an analysis receipt. Successful earlier
+  // per-asset transactions are idempotent when the exact source page is retried.
+  await storeReplacementLogReceipts(database, page.logs, options.now || new Date());
+  return jsonResponse({ ok: true, version: "bounded-logs-v1", replacementAutoVersion: 3,
+    replacementAnalysisVersion: REPLACEMENT_ANALYSIS_VERSION, incrementalLogs: true, phase: "replacement",
+    window: page.window, limit: page.limit, done: page.done, nextCursor: page.nextCursor,
+    scannedLogCount: page.logs.length, detectedCount, insertedCount: totals.applied + totals.historical,
+    autoAppliedReplacementCount: totals.applied, autoCorrectedReplacementCount: totals.corrected,
+    autoRetractedReplacementCount: totals.retracted, autoHistoricalReplacementCount: totals.historical,
+    autoLinkedReplacementCount: totals.linked, autoConfirmedReplacementCount: totals.confirmed,
+    protectedReplacementCount: totals.protected,
+    pendingReplacementTimeCount, appliedStateChanges: 0,
+    sourceCoverageIssues: page.coverageIssues || [] });
+}
+
 async function latestLogsStep(database, user, body, options = {}) {
   try {
+    if (body.phase === "replacement" && body.replacementAutoVersion === 3) {
+      return await reflectApprovedReplacementPageV3(database, user, body, options);
+    }
     const incremental = body.incrementalLogs === true;
     const page = incremental ? await loadIncrementalLogPage(database, body, options)
       : await loadLatestLogPage(database, body, options);
@@ -15398,6 +15552,8 @@ export async function onRequestPost(context) {
 
 /* Node 회귀 테스트에서 V13 복구와 Cycle 상태 경계를 실제 SQLite로 검증한다. */
 export const __blowerHistoryTest = {
+  registerStartup,
+  reflectApprovedReplacementPageV3, dataParcRecordBelongsToCurrentCycle, publicReplacementAutoSource, loadEvents,
   MANURE_INITIAL_RUN_CONFIG, initializeManureInitialRun, manureInitialRunBasis, manureInitialRunProjection,
   loadManureInitialAudit, configuredManureRunSignal,
   isProtectedManureInitialEvent, manureInitialHistoryMutationBlocked,
