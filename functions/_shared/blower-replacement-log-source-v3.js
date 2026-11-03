@@ -2,6 +2,7 @@
  * Reading never writes a receipt. Operation receipts keep their original IDs. */
 export const REPLACEMENT_ANALYSIS_VERSION = 'replacement-auto-v3';
 export const REPLACEMENT_NORMALIZE_ANALYSIS_VERSION = 'replacement-normalize-v4';
+export const REPLACEMENT_ROLE_PRIORITY_ANALYSIS_VERSION = 'replacement-normalize-v4-role-priority-v1';
 export const REPLACEMENT_PAGE_MAX = 8;
 const DAY = 86400000;
 const TABLES = ['shift_logs', 'legacy_logs', 'blower_log_receipts_v1', 'legacy_log_suppressions'];
@@ -95,12 +96,75 @@ function parsedJson(raw, label) {
   if (typeof raw !== 'string' || raw.length > 1024 * 1024) fail(label + ' 원문 크기 또는 형식을 확인할 수 없습니다.');
   try { return JSON.parse(raw); } catch { fail(label + ' JSON 원문을 확인할 수 없습니다.'); }
 }
-function normalize(row, shiftIndex, version = REPLACEMENT_ANALYSIS_VERSION, suppression = false) {
+// R5 receipts include the exact approved operational counterpart snapshots.
+// A late approval, deletion or same-stamp edit invalidates both sides, even if
+// their rows arrive on different pages. Existing date indexes bound all reads.
+const priorityShiftSql = expression => `(CASE upper(trim(COALESCE(${expression},''))) WHEN 'DAY' THEN 'DS' WHEN '주간' THEN 'DS' WHEN 'NIGHT' THEN 'NS' WHEN '야간' THEN 'NS' ELSE upper(trim(COALESCE(${expression},''))) END)`;
+function priorityContextSql(alias, version, config) {
+  if (!config || typeof config.shiftIndex !== 'string' || !config.shiftIndex || !Number.isFinite(Date.parse(config.snapshotAt))) fail('보직 우선 원문 조회 근거가 없습니다.');
+  const common = peer => `${peer}.work_date=${alias}.work_date AND ${priorityShiftSql(peer+'.shift')}=${priorityShiftSql(alias+'.shift')} AND ${approved(peer)}`;
+  const canonical = `SELECT 'shift_logs' sourceTable,CAST(rps.id AS TEXT) sourceRowId,json_object('snapshot',${snapshotSql('shift_logs','rps',version)},'aliasLegacyId',${config.legacy ? `(SELECT rpa.id FROM legacy_logs rpa WHERE rpa.legacy_diary_id=${diarySql('rps')})` : 'NULL'},'aliasDiary',${config.legacy ? `(SELECT rpa.legacy_diary_id FROM legacy_logs rpa WHERE rpa.legacy_diary_id=${diarySql('rps')})` : 'NULL'}) snapshot FROM shift_logs rps INDEXED BY ${id(config.shiftIndex)} WHERE ${common('rps')}${sourceEligibility('shift_logs','rps',true,config.suppression)} AND (${likelyWork('rps.log_json')} OR ${authorAnnotation('rps')})`;
+  const legacy = config.legacy ? ` UNION ALL SELECT 'legacy_logs' sourceTable,CAST(rph.id AS TEXT) sourceRowId,json_object('snapshot',${snapshotSql('legacy_logs','rph',version)}) snapshot FROM legacy_logs rph INDEXED BY ${id(config.legacyIndex)} WHERE ${common('rph')}${sourceEligibility('legacy_logs','rph',true,config.suppression)} AND ${likelyWork("COALESCE(rph.entries_json,'')||COALESCE(rph.original_json,'')")} AND NOT ${canonicalMirror('rpc','rph',config.shiftIndex,true,config.suppression)}` : '';
+  return `(SELECT json_group_array(snapshot) FROM (${canonical}${legacy} ORDER BY sourceTable,sourceRowId LIMIT 65))`;
+}
+function sourceSnapshotSql(table, alias, version, priority) {
+  const base = snapshotSql(table,alias,version);
+  return priority ? `json_array((${base} || ''),(${priorityContextSql(alias,version,priority)} || ''))` : base;
+}
+function rawSnapshotRow(snapshot) {
+  const values=parsedJson(snapshot,'보직 비교');
+  if(!Array.isArray(values) || values[0]!==REPLACEMENT_ROLE_PRIORITY_ANALYSIS_VERSION) fail('보직 비교 원문 버전이 다릅니다.');
+  if(values[1]==='shift_logs') {
+    const [,sourceTable,id,work_date,shift,role,author,status,log_json,updated_at]=values;
+    return {sourceTable,sourceRowId:id,id,work_date,shift,role,author,status,log_json,updated_at,aliasLegacyId:null,aliasDiary:null};
+  }
+  if(values[1]==='legacy_logs') {
+    const [,sourceTable,id,legacy_diary_id,work_date,shift,role,author,status,entries_json,original_json,updated_at]=values;
+    return {sourceTable,sourceRowId:id,id,legacy_diary_id,work_date,shift,role,author,status,entries_json,original_json,updated_at};
+  }
+  fail('보직 비교 원문 테이블이 다릅니다.');
+}
+export function replacementRoleContextRows(primaryRows) {
+  const all=new Map();
+  for(const primary of primaryRows || []) {
+    if(primary._rolePriorityVersion!==1) { all.set(primary.receiptId,primary); continue; }
+    const wrapper=parsedJson(primary.source_snapshot,'보직 의존성');
+    if(!Array.isArray(wrapper) || wrapper.length!==2) fail('보직 의존성 원문 형식이 다릅니다.');
+    const context=parsedJson(wrapper[1],'보직 비교 목록');
+    if(!Array.isArray(context) || context.length>64) fail('같은 날짜·교대의 보직 비교 원문이 너무 많습니다.','BLOWER_ROLE_PRIORITY_CONTEXT_LIMIT');
+    for(const snapshot of context) {
+      const contextEntry=typeof snapshot === 'string' ? parsedJson(snapshot,'보직 비교 항목') : snapshot;
+      if(!contextEntry || !Array.isArray(contextEntry.snapshot))fail('보직 비교 항목 형식이 다릅니다.');
+      const baseSnapshot=JSON.stringify(contextEntry.snapshot);
+      const raw=rawSnapshotRow(baseSnapshot);
+      if(raw.sourceTable==='shift_logs')Object.assign(raw,{aliasLegacyId:contextEntry.aliasLegacyId??null,aliasDiary:contextEntry.aliasDiary??null});
+      // Every peer shares the same date/shift context, so reconstructing
+      // its wrapper preserves exactly the SQL dependency used by its guard.
+      raw.source_snapshot=JSON.stringify([baseSnapshot,wrapper[1]]);
+      const row=normalize(raw,primary._rolePriorityConfig.shiftIndex,REPLACEMENT_ROLE_PRIORITY_ANALYSIS_VERSION,primary._suppressionAvailable,primary._rolePriorityConfig);
+      all.set(row.receiptId,row);
+    }
+    all.set(primary.receiptId,primary);
+  }
+  return [...all.values()];
+}
+export async function replacementSourceHashes(row) {
+  const digest=async value=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))].map(v=>v.toString(16).padStart(2,'0')).join('');
+  let raw=row.source_snapshot;
+  if(row._rolePriorityVersion===1) raw=JSON.parse(raw)[0];
+  const values=JSON.parse(raw);
+  const history=[];
+  for(const version of [REPLACEMENT_NORMALIZE_ANALYSIS_VERSION,REPLACEMENT_ANALYSIS_VERSION]) history.push(await digest(JSON.stringify([version,...values.slice(1)])));
+  return {sourceSnapshotSha256:await digest(row.source_snapshot),sourceSnapshotHistorySha256:history};
+}
+
+function normalize(row, shiftIndex, version = REPLACEMENT_ANALYSIS_VERSION, suppression = false, priority = null) {
   const table = row.sourceTable, rawId = row.sourceRowId;
   const metadata = { sourceTable: table, sourceRowId: String(rawId),
     receiptId: version + ':' + table + ':' + rawId,
     source_snapshot: row.source_snapshot, _canonicalDateIndex: shiftIndex };
-  if (version === REPLACEMENT_NORMALIZE_ANALYSIS_VERSION) Object.assign(metadata, {_analysisVersion:4, _suppressionAvailable:suppression});
+  if (version === REPLACEMENT_NORMALIZE_ANALYSIS_VERSION || version === REPLACEMENT_ROLE_PRIORITY_ANALYSIS_VERSION) Object.assign(metadata, {_analysisVersion:4, _suppressionAvailable:suppression});
+  if (priority) Object.assign(metadata, {_rolePriorityVersion:1, _rolePriorityConfig:priority});
   if (table === 'shift_logs') {
     const parsed = parsedJson(row.log_json, '승인 업무일지');
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) fail('승인 업무일지 JSON 객체가 필요합니다.');
@@ -130,7 +194,9 @@ function normalize(row, shiftIndex, version = REPLACEMENT_ANALYSIS_VERSION, supp
 }
 
 export async function loadApprovedReplacementPage(database, body = {}, options = {}) {
-  const version = analysisVersion(options.analysisVersion), v4 = version === REPLACEMENT_NORMALIZE_ANALYSIS_VERSION;
+  const baseVersion = analysisVersion(options.analysisVersion), v4 = baseVersion === REPLACEMENT_NORMALIZE_ANALYSIS_VERSION;
+  const priorityEnabled = v4 && options.rolePriority === true;
+  const version = priorityEnabled ? REPLACEMENT_ROLE_PRIORITY_ANALYSIS_VERSION : baseVersion;
   const { window, limit } = parseWindow(body, options.now || new Date());
   const schemaResult = await database.prepare(`SELECT type,name,tbl_name,sql FROM sqlite_master WHERE (type='table' AND name IN (${TABLES.map(literal).join(',')})) OR (type='index' AND tbl_name IN (${TABLES.map(literal).join(',')}))`).all();
   const schema = Array.isArray(schemaResult?.results) ? schemaResult.results : [];
@@ -152,7 +218,8 @@ export async function loadApprovedReplacementPage(database, body = {}, options =
   }
   const coverageIssues = legacy ? [] : ['legacy_logs is absent; historical legacy-only approvals were not scanned.'];
   if (v4 && !suppression) coverageIssues.push('legacy_log_suppressions is absent; deleted legacy diary suppression could not be verified.');
-  const shiftSnapshot = snapshotSql('shift_logs', 's', version);
+  const priority = priorityEnabled ? { shiftIndex, legacyIndex, legacy, suppression, snapshotAt:window.snapshotAt } : null;
+  const shiftSnapshot = sourceSnapshotSql('shift_logs', 's', version, priority);
   const aliasSelect = legacy ? 'h.id AS aliasLegacyId,h.legacy_diary_id AS aliasDiary' : 'NULL AS aliasLegacyId,NULL AS aliasDiary';
   const aliasJoin = legacy ? `LEFT JOIN legacy_logs h ON h.legacy_diary_id=${diarySql('s')}` : '';
   const canonicalSql = `SELECT s.id,s.work_date,s.shift,s.role,s.author,s.status,s.log_json,s.updated_at,
@@ -167,7 +234,7 @@ export async function loadApprovedReplacementPage(database, body = {}, options =
   const canonical = await database.prepare(canonicalSql).bind(window.fromDate, window.endDate, window.snapshotAt, limit + 1).all();
   let legacyRows = [];
   if (legacy) {
-    const legacySnapshot = snapshotSql('legacy_logs', 'h', version);
+    const legacySnapshot = sourceSnapshotSql('legacy_logs', 'h', version, priority);
     const sql = `SELECT h.id,h.legacy_diary_id,h.work_date,h.shift,h.role,h.author,h.status,h.entries_json,h.original_json,h.updated_at,
       'legacy_logs' AS sourceTable,h.id AS sourceRowId,${legacySnapshot} AS source_snapshot
       FROM legacy_logs h INDEXED BY ${id(legacyIndex)}
@@ -183,23 +250,25 @@ export async function loadApprovedReplacementPage(database, body = {}, options =
   }
   const candidates = [...(canonical.results || []), ...legacyRows].sort((a, b) => String(a.work_date).localeCompare(String(b.work_date)) ||
     String(a.sourceTable).localeCompare(String(b.sourceTable)) || String(a.sourceRowId).localeCompare(String(b.sourceRowId)));
-  const logs = candidates.slice(0, limit).map(row => normalize(row, shiftIndex, version, suppression));
+  const logs = candidates.slice(0, limit).map(row => normalize(row, shiftIndex, version, suppression, priority));
   const done = candidates.length <= limit, last = logs.at(-1);
   const digest = last ? [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(last.source_snapshot)))].map(v => v.toString(16).padStart(2,'0')).join('') : '';
   return { logs, done, nextCursor: done ? null : { workDate: last.work_date, updatedAt: last.updated_at, id: digest }, window, limit, coverageIssues };
 }
 
 export function replacementSourceGuard(row) {
-  const version = analysisVersion(row?._analysisVersion), v4 = version === REPLACEMENT_NORMALIZE_ANALYSIS_VERSION;
+  const baseVersion = analysisVersion(row?._analysisVersion), v4 = baseVersion === REPLACEMENT_NORMALIZE_ANALYSIS_VERSION;
+  const priority = row?._rolePriorityVersion === 1 ? row._rolePriorityConfig : null;
+  const version = priority ? REPLACEMENT_ROLE_PRIORITY_ANALYSIS_VERSION : baseVersion;
   if (!row || !['shift_logs','legacy_logs'].includes(row.sourceTable) || typeof row.sourceRowId !== 'string' ||
       !row.sourceRowId || typeof row.source_snapshot !== 'string' ||
       row.receiptId !== version + ':' + row.sourceTable + ':' + row.sourceRowId || (v4 && typeof row._suppressionAvailable !== 'boolean')) fail('서버에서 읽은 교체 원문 근거가 필요합니다.');
   const table = row.sourceTable, alias = 'replacement_source';
-  let sql = `EXISTS (SELECT 1 FROM ${table} ${alias} WHERE ${alias}.id=? AND ${approved(alias)}${sourceEligibility(table, alias, v4, row._suppressionAvailable)} AND ${snapshotSql(table, alias, version)}=?)`;
+  let sql = `EXISTS (SELECT 1 FROM ${table} ${alias} WHERE ${alias}.id=? AND ${approved(alias)}${sourceEligibility(table, alias, v4, row._suppressionAvailable)} AND ${sourceSnapshotSql(table, alias, version, priority)}=?)`;
   const values = [row.sourceRowId, row.source_snapshot];
   if (table === 'legacy_logs') {
     if (typeof row._canonicalDateIndex !== 'string' || !row._canonicalDateIndex) fail('원문 우선순위 인덱스 근거가 없습니다.');
-    sql = `EXISTS (SELECT 1 FROM legacy_logs ${alias} WHERE ${alias}.id=? AND ${approved(alias)}${sourceEligibility(table, alias, v4, row._suppressionAvailable)} AND ${snapshotSql(table, alias, version)}=? AND NOT ${canonicalMirror('replacement_canonical', alias, row._canonicalDateIndex, v4, row._suppressionAvailable)})`;
+    sql = `EXISTS (SELECT 1 FROM legacy_logs ${alias} WHERE ${alias}.id=? AND ${approved(alias)}${sourceEligibility(table, alias, v4, row._suppressionAvailable)} AND ${sourceSnapshotSql(table, alias, version, priority)}=? AND NOT ${canonicalMirror('replacement_canonical', alias, row._canonicalDateIndex, v4, row._suppressionAvailable)})`;
   } else if (row._aliasLegacyId !== null && row._aliasLegacyId !== undefined) {
     sql += ' AND EXISTS (SELECT 1 FROM legacy_logs replacement_alias WHERE replacement_alias.id=? AND replacement_alias.legacy_diary_id=?)';
     values.push(row._aliasLegacyId, row._aliasDiary);

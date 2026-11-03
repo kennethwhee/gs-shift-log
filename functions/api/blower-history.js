@@ -3,9 +3,10 @@ import { incrementalEvidence, verifiedAppendBase, loadAppendBase, loadAppendInte
 import { reviewedCycleSourceWarning } from "../_shared/blower-cycle-source-review.js";
 import { reconcileApprovedReplacementLog, replacementAutoCycleProof, isReplacementAutoRevision } from "../_shared/blower-replacement-auto-v3.js";
 import { collectApprovedReplacementFacts } from "../_shared/blower-replacement-facts-v3.js";
+import { planBlowerRolePriority, shiftKey as replacementPriorityShiftKey } from "../_shared/blower-role-priority-v5.js";
 import { inspectVbeltAnnotations, annotationControlsFragment } from '../_shared/diary-vbelt-confirm-v1.js';
 import { reconcileCurrentRuntimeRecoveryV4 } from "../_shared/blower-normalize-recovery-v4.js";
-import { REPLACEMENT_ANALYSIS_VERSION, REPLACEMENT_NORMALIZE_ANALYSIS_VERSION, loadApprovedReplacementPage, storeReplacementLogReceipts, replacementSourceGuard } from "../_shared/blower-replacement-log-source-v3.js";
+import { REPLACEMENT_ANALYSIS_VERSION, REPLACEMENT_NORMALIZE_ANALYSIS_VERSION, REPLACEMENT_ROLE_PRIORITY_ANALYSIS_VERSION, loadApprovedReplacementPage, storeReplacementLogReceipts, replacementSourceGuard, replacementRoleContextRows, replacementSourceHashes } from "../_shared/blower-replacement-log-source-v3.js";
 import { MANURE_INITIAL_RUN_CONFIG, initializeManureInitialRun, manureInitialRunBasis,
   manureInitialRunProjection, loadManureInitialAudit, configuredManureRunSignal,
   isProtectedManureInitialEvent } from "../_shared/blower-manure-initial-run-v1.js";
@@ -2025,6 +2026,15 @@ async function loadAssetStates(database, settings, options = {}) {
       ? { code: "CONFIRMED_REPLACEMENT_RUN_GAP", cycleBasisConfirmed: true, measuredRangeMayContinue: true,
         message: "교체 완료시각은 확인됐지만 앞 RUN 조회구간이 빠져 있습니다. 저장된 조회구간을 이어 계산하며 누락 구간을 추정하지 않습니다." }
       : null;
+    const roleSelection = replacementAutoCycle?.rolePrioritySelection;
+    const rolePriorityReview = roleSelection?.version === 1 &&
+      (roleSelection.requiredRebuild === true || roleSelection.timePrecision === 'day')
+      ? {code:roleSelection.timePrecision === 'day' ? 'ROLE_PRIORITY_COMPLETION_TIME_MISSING' : 'ROLE_PRIORITY_RUN_REBUILD',
+        cycleBasisConfirmed:false,measuredRangeMayContinue:true,
+        message:roleSelection.timePrecision === 'day'
+          ? '상위 보직 업무일지의 교체 사실을 우선했습니다. 완료 시각은 미기록이며 기존 RUN 조회구간을 보존합니다.'
+          : '상위 보직 업무일지의 완료 시각을 선택했습니다. 기존 RUN 조회구간은 보존하며 선택한 교체 기준부터 다시 조회해야 합니다.'}
+      : null;
     const normalizationReview = replacementAutoCycle?.normalizationVersion === 4 &&
       (replacementAutoCycle.registeredRuntimeRange || replacementAutoCycle.rangeTrackingAllowed || replacementAutoCycle.completionClockConflict)
       ? { code: replacementAutoCycle.registeredRuntimeRange ? "VERIFIED_RUNTIME_RANGE" : "REPLACEMENT_RECORDED_RANGE",
@@ -2035,7 +2045,10 @@ async function loadAssetStates(database, settings, options = {}) {
             ? "승인 원문의 완료 시각이 기존 등록 기준과 달라 등록값과 검증된 RUN 구간을 보존했습니다."
             : "교체 완료 사실을 반영하고 작업일지 근무 종료 이후의 확인 가능한 RUN 구간만 계산합니다. 미확인 앞 구간을 추정하지 않습니다." }
       : null;
-    const cycleSourceReview = confirmedRangeReview || normalizationReview || reviewedCycleSourceWarning(asset, runtimeRows) ||
+    const rolePriorityRevokedReview = replacementAutoCycle?.rolePrioritySourceRevoked === true
+      ? {code:'ROLE_PRIORITY_SOURCE_REVOKED',cycleBasisConfirmed:false,measuredRangeMayContinue:Boolean(runtimeBasis),
+        message:'상위 보직 근거가 변경되어 완료시각 재확인 필요 · 기존 RUN 조회구간 보존'} : null;
+    const cycleSourceReview = rolePriorityRevokedReview || rolePriorityReview || confirmedRangeReview || normalizationReview || reviewedCycleSourceWarning(asset, runtimeRows) ||
       (replacementAutoCycle && !replacementAutoCycle.clockKnown && !replacementAutoCycle.registeredBaseline
         ? { code: "REPLACEMENT_COMPLETION_TIME_MISSING", cycleBasisConfirmed: false,
           measuredRangeMayContinue: false,
@@ -2043,7 +2056,7 @@ async function loadAssetStates(database, settings, options = {}) {
         : null);
     if (cycleSourceReview && runtimeBasis) {
       runtimeBasis.cycleBasisConfirmed = cycleSourceReview.cycleBasisConfirmed === true;
-      if (normalizationReview) runtimeBasis.coverageComplete = false;
+      if (normalizationReview || rolePriorityReview || rolePriorityRevokedReview) runtimeBasis.coverageComplete = false;
     }
     const initialBasis = manureInitialRunProjection(asset, runtimeRows, initialRunAudit);
     return { ...buildAssetState(
@@ -15347,6 +15360,17 @@ async function storeIncrementalLogReceipts(database, phase, logs, now = new Date
     .bind(row.id, row.source_snapshot, replacement, operation, now.toISOString())));
 }
 
+function collectReplacementFactsForRolePriority(row, recognitionAssets) {
+  const adapters = {
+    parseFragments: parseShiftLogFragments, contextualizeFragments: v13ContextualizeScanFragments,
+    sourceText: fragmentSourceText, identityText: fragmentIdentityText, sourceRole: fragmentSourceRole,
+    sourceTime: fragmentSourceTime, resolveTargets: v13ResolveTargets,
+    actualBeltReplacement: v13ActualBeltReplacement, detectDateTime: detectionDateTime,
+    normalizeTime: normalizeCanonicalEntryTime, normalizeRole: normalizeDutyPosition
+  };
+  return collectApprovedReplacementFacts(row, recognitionAssets, adapters);
+}
+
 async function reflectApprovedReplacementPageV3(database, user, body, options = {}) {
   if (body.incrementalLogs !== true || body.autoApplyConfirmedReplacements !== true) {
     return jsonResponse({ ok: false, code: "REPLACEMENT_AUTO_INTENT_REQUIRED",
@@ -15363,31 +15387,35 @@ async function reflectApprovedReplacementPageV3(database, user, body, options = 
       normalizationRecovery }, normalizationRecovery.status || 409);
   }
   const page = await loadApprovedReplacementPage(database, body,
-    { ...options, ...(normalizationV4 ? { analysisVersion: 4 } : {}) });
+    { ...options, ...(normalizationV4 ? { analysisVersion: 4, rolePriority: true } : {}) });
   const stored = await database.prepare(`SELECT * FROM blower_history_assets ORDER BY sort_order,tag_number`).all();
   const recognitionAssets = stored.results || [];
   const activeAssets = recognitionAssets.filter(asset => Number(asset.enabled) === 1);
-  const aliases = [...new Set(page.logs.flatMap(row => [row.id,...(row.sourceAliases || [])]))];
+  const sourceRows = normalizationV4 ? replacementRoleContextRows(page.logs) : page.logs;
+  if (sourceRows.length > 64) return jsonResponse({ok:false,code:"BLOWER_ROLE_PRIORITY_CONTEXT_LIMIT",message:"보직 비교 원문이 많아 나누어 다시 확인해야 합니다."},409);
+  const aliases = [...new Set(sourceRows.flatMap(row => [row.id,...(row.sourceAliases || [])]))];
   const excluded = aliases.length ? (await database.prepare(`SELECT tag_number,source_log_id,source_text
     FROM blower_history_candidates WHERE status='excluded' AND detected_type='replacement'
       AND source_log_id IN (SELECT value FROM json_each(?))`).bind(JSON.stringify(aliases)).all()).results || [] : [];
   const comparable = value => normalizeText(value).replace(/\s+/g, " ");
   const totals = { applied: 0, corrected: 0, retracted: 0, historical: 0, linked: 0, protected: 0, confirmed: 0 };
   let detectedCount = 0, pendingReplacementTimeCount = 0;
-  const adapters = {
-    parseFragments: parseShiftLogFragments, contextualizeFragments: v13ContextualizeScanFragments,
-    sourceText: fragmentSourceText, identityText: fragmentIdentityText, sourceRole: fragmentSourceRole,
-    sourceTime: fragmentSourceTime, resolveTargets: v13ResolveTargets,
-    actualBeltReplacement: v13ActualBeltReplacement, detectDateTime: detectionDateTime,
-    normalizeTime: normalizeCanonicalEntryTime, normalizeRole: normalizeDutyPosition
-  };
   const actor = { employeeNo: LATEST_REPLACEMENT_AUTO_CREATED_BY_ID, name: LATEST_REPLACEMENT_AUTO_CREATED_BY_NAME };
-  for (const row of page.logs) {
-    const detected = collectApprovedReplacementFacts(row, recognitionAssets, adapters)
+  const records = [];
+  for (const row of sourceRows) {
+    const detected = collectReplacementFactsForRolePriority(row, recognitionAssets)
       .filter(fact => activeAssets.some(asset => asset.tag_number === fact.tagNumber));
     const facts = detected.filter(fact => !excluded.some(candidate =>
       candidate.tag_number === fact.tagNumber && [row.id,...(row.sourceAliases || [])].includes(candidate.source_log_id) &&
       [fact.sourceText,...(fact.candidateTexts || [])].some(text => comparable(text) === comparable(candidate.source_text))));
+    records.push({row,detected,facts,hashes:normalizationV4?await replacementSourceHashes(row):{}});
+  }
+  const priority = normalizationV4 ? planBlowerRolePriority(records)
+    : {selections:[],records:records.map(record=>({...record,selections:[],suppressions:[]}))};
+  const primaryIds = new Set(page.logs.map(row=>row.receiptId));
+  for (const record of priority.records) {
+    const {row,detected,facts,selections,suppressions}=record;
+    if(!primaryIds.has(row.receiptId) && !selections.length && !suppressions.length)continue;
     totals.protected += detected.length - facts.length;
     detectedCount += detected.length;
     const annotations = inspectVbeltAnnotations(row);
@@ -15395,7 +15423,9 @@ async function reflectApprovedReplacementPageV3(database, user, body, options = 
       { now: options.now || new Date(), sourceGuard: replacementSourceGuard(row),
         preserveSourceEntryIds: annotations.entryIds,
         preserveUnkeyedAutomaticEvents: annotations.hasAnnotations,
-        ...(normalizationV4 ? { normalizationVersion: 4 } : {}) });
+        ...(normalizationV4 ? { normalizationVersion: 4,rolePrioritySelections:selections,rolePrioritySuppressions:suppressions,
+          rolePriorityEvaluation:{version:1,workDate:row.work_date,shift:replacementPriorityShiftKey(row.shift),
+            sourceLogIds:sourceRows.map(source=>source.id),selections:priority.selections} } : {}) });
     if (!applied.ok) return jsonResponse({ ok: false, code: applied.code,
       message: "업무일지 또는 교체 기준이 처리 중 바뀌었습니다. 완료된 원문은 보존하고 변경된 원문은 다시 확인합니다." }, applied.status || 409);
     for (const key of Object.keys(totals)) totals[key] += Number(applied[key] || 0);
@@ -15408,7 +15438,8 @@ async function reflectApprovedReplacementPageV3(database, user, body, options = 
   return jsonResponse({ ok: true, version: "bounded-logs-v1", replacementAutoVersion: 3,
     ...(normalizationV4 ? { normalizationVersion: 4 } : {}),
     ...(normalizationRecovery ? { normalizationRecovery } : {}),
-    replacementAnalysisVersion: normalizationV4 ? REPLACEMENT_NORMALIZE_ANALYSIS_VERSION : REPLACEMENT_ANALYSIS_VERSION,
+    replacementAnalysisVersion: normalizationV4 ? REPLACEMENT_ROLE_PRIORITY_ANALYSIS_VERSION : REPLACEMENT_ANALYSIS_VERSION,
+    ...(normalizationV4 ? {rolePriorityVersion:1,rolePrioritySelectionCount:priority.selections.length} : {}),
     incrementalLogs: true, phase: "replacement",
     window: page.window, limit: page.limit, done: page.done, nextCursor: page.nextCursor,
     scannedLogCount: page.logs.length, detectedCount, insertedCount: totals.applied + totals.historical,
@@ -15674,6 +15705,7 @@ export async function onRequestPost(context) {
 
 /* Node 회귀 테스트에서 V13 복구와 Cycle 상태 경계를 실제 SQLite로 검증한다. */
 export const __blowerHistoryTest = {
+  collectReplacementFactsForRolePriority,
   normalizationRangeAuthorized,
   registerStartup,
   reflectApprovedReplacementPageV3, dataParcRecordBelongsToCurrentCycle, publicReplacementAutoSource, loadEvents,

@@ -28,7 +28,7 @@ function eventsEqual(tag,rows) {
 function sourceMetadata(event) {
   if (event?.source_type !== 'shift_log_auto_v3') return null;
   const source = parse(event?.source_text);
-  return source?.schemaVersion === 3 && source?.replacementAutoV3 === true && source?.sourceRevisionSuperseded!==true ? source : null;
+  return source?.schemaVersion === 3 && source?.replacementAutoV3 === true && source?.sourceRevisionSuperseded!==true && !source?.rolePrioritySupersededBy ? source : null;
 }
 function precision(event) {
   return sourceMetadata(event)?.timePrecision || (midnight(event?.event_date) ? 'day' : 'minute');
@@ -90,6 +90,82 @@ function normalizeFact(raw,row) {
   return {tagNumber:tag,eventDate:date,recordDate,timePrecision:raw.timePrecision,sourceText:text(raw.sourceText),sourceKey,issueType:text(raw.issueType)};
 }
 
+// Role priority is scoped to a server-read pair describing the same physical
+// job. It never edits the manual owner or transplants a measured RUN counter.
+const ROLE_SUPERIOR = {BO1:'BCO1',BO2:'BCO2',TO:'TGO'};
+const shiftKey = value => ({DAY:'DS',NIGHT:'NS','주간':'DS','야간':'NS'}[text(value).toUpperCase()] || text(value).toUpperCase());
+const physicalId = value => text(value).replace(/^legacy-/,'');
+function roleSourceKey(source,tag) {
+  const key=parse(source?.sourceKey);
+  return Array.isArray(key) && key.length===4 && physicalId(key[0])===physicalId(source.sourceLogId) &&
+    key[1]===tag && typeof key[2]==='string' && !!key[2].trim() &&
+    ((Number.isSafeInteger(key[3]) && key[3]>=0) || key[3]==='author-confirmed-v1');
+}
+function validRoleSelection(selection,row,fact,sourceHash,options) {
+  return options.normalizationVersion===4 && !!options.sourceGuard?.sql && selection?.tagNumber===fact.tagNumber &&
+    selection.sourceLogId===text(row.id) && selection.sourceKey===fact.sourceKey &&
+    selection.sourceSnapshotSha256===sourceHash && roleSourceKey(selection,fact.tagNumber) &&
+    selection.workDate===fact.recordDate && shiftKey(selection.shift)===shiftKey(row.shift) &&
+    selection.timePrecision===fact.timePrecision && (fact.timePrecision!=='minute' || instant(selection.eventDate)===instant(fact.eventDate)) &&
+    Array.isArray(selection.suppressedSources) && selection.suppressedSources.length>0 && selection.suppressedSources.length<=20 &&
+    selection.suppressedSources.every(lower => lower.tagNumber===fact.tagNumber && ROLE_SUPERIOR[lower.sourceRole]===selection.sourceRole &&
+      lower.workDate===selection.workDate && shiftKey(lower.shift)===shiftKey(selection.shift) &&
+      /^[a-f0-9]{64}$/.test(text(lower.sourceSnapshotSha256)) && roleSourceKey(lower,fact.tagNumber));
+}
+function matchesRoleSource(event,source) {
+  const meta=parse(event?.source_text);
+  const aliases=[source.sourceLogId,...(source.sourceAliases || [])].map(physicalId);
+  const hashes=[source.sourceSnapshotSha256,...(source.sourceSnapshotHistorySha256 || [])];
+  return event?.source_type==='shift_log_auto_v3' && meta?.schemaVersion===3 && meta.replacementAutoV3===true &&
+    aliases.includes(physicalId(event.source_log_id)) && meta.sourceKey===source.sourceKey &&
+    hashes.includes(meta.sourceSnapshotSha256);
+}
+function roleSelectionOwner(asset,events,selection) {
+  const owners=events.filter(event=>event.tag_number===asset.tag_number && event.event_type==='replacement' &&
+    instant(event.event_date)===instant(asset.last_replacement_at) && day(event.event_date)===selection.workDate);
+  if(owners.length!==1)return null;
+  const owner=owners[0];
+  // A previously selected certificate also owns retries after the subordinate
+  // confirmations were retired. A later manual edit changes the cycle revision.
+  const certificate=events.find(event=>{
+    const meta=sourceMetadata(event);
+    return meta?.rolePrioritySelection?.version===1 && meta.replacementEventId===owner.id &&
+      meta.cycleStartRevision===text(asset.cycle_start_revision) && matchesRoleSource(event,selection);
+  });
+  if(certificate)return owner;
+  const sources=owner.source_type==='manual'?selection.suppressedSources:[selection,...selection.suppressedSources];
+  const linked=events.some(event=>{
+    const meta=parse(event?.source_text);
+    return meta && meta.currentCycle===true && meta.replacementEventId===owner.id &&
+      meta.cycleStartRevision===text(asset.cycle_start_revision) &&
+      sources.some(source=>matchesRoleSource(event,source));
+  });
+  // A newly created authoritative automatic event is itself its owner.
+  return linked || (AUTO_TYPES.has(owner.source_type) && matchesRoleSource(owner,selection)) ? owner : null;
+}
+
+function rolePriorityProof(asset,events,candidates) {
+  for(const item of candidates) {
+    const {event,source}=item, selected=source.rolePrioritySelection;
+    if(selected?.version!==1 || !['BCO1','BCO2','TGO'].includes(selected.selectedRole) ||
+        !['minute','day'].includes(selected.timePrecision) || !/^[a-f0-9]{64}$/.test(text(source.sourceSnapshotSha256)) ||
+        !roleSourceKey({sourceLogId:event.source_log_id,sourceKey:source.sourceKey},asset.tag_number))continue;
+    const owner=events.find(owner=>owner.id===source.replacementEventId && owner.tag_number===asset.tag_number &&
+      owner.event_type==='replacement' && instant(owner.event_date)===instant(asset.last_replacement_at));
+    if(!owner || day(owner.event_date)!==selected.selectedWorkDate)continue;
+    const minute=selected.timePrecision==='minute' && Number.isFinite(instant(selected.selectedCompletionAt));
+    if(selected.timePrecision==='minute' && !minute)continue;
+    const range=currentVerifiedRange(asset,events);
+    const sameBoundary=minute && instant(selected.selectedCompletionAt)===instant(asset.last_replacement_at);
+    const requiredRebuild=minute && !sameBoundary;
+    return {item,owner,range,sameBoundary,selection:{...selected,requiredRebuild,
+      selectedSourceLogId:event.source_log_id,selectedSourceKey:source.sourceKey,
+      selectedSourceSnapshotSha256:source.sourceSnapshotSha256,
+      registeredReplacementAt:text(asset.last_replacement_at)}};
+  }
+  return null;
+}
+
 export function isReplacementAutoRevision(asset) {
   return text(asset?.cycle_start_revision || asset?.cycleStartRevision).startsWith('replacement-auto-v3:');
 }
@@ -136,13 +212,39 @@ function reconciledCompletionClock(asset,events,candidates,current) {
  */
 export function replacementAutoCycleProof(asset,events) {
   if (!asset || !Array.isArray(events)) return null;
-  const candidates=events.filter(event => event.tag_number===asset.tag_number && ['replacement','cycle_source_reconcile'].includes(event.event_type))
+  const allCandidates=events.filter(event => event.tag_number===asset.tag_number && ['replacement','cycle_source_reconcile'].includes(event.event_type))
     .map(event => ({event,source:sourceMetadata(event)})).filter(item => item.source?.currentCycle===true &&
       text(item.source.currentLastReplacementAt)===text(asset.last_replacement_at) &&
       item.source.cycleStartRevision===text(asset.cycle_start_revision))
     .sort((a,b) => text(b.event.created_at).localeCompare(text(a.event.created_at)) || text(b.event.id).localeCompare(text(a.event.id)));
+  const rolePriority=rolePriorityProof(asset,events,allCandidates);
+  if(rolePriority) {
+    const {item,owner,range,sameBoundary,selection}=rolePriority;
+    const {event,source}=item;
+    const clockKnown=sameBoundary;
+    const original=sourceMetadata(owner);
+    const fresh=isReplacementAutoRevision(asset) && original?.confirmationOnly!==true &&
+      original?.cycleRuntimeRevision===text(asset.cycle_runtime_revision) && asset.cycle_start_state==='pending' &&
+      !text(asset.cycle_started_at) && Number(asset.cycle_runtime_hours)===0 && Number(asset.runtime_hours)===0;
+    const dayRange=fresh && selection.timePrecision==='day' && validRangeSeed(original);
+    return {schemaVersion:3,normalizationVersion:4,rolePrioritySelection:selection,
+      eventId:event.id,replacementEventId:source.replacementEventId,confirmationOnly:true,
+      cycleStartRevision:source.cycleStartRevision,cycleRuntimeRevision:source.cycleRuntimeRevision,
+      sourceLogId:event.source_log_id,sourceSnapshotSha256:source.sourceSnapshotSha256,
+      storedRuntimeHours:Number(asset.cycle_runtime_hours),storedLegacyRuntimeHours:Number(asset.runtime_hours),
+      timePrecision:selection.timePrecision,clockKnown,registeredBaseline:!clockKnown && !fresh,
+      registeredRuntimeRange:!clockKnown && !!range,rangeTrackingAllowed:(!clockKnown && !!range) || dayRange,
+      rangeStartAt:dayRange?original.rangeStartAt:!clockKnown && range?range.startAt:'',requiredStartAt:clockKnown?selection.selectedCompletionAt:text(asset.last_replacement_at),
+      completionClockConflict:false,freshQueryEligible:clockKnown && fresh,rangeQueryEligible:dayRange,requiresRunRefresh:fresh,
+      ...(clockKnown && range?{completionClockReconciled:true,confirmedReplacementAt:selection.selectedCompletionAt,
+        confirmedClockEventId:event.id,confirmedClockSourceLogId:event.source_log_id,
+        confirmedClockSourceSnapshotSha256:source.sourceSnapshotSha256}:{})};
+  }
+  // A malformed/ownerless selection is never an ordinary minute confirmation
+  // of its preserved registration timestamp.
+  const candidates=allCandidates.filter(item=>!item.source.rolePrioritySelection);
   const current=candidates[0];
-  if (!current) return null;
+  if(!current)return null;
   const {event,source}=current;
   const clockKnown=source.timePrecision==='minute' && Number.isFinite(instant(source.currentLastReplacementAt));
   const registeredBaseline=source.registeredBaseline===true && Number.isFinite(instant(source.currentLastReplacementAt));
@@ -152,6 +254,7 @@ export function replacementAutoCycleProof(asset,events) {
     !text(asset.cycle_started_at) && Number(asset.cycle_runtime_hours)===0 && Number(asset.runtime_hours)===0;
   const rangeTrackingAllowed=validRangeSeed(source);
   const proof={schemaVersion:3,normalizationVersion:source.normalizationVersion===4?4:undefined,rangeTrackingAllowed,
+    ...(source.rolePrioritySourceRevoked===true?{rolePrioritySourceRevoked:true}:{}),
     rangeStartAt:rangeTrackingAllowed?source.rangeStartAt:'',rangeQueryEligible:rangeTrackingAllowed && fresh && source.registeredRuntimeRange!==true,
     registeredRuntimeRange:source.normalizationVersion===4 && source.registeredRuntimeRange===true,
     completionClockConflict:source.normalizationVersion===4 && source.completionClockConflict===true,eventId:event.id,confirmationOnly:source.confirmationOnly===true,cycleStartRevision:source.cycleStartRevision,cycleRuntimeRevision:source.cycleRuntimeRevision,replacementEventId:source.replacementEventId || (event.event_type==='replacement'?event.id:''),
@@ -187,7 +290,16 @@ export async function reconcileApprovedReplacementLog(database,user,row,facts,op
   if (normalized.some(fact => !fact || instant(fact.eventDate)>Date.parse(now)+86400000)) return {...result,ok:false,status:400,code:'REPLACEMENT_FACT_INVALID'};
   const sourceHash=await hash(text(row.source_snapshot)||JSON.stringify(row));
   const physicalSource=aliases.find(alias => /^POCHEON#/.test(alias)) || text(row.id);
-  const linked=await database.prepare(`SELECT * FROM blower_history_events WHERE event_type='replacement' AND source_log_id IN (${aliases.map(() => '?').join(',')})`).bind(...aliases).all();
+  const roleSelections=(Array.isArray(options.rolePrioritySelections)?options.rolePrioritySelections:[])
+    .filter(selection=>normalized.some(fact=>validRoleSelection(selection,row,fact,sourceHash,options)));
+  const roleSuppressions=(Array.isArray(options.rolePrioritySuppressions)?options.rolePrioritySuppressions:[])
+    .filter(lower=>options.normalizationVersion===4 && !!options.sourceGuard?.sql && lower.sourceLogId===text(row.id) &&
+      lower.sourceSnapshotSha256===sourceHash && lower.workDate===text(row.work_date).slice(0,10) &&
+      shiftKey(lower.shift)===shiftKey(row.shift) && roleSourceKey(lower,lower.tagNumber) &&
+      ROLE_SUPERIOR[lower.sourceRole]===lower.selection?.sourceRole &&
+      lower.selection?.suppressedSources?.some(source=>source.sourceKey===lower.sourceKey && source.sourceLogId===lower.sourceLogId &&
+        source.sourceSnapshotSha256===sourceHash));
+  const linked=await database.prepare(`SELECT * FROM blower_history_events WHERE event_type IN ('replacement','cycle_source_reconcile') AND source_log_id IN (${aliases.map(() => '?').join(',')})`).bind(...aliases).all();
   const related=(linked.results || []).filter(event => AUTO_TYPES.has(event.source_type));
   const tags=[...new Set([...normalized.map(fact => fact.tagNumber),...related.map(event => event.tag_number)])];
   for (const tag of tags) {
@@ -199,6 +311,22 @@ export async function reconcileApprovedReplacementLog(database,user,row,facts,op
     const afterEvents=beforeEvents.map(event => ({...event}));
     let afterAsset={...asset},reset=false,resetEvent=null;
     const changes=[];
+    const evaluation=options.rolePriorityEvaluation;
+    if(options.normalizationVersion===4 && options.sourceGuard?.sql && evaluation?.version===1 &&
+        evaluation.workDate===text(row.work_date).slice(0,10) && shiftKey(evaluation.shift)===shiftKey(row.shift) &&
+        Array.isArray(evaluation.selections)) {
+      for(const event of afterEvents) {
+        const prior=sourceMetadata(event), selected=prior?.rolePrioritySelection;
+        if(selected?.version!==1 || selected.selectedWorkDate!==evaluation.workDate ||
+            shiftKey(selected.selectedShift)!==shiftKey(evaluation.shift) ||
+            ![event.source_log_id,...(selected.suppressedSourceLogIds || [])].some(id=>aliases.map(physicalId).includes(physicalId(id))))continue;
+        const stillSelected=evaluation.selections.some(selection=>selection.tagNumber===tag &&
+          selection.sourceLogId===event.source_log_id && selection.sourceKey===prior.sourceKey &&
+          selection.sourceSnapshotSha256===prior.sourceSnapshotSha256);
+        if(!stillSelected){event.source_text=makeSource({...prior,sourceRevisionSuperseded:true},prior.sourceText);
+          event.updated_at=now;changes.push({kind:'evidenceSuperseded',eventId:event.id});}
+      }
+    }
     // A newer snapshot withdraws this source's previous confirmation authority.
     // The original confirmation remains readable in the audit and event row.
     for (const event of afterEvents) {
@@ -212,8 +340,14 @@ export async function reconcileApprovedReplacementLog(database,user,row,facts,op
     const tagFacts=normalized.filter(fact => fact.tagNumber===tag).filter((fact,index,all) => !all.some((other,j) => j!==index &&
       day(other.eventDate)===day(fact.eventDate) && other.timePrecision==='minute' && fact.timePrecision==='day'))
       .sort((a,b) => instant(a.eventDate)-instant(b.eventDate));
+    const suppressedFacts=roleSuppressions.filter(lower=>lower.tagNumber===tag);
+    const selectedFacts=roleSelections.filter(selection=>selection.tagNumber===tag);
+    const controlledKeys=new Set(suppressedFacts.map(source=>source.sourceKey));
     const supportsEvent=event => {
       const prior=sourceMetadata(event);
+      // Subordinate evidence remains an auditable physical record. Priority
+      // removes its authority; it is not a claim the job never happened.
+      if(suppressedFacts.some(source=>matchesRoleSource(event,source)))return true;
       if (!prior?.sourceKey) return tagFacts.length>0;
       return tagFacts.some(fact => fact.sourceKey===prior.sourceKey ||
         (fact.timePrecision==='minute' && instant(fact.eventDate)===instant(event.event_date)));
@@ -253,6 +387,9 @@ export async function reconcileApprovedReplacementLog(database,user,row,facts,op
       afterEvents.push(resetEvent);
     }
     for (const fact of tagFacts) {
+      if(controlledKeys.has(fact.sourceKey)) { result.protected++;continue; }
+      const priority=selectedFacts.find(selection=>selection.sourceKey===fact.sourceKey);
+      if(priority && roleSelectionOwner(afterAsset,afterEvents,priority))continue;
       const active=afterEvents.filter(event => event.event_type==='replacement');
       const manualClock=options.normalizationVersion===4 && fact.timePrecision==='minute'?active.find(event =>
         event.source_type==='manual' && !midnight(event.event_date) && instant(event.event_date)===instant(afterAsset.last_replacement_at) &&
@@ -329,14 +466,24 @@ export async function reconcileApprovedReplacementLog(database,user,row,facts,op
         if (instant(existing.event_date)===instant(afterAsset.last_replacement_at) && !represented) {
           const id=`replacement-auto-v3:confirm:${await hash(`${physicalSource}|${tag}|${existing.id}|${sourceHash}|${fact.sourceKey}`)}`;
           const previous=sourceMetadata(existing);
-          const knownClock=previous?.timePrecision==='minute' || fact.timePrecision==='minute' ||
-            (!AUTO_TYPES.has(existing.source_type) && precision(existing)==='minute');
+          // A removed superior source cannot donate its preserved manual
+          // registration minute to the subordinate's date-only statement.
+          const revokedRoleClock=fact.timePrecision==='day' && afterEvents.some(event=>{
+            const prior=parse(event.source_text);
+            return event.source_type==='shift_log_auto_v3' && prior?.replacementAutoV3===true &&
+              prior.rolePrioritySelection?.version===1 && prior.sourceRevisionSuperseded===true &&
+              prior.replacementEventId===existing.id && prior.cycleStartRevision===text(afterAsset.cycle_start_revision) &&
+              instant(prior.currentLastReplacementAt)===instant(afterAsset.last_replacement_at);
+          });
+          const knownClock=fact.timePrecision==='minute' || (!revokedRoleClock &&
+            (previous?.timePrecision==='minute' || (!AUTO_TYPES.has(existing.source_type) && precision(existing)==='minute')));
           const registeredRange=options.normalizationVersion===4 && fact.timePrecision==='day' && !knownClock
             ?currentVerifiedRange(afterAsset,afterEvents):null;
           const meta={schemaVersion:3,replacementAutoV3:true,currentCycle:true,confirmationOnly:true,replacementEventId:existing.id,
             currentLastReplacementAt:existing.event_date,timePrecision:knownClock?'minute':'day',recordDate:fact.recordDate,
             registeredBaseline:!AUTO_TYPES.has(existing.source_type),cycleStartRevision:afterAsset.cycle_start_revision,
             cycleRuntimeRevision:afterAsset.cycle_runtime_revision,sourceKey:fact.sourceKey,sourcePhysicalId:physicalSource,sourceSnapshotSha256:sourceHash,
+            ...(revokedRoleClock?{normalizationVersion:4,rolePrioritySourceRevoked:true}:{}),
             ...(previous && validRangeSeed(previous)?{normalizationVersion:4,rangeTrackingAllowed:true,rangeStartAt:previous.rangeStartAt,
               sourceWorkDate:previous.sourceWorkDate,sourceShift:previous.sourceShift}: {}),
             ...(registeredRange?{normalizationVersion:4,registeredRuntimeRange:true,basisKind:'verified_runtime_range',registeredBaseline:true,
@@ -385,6 +532,41 @@ export async function reconcileApprovedReplacementLog(database,user,row,facts,op
       }
       if (isCurrent) resetEvent=event;
       changes.push({kind:placeholder?'corrected':isCurrent?'applied':'historical',eventId:event.id,timePrecision:fact.timePrecision});
+    }
+    for(const selection of selectedFacts) {
+      const fact=tagFacts.find(fact=>fact.sourceKey===selection.sourceKey);
+      const owner=roleSelectionOwner(afterAsset,afterEvents,selection);
+      if(!fact || !owner)continue;
+      const id=`replacement-auto-v3:role-priority:${await hash(`${physicalSource}|${tag}|${owner.id}|${sourceHash}|${fact.sourceKey}`)}`;
+      if(afterEvents.some(event=>event.id===id && sourceMetadata(event)))continue;
+      const selectedCompletionAt=fact.timePrecision==='minute'?fact.eventDate:'';
+      const rolePrioritySelection={version:1,selectedRole:selection.sourceRole,selectedCompletionAt,
+        timePrecision:fact.timePrecision,selectedWorkDate:fact.recordDate,selectedShift:shiftKey(selection.shift),
+        suppressedSourceLogIds:[...new Set(selection.suppressedSources.map(source=>source.sourceLogId))],
+        requiredRebuild:fact.timePrecision==='minute' && instant(fact.eventDate)!==instant(afterAsset.last_replacement_at)};
+      const meta={schemaVersion:3,replacementAutoV3:true,normalizationVersion:4,currentCycle:true,confirmationOnly:true,
+        replacementEventId:owner.id,currentLastReplacementAt:text(afterAsset.last_replacement_at),
+        timePrecision:fact.timePrecision,recordDate:fact.recordDate,registeredBaseline:true,
+        cycleStartRevision:text(afterAsset.cycle_start_revision),cycleRuntimeRevision:text(afterAsset.cycle_runtime_revision),
+        sourceKey:fact.sourceKey,sourcePhysicalId:physicalSource,sourceSnapshotSha256:sourceHash,rolePrioritySelection};
+      const superseded=[];
+      for(const event of afterEvents) {
+        const prior=sourceMetadata(event);
+        if(event.event_type!=='cycle_source_reconcile' || !prior || prior.replacementEventId!==owner.id ||
+            prior.cycleStartRevision!==text(afterAsset.cycle_start_revision) ||
+            ![selection,...selection.suppressedSources].some(source=>matchesRoleSource(event,source)))continue;
+        event.source_text=makeSource({...prior,rolePrioritySupersededBy:id},prior.sourceText);event.updated_at=now;
+        superseded.push(event.id);changes.push({kind:'evidenceSuperseded',eventId:event.id,replacementEventId:owner.id});
+      }
+      const certificate=eventRow(user,now,{id,tag,date:now,type:'cycle_source_reconcile',sourceId:text(row.id),
+        sourceText:makeSource(meta,fact.sourceText),note:rolePrioritySelection.requiredRebuild
+          ?'동일 교체작업 중복 · 상위 보직 업무일지 기준 선택 · 기존 등록·RUN 보존 · 선택 시각 기준 RUN 재조회 필요'
+          :fact.timePrecision==='day'?'동일 교체작업 중복 · 상위 보직 업무일지 기준 선택 · 완료 시각 미기록 · 하위 보직 시각 차용 없음'
+            :'동일 교체작업 중복 · 상위 보직 업무일지 기준 선택 · 기존 등록·RUN 보존'});
+      afterEvents.push(certificate);changes.push({kind:'confirmed',eventId:id,replacementEventId:owner.id,
+        rolePrioritySelection,supersededEvidenceIds:superseded,
+        suppressedSources:selection.suppressedSources.map(source=>({sourceLogId:source.sourceLogId,sourceKey:source.sourceKey,
+          sourceRole:source.sourceRole,sourceSnapshotSha256:source.sourceSnapshotSha256}))});
     }
     if (!changes.length) continue;
     if (reset) {

@@ -49,11 +49,16 @@
   }
 
   function cycleReferenceLabel(asset, short = false) {
+    if (window.BlowerUnifiedRefresh?.rolePriorityReview?.(asset)) return "상위 보직 교체 기준";
     if (asset?.replacementAutoCycle?.normalizationVersion === 4 && asset.replacementAutoCycle.registeredRuntimeRange === true) return "RUN 조회기준";
     return isInitialStartupBasis(asset) ? "최초 기동" : short ? "최근 교체" : "최근 V-Belt 교체";
   }
 
   function cycleReferenceDisplay(asset) {
+    const priority = window.BlowerUnifiedRefresh?.rolePriorityReview?.(asset);
+    if (priority) return priority.selected.timePrecision === "minute"
+      ? formatKstDateTimeDisplay(priority.selected.selectedCompletionAt)
+      : `${priority.selected.selectedWorkDate} · 완료 시각 미기록`;
     const confirmedAt = asset?.replacementAutoCycle?.confirmedReplacementAt;
     if (asset?.replacementAutoCycle?.clockKnown === true && asset.replacementAutoCycle.completionClockConflict !== true && Number.isFinite(Date.parse(confirmedAt || "")))
       return formatKstDateTimeDisplay(confirmedAt);
@@ -1177,6 +1182,7 @@
   // The retained number is measured within this receipt, not a certified whole-cycle total.
   function commonRunCoverage(asset) {
     const automatic = asset?.replacementAutoCycle;
+    const rolePriority = window.BlowerUnifiedRefresh?.rolePriorityReview?.(asset) || null;
     const rangeTracking = window.BlowerUnifiedRefresh?.replacementRangeTracking?.(asset) === true;
     const registeredRuntimeRange = automatic?.schemaVersion === 3 && automatic.normalizationVersion === 4 && automatic.registeredRuntimeRange === true;
     if (automatic?.schemaVersion === 3 && automatic.requiresRunRefresh === true && !rangeTracking) return null;
@@ -1186,13 +1192,13 @@
     const replacementClockConfirmed = sourceReview?.code === "CONFIRMED_REPLACEMENT_RUN_GAP" &&
       sourceReview.cycleBasisConfirmed === true && automatic?.clockKnown === true && automatic.completionClockConflict !== true &&
       Number.isFinite(Date.parse(automatic.confirmedReplacementAt || ""));
-    if (basis?.coverageComplete !== false && !sourceReview && !automaticClockUnknown && !rangeTracking && !registeredRuntimeRange) return null;
+    if (basis?.coverageComplete !== false && !sourceReview && !automaticClockUnknown && !rangeTracking && !registeredRuntimeRange && !rolePriority) return null;
     const storedHours = asset.cycleElapsedHours ?? asset.runtimeHours;
     const stale = basis?.runtimeHours !== null && basis?.runtimeHours !== undefined && basis?.runtimeHours !== "" &&
         storedHours !== null && storedHours !== undefined && storedHours !== "" &&
         Number.isFinite(Number(basis.runtimeHours)) && Number.isFinite(Number(storedHours)) &&
         Math.abs(Number(basis.runtimeHours) - Number(storedHours)) > 0.000001;
-    if (stale && !sourceReview && !rangeTracking && !registeredRuntimeRange) return null;
+    if (stale && !sourceReview && !rangeTracking && !registeredRuntimeRange && !rolePriority) return null;
     const manual = asset.runRuntime?.verified === true && asset.runRuntime.source === "manual";
     const pendingRange = rangeTracking && automatic.requiresRunRefresh === true;
     const selectedHours = pendingRange ? null : stale || manual ? storedHours : basis?.runtimeHours ?? storedHours;
@@ -1200,15 +1206,15 @@
       typeof selectedHours === "string" && selectedHours.trim() === "" ||
       typeof selectedHours === "boolean" ? NaN : Number(selectedHours);
     const runState = pendingRange ? "unknown" : [asset.runRuntime?.state, asset.cycleRuntimeState].find(value => ["running", "stopped"].includes(value)) || "unknown";
-    return { basis: stale ? null : basis, sourceReview, rangeTracking, registeredRuntimeRange, replacementClockConfirmed,
+    return { basis: stale ? null : basis, sourceReview, rangeTracking, registeredRuntimeRange, replacementClockConfirmed, rolePriority,
       completionClockConflict: automatic?.completionClockConflict === true,
       rangeStartAt: rangeTracking ? automatic.rangeStartAt : "",
-      automaticReplacement: automaticClockUnknown && !rangeTracking && !registeredRuntimeRange,
+      automaticReplacement: automaticClockUnknown && !rangeTracking && !registeredRuntimeRange && !rolePriority,
       state: runState, stateLabel: pendingRange ? "RUN 조회 대기" : runState === "running" ? "기동중" : runState === "stopped" ? "정지중" : "확인 필요",
       hours: Number.isFinite(hours) && hours >= 0 ? hours : null,
       runtime: Number.isFinite(hours) && hours >= 0
         ? `${hours.toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간` : pendingRange ? "RUN 조회 대기" : "확인 필요",
-      warning: replacementClockConfirmed ? "일부 기간 RUN 누적 · 교체 시각 확인 완료 · 누락 구간 확인 필요"
+      warning: rolePriority ? rolePriority.label : replacementClockConfirmed ? "일부 기간 RUN 누적 · 교체 시각 확인 완료 · 누락 구간 확인 필요"
         : rangeTracking ? pendingRange ? "교체 기록 자동반영 · 확인 구간 RUN 조회 대기" : "확인 구간 RUN 누적 · 교체 기록 이후 확인된 RUN · 완료 시각 미기록"
         : registeredRuntimeRange ? "조회구간 RUN 누적 · RUN 조회기준 · 실제 교체 기준 미확정"
         : automaticClockUnknown ? "교체 자동반영 완료 · 완료 시각 미기록 · 새 벨트 RUN 기준 확인 필요" : sourceReview ? "조회구간 RUN 누적 · 교체 기준 확인 필요" : "일부 기간 RUN 누적 · 교체 기준 확인 필요" };
@@ -1216,6 +1222,12 @@
 
   function commonRunCoverageNotice(coverage) {
     if (!coverage) return "";
+    if (coverage.rolePriority) {
+      const { selected, label } = coverage.rolePriority;
+      const completion = selected.timePrecision === "minute" ? formatKstDateTimeDisplay(selected.selectedCompletionAt)
+        : `${selected.selectedWorkDate} · 완료 시각 미기록`;
+      return `<div class="run-history-note" data-run-coverage="partial" data-role-priority-selection="true"><strong>${escapeHtml(label)}</strong><small>선택 근거 ${escapeHtml(selected.selectedRole)} 업무일지 · ${escapeHtml(completion)}</small><small>기존 RUN 등록 기준 ${escapeHtml(formatKstDateTimeDisplay(selected.registeredReplacementAt))}</small><small>근거 업무일지 ${escapeHtml(selected.selectedSourceLogId)}</small>${coverage.basis?.startAt && coverage.basis?.observedAt ? `<small>보존된 조회구간 ${escapeHtml(formatKstDateTimeDisplay(coverage.basis.startAt))} → ${escapeHtml(formatKstDateTimeDisplay(coverage.basis.observedAt))}</small>` : ""}<small>${selected.timePrecision === "minute" ? "상위 보직 완료시각을 선택했습니다. 기존 조회값과 원본 이력은 보존하며, 선택된 기준으로 RUN을 다시 측정하기 전에는 새 기준의 전체 누적시간으로 확정하지 않습니다. 이어조회는 기존 조회구간만 연장합니다." : "상위 보직 업무일지를 선택했지만 완료 시각은 기록되지 않았습니다. 하위 보직의 시각을 대신 사용하지 않으며, 기존 조회값과 원본 이력은 보존합니다."}</small></div>`;
+    }
     const required = coverage.basis?.requiredStartAt;
     return `<div class="run-history-note" data-run-coverage="partial"><strong>${escapeHtml(coverage.warning)}</strong>${coverage.sourceReview?.message ? `<small>${escapeHtml(coverage.sourceReview.message)}</small>` : ""}${required && !coverage.automaticReplacement ? `<small>${coverage.replacementClockConfirmed ? "교체 완료" : coverage.registeredRuntimeRange ? "RUN 조회기준" : coverage.rangeTracking ? "기록된 교체일" : "등록 기준"} ${escapeHtml(coverage.rangeTracking ? formatDate(required) : formatKstDateTimeDisplay(required))}</small>` : ""}${coverage.rangeStartAt ? `<small>확인 구간 시작 ${escapeHtml(formatKstDateTimeDisplay(coverage.rangeStartAt))} · 교체 완료시각 아님</small>` : ""}${coverage.replacementClockConfirmed && required && coverage.basis?.startAt ? `<small>미조회 앞 구간 ${escapeHtml(formatKstDateTimeDisplay(required))} → ${escapeHtml(formatKstDateTimeDisplay(coverage.basis.startAt))}</small>` : ""}<small>${coverage.replacementClockConfirmed ? "교체 완료시각은 확인됐습니다. 앞쪽 미조회 구간을 추정하거나 현재 조회값에 더하지 않으며, 전체 벨트 누적으로 확정하지 않습니다. 검증된 조회구간은 마지막 성공 이후를 이어서 확인합니다." : coverage.rangeTracking ? "기록된 교체일 이후의 확인 구간에서 RUN=1만 합산합니다. 조회 시작은 실제 교체 완료시각이 아니며 전체 벨트 누적·교체주기로 확정하지 않습니다. 검증된 구간은 마지막 성공 이후를 이어서 확인합니다." : coverage.automaticReplacement ? "교체 사실은 자동 반영했으며 기존 조회구간 누적은 보존합니다. 완료 시각 확인 전에는 새 벨트 RUN 계산을 시작하지 않습니다." : "조회된 구간의 RUN=1만 합산합니다. 교체 기준 확인 전에는 전체 Cycle 누적·주기 계산으로 확정하지 않습니다. 검증된 조회구간은 마지막 성공 이후를 이어서 확인합니다."}</small></div>`;
   }
@@ -1603,7 +1615,7 @@
           ` : (effectiveStartupPending && cycleHours ? `<div class="cycle-progress-block is-placeholder" aria-hidden="true"><div class="progress-track"></div></div>` : "")}
 
           ${intermittent ? `<div class="cycle-date-line"><span><em>${escapeHtml(cycleReferenceLabel(asset, true))}</em><strong>${escapeHtml(cycleReferenceDisplay(asset))}</strong></span></div>` : runView ? `
-            <div class="cycle-date-line run-cycle-date"><span><em>${partialCoverage?.replacementClockConfirmed ? "최근 V-Belt 교체" : partialCoverage?.registeredRuntimeRange ? "RUN 조회기준" : runView.automaticReplacement ? "교체 자동반영" : partialCoverage?.sourceReview ? "등록기준 · 교체 기준 확인 필요" : "최근 교체"}</em><strong>${escapeHtml(cycleReferenceDisplay(asset))}</strong></span>
+            <div class="cycle-date-line run-cycle-date"><span><em>${partialCoverage?.rolePriority ? "상위 보직 교체 기준" : partialCoverage?.replacementClockConfirmed ? "최근 V-Belt 교체" : partialCoverage?.registeredRuntimeRange ? "RUN 조회기준" : runView.automaticReplacement ? "교체 자동반영" : partialCoverage?.sourceReview ? "등록기준 · 교체 기준 확인 필요" : "최근 교체"}</em><strong>${escapeHtml(cycleReferenceDisplay(asset))}</strong></span>
               ${cycleHours ? `<span title="조회 시점부터 연속 운전한다고 가정한 예상일입니다."><em>예상</em><strong>${escapeHtml(nextReplacementAt)}</strong></span><small>기준 ${cycleBasisLabel}</small>` : ""}
             </div>` : actualStarted || startupPending ? `
             <div class="cycle-date-line${startupPending ? " is-startup-pending" : " has-cycle-start"}">
@@ -1622,7 +1634,7 @@
 
           <details class="asset-evidence${evidence ? "" : " is-empty"}">
             <summary class="evidence-heading">
-              <span>${runView?.automaticReplacement ? "교체 자동반영 근거" : partialCoverage?.replacementClockConfirmed ? "교체 완료 근거 · 누락 구간 확인 필요" : partialCoverage?.sourceReview ? "등록 기준 근거 · 교체 기준 확인 필요" : isInitialStartupBasis(asset) ? "최초 기동 등록 근거" : "교체 등록 근거"}</span>
+              <span>${partialCoverage?.rolePriority ? "기존 등록 근거 · 원본 보존" : runView?.automaticReplacement ? "교체 자동반영 근거" : partialCoverage?.replacementClockConfirmed ? "교체 완료 근거 · 누락 구간 확인 필요" : partialCoverage?.sourceReview ? "등록 기준 근거 · 교체 기준 확인 필요" : isInitialStartupBasis(asset) ? "최초 기동 등록 근거" : "교체 등록 근거"}</span>
               <em class="evidence-source-badge ${escapeHtml(evidenceMeta.className)}">${escapeHtml(evidenceMeta.label)}</em>
             </summary>
             <p>${escapeHtml(evidenceText)}</p>
@@ -1897,6 +1909,7 @@
 
   function compactRunCoverageStatus(coverage) {
     if (!coverage) return null;
+    if (coverage.rolePriority) return { key: coverage.rolePriority.key, label: coverage.rolePriority.label };
     if (coverage.completionClockConflict) return { key: "completion-time-conflict", label: "교체 시각 불일치" };
     if (coverage.replacementClockConfirmed) return { key: "leading-gap", label: "누적 구간 확인" };
     if (coverage.rangeTracking || coverage.automaticReplacement) return { key: "completion-time-missing", label: "완료 시각 미기록" };
@@ -1908,7 +1921,7 @@
     const partialCoverage = typeof commonRunCoverage === "function" ? commonRunCoverage(asset) : null;
     const coverageStatus = compactRunCoverageStatus(partialCoverage);
     const manualRuntime = asset.runRuntime?.verified === true && asset.runRuntime.source === "manual";
-    const automaticReplacement = asset.replacementAutoCycle?.schemaVersion === 3 && !partialCoverage?.registeredRuntimeRange && (asset.replacementAutoCycle.requiresRunRefresh === true ||
+    const automaticReplacement = asset.replacementAutoCycle?.schemaVersion === 3 && !partialCoverage?.rolePriority && !partialCoverage?.registeredRuntimeRange && (asset.replacementAutoCycle.requiresRunRefresh === true ||
       asset.replacementAutoCycle.clockKnown !== true && asset.replacementAutoCycle.registeredBaseline !== true && !partialCoverage?.rangeTracking);
     const disputedLimestone = typeof isLimestoneDisputedAsset === 'function' ? isLimestoneDisputedAsset(asset) : asset?.blowerType === 'limestone' && asset.limestoneAutoApply !== true && asset.limestoneBasisConfirmed !== true && typeof LIMESTONE_DISPUTED_RUN_TAGS !== 'undefined' && LIMESTONE_DISPUTED_RUN_TAGS.has(String(asset.tagNumber || ''));
     const trackedRun = verifiedLimestoneRunDisplay(asset);
@@ -1949,7 +1962,7 @@
         </span>
         <span class="all-overview-metrics">
           <span><small>${manualRuntime ? '수동 보정 누적' : partialCoverage?.rangeTracking ? '확인 구간 RUN 누적' : automaticReplacement ? asset.replacementAutoCycle.requiresRunRefresh === true ? '교체 자동반영' : '조회구간 RUN 누적' : partialCoverage ? partialCoverage.automaticReplacement || partialCoverage.sourceReview || partialCoverage.registeredRuntimeRange ? '조회구간 RUN 누적' : '일부 기간 RUN 누적' : disputedLimestone ? '이전 저장 누적' : '누적 기동시간'}</small><strong>${escapeHtml(view.runtime)}</strong></span>
-          <span><small>${partialCoverage?.replacementClockConfirmed ? '최근 V-Belt 교체' : partialCoverage?.registeredRuntimeRange ? 'RUN 조회기준' : automaticReplacement ? '교체 자동반영' : partialCoverage?.rangeTracking ? '교체일' : partialCoverage?.sourceReview ? '등록기준' : escapeHtml(cycleReferenceLabel(asset))}</small><strong>${escapeHtml(replacement)}</strong></span>
+          <span><small>${partialCoverage?.rolePriority ? '상위 보직 교체 기준' : partialCoverage?.replacementClockConfirmed ? '최근 V-Belt 교체' : partialCoverage?.registeredRuntimeRange ? 'RUN 조회기준' : automaticReplacement ? '교체 자동반영' : partialCoverage?.rangeTracking ? '교체일' : partialCoverage?.sourceReview ? '등록기준' : escapeHtml(cycleReferenceLabel(asset))}</small><strong>${escapeHtml(replacement)}</strong></span>
         </span>
         <span class="all-overview-query-period">
           <small>${manualRuntime ? "수동 보정 기준시각" : "데이터 조회 기간"}</small>
@@ -2747,7 +2760,7 @@
     elements.historyCycleSummary.innerHTML = asset.lastReplacementAt && !awaitingBackfill
       ? `
         <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(severityLabel(severity))}</span>
-        <div><span>${partialCoverage?.replacementClockConfirmed ? "최근 V-Belt 교체" : partialCoverage?.registeredRuntimeRange ? "RUN 조회기준" : runView?.automaticReplacement ? "교체 자동반영" : partialCoverage?.rangeTracking ? "교체일 · 완료 시각 미기록" : partialCoverage?.sourceReview ? "등록기준 · 교체 기준 확인 필요" : escapeHtml(cycleReferenceLabel(asset))}</span><strong>${escapeHtml(cycleReferenceDisplay(asset))}</strong></div>
+        <div><span>${partialCoverage?.rolePriority ? "상위 보직 교체 기준" : partialCoverage?.replacementClockConfirmed ? "최근 V-Belt 교체" : partialCoverage?.registeredRuntimeRange ? "RUN 조회기준" : runView?.automaticReplacement ? "교체 자동반영" : partialCoverage?.rangeTracking ? "교체일 · 완료 시각 미기록" : partialCoverage?.sourceReview ? "등록기준 · 교체 기준 확인 필요" : escapeHtml(cycleReferenceLabel(asset))}</span><strong>${escapeHtml(cycleReferenceDisplay(asset))}</strong></div>
         ${runView ? `<div><span>확인 상태</span><strong>${escapeHtml(runView.stateLabel)}</strong></div>` : asset.runtimeAccumulationMode === "measured_only" || asset.blowerType === "organic_fuel" ? "" : `<div><span>현재 운전상태</span><strong>${startupPending ? "기동 대기" : asset.cycleRuntimeState === "unknown" ? "확인 필요" : asset.isRunning ? "기동중" : "정지중"}</strong></div>`}
         <div><span>${partialCoverage ? partialCoverage.rangeTracking ? "확인 구간 RUN 누적" : partialCoverage.automaticReplacement || partialCoverage.sourceReview || partialCoverage.registeredRuntimeRange ? "조회구간 RUN 누적" : "일부 기간 RUN 누적" : disputedLimestone ? "이전 저장 누적" : runView || asset.blowerType === "organic_fuel" ? "누적 기동시간" : "누적 운전시간"}</span><strong>${partialCoverage ? escapeHtml(partialCoverage.runtime) : disputedLimestone ? escapeHtml(allOverviewOperation(asset).runtime) : runView ? escapeHtml(runView.primary) : startupPending ? "0시간" : asset.cycleRuntimeState === "unknown" || asset.measurementRequired ? "최신화 필요" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
       `

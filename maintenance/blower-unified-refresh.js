@@ -62,9 +62,33 @@ DP_TAGS.add("203HRJ01AN602");
       (start + 9 * 3600000) % DAY === 0 &&
       Math.floor((start + 9 * 3600000) / DAY) > Math.floor((replacement + 9 * 3600000) / DAY);
   }
+  // This is a server-selected source, not a role ranking performed by the UI.
+  // Its clock is kept separate from the registered owner of the saved RUN.
+  function rolePriorityReview(a) {
+    const proof = a?.replacementAutoCycle, selected = proof?.rolePrioritySelection;
+    if (proof?.schemaVersion !== 3 || selected?.version !== 1 ||
+        !['BCO1', 'BCO2', 'TGO'].includes(selected.selectedRole) ||
+        !['minute', 'day'].includes(selected.timePrecision) ||
+        typeof selected.selectedSourceLogId !== 'string' || !selected.selectedSourceLogId.trim() ||
+        typeof selected.selectedSourceKey !== 'string' || !selected.selectedSourceKey.trim() ||
+        !/^[a-f0-9]{64}$/.test(String(selected.selectedSourceSnapshotSha256 || '')) ||
+        !/^\d{4}-\d\d-\d\d$/.test(String(selected.selectedWorkDate || '')) ||
+        !Number.isFinite(time(selected.registeredReplacementAt)) ||
+        time(selected.registeredReplacementAt) !== time(a?.lastReplacementAt)) return null;
+    if (selected.timePrecision === 'day') {
+      if (selected.selectedCompletionAt) return null;
+      return { key: 'role-priority-clock-missing', label: '상위 보직 기준 선택 · 완료 시각 미기록', selected };
+    }
+    if (!Number.isFinite(time(selected.selectedCompletionAt)) ||
+        selected.requiredRebuild !== true ||
+        time(selected.selectedCompletionAt) === time(selected.registeredReplacementAt)) return null;
+    return { key: 'role-priority-run-rebuild', label: '상위 보직 기준 선택 · RUN 재조회 필요', selected };
+  }
   // Presentation metadata only. These reasons never authorize a query or a
   // stored-value change; the unchanged receipt/cycle guards below own those.
   function runReviewStatus(a, basis = a?.dataParcRuntimeBasis) {
+    const priority = rolePriorityReview(a);
+    if (priority) return { key: priority.key, label: priority.label };
     const automatic = a?.replacementAutoCycle;
     const rangeTracking = replacementRangeTracking(a);
     const registeredRange = automatic?.schemaVersion === 3 && automatic.normalizationVersion === 4 &&
@@ -90,7 +114,9 @@ DP_TAGS.add("203HRJ01AN602");
     if (currentReason) return currentReason;
     const saved = task?.runReviewStatus;
     const labels = { 'completion-time-conflict': '교체 시각 불일치', 'leading-gap': '누적 구간 확인',
-      'completion-time-missing': '완료 시각 미기록', 'replacement-basis-review': '교체 기준 확인', 'coverage-gap': '누적 구간 확인' };
+      'completion-time-missing': '완료 시각 미기록', 'replacement-basis-review': '교체 기준 확인', 'coverage-gap': '누적 구간 확인',
+      'role-priority-run-rebuild': '상위 보직 기준 선택 · RUN 재조회 필요',
+      'role-priority-clock-missing': '상위 보직 기준 선택 · 완료 시각 미기록' };
     if (saved && labels[saved.key]) return { key: saved.key, label: labels[saved.key] };
     const assetReason = runReviewStatus(task?.asset);
     if (assetReason) return assetReason;
@@ -173,10 +199,11 @@ DP_TAGS.add("203HRJ01AN602");
   }
   function fbheSealRunView(a, basis = null) {
     const replacement = a?.replacementAutoCycle;
+    const priority = rolePriorityReview(a);
     const rangeTracking = replacementRangeTracking(a);
     const registeredRange = replacement?.schemaVersion === 3 && replacement.normalizationVersion === 4 && replacement.registeredRuntimeRange === true;
     const clockUnknown = replacement?.schemaVersion === 3 && replacement.clockKnown !== true && replacement.registeredBaseline !== true;
-    if (replacement?.schemaVersion === 3 && !registeredRange && (replacement.requiresRunRefresh === true || clockUnknown && !rangeTracking)) {
+    if (!priority && replacement?.schemaVersion === 3 && !registeredRange && (replacement.requiresRunRefresh === true || clockUnknown && !rangeTracking)) {
       const selected = a.cycleElapsedHours ?? a.runtimeHours;
       const retained = replacement.requiresRunRefresh !== true && selected !== null && selected !== undefined && typeof selected !== 'boolean' &&
         !(typeof selected === 'string' && selected.trim() === '') && Number.isFinite(Number(selected)) && Number(selected) >= 0 ? Number(selected) : null;
@@ -193,7 +220,7 @@ DP_TAGS.add("203HRJ01AN602");
       Number.isFinite(Number(coverage.runtimeHours)) && Number.isFinite(Number(storedHours)) &&
       Math.abs(Number(coverage.runtimeHours) - Number(storedHours)) > 0.000001;
     const sourceReview = a?.cycleSourceReview;
-    if (coverage?.coverageComplete === false && !staleCoverage || sourceReview || rangeTracking || registeredRange) {
+    if (coverage?.coverageComplete === false && !staleCoverage || sourceReview || rangeTracking || registeredRange || priority) {
       const manual = a?.runRuntime?.verified === true && a.runRuntime.source === 'manual';
       const selectedHours = manual || staleCoverage ? storedHours : coverage?.runtimeHours ?? storedHours;
       const hours = selectedHours === null || selectedHours === undefined ||
@@ -204,7 +231,7 @@ DP_TAGS.add("203HRJ01AN602");
         hours: Number.isFinite(hours) && hours >= 0 ? hours : null,
         primary: Number.isFinite(hours) && hours >= 0
           ? `${hours.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간` : '확인 필요',
-        message: rangeTracking ? '확인 구간 RUN 누적 · 교체 기록 이후 확인된 RUN · 완료 시각 미기록'
+        message: priority ? priority.label : rangeTracking ? '확인 구간 RUN 누적 · 교체 기록 이후 확인된 RUN · 완료 시각 미기록'
           : registeredRange ? '조회구간 RUN 누적 · RUN 조회기준 · 실제 교체 기준 미확정'
           : sourceReview ? '조회구간 RUN 누적 · 교체 기준 확인 필요' : '일부 기간 RUN 누적 · 교체 기준 확인 필요',
         measuredAt: manual ? a.runRuntime.measuredAt || '' : coverage?.observedAt || '',
@@ -257,6 +284,10 @@ DP_TAGS.add("203HRJ01AN602");
       if (a.enabled === false || a.enabled === 0) continue;
       const skip = reason => skipped.push({ tagNumber: a.tagNumber, displayName: a.displayName || a.tagNumber, status: 'skipped', message: reason });
       const replacementProof = a.replacementAutoCycle;
+      const priority = rolePriorityReview(a);
+      if (priority && a.cycleSourceReview?.measuredRangeMayContinue !== true) {
+        skip(`${priority.label} · 기존 조회값 보존`); continue;
+      }
       const rangeTracking = replacementRangeTracking(a);
       const registeredRange = replacementProof?.schemaVersion === 3 && replacementProof.normalizationVersion === 4 && replacementProof.registeredRuntimeRange === true;
       const freshReplacement = freshReplacementQuery(a, new Date(end));
@@ -968,7 +999,7 @@ DP_TAGS.add("203HRJ01AN602");
     return stop('처리 단위 한도 도달');
   }
 
-  return { fbheSealRunAsset, fbheSealRunView, freshReplacementQuery, replacementRangeTracking, runReviewStatus, plan, intermittent, snapshot, sameCycle, day, waitRequests, executeDataParc, executeDataParcBatch, executeOis, oisBody,
+  return { fbheSealRunAsset, fbheSealRunView, freshReplacementQuery, replacementRangeTracking, rolePriorityReview, runReviewStatus, plan, intermittent, snapshot, sameCycle, day, waitRequests, executeDataParc, executeDataParcBatch, executeOis, oisBody,
     refreshLogs, refreshLogsForRuntime, readWithRetry, errorLabel,
     register(kind, fn) { if (!['fbhe','seal_pot'].includes(kind) || typeof fn !== 'function') throw new Error('Invalid OIS bridge'); bridges[kind] = fn; } };
 });
