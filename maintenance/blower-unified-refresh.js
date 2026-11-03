@@ -62,6 +62,42 @@ DP_TAGS.add("203HRJ01AN602");
       (start + 9 * 3600000) % DAY === 0 &&
       Math.floor((start + 9 * 3600000) / DAY) > Math.floor((replacement + 9 * 3600000) / DAY);
   }
+  // Presentation metadata only. These reasons never authorize a query or a
+  // stored-value change; the unchanged receipt/cycle guards below own those.
+  function runReviewStatus(a, basis = a?.dataParcRuntimeBasis) {
+    const automatic = a?.replacementAutoCycle;
+    const rangeTracking = replacementRangeTracking(a);
+    const registeredRange = automatic?.schemaVersion === 3 && automatic.normalizationVersion === 4 &&
+      automatic.registeredRuntimeRange === true;
+    if (automatic?.schemaVersion === 3 && automatic.requiresRunRefresh === true && !rangeTracking) return null;
+    const clockUnknown = automatic?.schemaVersion === 3 && automatic.clockKnown !== true && automatic.registeredBaseline !== true;
+    const review = a?.cycleSourceReview;
+    if (basis?.coverageComplete !== false && !review && !clockUnknown && !rangeTracking && !registeredRange) return null;
+    if (automatic?.completionClockConflict === true) return { key: 'completion-time-conflict', label: '교체 시각 불일치' };
+    if (review?.code === 'CONFIRMED_REPLACEMENT_RUN_GAP' && review.cycleBasisConfirmed === true &&
+        automatic?.clockKnown === true && Number.isFinite(time(automatic.confirmedReplacementAt))) {
+      return { key: 'leading-gap', label: '누적 구간 확인' };
+    }
+    if (rangeTracking || clockUnknown && !registeredRange) return { key: 'completion-time-missing', label: '완료 시각 미기록' };
+    if (review || registeredRange) return { key: 'replacement-basis-review', label: '교체 기준 확인' };
+    return { key: 'coverage-gap', label: '누적 구간 확인' };
+  }
+
+  function partialAppendResultStatus(task, current) {
+    // Current server projection also supports resuming an older checkpoint
+    // whose compact saved asset predates this display-only metadata.
+    const currentReason = current ? runReviewStatus(current) : null;
+    if (currentReason) return currentReason;
+    const saved = task?.runReviewStatus;
+    const labels = { 'completion-time-conflict': '교체 시각 불일치', 'leading-gap': '누적 구간 확인',
+      'completion-time-missing': '완료 시각 미기록', 'replacement-basis-review': '교체 기준 확인', 'coverage-gap': '누적 구간 확인' };
+    if (saved && labels[saved.key]) return { key: saved.key, label: labels[saved.key] };
+    const assetReason = runReviewStatus(task?.asset);
+    if (assetReason) return assetReason;
+    if (task?.registeredRuntimeRange === true) return { key: 'replacement-basis-review', label: '교체 기준 확인' };
+    if (task?.partialTracking === true) return { key: 'completion-time-missing', label: '완료 시각 미기록' };
+    return { key: 'basis-or-coverage-review', label: '기준·구간 확인' };
+  }
   function freshReplacementQuery(a, now) {
     const proof = a?.replacementAutoCycle;
     const isNumber = value => value !== null && value !== undefined && typeof value !== 'boolean' &&
@@ -356,7 +392,7 @@ DP_TAGS.add("203HRJ01AN602");
           replacementRangePlannedAt: new Date(end).toISOString() } : {}),
         ...(rangeTracking || registeredRange ? { partialTracking: true } : {}),
         ...(registeredRange ? { registeredRuntimeRange: true } : {}),
-        ...(partialRange ? { partialRange: true, partialBase } : {}),
+        ...(partialRange ? { partialRange: true, partialBase, runReviewStatus: runReviewStatus(a, previous) } : {}),
         ...(sourceReviewRange ? { sourceReviewRange: true } : {}),
         ...(limestoneAutoRebuild ? { limestoneAutoRebuild: true } : {}) });
     }
@@ -657,20 +693,23 @@ DP_TAGS.add("203HRJ01AN602");
             return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber, status: 'skipped',
               message: '확인 구간 조회 중 저장 기준 변경 · 기존 값 유지' };
           }
-          if (task.partialRange === true && !recognizedPartialAppend(task, currentFor(task), String(entry.item.id))) {
+          const partialCurrent = task.partialRange === true ? currentFor(task) : undefined;
+          if (task.partialRange === true && !recognizedPartialAppend(task, partialCurrent, String(entry.item.id))) {
             return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber, status: 'skipped',
               message: '이어조회 중 저장 기준 변경 · 기존 일부 기간 누적 유지' };
           }
           const applied = await io.api({ method: 'POST', timeoutMs: 30000, body: { action: 'dataparc_runtime_sync', requestId: entry.item.id } });
           appliedCount += 1;
           io.progress?.(`조회 결과 저장 중 · ${appliedCount}/${pending.length}`);
+          const reviewStatus = task.partialRange === true ? partialAppendResultStatus(task, partialCurrent) : null;
           return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber, status: 'complete',
-            ...(task.partialRange === true ? { partialRange: true } : {}),
+            ...(task.partialRange === true ? { partialRange: true, runReviewStatus: reviewStatus } : {}),
             message: task.replacementAutoRange === true ? '확인 구간 RUN 조회 완료 · 교체 기록 이후 확인된 RUN'
               : task.replacementAutoFresh === true ? '새 교체 기준 RUN 조회 완료'
+              : reviewStatus ? `RUN 이어조회 완료 · ${reviewStatus.label}`
               : task.registeredRuntimeRange === true ? '조회구간 RUN 이어조회 완료 · RUN 조회기준 유지'
               : task.partialTracking === true ? '확인 구간 RUN 이어조회 완료 · 교체 기록 이후 확인된 RUN'
-              : task.partialRange === true ? '일부 기간 RUN 이어조회 완료 · 교체 기준 확인 필요' : applied.message || '증분 운전시간 반영 완료' };
+              : applied.message || '증분 운전시간 반영 완료' };
         } catch (cause) {
           if ([401, 403].includes(Number(cause?.status))) throw cause;
           const uncertain = [0, 429, 502, 503, 504].includes(Number(cause?.status || 0));
@@ -929,7 +968,7 @@ DP_TAGS.add("203HRJ01AN602");
     return stop('처리 단위 한도 도달');
   }
 
-  return { fbheSealRunAsset, fbheSealRunView, freshReplacementQuery, replacementRangeTracking, plan, intermittent, snapshot, sameCycle, day, waitRequests, executeDataParc, executeDataParcBatch, executeOis, oisBody,
+  return { fbheSealRunAsset, fbheSealRunView, freshReplacementQuery, replacementRangeTracking, runReviewStatus, plan, intermittent, snapshot, sameCycle, day, waitRequests, executeDataParc, executeDataParcBatch, executeOis, oisBody,
     refreshLogs, refreshLogsForRuntime, readWithRetry, errorLabel,
     register(kind, fn) { if (!['fbhe','seal_pot'].includes(kind) || typeof fn !== 'function') throw new Error('Invalid OIS bridge'); bridges[kind] = fn; } };
 });

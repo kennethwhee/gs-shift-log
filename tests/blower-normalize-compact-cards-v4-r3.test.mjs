@@ -181,7 +181,7 @@ test('result summary labels only preexisting partial appends and does not presen
     ...Array.from({ length: 2 }, (_, i) => ({ tagNumber: `seed-${i}`, status: 'complete', message: 'Fixture fresh conservative range' })) ];
   const before = structuredClone(outcomes); ui.renderUnifiedRefreshProgress('Fixture', outcomes);
   assert.match(ui.elements.unifiedRefreshSummary.textContent, /반영 11대/);
-  assert.match(ui.elements.unifiedRefreshSummary.textContent, /일부 구간 이어조회 9대/);
+  assert.match(ui.elements.unifiedRefreshSummary.textContent, /기준·구간 확인 9대/);
   assert.match(ui.elements.unifiedRefreshSummary.textContent, /조회 보류 0대/);
   assert.doesNotMatch(ui.elements.unifiedRefreshSummary.textContent, /기준 확인 대상 이어조회/);
   assert.deepEqual(outcomes, before);

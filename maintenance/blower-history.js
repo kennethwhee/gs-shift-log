@@ -107,6 +107,7 @@
     unifiedRuntimeResumeOwner: "",
     unifiedFeedbackDismissed: false,
     dataparcRuntimeBusy: false,
+    dataparcConfirmedGapRecovery: null,
     dataparcRuntimeTag: "",
     dataparcRuntimeStatus: ""
   };
@@ -2761,6 +2762,9 @@
       `;
 
     if (partialCoverage) elements.historyCycleSummary.innerHTML += commonRunCoverageNotice(partialCoverage);
+    if (confirmedGapRecoveryProof(asset) && hasAuthenticatedWriteAccess() && !isMobileMonitoringView()) {
+      elements.historyCycleSummary.innerHTML += `<div class="run-history-note" data-confirmed-gap-recovery="true"><strong>확정된 교체시각부터 보완 조회 가능</strong><small>교체시각부터 현재까지 RUN을 다시 측정합니다. 성공하면 새 측정값으로 갱신하며 기존 조회 이력은 남습니다.</small><button type="button" class="button" data-mobile-write data-history-action="confirmed_gap_recovery" ${state.busy || state.unifiedRefreshBusy || state.dataparcRuntimeBusy ? "disabled" : ""}>누적 구간 보완 조회</button></div>`;
+    }
     if (trackedRun) {
       const originalHours = Number(asset.cycleElapsedHours);
       elements.historyCycleSummary.innerHTML += `<div class="run-history-note" data-limestone-run-audit="true">
@@ -10131,6 +10135,14 @@
     setDataparcRuntimeStatus(normalizedTag, "요청 중");
 
     try {
+      const recovery = signalOptions.confirmedGapRecovery;
+      if (recovery) {
+        if (recovery.proof.tagNumber !== normalizedTag || recovery.proof.dataParcTag !== dataParcTag ||
+            Date.parse(requestedStartAt) !== Date.parse(recovery.proof.startAt)) {
+          throw new Error("보완 조회의 설비·신호·교체시각이 변경됐습니다.");
+        }
+        await verifyFreshConfirmedGapRecovery(recovery.proof, recovery.owner);
+      }
       const createBody = {
         action: "create_blower_runtime_probe"
       };
@@ -10141,6 +10153,14 @@
       }
       const normalizedStartAt = String(requestedStartAt || "").trim();
       if (normalizedStartAt) createBody.startAt = normalizedStartAt;
+      if (recovery) Object.assign(createBody, {
+        unifiedRefresh: true, incrementalRefresh: false, requireIncrementalAppend: false,
+        expectedLastReplacementAt: recovery.proof.lastReplacementAt,
+        expectedCycleStartState: recovery.proof.cycleStartState,
+        expectedCycleStartedAt: recovery.proof.cycleStartedAt,
+        expectedCycleStartRevision: recovery.proof.cycleStartRevision,
+        expectedCycleRuntimeRevision: recovery.proof.cycleRuntimeRevision
+      });
 
       const created = await apiRequest({
         method: "POST",
@@ -10160,6 +10180,7 @@
 
       setDataparcRuntimeStatus(normalizedTag, "대기 중");
       await waitForDataparcRuntimeProbe(requestId, normalizedTag);
+      if (recovery) await verifyFreshConfirmedGapRecovery(recovery.proof, recovery.owner);
       setDataparcRuntimeStatus(normalizedTag, "저장 중");
 
       const applied = await apiRequest({
@@ -10184,11 +10205,94 @@
     }
   }
 
-  function openDataParcRuntimeDialog(tagNumber) {
+  // A partial measured interval is not enough to authorize a full-cycle query.
+  // This first recovery path is limited to Bag Filter clocks independently
+  // reconciled by the server from approved, minute-precision completion proof.
+  function confirmedGapRecoveryProof(asset) {
+    const basis = asset?.dataParcRuntimeBasis;
+    const automatic = asset?.replacementAutoCycle;
+    const coverage = asset ? commonRunCoverage(asset) : null;
+    const clock = Date.parse(automatic?.confirmedReplacementAt || "");
+    const start = Date.parse(basis?.startAt || "");
+    const end = Date.parse(basis?.observedAt || "");
+    const storedHours = asset?.cycleElapsedHours ?? asset?.runtimeHours;
+    if (asset?.blowerType !== "flyash_bag" || asset.enabled === false || asset.enabled === 0 ||
+        !isDataParcRuntimeAsset(asset) || asset.hasUnverifiedDataParcHistory !== false ||
+        !coverage?.replacementClockConfirmed || !coverage.basis ||
+        automatic?.timePrecision !== "minute" || automatic.completionClockConflict === true ||
+        basis?.coverageComplete !== false || basis.cycleBasisConfirmed !== true || basis.appendReady !== true ||
+        basis.confirmedGapRecoveryEligible !== true ||
+        !Number.isFinite(clock) || clock % 60000 !== 0 || !(clock < start && start < end) ||
+        clock !== Date.parse(basis.requiredStartAt || "") || clock !== Date.parse(asset.actualLastReplacementAt || "") ||
+        clock !== Date.parse(asset.lastReplacementAt || "") ||
+        !["legacy", "started"].includes(asset.cycleStartState) ||
+        !String(asset.cycleStartRevision || "").trim() || !String(asset.cycleRuntimeRevision || "").trim() ||
+        !String(basis.requestId || "").trim() || !isDataParcRunSignalTag(basis.dataParcTag) ||
+        basis.dataParcTag !== asset.dataParcTag ||
+        !Number.isSafeInteger(basis.runningSeconds) || basis.runningSeconds < 0 ||
+        !Number.isFinite(basis.runtimeHours) || Math.abs(basis.runtimeHours * 3600 - basis.runningSeconds) > 2 ||
+        !Number.isFinite(storedHours) || Math.abs(storedHours - basis.runtimeHours) > 0.000001) return null;
+    return {
+      tagNumber: asset.tagNumber, dataParcTag: basis.dataParcTag,
+      startAt: automatic.confirmedReplacementAt, lastReplacementAt: asset.lastReplacementAt,
+      cycleStartState: asset.cycleStartState,
+      cycleStartedAt: String(asset.cycleStoredStartedAt ?? asset.cycleStartedAt ?? ""),
+      cycleStartRevision: asset.cycleStartRevision, cycleRuntimeRevision: asset.cycleRuntimeRevision,
+      previousRequestId: basis.requestId, previousStartAt: basis.startAt, previousObservedAt: basis.observedAt,
+      previousRunningSeconds: basis.runningSeconds,
+      clockEventId: String(automatic.confirmedClockEventId || automatic.eventId || ""),
+      clockSourceHash: String(automatic.confirmedClockSourceSnapshotSha256 || automatic.sourceSnapshotSha256 || "")
+    };
+  }
+
+  async function verifyFreshConfirmedGapRecovery(proof, owner) {
+    const assertOwner = () => {
+      if (!owner || getSessionToken() !== owner || !hasAuthenticatedWriteAccess() || isMobileMonitoringView() ||
+          state.busy || state.unifiedRefreshBusy || state.backfillRunning ||
+          JSON.stringify(confirmedGapRecoveryProof(findAsset(proof.tagNumber))) !== JSON.stringify(proof)) {
+        throw new Error("조회 기준 또는 로그인 상태가 변경됐습니다. 새로고침 후 보완 조회를 다시 열어 주세요.");
+      }
+    };
+    assertOwner();
+    // Start at a known predecessor, then follow the server's sorted page cursor.
+    // This avoids re-reading all 27 assets for a single recovery.
+    let cursor = (state.data.assets || []).map(a => a.tagNumber).filter(tag => tag < proof.tagNumber).sort().at(-1) || "";
+    for (let pageIndex = 0; pageIndex < 64; pageIndex++) {
+      const page = await apiRequest({ url: API_URL + "?action=refresh_state_page&limit=2&cursor=" + encodeURIComponent(cursor), timeoutMs: 20000 });
+      assertOwner();
+      if (page?.ok !== true || page.version !== "blower-refresh-state-page-v1" || page.permissions?.canWrite !== true ||
+          !Array.isArray(page.assets) || page.assets.length > 2 || typeof page.done !== "boolean" ||
+          !Number.isFinite(Date.parse(page.generatedAt || "")) ||
+          page.assets.some((a, i) => !a || typeof a.tagNumber !== "string" || a.tagNumber <= cursor ||
+            (i > 0 && a.tagNumber <= page.assets[i - 1].tagNumber)) ||
+          (page.done ? page.nextCursor !== null : !page.assets.length || page.nextCursor !== page.assets.at(-1).tagNumber)) {
+        throw new Error("서버의 최신 교체 기준과 권한을 확인하지 못했습니다. 기존 값은 유지합니다.");
+      }
+      const asset = page.assets.find(a => a.tagNumber === proof.tagNumber);
+      if (asset) {
+        if (JSON.stringify(confirmedGapRecoveryProof(asset)) !== JSON.stringify(proof)) {
+          throw new Error("서버의 교체 기준 또는 누적값이 변경됐습니다. 새로고침 후 보완 조회를 다시 열어 주세요.");
+        }
+        return;
+      }
+      if (page.done || page.assets.some(a => a.tagNumber > proof.tagNumber)) break;
+      cursor = page.nextCursor;
+    }
+    throw new Error("보완 조회 대상 설비를 확인하지 못했습니다. 기존 값은 유지합니다.");
+  }
+
+  function openDataParcRuntimeDialog(tagNumber, options = {}) {
     if (stopMobileMutation() || state.dataparcRuntimeBusy) return;
 
     const normalizedTag = String(tagNumber || "").trim().toUpperCase();
     const asset = findAsset(normalizedTag);
+    const recovery = options.confirmedGap === true ? confirmedGapRecoveryProof(asset) : null;
+    state.dataparcConfirmedGapRecovery = null;
+    if (options.confirmedGap === true && (!recovery || !hasAuthenticatedWriteAccess() ||
+        state.busy || state.unifiedRefreshBusy || state.backfillRunning || !getSessionToken())) {
+      showToast("확정된 교체시각과 보완 조회 조건을 확인할 수 없습니다.", "error");
+      return;
+    }
 
     if (
       !isDataParcRuntimeAsset(asset) ||
@@ -10210,7 +10314,8 @@
     const minimumDate = explicitStartDate && !Number.isNaN(explicitStartDate.getTime()) && replacementMinuteCeiling
       ? new Date(Math.max(replacementMinuteCeiling.getTime(), Math.ceil(explicitStartDate.getTime() / 60000) * 60000))
       : replacementMinuteCeiling;
-    const minimumInput = minimumDate ? formatKstDateTimeInput(minimumDate) : "";
+    const minimumInput = recovery ? formatKstDateTimeInput(new Date(recovery.startAt))
+      : minimumDate ? formatKstDateTimeInput(minimumDate) : "";
     const previousBasis = getLatestDataParcRuntimeBasis(normalizedTag);
     const previousBasisDate = previousBasis
       ? new Date(previousBasis.startAt)
@@ -10222,7 +10327,8 @@
     elements.dataparcRuntimeDialogTag.value = normalizedTag;
     elements.dataparcRuntimeDialogAsset.textContent =
       `${asset.displayName} · ${asset.tagNumber}`;
-    elements.dataparcRuntimeStartAt.value = previousInput || minimumInput;
+    elements.dataparcRuntimeStartAt.value = recovery ? minimumInput : previousInput || minimumInput;
+    elements.dataparcRuntimeStartAt.readOnly = Boolean(recovery);
     elements.dataparcRuntimeStartAt.min = minimumInput;
     elements.dataparcRuntimeStartAt.max = formatKstDateTimeInput();
     elements.dataparcRuntimeMinimum.textContent = minimumInput
@@ -10236,11 +10342,12 @@
     const savedSignal = savedDataParcRunSignal(asset);
     const fixedSignal = normalizedTag === DATAPARC_RUNTIME_PILOT_TAG;
     elements.dataparcRuntimeSourceTag.value = savedSignal;
-    elements.dataparcRuntimeSourceTag.readOnly = fixedSignal;
+    elements.dataparcRuntimeSourceTag.readOnly = fixedSignal || Boolean(recovery);
     elements.dataparcRuntimeSourceTag.dataset.savedSignal = savedSignal;
     elements.dataparcRuntimeSourceSummary.textContent = savedSignal ? "운전 신호 설정 · 연결됨" : "운전 신호 설정 · 최초 1회";
     elements.dataparcRuntimeSourceSettings.open = !savedSignal;
     elements.dataparcRuntimeConfirmSignal.checked = Boolean(savedSignal);
+    elements.dataparcRuntimeConfirmSignal.disabled = Boolean(recovery);
     elements.dataparcRuntimeConfirmField.hidden = fixedSignal;
     elements.dataparcRuntimeSourceHelp.textContent = previousBasis?.coverageComplete === false || asset.cycleSourceReview
       ? "저장된 조회구간을 표시합니다. [최신화]로 마지막 성공 이후 RUN을 이어서 확인하며, 교체 기준 확인 전에는 전체 Cycle 누적으로 확정하지 않습니다."
@@ -10251,6 +10358,12 @@
       : window.BlowerUnifiedRefresh?.fbheSealRunAsset(asset)
         ? "현재 설비 TAG는 이력의 식별번호입니다. 임의로 AP/AN 또는 XB04를 바꾸지 말고 실제 1=기동·0=정지 RUN 전체 TAG를 입력해 주세요. 첫 조회는 확인된 실제 기동일이 있으면 그 시각부터, 없으면 교체일부터 RUN=1 구간만 합산합니다. 성공 후에는 [최신화]만 사용합니다."
         : "DataPARC에서 해당 설비의 RUN 신호 전체 TAG를 복사해 주세요. 조회·저장에 성공하면 다음부터 자동 입력됩니다.";
+    if (recovery) {
+      state.dataparcConfirmedGapRecovery = { proof: recovery, owner: getSessionToken() };
+      elements.dataparcRuntimeMinimum.textContent = `확정된 교체 완료 ${formatKstDateTimeDisplay(recovery.startAt)}부터 현재까지 다시 측정합니다.`;
+      elements.dataparcRuntimePreviousBasis.textContent = `기존 측정 구간: ${formatKstDateTimeDisplay(recovery.previousStartAt)} → ${formatKstDateTimeDisplay(recovery.previousObservedAt)}`;
+      elements.dataparcRuntimeSourceHelp.textContent = "누락 구간을 포함한 전체 기간의 RUN을 다시 측정합니다. 새 결과가 검증되면 누적값을 갱신합니다. 기존 값에 중복해서 더하지 않으며, 조회 실패 시 기존 값과 이력은 유지합니다.";
+    }
     elements.dataparcRuntimeDialog.showModal();
     window.setTimeout(() => (savedSignal ? elements.dataparcRuntimeStartAt : elements.dataparcRuntimeSourceTag).focus(), 0);
   }
@@ -10261,6 +10374,15 @@
 
     const tagNumber = String(elements.dataparcRuntimeDialogTag.value || "").trim().toUpperCase();
     const startAt = kstDateTimeInputToIso(elements.dataparcRuntimeStartAt.value);
+    const confirmedGapRecovery = state.dataparcConfirmedGapRecovery;
+    if (confirmedGapRecovery && (confirmedGapRecovery.owner !== getSessionToken() ||
+        !hasAuthenticatedWriteAccess() || state.busy || state.unifiedRefreshBusy || state.backfillRunning ||
+        JSON.stringify(confirmedGapRecoveryProof(findAsset(tagNumber))) !== JSON.stringify(confirmedGapRecovery.proof) ||
+        Date.parse(startAt) !== Date.parse(confirmedGapRecovery.proof.startAt) ||
+        elements.dataparcRuntimeSourceTag.value !== confirmedGapRecovery.proof.dataParcTag)) {
+      showToast("보완 조회 기준이 변경됐습니다. 새로고침 후 다시 열어 주세요.", "error");
+      return;
+    }
 
     if (!startAt) {
       showToast("계획정비 이후 DataPARC 조회 시작일시를 선택해 주세요.", "error");
@@ -10308,7 +10430,8 @@
       return;
     }
     elements.dataparcRuntimeDialog.close();
-    await syncDataParcBlowerRuntime(tagNumber, startAt, { dataParcTag, confirmRunSignal: true });
+    state.dataparcConfirmedGapRecovery = null;
+    await syncDataParcBlowerRuntime(tagNumber, startAt, { dataParcTag, confirmRunSignal: true, confirmedGapRecovery });
   }
 
   function openRecordDialog(mode, tagNumber, candidate = null) {
@@ -11264,7 +11387,7 @@
     const previews = results.filter(x => x.status === 'complete' && x.previewOnly === true).length;
     const partialContinued = results.filter(x => x.status === 'complete' && x.partialRange === true).length;
     const unchanged = results.filter(x => x.status === "complete" && (typeof inlineRefreshKeptResult === "function" ? inlineRefreshKeptResult(x) : x.unchanged === true) && x.previewOnly !== true).length;
-    elements.unifiedRefreshSummary.textContent = `통합조회 결과 · 반영 ${complete - unchanged - previews}대${previews ? ` · RUN 확인(누적 미반영) ${previews}대` : ""}${unchanged ? ` · 유지 ${unchanged}대` : ""}${partialContinued ? ` · 일부 구간 이어조회 ${partialContinued}대` : ""}${waiting ? ` · 확인 대기 ${waiting}대` : ""}${skipped || partialContinued ? ` · 조회 보류 ${skipped}대` : ""}${failed ? ` · 실패 ${failed}대` : ""}`;
+    elements.unifiedRefreshSummary.textContent = `통합조회 결과 · 반영 ${complete - unchanged - previews}대${previews ? ` · RUN 확인(누적 미반영) ${previews}대` : ""}${unchanged ? ` · 유지 ${unchanged}대` : ""}${partialContinued ? ` · 기준·구간 확인 ${partialContinued}대` : ""}${waiting ? ` · 확인 대기 ${waiting}대` : ""}${skipped || partialContinued ? ` · 조회 보류 ${skipped}대` : ""}${failed ? ` · 실패 ${failed}대` : ""}`;
     // Presentation only: keep the original result array, requests, and receipts intact.
     // Surface true failures above protected skipped assets, with stable order inside groups.
     const priority = { failed: 0, waiting: 1, skipped: 2, complete: 3 };
@@ -11611,6 +11734,11 @@
       if (!button || !state.historyAssetTag) return;
       const action = button.dataset.historyAction;
       const tagNumber = state.historyAssetTag;
+      if (action === "confirmed_gap_recovery") {
+        elements.historyDialog.close();
+        openDataParcRuntimeDialog(tagNumber, { confirmedGap: true });
+        return;
+      }
       if (action === 'limestone_basis_confirm') {
         openLimestoneBasisDialog(tagNumber);
         return;

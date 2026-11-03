@@ -1779,6 +1779,24 @@ function currentDataParcRuntimeBasis(asset, rows) {
   if (!asset?.last_replacement_at) return null;
   const replacement = Date.parse(asset.last_replacement_at);
   const explicitCycleStart = asset.cycle_start_state === "started" ? Date.parse(asset.cycle_started_at || "") : NaN;
+  // A later automatically imported changeover is not proof that the new belt
+  // never ran before that switch. A confirmed Bag Filter replacement may own
+  // a full measured receipt from its completion clock, but only when the
+  // current startup is the unchanged automatic changeover (never a manual or
+  // unknown startup). Reuse the strict same-owner clock and receipt proofs.
+  const startupOwners = asset.blower_type === "flyash_bag" && Number.isFinite(explicitCycleStart)
+    ? (rows || []).filter(row => row.tag_number === asset.tag_number &&
+      ["startup", "operation_start"].includes(row.event_type) && Date.parse(row.event_date) === explicitCycleStart)
+    : [];
+  const automaticChangeover = startupOwners.length > 0 && startupOwners.every(row =>
+    row.source_type === "shift_log_operation_auto" && String(row.id || "").startsWith("operation-auto:") &&
+    Boolean(normalizeText(row.source_log_id)) && Boolean(normalizeText(row.source_text)) &&
+    normalizeText(row.updated_at) === normalizeText(row.created_at));
+  const completionProof = automaticChangeover ? replacementAutoCycleProof(asset, rows) : null;
+  const confirmedChangeover = completionProof?.completionClockReconciled === true &&
+    completionProof.clockKnown === true && completionProof.timePrecision === "minute" &&
+    completionProof.completionClockConflict !== true &&
+    Date.parse(completionProof.confirmedReplacementAt) === replacement;
   for (const row of rows || []) {
     if (row.tag_number !== asset.tag_number || row.source_type !== DATAPARC_RUNTIME_SYNC_SOURCE_TYPE || row.event_type !== "runtime_correction") continue;
     let source; try { source = JSON.parse(row.source_text); } catch { continue; }
@@ -1792,12 +1810,14 @@ function currentDataParcRuntimeBasis(asset, rows) {
       source.expectedCycleStartState === "legacy" &&
       source.signalOnlyCycle === true &&
       !normalizeText(source.expectedCycleStartedAt);
+    const confirmedFullRange = confirmedChangeover && start === replacement &&
+      verifiedAppendBase(asset, rows, source.dataParcTag)?.requestId === source.requestId;
     if (source.assetTag !== asset.tag_number || source.requestType !== DATAPARC_RUNTIME_PROBE_REQUEST_TYPE ||
         row.id !== dataParcRuntimeSyncEventId(source.requestId) || row.source_log_id !== source.requestId ||
         !isSupportedDataParcRuntimePair(asset.tag_number, source.dataParcTag) ||
         !Number.isFinite(start) || !Number.isFinite(observed) || start < replacement || observed < start ||
         (Number.isFinite(explicitCycleStart) && start < explicitCycleStart &&
-          !(limestoneAutoApply(asset) && start === replacement)) ||
+          !(limestoneAutoApply(asset) && start === replacement) && !confirmedFullRange) ||
         source.manualOverride === true || Boolean(source.manualOverride?.changedAt) ||
         normalizeText(row.updated_at) !== normalizeText(row.created_at) ||
         Date.parse(source.expectedLastReplacementAt) !== replacement ||
@@ -1819,7 +1839,9 @@ function currentDataParcRuntimeBasis(asset, rows) {
       missingLeadingSeconds: coverage.missingLeadingSeconds,
       appendReady: Boolean(append && append.requestId === source.requestId),
       runningSeconds: incremental ? incremental.totalRunningSeconds : source.runningSeconds,
-      lastQueryStartAt: source.startAt, lastAddedSeconds: incremental ? incremental.deltaRunningSeconds : null };
+      lastQueryStartAt: source.startAt, lastAddedSeconds: incremental ? incremental.deltaRunningSeconds : null,
+      ...(confirmedChangeover && start > replacement && append?.requestId === source.requestId
+        ? { confirmedGapRecoveryEligible: true } : {}) };
   }
   return null;
 }
