@@ -121687,3 +121687,86 @@ html body #efficiencyArmRollTab.efficiency-team-tab .icon {
   }
 }
 /* GS_SEARCH_LOG_SPACING_V1_END */
+
+
+/* GS_MECHANICAL_PREVIEW_LAYOUT_V4_BEGIN */
+/* Only the team extraction preview is resized. Workbook parsing, stored values,
+   upload controls and final XLSX formatting are unchanged. */
+#efficiencyMorningMeetingPreviewList {
+  min-width: 0;
+  min-height: 200px;
+  height: 640px;
+  height: min(62vh, 640px);
+  max-height: 850px;
+  max-height: min(82vh, 850px);
+  padding: 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  resize: vertical;
+  align-items: start;
+  align-content: start;
+  scrollbar-gutter: stable;
+  border: 1px solid #d4dfeb;
+  border-radius: 8px;
+}
+
+#efficiencyMorningMeetingPreviewList [data-morning-meeting-preview-team="mechanical"] {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+  align-items: start;
+}
+
+#efficiencyMorningMeetingPreviewList [data-morning-meeting-preview-team="mechanical"] > .efficiency-morning-meeting-preview-card__header,
+#efficiencyMorningMeetingPreviewList [data-morning-meeting-preview-team="mechanical"] > [data-morning-meeting-outsourced-work="mechanical"] {
+  grid-column: 1 / -1;
+}
+
+#efficiencyMorningMeetingPreviewList [data-morning-meeting-preview-team="mechanical"] > .efficiency-morning-meeting-preview-section {
+  min-width: 0;
+  margin-top: 0 !important;
+}
+
+#efficiencyMorningMeetingPreviewList [data-morning-meeting-preview-team="mechanical"] textarea {
+  height: 128px;
+  min-height: 112px !important;
+  max-height: 240px;
+  padding: 8px;
+  overflow: auto;
+  resize: vertical;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+#efficiencyMorningMeetingPreviewList .mechanical-outsourced-preview-v4__scroll:focus-visible {
+  outline: 2px solid #3b82c4;
+  outline-offset: 2px;
+}
+
+#efficiencyMorningMeetingPreviewList .mechanical-outsourced-preview-v4__empty {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 600px) {
+  #efficiencyMorningMeetingPreviewList {
+    min-height: 180px;
+    padding: 5px;
+  }
+}
+
+@supports (field-sizing: content) {
+  #efficiencyMorningMeetingPreviewList [data-morning-meeting-preview-team="mechanical"] textarea {
+    field-sizing: content;
+    height: auto;
+  }
+}
+
+@media (max-width: 760px) {
+  #efficiencyMorningMeetingPreviewList [data-morning-meeting-preview-team="mechanical"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* GS_MECHANICAL_PREVIEW_LAYOUT_V4_END */

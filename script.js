@@ -144342,25 +144342,22 @@ function cleanMorningMeetingSectionRows(
 function renderMorningMeetingOutsourcedWorkPreview(result) {
   const table = result?.teamKey === "mechanical" ? result.outsourcedWork : null;
   if (!table || !Array.isArray(table.headers) || table.headers.length !== 6 || !Array.isArray(table.rows)) return "";
-  const fallbackWidths = [8.377, 41.883, 12.565, 8.377, 12.341, 16.458];
-  const widths = Array.isArray(table.columnWidths) && table.columnWidths.length === 6 &&
-      table.columnWidths.every(width => Number.isFinite(Number(width)) && Number(width) > 0)
-    ? table.columnWidths.map(Number) : fallbackWidths;
-  const totalWidth = widths.reduce((sum, width) => sum + width, 0);
-  const cellStyle = "padding:3px 5px;border-bottom:1px dotted #9ca3af;text-align:center;vertical-align:middle;white-space:pre-line;overflow-wrap:anywhere;";
+  const widths = [7, 37, 13, 16, 14, 13];
+  const cellStyle = "padding:3px 4px!important;border-right:1px solid #d8e2ed;border-bottom:1px solid #d8e2ed;text-align:center;vertical-align:top;white-space:pre-line;overflow-wrap:anywhere;font-family:inherit;font-size:11px!important;line-height:1.4!important;";
   const rows = table.rows.length ? table.rows : [Array(6).fill("")];
   return `
-    <div class="efficiency-morning-meeting-preview-section" data-morning-meeting-outsourced-work="mechanical">
+    <div class="efficiency-morning-meeting-preview-section mechanical-outsourced-preview-v4" data-morning-meeting-outsourced-work="mechanical" style="grid-column:1/-1;min-width:0;">
       <div class="efficiency-morning-meeting-preview-section__title">
         <strong>◇ 외주공사</strong><span>${table.rows.length}건</span>
       </div>
-      <div style="overflow-x:auto;">
-        <table aria-label="기계팀 외주공사" style="width:100%;min-width:680px;border-collapse:collapse;table-layout:fixed;font-family:Arial,sans-serif;font-size:11pt;border:1px solid #374151;">
-          <colgroup>${widths.map(width => `<col style="width:${(width / totalWidth * 100).toFixed(4)}%;">`).join("")}</colgroup>
-          <thead><tr>${table.headers.map(header => `<th scope="col" style="${cellStyle}background:#9DC3E6;color:#111827;font-weight:normal;">${escapeMorningMeetingHtml(header)}</th>`).join("")}</tr></thead>
-          <tbody>${rows.map(row => `<tr>${Array.from({ length: 6 }, (_, column) => `<td style="${cellStyle}">${escapeMorningMeetingHtml(row[column] ?? "")}</td>`).join("")}</tr>`).join("")}</tbody>
+      <div class="mechanical-outsourced-preview-v4__scroll" role="region" aria-label="기계팀 외주공사 가로·세로 스크롤" tabindex="0" style="position:relative;width:100%;min-width:0;max-width:100%;max-height:300px;max-height:min(36vh,300px);overflow:auto!important;overscroll-behavior:contain;border:1px solid #ccd8e5;border-radius:5px;">
+        <table aria-label="기계팀 외주공사" style="width:100%!important;min-width:440px!important;margin:0!important;border-collapse:separate!important;border-spacing:0;table-layout:fixed;font-family:inherit;font-size:11px!important;line-height:1.4!important;border:0!important;">
+          <colgroup>${widths.map(width => `<col style="width:${width}%!important;">`).join("")}</colgroup>
+          <thead><tr>${table.headers.map(header => `<th scope="col" style="${cellStyle}position:sticky;top:0;z-index:1;vertical-align:middle;background:#9DC3E6;color:#111827;font-weight:700;">${escapeMorningMeetingHtml(header)}</th>`).join("")}</tr></thead>
+          <tbody>${rows.map(row => `<tr>${Array.from({ length: 6 }, (_, column) => `<td style="${cellStyle}${column === 1 || column === 5 ? "text-align:left;" : ""}">${escapeMorningMeetingHtml(row[column] ?? "")}</td>`).join("")}</tr>`).join("")}</tbody>
         </table>
       </div>
+      ${table.rows.length ? "" : '<p class="mechanical-outsourced-preview-v4__empty" role="status" style="margin:6px 0 0;color:#65809f;font-size:11px;line-height:1.4;">선택한 원본에 외주공사 내역이 없습니다.</p>'}
     </div>
   `;
 }
