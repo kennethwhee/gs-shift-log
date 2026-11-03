@@ -1,10 +1,11 @@
-import { inspectVbeltAnnotations, annotationControlsFragment } from '../_shared/diary-vbelt-confirm-v1.js';
 import { handleBlowerSchedule } from "../_shared/blower-schedule-v1.js";
 import { incrementalEvidence, verifiedAppendBase, loadAppendBase, loadAppendIntent, combineAppendProbe, cycleRuntimeCoverage } from "../_shared/blower-incremental.js";
 import { reviewedCycleSourceWarning } from "../_shared/blower-cycle-source-review.js";
 import { reconcileApprovedReplacementLog, replacementAutoCycleProof, isReplacementAutoRevision } from "../_shared/blower-replacement-auto-v3.js";
 import { collectApprovedReplacementFacts } from "../_shared/blower-replacement-facts-v3.js";
-import { REPLACEMENT_ANALYSIS_VERSION, loadApprovedReplacementPage, storeReplacementLogReceipts, replacementSourceGuard } from "../_shared/blower-replacement-log-source-v3.js";
+import { inspectVbeltAnnotations, annotationControlsFragment } from '../_shared/diary-vbelt-confirm-v1.js';
+import { reconcileCurrentRuntimeRecoveryV4 } from "../_shared/blower-normalize-recovery-v4.js";
+import { REPLACEMENT_ANALYSIS_VERSION, REPLACEMENT_NORMALIZE_ANALYSIS_VERSION, loadApprovedReplacementPage, storeReplacementLogReceipts, replacementSourceGuard } from "../_shared/blower-replacement-log-source-v3.js";
 import { MANURE_INITIAL_RUN_CONFIG, initializeManureInitialRun, manureInitialRunBasis,
   manureInitialRunProjection, loadManureInitialAudit, configuredManureRunSignal,
   isProtectedManureInitialEvent } from "../_shared/blower-manure-initial-run-v1.js";
@@ -348,6 +349,7 @@ const TYPE_CONTEXT_KEYWORDS = {
   fbhe: ["fbhe", "hhl60"],
   seal_pot: ["seal pot", "sealpot", "hhl10"],
   organic_fuel: ["유기성 고형연료", "유기성고형연료", "organic fuel", "sdf01"],
+  limestone: ["limestone blower", "lime stone blower", "석회석 blower", "석회석 블로워", "hrj01"],
   flyash_bag: ["fly ash bag filter", "flyash bag filter", "bag filter aeration", "etg30"],
   flyash_silo: ["fly ash silo", "flyash silo", "silo aeration", "eth03"]
 };
@@ -356,6 +358,7 @@ const TYPE_IDENTITY_LABELS = {
   fbhe: "FBHE",
   seal_pot: "Seal Pot",
   organic_fuel: "유기성 고형연료",
+  limestone: "Limestone Blower",
   flyash_bag: "Fly Ash Bag Filter Aeration",
   flyash_silo: "Fly Ash Silo Aeration"
 };
@@ -1575,6 +1578,24 @@ async function readReplacementAutoCycleProof(database, asset) {
   return replacementAutoCycleProof(asset, result.results || []);
 }
 
+// A V4 date-only job may measure a conservative range strictly after its
+// source shift. This never certifies the missing physical replacement clock.
+// Runtime ownership remains checked against the request/append receipt below.
+function normalizationRangeAuthorized(asset, proof, probe, appendIntent) {
+  if (proof?.normalizationVersion !== 4 || proof.rangeTrackingAllowed !== true ||
+      proof.registeredRuntimeRange === true ||
+      proof.cycleStartRevision !== normalizeText(asset.cycle_start_revision)) return false;
+  const from = parseDataParcRuntimeInstant(proof.rangeStartAt);
+  const replacement = parseDataParcRuntimeInstant(asset.last_replacement_at);
+  const actual = parseDataParcRuntimeInstant(probe.incremental?.coverageStartAt || probe.startAt);
+  if (!from || !replacement || !actual || Date.parse(proof.rangeStartAt) <= Date.parse(asset.last_replacement_at) ||
+      Date.parse(proof.rangeStartAt) !== Date.parse(probe.incremental?.coverageStartAt || probe.startAt)) return false;
+  if (appendIntent) return true;
+  return proof.rangeQueryEligible === true && asset.cycle_start_state === "pending" &&
+    !normalizeText(asset.cycle_started_at) && Number(asset.cycle_runtime_hours) === 0 && Number(asset.runtime_hours) === 0 &&
+    proof.cycleRuntimeRevision === normalizeText(asset.cycle_runtime_revision);
+}
+
 async function loadCandidates(database, status = "pending", limit = 200) {
   const safeStatus = ["pending", "confirmed", "excluded", "auto_confirmed"].includes(status)
     ? status
@@ -1964,13 +1985,26 @@ async function loadAssetStates(database, settings, options = {}) {
     }
     const replacementAutoCycle = normalizeText(asset.last_replacement_at)
       ? replacementAutoCycleProof(asset, runtimeRows) : null;
-    const cycleSourceReview = reviewedCycleSourceWarning(asset, runtimeRows) ||
+    const normalizationReview = replacementAutoCycle?.normalizationVersion === 4 &&
+      (replacementAutoCycle.registeredRuntimeRange || replacementAutoCycle.rangeTrackingAllowed || replacementAutoCycle.completionClockConflict)
+      ? { code: replacementAutoCycle.registeredRuntimeRange ? "VERIFIED_RUNTIME_RANGE" : "REPLACEMENT_RECORDED_RANGE",
+        cycleBasisConfirmed: false, measuredRangeMayContinue: true,
+        message: replacementAutoCycle.registeredRuntimeRange
+          ? "기존 검증된 조회구간 RUN을 보존했습니다. 벨트 교체 완료시각은 별도로 확인하며, 이 값을 전체 벨트 운전시간으로 확정하지 않습니다."
+          : replacementAutoCycle.completionClockConflict
+            ? "승인 원문의 완료 시각이 기존 등록 기준과 달라 등록값과 검증된 RUN 구간을 보존했습니다."
+            : "교체 완료 사실을 반영하고 작업일지 근무 종료 이후의 확인 가능한 RUN 구간만 계산합니다. 미확인 앞 구간을 추정하지 않습니다." }
+      : null;
+    const cycleSourceReview = normalizationReview || reviewedCycleSourceWarning(asset, runtimeRows) ||
       (replacementAutoCycle && !replacementAutoCycle.clockKnown && !replacementAutoCycle.registeredBaseline
         ? { code: "REPLACEMENT_COMPLETION_TIME_MISSING", cycleBasisConfirmed: false,
           measuredRangeMayContinue: false,
           message: "승인 업무일지의 벨트 교체 완료는 자동 반영됐습니다. 완료 시각은 미기록이므로 날짜를 자정 완료로 간주하지 않습니다." }
         : null);
-    if (cycleSourceReview && runtimeBasis) runtimeBasis.cycleBasisConfirmed = false;
+    if (cycleSourceReview && runtimeBasis) {
+      runtimeBasis.cycleBasisConfirmed = false;
+      if (normalizationReview) runtimeBasis.coverageComplete = false;
+    }
     const initialBasis = manureInitialRunProjection(asset, runtimeRows, initialRunAudit);
     return { ...buildAssetState(
       asset,
@@ -1985,7 +2019,7 @@ async function loadAssetStates(database, settings, options = {}) {
       dataParcRuntimeBasis: runtimeBasis,
       ...(replacementAutoCycle ? { replacementAutoCycle } : {}),
       ...(cycleSourceReview ? { cycleSourceReview, actualLastReplacementAt: "",
-        cycleBasisKind: "replacement_source_review" } : {}),
+        cycleBasisKind: replacementAutoCycle?.registeredRuntimeRange ? "verified_runtime_range" : "replacement_source_review" } : {}),
       ...(runRuntime ? { runRuntime } : {}),
       ...(runtimeBasis?.coverageComplete === false || cycleSourceReview
         ? { remainingHours: null, progressPct: null, severity: "runtime_unknown" } : {}),
@@ -1998,7 +2032,8 @@ async function loadAssetStates(database, settings, options = {}) {
       // A lightweight plan must not turn an unverified saved result into a
       // fresh full-range query merely because event-list fallback was removed.
       ...(options.planning ? { hasUnverifiedDataParcHistory: !runtimeBasis &&
-        !replacementAutoCycle?.freshQueryEligible && runtimeRows.some(row => dataParcRecordBelongsToCurrentCycle(asset, row)) } : {}) };
+        !replacementAutoCycle?.freshQueryEligible && !replacementAutoCycle?.rangeQueryEligible &&
+        runtimeRows.some(row => dataParcRecordBelongsToCurrentCycle(asset, row)) } : {}) };
   });
 }
 
@@ -2147,6 +2182,7 @@ async function buildFullData(database, user) {
 
   return {
     ok: true,
+    replacementNormalizationVersion: 4,
     user: user || null,
     permissions: buildPermissions(user),
     types: TYPE_DEFINITIONS,
@@ -4691,7 +4727,7 @@ async function handleGet(context, user) {
     const result = await database.prepare(`SELECT tag_number,blower_type,unit_no,asset_group,position_label,display_name
       FROM blower_history_assets WHERE enabled=1 ORDER BY sort_order,tag_number`).all();
     if (!Array.isArray(result?.results) || result.success === false) throw new Error('Replacement asset list unavailable');
-    return jsonResponse({ok:true,assets:result.results.map(asset => ({
+    return jsonResponse({ok:true,assets:result.results.map(asset=>({
       tagNumber:asset.tag_number,equipmentName:asset.display_name,displayName:asset.display_name,
       blowerType:asset.blower_type,unitNo:asset.unit_no,assetGroup:asset.asset_group,positionLabel:asset.position_label
     }))});
@@ -6353,6 +6389,11 @@ async function registerStartup(database, user, body, source = {}) {
       return jsonResponse({ ok: false, code: "REPLACEMENT_COMPLETION_CLOCK_REQUIRED",
         message: "교체 완료는 자동 반영됐지만 완료 시각이 없어 이후 기동을 새 벨트의 첫 기동으로 단정하지 않습니다." }, 409);
     }
+    // Signal-only cycles intentionally remain pending while measured RUN grows.
+    // A later changeover is not permission to zero that measured replacement
+    // cycle or to discard the interval before the first documented changeover.
+    return jsonResponse({ ok: false, code: "REPLACEMENT_BINARY_RUN_REQUIRED",
+      message: "자동 교체 Cycle의 시간과 현재 상태는 RUN 조회로 갱신합니다. 교체운전 기록으로 누적시간을 초기화하지 않습니다." }, 409);
   }
 
   const latestRuntimeBoundary = await loadLatestExplicitRuntimeBoundary(database, asset);
@@ -7698,9 +7739,10 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
     }, 404);
   }
 
+  const replacementProof = isReplacementAutoRevision(asset) ? await readReplacementAutoCycleProof(database, asset) : null;
+  const normalizationRange = normalizationRangeAuthorized(asset, replacementProof, probe, appendIntent);
   if (isReplacementAutoRevision(asset)) {
-    const proof = await readReplacementAutoCycleProof(database, asset);
-    if (!proof || (!proof.clockKnown && !proof.registeredBaseline)) {
+    if (!replacementProof || (!replacementProof.clockKnown && !replacementProof.registeredBaseline && !normalizationRange)) {
       return jsonResponse({ ok: false, code: "BLOWER_REPLACEMENT_TIME_REQUIRED",
         message: "교체 완료 이력은 자동 반영됐습니다. 완료 시각 미기록 값을 자정으로 간주해 RUN을 합산하지 않습니다." }, 409);
     }
@@ -7726,7 +7768,7 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
   // A certificate authorizes a full cycle measurement, not an arbitrary recent
   // subrange labelled as its whole total. Subsequent appends must retain that
   // same certified coverage start through their server-owned base receipt.
-  if ((limestoneBasisConfirmed(asset) || savedBaselineAuto) && !appendIntent &&
+  if ((limestoneBasisConfirmed(asset) || savedBaselineAuto) && !appendIntent && !normalizationRange &&
       Date.parse(probe.startAt) !== Date.parse(asset.last_replacement_at)) {
     return jsonResponse({ ok: false, code: 'LIMESTONE_BASIS_FULL_RANGE_REQUIRED',
       message: 'Limestone 누적시간은 저장된 교체 기준시각부터 전체 RUN 구간을 조회해야 합니다.' }, 409);
@@ -7763,7 +7805,7 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
   }
 
   const coverage = cycleRuntimeCoverage(asset, probe.incremental?.coverageStartAt || probe.startAt);
-  if (!coverage.complete && !appendIntent) {
+  if (!coverage.complete && !appendIntent && !normalizationRange) {
     return jsonResponse({ ok: false, code: "DATAPARC_RUNTIME_FULL_CYCLE_REQUIRED",
       message: "누적 운전시간은 저장된 교체·기동 기준부터 전체 RUN 구간을 확인해야 합니다. 기존 누적값은 유지합니다.",
       requiredStartAt: coverage.requiredStartAt, coverageStartAt: coverage.coverageStartAt,
@@ -7772,7 +7814,7 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
 
   if (appendIntent) {
     const base = await loadAppendBase(database, asset, probe.dataParcTag);
-    if ((limestoneBasisConfirmed(asset) || savedBaselineAuto) && base &&
+    if ((limestoneBasisConfirmed(asset) || savedBaselineAuto) && !normalizationRange && base &&
         Date.parse(base.startAt) !== Date.parse(asset.last_replacement_at)) {
       return jsonResponse({ ok: false, code: 'LIMESTONE_BASIS_FULL_RANGE_REQUIRED',
         message: '저장된 교체 기준시각부터 검증된 전체 RUN 누적 기준이 없어 증분 반영할 수 없습니다.' }, 409);
@@ -8179,7 +8221,7 @@ function normalizeDutyPosition(value) {
     return compact;
   }
 
-  if (["PARTLEADER", "SHIFTLEADER"].includes(compact)) {
+  if (["PARTLEADER", "SHIFTLEADER", "GROUPLEADER"].includes(compact)) {
     return "PART_LEADER";
   }
 
@@ -12198,7 +12240,7 @@ async function scanShiftLogs(database, user, body, prepared = null) {
 
   for (const row of logs) {
     const annotations = inspectVbeltAnnotations(row);
-    const rawFragments = parseOnce(row).filter(fragment => !annotationControlsFragment(annotations, fragment));
+    const rawFragments = parseOnce(row).filter(fragment=>!annotationControlsFragment(annotations,fragment));
     const prioritized = applyDutyRolePriority(row, rawFragments, rolePriorityContext, recognitionAssets);
 
     if (prioritized.excludedPartLeader) {
@@ -13394,6 +13436,7 @@ function v13DetectTypes(text) {
 
   if (/(?:\bfbhe\b|\bfhbe\b|hhl60)/i.test(normalized)) found.add('fbhe');
   if (/(?:seal\s*pot|sealpot|hhl10)/i.test(normalized)) found.add('seal_pot');
+  if (/(?:\blime\s*stone\s*(?:blower|blwr)\b|석회석\s*(?:blower|블로워)|hrj01)/i.test(normalized)) found.add('limestone');
   if (/(?:유기성\s*고형연료|유기성고형연료|organic\s*fuel|sdf01)/i.test(normalized)) found.add('organic_fuel');
   if (hasManureBlowerContext(text)) found.add('organic_fuel');
 
@@ -13478,6 +13521,12 @@ function v13DirectBeltPositions(text) {
   const found = new Set();
   const beltWord = '(?:V\\s*[-/]?\\s*BELT|VBELT|BELT|V\\s*[-/]?\\s*벨트|V벨트|벨트)';
 
+  // Native logs also use "Blower 1-A Belt". This directly scoped position
+  // must override a preceding foreign Feeder #B maintenance locator.
+  for (const match of normalized.matchAll(new RegExp(
+    `(?:^|[^0-9A-Z])([12])\\s*[-_/]\\s*#?\\s*([ABC])\\s*${beltWord}`, 'g'
+  ))) found.add(`#${match[2]}`);
+
   // Belt 바로 앞의 단일/목록 위치만 직접 대상으로 본다.
   // 교체운전 화살표의 출발/도착 위치는 이 패턴에 들어오지 않는다.
   const listBeforeBelt = new RegExp(
@@ -13541,7 +13590,8 @@ function v13IdentityFromText(text, role, assets, structuredText = '') {
   const explicitUnits = new Set(detectUnitNos(semanticCombined));
   const directPositions = new Set(v13DirectBeltPositions(semanticSource));
   const broadPositions = new Set(detectTextPositionLabels(semanticCombined));
-  const switchLike = /(?:교체운전|교체\s*운전|->|→)/i.test(source);
+  // A leading continuation bullet is not an A→B operational selector.
+  const switchLike = /(?:교체운전|교체\s*운전|->|→)/i.test(source.replace(/^(?:->|=>|→|➡|⇒)\s*/, ''));
   const sourceHasBeltAction = v13HasDirectBeltAction(source) || hasBeltReplacementPhrase(source);
   const explicitPositions = new Set(
     directPositions.size > 0
@@ -15262,7 +15312,17 @@ async function reflectApprovedReplacementPageV3(database, user, body, options = 
       message: "승인 업무일지 교체 자동 반영 단계를 확인해 주세요." }, 400);
   }
   await ensureIncrementalLogSchema(database);
-  const page = await loadApprovedReplacementPage(database, body, options);
+  const normalizationV4 = body.normalizationVersion === 4;
+  let normalizationRecovery = null;
+  if (normalizationV4 && body.window == null && body.cursor == null) {
+    normalizationRecovery = await reconcileCurrentRuntimeRecoveryV4(database, user,
+      { now: options.now || new Date() });
+    if (!normalizationRecovery.ok) return jsonResponse({ ok: false, code: normalizationRecovery.code || "BLOWER_NORMALIZATION_CONFLICT",
+      message: "보존된 RUN 복구 근거 또는 현재 상태가 변경되어 자동으로 덮어쓰지 않았습니다.",
+      normalizationRecovery }, normalizationRecovery.status || 409);
+  }
+  const page = await loadApprovedReplacementPage(database, body,
+    { ...options, ...(normalizationV4 ? { analysisVersion: 4 } : {}) });
   const stored = await database.prepare(`SELECT * FROM blower_history_assets ORDER BY sort_order,tag_number`).all();
   const recognitionAssets = stored.results || [];
   const activeAssets = recognitionAssets.filter(asset => Number(asset.enabled) === 1);
@@ -15292,7 +15352,9 @@ async function reflectApprovedReplacementPageV3(database, user, body, options = 
     const annotations = inspectVbeltAnnotations(row);
     const applied = await reconcileApprovedReplacementLog(database, actor, row, facts,
       { now: options.now || new Date(), sourceGuard: replacementSourceGuard(row),
-        preserveSourceEntryIds: annotations.entryIds, preserveUnkeyedAutomaticEvents: annotations.hasAnnotations });
+        preserveSourceEntryIds: annotations.entryIds,
+        preserveUnkeyedAutomaticEvents: annotations.hasAnnotations,
+        ...(normalizationV4 ? { normalizationVersion: 4 } : {}) });
     if (!applied.ok) return jsonResponse({ ok: false, code: applied.code,
       message: "업무일지 또는 교체 기준이 처리 중 바뀌었습니다. 완료된 원문은 보존하고 변경된 원문은 다시 확인합니다." }, applied.status || 409);
     for (const key of Object.keys(totals)) totals[key] += Number(applied[key] || 0);
@@ -15303,7 +15365,10 @@ async function reflectApprovedReplacementPageV3(database, user, body, options = 
   // per-asset transactions are idempotent when the exact source page is retried.
   await storeReplacementLogReceipts(database, page.logs, options.now || new Date());
   return jsonResponse({ ok: true, version: "bounded-logs-v1", replacementAutoVersion: 3,
-    replacementAnalysisVersion: REPLACEMENT_ANALYSIS_VERSION, incrementalLogs: true, phase: "replacement",
+    ...(normalizationV4 ? { normalizationVersion: 4 } : {}),
+    ...(normalizationRecovery ? { normalizationRecovery } : {}),
+    replacementAnalysisVersion: normalizationV4 ? REPLACEMENT_NORMALIZE_ANALYSIS_VERSION : REPLACEMENT_ANALYSIS_VERSION,
+    incrementalLogs: true, phase: "replacement",
     window: page.window, limit: page.limit, done: page.done, nextCursor: page.nextCursor,
     scannedLogCount: page.logs.length, detectedCount, insertedCount: totals.applied + totals.historical,
     autoAppliedReplacementCount: totals.applied, autoCorrectedReplacementCount: totals.corrected,
@@ -15568,6 +15633,7 @@ export async function onRequestPost(context) {
 
 /* Node 회귀 테스트에서 V13 복구와 Cycle 상태 경계를 실제 SQLite로 검증한다. */
 export const __blowerHistoryTest = {
+  normalizationRangeAuthorized,
   registerStartup,
   reflectApprovedReplacementPageV3, dataParcRecordBelongsToCurrentCycle, publicReplacementAutoSource, loadEvents,
   MANURE_INITIAL_RUN_CONFIG, initializeManureInitialRun, manureInitialRunBasis, manureInitialRunProjection,

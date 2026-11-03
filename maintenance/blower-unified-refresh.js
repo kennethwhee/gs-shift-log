@@ -54,6 +54,14 @@ DP_TAGS.add("203HRJ01AN602");
   function fbheSealRunAsset(a) {
     return /^(?:104|204)HHL(?:60AP|10AN)(?:611|621|631)$/.test(String(a?.tagNumber || '').trim().toUpperCase());
   }
+  function replacementRangeTracking(a) {
+    const p = a?.replacementAutoCycle, start = time(p?.rangeStartAt), replacement = time(a?.lastReplacementAt);
+    return p?.schemaVersion === 3 && p.normalizationVersion === 4 && p.rangeTrackingAllowed === true &&
+      p.registeredRuntimeRange !== true && p.timePrecision === 'day' && p.clockKnown !== true &&
+      Number.isFinite(start) && Number.isFinite(replacement) && start > replacement && start - replacement <= 3 * DAY &&
+      (start + 9 * 3600000) % DAY === 0 &&
+      Math.floor((start + 9 * 3600000) / DAY) > Math.floor((replacement + 9 * 3600000) / DAY);
+  }
   function freshReplacementQuery(a, now) {
     const proof = a?.replacementAutoCycle;
     const isNumber = value => value !== null && value !== undefined && typeof value !== 'boolean' &&
@@ -64,9 +72,15 @@ DP_TAGS.add("203HRJ01AN602");
     const resetCheckpoint = current.length ? current.every(value => value === 0)
       : proof?.storedRuntimeHours === 0 && proof?.storedLegacyRuntimeHours === 0;
     const end = now instanceof Date ? now.getTime() : time(now);
-    const start = time(proof?.requiredStartAt), replacement = time(a?.lastReplacementAt);
-    if (proof?.schemaVersion !== 3 || proof.requiresRunRefresh !== true || proof.freshQueryEligible !== true ||
-        (proof.clockKnown !== true && proof.registeredBaseline !== true) ||
+    const range = replacementRangeTracking(a) && proof?.rangeQueryEligible === true;
+    if (range && (proof.cycleStartRevision !== a.cycleStartRevision || proof.cycleRuntimeRevision !== a.cycleRuntimeRevision ||
+        a.cycleStartState !== 'pending' || String(a.cycleStoredStartedAt ?? a.cycleStartedAt ?? '').trim() ||
+        proof.storedRuntimeHours !== 0 || proof.storedLegacyRuntimeHours !== 0)) return null;
+    const startAt = range ? proof.rangeStartAt : proof?.requiredStartAt;
+    const start = time(startAt), replacement = time(a?.lastReplacementAt);
+    if (proof?.schemaVersion !== 3 || proof.requiresRunRefresh !== true ||
+        (!range && proof.freshQueryEligible !== true) ||
+        (!range && proof.clockKnown !== true && proof.registeredBaseline !== true) ||
         !['minute','day'].includes(proof.timePrecision) || typeof proof.sourceLogId !== 'string' || !proof.sourceLogId.trim() ||
         typeof proof.eventId !== 'string' || !proof.eventId.trim() ||
         typeof a.cycleStartRevision !== 'string' || !a.cycleStartRevision ||
@@ -74,7 +88,7 @@ DP_TAGS.add("203HRJ01AN602");
         !resetCheckpoint ||
         !Number.isFinite(start) || !Number.isFinite(replacement) || !Number.isFinite(end) ||
         start < replacement || start >= end || end - start > 366 * DAY) return null;
-    return { startAt: proof.requiredStartAt };
+    return { startAt, ...(range ? { replacementAutoRange: true } : {}) };
   }
   function partialAppendBase(a, basis, dataParcTag, end = Infinity) {
     if ((basis?.coverageComplete !== false && a?.cycleSourceReview?.measuredRangeMayContinue !== true) ||
@@ -108,17 +122,32 @@ DP_TAGS.add("203HRJ01AN602");
     return samePhysicalCycle && currentSnapshot.cycleRuntimeRevision === s.cycleRuntimeRevision && !!currentBase &&
       Object.keys(base).every(key => currentBase[key] === base[key]);
   }
+  function recognizedFreshRange(task, current, acceptedId = '') {
+    if (task?.replacementAutoRange !== true || task.replacementAutoFresh !== true || task.partialTracking !== true ||
+        task.incremental === true || task.previewOnly === true || !current || !task.snapshot ||
+        time(task.startAt) !== time(task.queryStartAt)) return false;
+    const s = task.snapshot, currentSnapshot = snapshot(current);
+    const samePhysicalCycle = Object.keys(s).filter(key => key !== 'cycleRuntimeRevision').every(key => currentSnapshot[key] === s[key]);
+    const saved = current.dataParcRuntimeBasis;
+    if (acceptedId && saved?.requestId === acceptedId && samePhysicalCycle && saved.coverageComplete === false &&
+        time(saved.startAt) === time(task.startAt) && partialAppendBase(current, saved, task.dataParcTag)) return true;
+    // Revalidate against the captured server plan clock, never the PC clock.
+    const fresh = freshReplacementQuery(current, task.replacementRangePlannedAt);
+    return sameCycle(s, current) && fresh?.replacementAutoRange === true && time(fresh.startAt) === time(task.startAt);
+  }
   function fbheSealRunView(a, basis = null) {
     const replacement = a?.replacementAutoCycle;
+    const rangeTracking = replacementRangeTracking(a);
+    const registeredRange = replacement?.schemaVersion === 3 && replacement.normalizationVersion === 4 && replacement.registeredRuntimeRange === true;
     const clockUnknown = replacement?.schemaVersion === 3 && replacement.clockKnown !== true && replacement.registeredBaseline !== true;
-    if (replacement?.schemaVersion === 3 && (replacement.requiresRunRefresh === true || clockUnknown)) {
+    if (replacement?.schemaVersion === 3 && !registeredRange && (replacement.requiresRunRefresh === true || clockUnknown && !rangeTracking)) {
       const selected = a.cycleElapsedHours ?? a.runtimeHours;
       const retained = replacement.requiresRunRefresh !== true && selected !== null && selected !== undefined && typeof selected !== 'boolean' &&
         !(typeof selected === 'string' && selected.trim() === '') && Number.isFinite(Number(selected)) && Number(selected) >= 0 ? Number(selected) : null;
-      return { verified: false, pending: replacement.requiresRunRefresh === true, automaticReplacement: true, clockUnknown, manual: false,
-        state: 'unknown', hours: retained, primary: retained !== null ? `${retained.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간` : clockUnknown ? '완료 시각 미기록' : 'RUN 조회 대기',
-        stateLabel: clockUnknown ? '완료 시각 미기록' : 'RUN 조회 대기', sourceLabel: '업무일지 교체 자동반영',
-        message: clockUnknown ? '교체 자동반영 완료 · 완료 시각 미기록 · 새 벨트 RUN 기준 확인 필요'
+      return { verified: false, pending: replacement.requiresRunRefresh === true, automaticReplacement: true, rangeTracking, clockUnknown, manual: false,
+        state: 'unknown', hours: retained, primary: retained !== null ? `${retained.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간` : rangeTracking ? 'RUN 조회 대기' : clockUnknown ? '완료 시각 미기록' : 'RUN 조회 대기',
+        stateLabel: rangeTracking ? 'RUN 조회 대기' : clockUnknown ? '완료 시각 미기록' : 'RUN 조회 대기', sourceLabel: '업무일지 교체 자동반영',
+        message: rangeTracking ? '교체 기록 이후 확인 구간 RUN 조회 대기 · 완료 시각 미기록' : clockUnknown ? '교체 자동반영 완료 · 완료 시각 미기록 · 새 벨트 RUN 기준 확인 필요'
           : '교체 자동반영 · 새 교체 기준 RUN 조회 대기', basis: null, measuredAt: '' };
     }
     const coverage = a?.dataParcRuntimeBasis || basis;
@@ -128,18 +157,20 @@ DP_TAGS.add("203HRJ01AN602");
       Number.isFinite(Number(coverage.runtimeHours)) && Number.isFinite(Number(storedHours)) &&
       Math.abs(Number(coverage.runtimeHours) - Number(storedHours)) > 0.000001;
     const sourceReview = a?.cycleSourceReview;
-    if (coverage?.coverageComplete === false && !staleCoverage || sourceReview) {
+    if (coverage?.coverageComplete === false && !staleCoverage || sourceReview || rangeTracking || registeredRange) {
       const manual = a?.runRuntime?.verified === true && a.runRuntime.source === 'manual';
       const selectedHours = manual || staleCoverage ? storedHours : coverage?.runtimeHours ?? storedHours;
       const hours = selectedHours === null || selectedHours === undefined ||
         typeof selectedHours === 'string' && selectedHours.trim() === '' ||
         typeof selectedHours === 'boolean' ? NaN : Number(selectedHours);
       const state = [a.runRuntime?.state, a.cycleRuntimeState].find(value => ['running', 'stopped'].includes(value)) || 'unknown';
-      return { verified: false, partial: true, sourceReview: Boolean(sourceReview), manual, pending: false, state,
+      return { verified: false, partial: true, sourceReview: Boolean(sourceReview), rangeTracking, registeredRuntimeRange: registeredRange, manual, pending: false, state,
         hours: Number.isFinite(hours) && hours >= 0 ? hours : null,
         primary: Number.isFinite(hours) && hours >= 0
           ? `${hours.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간` : '확인 필요',
-        message: sourceReview ? '조회구간 RUN 누적 · 교체 기준 확인 필요' : '일부 기간 RUN 누적 · 교체 기준 확인 필요',
+        message: rangeTracking ? '확인 구간 RUN 누적 · 교체 기록 이후 확인된 RUN · 완료 시각 미기록'
+          : registeredRange ? '조회구간 RUN 누적 · RUN 조회기준 · 실제 교체 기준 미확정'
+          : sourceReview ? '조회구간 RUN 누적 · 교체 기준 확인 필요' : '일부 기간 RUN 누적 · 교체 기준 확인 필요',
         measuredAt: manual ? a.runRuntime.measuredAt || '' : coverage?.observedAt || '',
         sourceLabel: manual ? '수동 보정 · 교체 기준 확인 필요' : 'DataPARC · 조회구간 RUN', basis: manual ? null : coverage,
         stateLabel: state === 'running' ? '기동중' : state === 'stopped' ? '정지중' : 'RUN 미확인' };
@@ -190,8 +221,10 @@ DP_TAGS.add("203HRJ01AN602");
       if (a.enabled === false || a.enabled === 0) continue;
       const skip = reason => skipped.push({ tagNumber: a.tagNumber, displayName: a.displayName || a.tagNumber, status: 'skipped', message: reason });
       const replacementProof = a.replacementAutoCycle;
+      const rangeTracking = replacementRangeTracking(a);
+      const registeredRange = replacementProof?.schemaVersion === 3 && replacementProof.normalizationVersion === 4 && replacementProof.registeredRuntimeRange === true;
       const freshReplacement = freshReplacementQuery(a, new Date(end));
-      if (replacementProof?.schemaVersion === 3 && replacementProof.clockKnown !== true && replacementProof.registeredBaseline !== true) {
+      if (replacementProof?.schemaVersion === 3 && replacementProof.clockKnown !== true && replacementProof.registeredBaseline !== true && !rangeTracking && !registeredRange) {
         skip('교체 자동반영 완료 · 완료 시각 미기록 · 새 벨트 RUN 기준 확인 필요');
         continue;
       }
@@ -224,11 +257,11 @@ DP_TAGS.add("203HRJ01AN602");
       // An explicitly resolved server cycle with unverified older history is
       // not permission to requery and replace its saved total. It also cannot
       // use the separate tracking apply route, which accepts disputed cycles.
-      if (!freshReplacement && !automaticLimestone && candidate && !basisConfirmed && authoritativeDispute && !disputed &&
+      if (!freshReplacement && !rangeTracking && !automaticLimestone && candidate && !basisConfirmed && authoritativeDispute && !disputed &&
           a.hasUnverifiedDataParcHistory === true) {
         skip('기존 조회 기준 미검증 · 실제 V-Belt 교체 기준 확정 후 재조회 필요'); continue;
       }
-      const previewOnly = !freshReplacement && !automaticLimestone && candidate && !basisConfirmed &&
+      const previewOnly = !freshReplacement && !rangeTracking && !automaticLimestone && candidate && !basisConfirmed &&
         (disputed || !authoritativeDispute && a.hasUnverifiedDataParcHistory === true);
       const holdReason = unresolvedDay ? '9/22 실제 V-Belt 교체시각 미확정'
         : unresolved2A ? '2호기 #A 9/19 V-Belt 교체 완료 근거 충돌'
@@ -243,14 +276,17 @@ DP_TAGS.add("203HRJ01AN602");
       }
       const previous = freshReplacement ? null : automaticLimestone || basisConfirmed ? a.dataParcRuntimeBasis || null
         : a.dataParcRuntimeBasis || basisFor(a.tagNumber);
+      if (rangeTracking && previous && time(previous.startAt) !== time(replacementProof.rangeStartAt)) {
+        skip('확인 구간 RUN 기준 불일치 · 기존 조회값 보호'); continue;
+      }
       const sourceReviewRange = a.cycleSourceReview?.measuredRangeMayContinue === true;
-      const partialRange = previous?.coverageComplete === false || sourceReviewRange;
+      const partialRange = !freshReplacement && (previous?.coverageComplete === false || sourceReviewRange || rangeTracking || registeredRange);
       const partialBase = partialRange ? partialAppendBase(a, previous, dataParcTag, end) : null;
       if (partialRange && !partialBase) {
         skip('일부 기간 RUN 누적 · 교체 기준 확인 필요 · 기존 조회값 보호 · 전체 재조회하지 않음');
         continue;
       }
-      if ((automaticLimestone || basisConfirmed) && partialRange && time(previous.startAt) !== replacement) {
+      if ((automaticLimestone || basisConfirmed) && partialRange && !rangeTracking && time(previous.startAt) !== replacement) {
         skip('Limestone 저장 교체기준부터 검증된 RUN 범위 확인 필요 · 기존 조회값 보호 · 전체 재조회하지 않음');
         continue;
       }
@@ -291,7 +327,7 @@ DP_TAGS.add("203HRJ01AN602");
       // A verified partial receipt may advance its own measured range. It does
       // not certify the omitted leading interval or a physical replacement time.
       const automaticAppend = automaticLimestone && previous?.appendReady === true &&
-        previous.dataParcTag === dataParcTag && time(previous.startAt) === replacement &&
+        previous.dataParcTag === dataParcTag && (time(previous.startAt) === replacement || rangeTracking && !!partialBase) &&
         Number.isFinite(time(previous.observedAt)) && time(previous.observedAt) > replacement &&
         time(previous.observedAt) <= end;
       const limestoneAutoRebuild = automaticLimestone && !automaticAppend;
@@ -316,6 +352,10 @@ DP_TAGS.add("203HRJ01AN602");
       }
       tasks.push({ kind: 'dataparc', asset: a, snapshot: snapshot(a), startAt, queryStartAt, incremental, dataParcTag,
         ...(freshReplacement ? { replacementAutoFresh: true } : {}),
+        ...(freshReplacement?.replacementAutoRange === true ? { replacementAutoRange: true,
+          replacementRangePlannedAt: new Date(end).toISOString() } : {}),
+        ...(rangeTracking || registeredRange ? { partialTracking: true } : {}),
+        ...(registeredRange ? { registeredRuntimeRange: true } : {}),
         ...(partialRange ? { partialRange: true, partialBase } : {}),
         ...(sourceReviewRange ? { sourceReviewRange: true } : {}),
         ...(limestoneAutoRebuild ? { limestoneAutoRebuild: true } : {}) });
@@ -387,6 +427,7 @@ DP_TAGS.add("203HRJ01AN602");
     return {
       action: 'create_blower_runtime_probe', unifiedRefresh: true,
       incrementalRefresh: task.previewOnly !== true && (task.limestoneAutoRebuild !== true || task.replacementAutoFresh === true),
+      ...(task.replacementAutoRange === true ? { replacementAutoRange: true, partialTracking: true } : {}),
       ...(task.previewOnly === true ? { limestoneTrackingOnly: true } : {}),
       requireIncrementalAppend: task.incremental === true, assetTag: s.tagNumber,
       dataParcTag: task.dataParcTag, confirmRunSignal: true, startAt: task.startAt,
@@ -444,7 +485,7 @@ DP_TAGS.add("203HRJ01AN602");
       const current = currentFor(task);
       return (task.partialRange === true || task.asset?.dataParcRuntimeBasis?.coverageComplete === false ||
         current?.dataParcRuntimeBasis?.coverageComplete === false || task.asset?.cycleSourceReview || current?.cycleSourceReview) &&
-        !recognizedPartialAppend(task, current, acceptedIdFor(task));
+        !recognizedPartialAppend(task, current, acceptedIdFor(task)) && !recognizedFreshRange(task, current, acceptedIdFor(task));
     }).map(task => task.snapshot.tagNumber));
     if (!resume && partialTags.size) {
       throw error('일부 기간 RUN 누적 · 교체 기준 확인 필요 · 기존 조회값을 유지합니다.', 'BLOWER_CYCLE_COVERAGE_INCOMPLETE');
@@ -612,6 +653,10 @@ DP_TAGS.add("203HRJ01AN602");
             }
           }
         try {
+          if (task.replacementAutoRange === true && !recognizedFreshRange(task, currentFor(task), String(entry.item.id))) {
+            return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber, status: 'skipped',
+              message: '확인 구간 조회 중 저장 기준 변경 · 기존 값 유지' };
+          }
           if (task.partialRange === true && !recognizedPartialAppend(task, currentFor(task), String(entry.item.id))) {
             return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber, status: 'skipped',
               message: '이어조회 중 저장 기준 변경 · 기존 일부 기간 누적 유지' };
@@ -621,7 +666,10 @@ DP_TAGS.add("203HRJ01AN602");
           io.progress?.(`조회 결과 저장 중 · ${appliedCount}/${pending.length}`);
           return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber, status: 'complete',
             ...(task.partialRange === true ? { partialRange: true } : {}),
-            message: task.replacementAutoFresh === true ? '새 교체 기준 RUN 조회 완료'
+            message: task.replacementAutoRange === true ? '확인 구간 RUN 조회 완료 · 교체 기록 이후 확인된 RUN'
+              : task.replacementAutoFresh === true ? '새 교체 기준 RUN 조회 완료'
+              : task.registeredRuntimeRange === true ? '조회구간 RUN 이어조회 완료 · RUN 조회기준 유지'
+              : task.partialTracking === true ? '확인 구간 RUN 이어조회 완료 · 교체 기록 이후 확인된 RUN'
               : task.partialRange === true ? '일부 기간 RUN 이어조회 완료 · 교체 기준 확인 필요' : applied.message || '증분 운전시간 반영 완료' };
         } catch (cause) {
           if ([401, 403].includes(Number(cause?.status))) throw cause;
@@ -716,7 +764,9 @@ DP_TAGS.add("203HRJ01AN602");
   async function refreshLogs(io, options = {}) {
     const sleep = options.sleep || (ms => new Promise(r => setTimeout(r, ms)));
     const replacementV3 = options.replacementAutoVersion === 3;
-    const candidateResume = !replacementV3 || options.resume?.replacementAutoVersion === 3 ? options.resume : null;
+    const normalizationV4 = replacementV3 && options.normalizationVersion === 4;
+    const candidateResume = (!replacementV3 || options.resume?.replacementAutoVersion === 3) &&
+      (!normalizationV4 || options.resume?.normalizationVersion === 4) ? options.resume : null;
     const initial = replacementV3 && candidateResume?.phase === 'operation' && candidateResume.replacementComplete !== true ? null : candidateResume;
     let phase = initial?.phase === 'operation' ? 'operation' : 'replacement';
     let replacementComplete = replacementV3 && initial?.replacementComplete === true && phase === 'operation';
@@ -737,7 +787,8 @@ DP_TAGS.add("203HRJ01AN602");
     const remaining = () => Math.max(0, deadline - clock());
     const report = () => io.logProgress?.({ phase, ...totals });
     const checkpoint = () => io.checkpoint?.({ phase, window, cursor, limit, totals: { ...totals },
-      ...(replacementV3 ? { replacementAutoVersion: 3, replacementComplete } : {}) });
+      ...(replacementV3 ? { replacementAutoVersion: 3, replacementComplete } : {}),
+      ...(normalizationV4 ? { normalizationVersion: 4 } : {}) });
     checkpoint();
     report();
     while (pages++ < maxPages) {
@@ -755,6 +806,7 @@ DP_TAGS.add("203HRJ01AN602");
           payload = await io.api({ method: 'POST', timeoutMs: Math.min(30000, remaining()),
             body: { action: 'latest_logs_step', incrementalLogs: true, phase, limit, window, cursor,
               ...(replacementV3 && phase === 'replacement' ? { replacementAutoVersion: 3 } : {}),
+              ...(normalizationV4 && phase === 'replacement' ? { normalizationVersion: 4 } : {}),
               autoApplyConfirmedReplacements: phase === 'replacement' } });
           break;
         } catch (e) {
@@ -776,6 +828,7 @@ DP_TAGS.add("203HRJ01AN602");
       io.assertWritable?.();
       if (payload?.ok !== true || payload.version !== 'bounded-logs-v1' || payload.phase !== phase ||
           (replacementV3 && phase === 'replacement' && payload.replacementAutoVersion !== 3) ||
+          (normalizationV4 && phase === 'replacement' && payload.normalizationVersion !== 4) ||
           typeof payload.done !== 'boolean' || !payload.window ||
           !Number.isInteger(payload.scannedLogCount) || payload.scannedLogCount < 0 || payload.scannedLogCount > limit ||
           !['fromDate','endDate','snapshotAt'].every(key => typeof payload.window[key] === 'string') ||
@@ -812,6 +865,7 @@ DP_TAGS.add("203HRJ01AN602");
    */
   async function refreshLogsForRuntime(io, options = {}) {
     const replacementV3 = options.replacementAutoVersion === 3;
+    if (replacementV3 && options.autoContinue === true) return continueReplacementLogs(io, options);
     const defaults = replacementV3 ? { timeBudgetMs: 120000, maxPages: 200, pageLimit: 2 } : { timeBudgetMs: 45000, maxPages: 80, pageLimit: 1 };
     try { return { complete: true, totals: await measurePhase('workLogs', {}, () => refreshLogs(io, { ...defaults, ...options })), warning: '',
       ...(replacementV3 ? { replacementComplete: true, runtimeAllowed: true } : {}) }; }
@@ -823,11 +877,59 @@ DP_TAGS.add("203HRJ01AN602");
       io.progress?.(runtimeAllowed ? `업무일지 확인 미완료 · ${warning} · 저장된 교체 기준으로 운전시간 조회 계속`
         : `교체 기록 확인 미완료 · ${warning} · RUN 조회 보류 · 교체 이력은 다시 확인할 수 있습니다.`);
       return { complete: false, totals: e.logTotals || null, warning,
-        ...(replacementV3 ? { replacementComplete: e.replacementComplete === true, runtimeAllowed } : {}) };
+        ...(replacementV3 ? { replacementComplete: e.replacementComplete === true, runtimeAllowed } : {}),
+        ...(options._continuationDetails ? { continuationCode: e.code || 'TRANSIENT_LOG_PAGE_FAILED',
+          continuationTransient: transient(e) } : {}) };
     }
   }
 
-  return { fbheSealRunAsset, fbheSealRunView, freshReplacementQuery, plan, intermittent, snapshot, sameCycle, day, waitRequests, executeDataParc, executeDataParcBatch, executeOis, oisBody,
+  async function continueReplacementLogs(io, options) {
+    const clock = options.clock || Date.now;
+    const sleep = options.sleep || (ms => new Promise(resolve => setTimeout(resolve, ms)));
+    const bounded = (value, fallback, maximum) => Number.isFinite(Number(value))
+      ? Math.max(1, Math.min(maximum, Math.floor(Number(value)))) : fallback;
+    const deadline = clock() + bounded(options.totalTimeBudgetMs, 600000, 600000);
+    const maximumChunks = bounded(options.maxContinuationChunks, 12, 12);
+    const maximumStrikes = bounded(options.maxContinuationStrikes, 3, 3);
+    const sliceBudget = bounded(options.timeBudgetMs, 120000, 120000);
+    let checkpoint = options.resume || null, chunks = 0, strikes = 0, last = null;
+    const sourceCount = value => Math.max(0, Number(value?.totals?.scannedReplacementLogs) || 0);
+    const stop = reason => {
+      const { continuationCode, continuationTransient, ...result } = last || { totals: checkpoint?.totals || null };
+      return { ...result, complete: false, replacementComplete: false, runtimeAllowed: false,
+        warning: `교체 원문 자동 이어처리 ${reason} · 완료된 처리 위치는 보존했습니다. RUN 조회는 시작하지 않았습니다.`,
+        automaticContinuation: { chunks, strikes, stopped: reason } };
+    };
+    while (chunks < maximumChunks) {
+      io.assertWritable?.();
+      const remaining = deadline - clock();
+      if (remaining <= 0) return stop('시간 한도 도달');
+      const before = options.normalizationVersion === 4 && checkpoint?.normalizationVersion !== 4 ? 0 : sourceCount(checkpoint);
+      const passIo = { ...io, checkpoint: value => { checkpoint = value; io.checkpoint?.(value); } };
+      chunks += 1;
+      // The existing pass owns retries, receipts and the captured source window.
+      // No failed page is skipped and no runtime request is created here.
+      last = await refreshLogsForRuntime(passIo, { ...options, autoContinue: false, _continuationDetails: true,
+        resume: checkpoint, timeBudgetMs: Math.max(1, Math.min(sliceBudget, remaining)) });
+      if (last.complete || last.runtimeAllowed === true) {
+        const { continuationCode, continuationTransient, ...result } = last;
+        return { ...result, automaticContinuation: { chunks, strikes, stopped: '' } };
+      }
+      const progressed = sourceCount(checkpoint) > before;
+      const naturalPause = last.continuationCode === 'LOG_REFRESH_PAUSED';
+      if (!naturalPause && last.continuationTransient !== true) return stop('원문 오류 확인 필요');
+      strikes = naturalPause && progressed ? 0 : strikes + 1;
+      if (strikes >= maximumStrikes) return stop('연속 재시도 한도 도달');
+      if (chunks >= maximumChunks) return stop('처리 단위 한도 도달');
+      io.progress?.(`교체 원문 자동 이어서 확인 중 · ${sourceCount(checkpoint)}건 처리 · RUN 요청 전`);
+      const delay = naturalPause && progressed ? 20 : Math.min(10000, 1000 * 2 ** Math.max(0, strikes - 1));
+      const wait = Math.min(delay, Math.max(0, deadline - clock()));
+      if (wait > 0) await sleep(wait);
+    }
+    return stop('처리 단위 한도 도달');
+  }
+
+  return { fbheSealRunAsset, fbheSealRunView, freshReplacementQuery, replacementRangeTracking, plan, intermittent, snapshot, sameCycle, day, waitRequests, executeDataParc, executeDataParcBatch, executeOis, oisBody,
     refreshLogs, refreshLogsForRuntime, readWithRetry, errorLabel,
     register(kind, fn) { if (!['fbhe','seal_pot'].includes(kind) || typeof fn !== 'function') throw new Error('Invalid OIS bridge'); bridges[kind] = fn; } };
 });

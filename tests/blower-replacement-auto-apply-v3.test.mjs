@@ -279,3 +279,55 @@ test('cross-role evidence confirmation preserves the separately proven fresh res
   const f=await fixture();await f.apply();const before=JSON.stringify(f.asset());await f.apply([f.fact()],{...ROW,id:'different-approved-role',sourceAliases:[]});
   assert.equal(JSON.stringify(f.asset()),before);const proof=replacementAutoCycleProof(f.asset(),f.events());assert.equal(proof.freshQueryEligible,true);assert.equal(proof.storedRuntimeHours,0);assert.equal(proof.storedLegacyRuntimeHours,0);
 });
+
+test('retracting a wrong automatic duplicate preserves the independent current manual basis and measured counter on all 27 Blowers',async()=>{
+  const f=await fixture(),date='2026-09-04T00:00:00+09:00',sameInstant='2026-09-03T15:00:00.000Z';
+  const assets=f.sql.prepare('SELECT * FROM blower_history_assets WHERE enabled=1 ORDER BY tag_number').all();assert.equal(assets.length,27);
+  for(const [index,item] of assets.entries()) {
+    const tag=item.tag_number,hours=index+72.5,manualId=`valid-manual-${index}`,autoId=`wrong-auto-${index}`,dpId=`preserved-dp-${index}`;
+    f.sql.prepare(`UPDATE blower_history_assets SET last_replacement_at=?,cycle_start_state='legacy',cycle_started_at=NULL,
+      cycle_runtime_hours=?,runtime_hours=?,cycle_start_revision=?,cycle_runtime_revision=?,cycle_runtime_anchor_at=?,
+      runtime_anchor_at=?,cycle_runtime_state='running',is_running=1 WHERE tag_number=?`)
+      .run(date,hours,hours,`manual-start-${index}`,`verified-runtime-${index}`,NOW.toISOString(),NOW.toISOString(),tag);
+    f.addEvent({id:manualId,tag_number:tag,event_date:index%2?date:sameInstant});
+    f.addEvent({id:autoId,tag_number:tag,event_date:sameInstant,source_type:'shift_log_auto',source_log_id:ROW.id});
+    const signal=tag==='104ETH03AN602'?'GSPOGE.ABB_DCS.003ETH03AN602XB04':/^(?:103|203)HRJ/.test(tag)?`GSPOGE.ABB_DCS.${tag}XB04`:`GSPOGE.ABB_DCS.TEST_ONLY_BINARY_${tag}`;
+    const dpEventId=`dataparc_runtime:${dpId}`;
+    f.addEvent({id:dpEventId,tag_number:tag,event_type:'runtime_correction',event_date:NOW.toISOString(),runtime_hours:hours,source_type:'dataparc_runtime',
+      source_log_id:dpId,created_at:NOW.toISOString(),updated_at:NOW.toISOString(),source_text:JSON.stringify({schemaVersion:1,requestType:'blower_runtime_probe',
+        requestId:dpId,assetTag:tag,dataParcTag:signal,startAt:date,endAt:NOW.toISOString(),observedAt:NOW.toISOString(),
+        expectedLastReplacementAt:date,expectedCycleStartState:'legacy',expectedCycleStartedAt:'',expectedCycleStartRevision:`manual-start-${index}`,
+        expectedCycleRuntimeRevision:`prior-runtime-${index}`,startState:'stopped',endState:'running',totalRunningHours:hours,runningSeconds:hours*3600,
+        chunkCount:1,collectedAt:NOW.toISOString()})});
+    const beforeAsset=JSON.stringify(f.asset(tag)),beforeDp=JSON.stringify(f.events(tag).find(event=>event.id===dpEventId));
+    const beforeBasis=api.currentDataParcRuntimeBasis(f.asset(tag),f.events(tag));assert.equal(beforeBasis?.appendReady,true,tag);
+    const out=await f.apply([]);assert.equal(out.retracted,1,tag);assert.equal(out.corrected,0,tag);assert.equal(out.applied,0,tag);
+    assert.equal(JSON.stringify(f.asset(tag)),beforeAsset,tag);assert.equal(JSON.stringify(f.events(tag).find(event=>event.id===dpEventId)),beforeDp,tag);
+    assert.deepEqual(api.currentDataParcRuntimeBasis(f.asset(tag),f.events(tag)),beforeBasis,tag);
+    assert.equal(f.events(tag).find(event=>event.id===manualId).event_type,'replacement',tag);
+    assert.equal(f.events(tag).find(event=>event.id===autoId).event_type,'_retracted_replacement',tag);
+    assert.equal(f.events(tag).some(event=>event.event_type==='cycle_source_reconcile'),false,tag);
+    assert.equal(out.results.find(result=>result.kind==='retracted').preservedCurrentBasis,true,tag);
+    const audit=f.sql.prepare('SELECT * FROM blower_history_asset_history WHERE tag_number=?').get(tag),before=JSON.parse(audit.before_json),after=JSON.parse(audit.after_json);
+    assert.deepEqual(before.asset,after.asset,tag);assert.ok(before.events.some(event=>event.id===manualId),tag);assert.ok(after.events.some(event=>event.id===manualId),tag);
+  }
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM blower_history_asset_history').get().n,27);
+  const replay=await f.apply([]);assert.equal(replay.retracted,0);assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM blower_history_asset_history').get().n,27);
+});
+
+test('a different manual instant on the same calendar day still requires a new runtime calculation when the wrong automatic boundary is withdrawn',async()=>{
+  const f=await fixture(),manual='2026-09-04T00:00:00+09:00',wrong='2026-09-04T09:23:00+09:00';
+  f.sql.prepare('UPDATE blower_history_assets SET last_replacement_at=?,cycle_runtime_hours=72.5,runtime_hours=72.5 WHERE tag_number=?').run(wrong,TAG);
+  f.addEvent({id:'earlier-manual',event_date:manual});f.addEvent({id:'later-wrong-auto',event_date:wrong,source_type:'shift_log_auto',source_log_id:ROW.id});
+  const before=f.asset();const out=await f.apply([]);assert.equal(out.retracted,1);assert.equal(f.asset().last_replacement_at,manual);assert.equal(f.asset().cycle_runtime_hours,0);
+  assert.notEqual(f.asset().cycle_start_revision,before.cycle_start_revision);assert.notEqual(f.asset().cycle_runtime_revision,before.cycle_runtime_revision);
+  assert.equal(out.results.find(result=>result.kind==='retracted').preservedCurrentBasis,undefined);
+});
+
+test('concurrent removal of the same-instant manual basis invalidates the preservation transaction rather than leaving a false source retraction',async()=>{
+  const f=await fixture(),date='2026-09-04T00:00:00+09:00';f.sql.prepare('UPDATE blower_history_assets SET last_replacement_at=? WHERE tag_number=?').run(date,TAG);
+  f.addEvent({id:'manual-concurrently-removed',event_date:date});f.addEvent({id:'wrong-auto-source',event_date:date,source_type:'shift_log_auto',source_log_id:ROW.id});
+  const before=JSON.stringify(f.asset());f.db.beforeBatch=sql=>sql.prepare('DELETE FROM blower_history_events WHERE id=?').run('manual-concurrently-removed');
+  const out=await f.apply([]);assert.equal(out.ok,false);assert.equal(out.code,'REPLACEMENT_AUTO_CYCLE_CONFLICT');assert.equal(JSON.stringify(f.asset()),before);
+  assert.equal(f.events().find(event=>event.id==='wrong-auto-source').event_type,'replacement');assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM blower_history_asset_history').get().n,0);
+});

@@ -12,7 +12,7 @@ const requiredAdapters = ['parseFragments','contextualizeFragments','sourceText'
   'sourceRole','sourceTime','resolveTargets','actualBeltReplacement','detectDateTime','normalizeTime'];
 const pieces = value => text(value).split(/\r?\n|[;；|]|\s*(?:->|=>|→|➡|⇒)\s*/g).map(text).filter(Boolean);
 
-function explicitCompletion(value) {
+function completionEvidence(value) {
   const valueText = workText(value);
   if (!/(?:\bV\s*[-/]?\s*BELT\b|\bVBELT\b|\bBELT\b|V\s*[-/]?\s*벨트|V벨트|벨트)/i.test(valueText)) return false;
   // "교체 실시" alone records performed work, not a separately timed finish.
@@ -21,11 +21,45 @@ function explicitCompletion(value) {
     /(?:교체|교환)\s*후\s*(?:재?기동|운전)/i.test(valueText);
 }
 
+function explicitCompletion(value) {
+  const valueText = workText(value);
+  if (!/(?:\bV\s*[-/]?\s*BELT\b|\bVBELT\b|\bBELT\b|V\s*[-/]?\s*벨트|V벨트|벨트)/i.test(valueText)) return false;
+  // A clock on "교체 후 기동 완료" times startup, not belt completion.
+  // Keep that completed-work evidence as a day fact, without borrowing it
+  // as a precise physical completion clock.
+  return /(?:교체|교환)\s*(?:작업\s*)?(?:완료|종료)/i.test(valueText) ||
+    /(?:교체|교환)\s*하여\s*정상화\s*완료/i.test(valueText) ||
+    /(?:교체|교환)\s*(?:및|,)\s*(?:장력|tension|alignment).{0,24}(?:완료|종료)/i.test(valueText);
+}
+
+function historicalReplacementReference(value, recordDate) {
+  const valueText = workText(value);
+  if (/(?:마지막|최종|과거|작년|지난|참고|교체\s*이력|교체\s*내역)/i.test(valueText)) return true;
+  // A dated replacement in a later inspection record is historical source
+  // evidence. Its record date must not become a new replacement date.
+  const yearDates = [...valueText.matchAll(/(?:^|[^\d])((?:20)?\d{2})\s*(?:년|[./-])\s*(\d{1,2})\s*(?:월|[./-])\s*(\d{1,2})\s*일?/g)];
+  for (const match of yearDates) {
+    const year = match[1].length === 2 ? '20' + match[1] : match[1];
+    const referenced = year + '-' + match[2].padStart(2,'0') + '-' + match[3].padStart(2,'0');
+    if (referenced !== recordDate) return true;
+  }
+  const monthDays = [...valueText.matchAll(/(?:^|[^\d])(?:\d{2,4}\s*년\s*)?(\d{1,2})\s*월\s*(\d{1,2})\s*일/g),
+    ...valueText.matchAll(/(?:^|[^\d:/.-])(\d{1,2})\s*\/\s*(\d{1,2})(?=$|[^\d/])/g)];
+  return monthDays.some(match => match[1].padStart(2,'0') + '-' + match[2].padStart(2,'0') !== recordDate.slice(5));
+}
+
+function beltIncludedInCompletedPartsList(value) {
+  // "V-Belt 및 Suction Filter 교체 완료" directly replaces both named
+  // parts. A belt inspection followed by filter-only replacement does not.
+  return /(?:\bV\s*[-/]?\s*BELT\b|\bVBELT\b|\bBELT\b|V\s*[-/]?\s*벨트|V벨트|벨트)\s*(?:및|[,/&+])\s*(?:suction\s*filter|filter|흡입\s*필터)\s*(?:전량\s*)?(?:교체|교환)\s*(?:완료|종료|실시|시행|함|하였|했)/i.test(workText(value));
+}
+
 function positivePerformed(value) {
   const valueText = workText(value);
   if (/(?:예정|계획|요청|요망|준비|미실시|미완료|미교체|보류|취소|불가|실패|(?:작업|진행|교체)\s*중|착수|시작|(?:실시|시행|완료)\s*여부|미확인|했는지|하였는지|[?？]|\bNOT\b|\bPLANNED\b|\bREQUESTED\b|\bIN\s+PROGRESS\b)/i.test(valueText)) return false;
-  if (explicitCompletion(valueText)) return true;
+  if (completionEvidence(valueText)) return true;
   return /(?:교체|교환)\s*(?:작업\s*)?(?:실시|시행|함|하였(?:음)?|했(?:음)?|하여)/i.test(valueText) ||
+    /(?:교체|교환)\s*(?:및|,)\s*(?:장력|tension|alignment|교정).{0,32}(?:실시|시행|완료|종료)/i.test(valueText) ||
     /\b(?:REPLACED|EXCHANGED)\b/i.test(valueText) ||
     /(?:신품|\bNEW\b).{0,40}(?:취부|설치|장착).{0,16}(?:완료|실시|함|하였|했)/i.test(valueText) ||
     /(?:취외|탈거|제거).{0,40}(?:취부|설치|장착).{0,16}(?:완료|정상|양호)/i.test(valueText);
@@ -54,7 +88,9 @@ export function collectApprovedReplacementFacts(row, recognitionAssets, adapters
   const assets = Array.isArray(recognitionAssets) ? recognitionAssets : [];
   const annotations = inspectVbeltAnnotations(row);
   const confirmedFacts = collectConfirmedVbeltFacts(row, assets, annotations);
-  if (/^(?:PART_LEADER|GROUP_LEADER|파트장)$/i.test(rowRole)) return confirmedFacts;
+  if (/^(?:(?:PART|GROUP|SHIFT)_?LEADER|파트장)$/i.test(rowRole)) return confirmedFacts;
+  const actualReplacement = value => !historicalReplacementReference(value, recordDate) &&
+    (adapters.actualBeltReplacement(value, recordDate, false) || beltIncludedInCompletedPartsList(value));
   const parsedFragments = adapters.contextualizeFragments(adapters.parseFragments(row, assets), row, assets);
   const fragments = Array.isArray(parsedFragments) ? parsedFragments.filter(fragment => !annotationControlsFragment(annotations, fragment)) : parsedFragments;
   if (!Array.isArray(fragments)) throw new Error('Replacement parser returned an invalid fragment list.');
@@ -71,7 +107,7 @@ export function collectApprovedReplacementFacts(row, recognitionAssets, adapters
   for (const fragment of fragments) {
     if (fragment?.identityConflict === true || fragment?.v13Context?.identityConflict === true) continue;
     const source = text(adapters.sourceText(fragment));
-    if (!source || !adapters.actualBeltReplacement(source, recordDate, false)) continue;
+    if (!source || !actualReplacement(source)) continue;
     const record = { sourceText: source, identityText: text(adapters.identityText(fragment)),
       role: text(adapters.sourceRole(fragment) || row.role), workDate: recordDate,
       ...(fragment?.v13Context ? { v13Context: fragment.v13Context } : {}) };
@@ -79,14 +115,14 @@ export function collectApprovedReplacementFacts(row, recognitionAssets, adapters
       const tag = text(asset?.tag_number || asset?.tagNumber).toUpperCase();
       const key = JSON.stringify([tag,entryKeyFor(fragment)]);
       if (!earliestNativeEvidence.has(key)) earliestNativeEvidence.set(key,text(fragment?.v13EvidenceText) || source);
-      if (pieces(source).length === 1 && explicitCompletion(source) && positivePerformed(source)) explicitCompletionEntries.add(key);
+      if (pieces(source).length === 1 && completionEvidence(source) && positivePerformed(source)) explicitCompletionEntries.add(key);
     }
   }
   const facts = new Map(confirmedFacts.map(fact => [fact.sourceKey, fact]));
   for (const fragment of fragments) {
     if (fragment?.identityConflict === true || fragment?.v13Context?.identityConflict === true) continue;
     const source = text(adapters.sourceText(fragment));
-    if (!source || !adapters.actualBeltReplacement(source, recordDate, false) || !positivePerformed(source)) continue;
+    if (!source || !actualReplacement(source) || !positivePerformed(source)) continue;
     // The legacy parser also emits a combined fallback after its constituent
     // work clauses. It is corroborating context, not a second physical job.
     if (pieces(source).length > 1) continue;
@@ -105,11 +141,11 @@ export function collectApprovedReplacementFacts(row, recognitionAssets, adapters
     for (const asset of targets) {
       const tagNumber = text(asset?.tag_number || asset?.tagNumber).toUpperCase();
       if (!tagNumber || !assets.some(item => text(item.tag_number || item.tagNumber).toUpperCase() === tagNumber)) continue;
-      if (!explicitCompletion(source) && explicitCompletionEntries.has(JSON.stringify([tagNumber,entryKeyFor(fragment)]))) continue;
+      if (!completionEvidence(source) && explicitCompletionEntries.has(JSON.stringify([tagNumber,entryKeyFor(fragment)]))) continue;
       const belongs = (part, partIdentity = identity) => partTargets(part, partIdentity).some(item =>
         text(item.tag_number || item.tagNumber).toUpperCase() === tagNumber);
       const actualPieces = pieces(source).filter(part =>
-        adapters.actualBeltReplacement(part, recordDate, false) && positivePerformed(part) && belongs(part));
+        actualReplacement(part) && positivePerformed(part) && belongs(part));
       if (!actualPieces.length) continue;
       let completionClock = '';
       let clockKind = 'none';
@@ -123,7 +159,7 @@ export function collectApprovedReplacementFacts(row, recognitionAssets, adapters
       // an earlier "교체 실시" heading's clock for its later completion line.
       const entryClock = validTime(origin.entryTimeText ?? origin.entryTime, adapters.normalizeTime);
       if (!completionClock && entryClock && explicitCompletion(originFirstLine) &&
-          adapters.actualBeltReplacement(originFirstLine, recordDate, false) && belongs(originFirstLine, originIdentity)) {
+          actualReplacement(originFirstLine) && belongs(originFirstLine, originIdentity)) {
         completionClock = entryClock;
         clockKind = 'entry_completion';
       }

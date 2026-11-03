@@ -1,3 +1,5 @@
+import { verifiedAppendBase } from './blower-incremental.js';
+
 /* Approved work-log replacements are replayable facts, not calendar runtime.
  * All mutations use existing guarded D1 batches and keep before/after evidence.
  * A day-only fact has a sortable date sentinel, never an asserted midnight clock.
@@ -30,6 +32,34 @@ function sourceMetadata(event) {
 }
 function precision(event) {
   return sourceMetadata(event)?.timePrecision || (midnight(event?.event_date) ? 'day' : 'minute');
+}
+function currentVerifiedRange(asset,events) {
+  const matching=events.filter(event => event.tag_number===asset.tag_number &&
+    ['runtime_correction','startup','operation_start','operation_stop'].includes(event.event_type) &&
+    instant(event.event_date)===instant(asset.cycle_runtime_anchor_at) &&
+    Number.isFinite(Number(event.runtime_hours)) && Math.abs(Number(event.runtime_hours)-Number(asset.cycle_runtime_hours))<0.000001)
+    .sort((a,b)=>instant(b.updated_at || b.created_at)-instant(a.updated_at || a.created_at) || text(b.id).localeCompare(text(a.id)));
+  const owner=matching[0],source=parse(owner?.source_text);
+  if (owner?.source_type!=='dataparc_runtime' || owner.event_type!=='runtime_correction' || owner.updated_at!==owner.created_at ||
+      source?.assetTag!==asset.tag_number || source.requestId!==owner.source_log_id || owner.id!==`dataparc_runtime:${source.requestId}` ||
+      typeof source.dataParcTag!=='string' || source.dataParcTag.length>200 || !/^GSPOGE\.ABB_DCS\.[A-Z0-9][A-Z0-9._-]*$/.test(source.dataParcTag)) return null;
+  return verifiedAppendBase(asset,events,source.dataParcTag);
+}
+function rangeSeedMetadata(row,fact,options) {
+  if (options.normalizationVersion!==4 || fact.timePrecision!=='day') return {};
+  const sourceShift=text(row.shift).toUpperCase();
+  const offset=['DS','DAY','주간'].includes(sourceShift)?1:2;
+  const start=instant(`${fact.recordDate}T00:00:00+09:00`);
+  return {normalizationVersion:4,rangeTrackingAllowed:true,rangeStartAt:new Date(start+offset*86400000).toISOString(),
+    sourceWorkDate:fact.recordDate,sourceShift};
+}
+function validRangeSeed(source) {
+  if (source.normalizationVersion!==4 || source.rangeTrackingAllowed!==true || source.timePrecision!=='day') return false;
+  if (source.registeredRuntimeRange===true) return Number.isFinite(instant(source.rangeStartAt));
+  const start=instant(`${source.sourceWorkDate}T00:00:00+09:00`);
+  const offset=['DS','DAY','주간'].includes(text(source.sourceShift).toUpperCase())?1:2;
+  return Number.isFinite(start) && day(new Date(start).toISOString())===source.sourceWorkDate &&
+    instant(source.rangeStartAt)===start+offset*86400000;
 }
 function resetPatch(asset,boundary,user,now) {
   return {last_replacement_at:boundary || null,cycle_started_at:null,cycle_start_state:'pending',
@@ -84,8 +114,12 @@ export function replacementAutoCycleProof(asset,events) {
     item.source.confirmationOnly!==true && item.source.cycleRuntimeRevision===text(asset.cycle_runtime_revision)));
   const fresh=resetAuthority && source.cycleRuntimeRevision===text(asset.cycle_runtime_revision) && asset.cycle_start_state==='pending' &&
     !text(asset.cycle_started_at) && Number(asset.cycle_runtime_hours)===0 && Number(asset.runtime_hours)===0;
-  return {schemaVersion:3,eventId:event.id,confirmationOnly:source.confirmationOnly===true,cycleStartRevision:source.cycleStartRevision,cycleRuntimeRevision:source.cycleRuntimeRevision,replacementEventId:source.replacementEventId || (event.event_type==='replacement'?event.id:''),
-    timePrecision:source.timePrecision,clockKnown,registeredBaseline,storedRuntimeHours:Number(asset.cycle_runtime_hours),storedLegacyRuntimeHours:Number(asset.runtime_hours),requiredStartAt:clockKnown || registeredBaseline?source.currentLastReplacementAt:'',
+  const rangeTrackingAllowed=validRangeSeed(source);
+  return {schemaVersion:3,normalizationVersion:source.normalizationVersion===4?4:undefined,rangeTrackingAllowed,
+    rangeStartAt:rangeTrackingAllowed?source.rangeStartAt:'',rangeQueryEligible:rangeTrackingAllowed && fresh && source.registeredRuntimeRange!==true,
+    registeredRuntimeRange:source.normalizationVersion===4 && source.registeredRuntimeRange===true,
+    completionClockConflict:source.normalizationVersion===4 && source.completionClockConflict===true,eventId:event.id,confirmationOnly:source.confirmationOnly===true,cycleStartRevision:source.cycleStartRevision,cycleRuntimeRevision:source.cycleRuntimeRevision,replacementEventId:source.replacementEventId || (event.event_type==='replacement'?event.id:''),
+    timePrecision:source.timePrecision,clockKnown,registeredBaseline,storedRuntimeHours:Number(asset.cycle_runtime_hours),storedLegacyRuntimeHours:Number(asset.runtime_hours),requiredStartAt:clockKnown || registeredBaseline || rangeTrackingAllowed?source.currentLastReplacementAt:'',
     freshQueryEligible:(clockKnown || registeredBaseline) && fresh,requiresRunRefresh:fresh,sourceLogId:event.source_log_id,
     sourceSnapshotSha256:source.sourceSnapshotSha256};
 }
@@ -137,26 +171,28 @@ export async function reconcileApprovedReplacementLog(database,user,row,facts,op
       return tagFacts.some(fact => fact.sourceKey===prior.sourceKey ||
         (fact.timePrecision==='minute' && instant(fact.eventDate)===instant(event.event_date)));
     };
-    // An unchecked/stale author control is not permission to erase a prior
-    // registered event or reset its cycle. Existing unannotated V3 sources
-    // keep their previous reconciliation semantics.
-    const protectedEntryIds = Array.isArray(options.preserveSourceEntryIds) ? options.preserveSourceEntryIds : [];
-    const authorControlProtects = event => {
-      const prior = sourceMetadata(event);
-      let key = null;
-      try { key = JSON.parse(prior?.sourceKey || 'null'); } catch {}
-      const entryKey = Array.isArray(key) ? text(key[2]) : '';
-      // Older entries without IDs used a collection position. Assigning a new
-      // stable ID while editing must not turn that missing identity into
-      // authority to retract its already registered replacement/cycle.
-      const positional = /^(?:(?:entries|tmEntries|handoverEntries|remarkEntries)(?:\.(?:note|remark|remarks))?|note|remark|remarks):\d+$/.test(entryKey);
-      return entryKey && !positional ? protectedEntryIds.includes(entryKey) : options.preserveUnkeyedAutomaticEvents === true;
+    // Unchecking or stale author metadata is not permission to erase a
+    // registered physical job. A missing/deleted entry is handled separately
+    // by the server's explicit source reconciliation.
+    const protectedEntryIds=Array.isArray(options.preserveSourceEntryIds)?options.preserveSourceEntryIds:[];
+    const authorControlProtects=event=>{
+      const prior=sourceMetadata(event);let key=null;
+      try{key=JSON.parse(prior?.sourceKey || 'null');}catch{}
+      const entryKey=Array.isArray(key)?text(key[2]):'';
+      const positional=/^(?:(?:entries|tmEntries|handoverEntries|remarkEntries)(?:\.(?:note|remark|remarks))?|note|remark|remarks):\d+$/.test(entryKey);
+      return entryKey && !positional?protectedEntryIds.includes(entryKey):options.preserveUnkeyedAutomaticEvents===true;
     };
-    const unsupported = afterEvents.filter(event => event.event_type==='replacement' && AUTO_TYPES.has(event.source_type) && aliases.includes(text(event.source_log_id)) && !supportsEvent(event));
-    const retract = unsupported.filter(event => !authorControlProtects(event));
-    result.protected += unsupported.length - retract.length;
-    for (const event of retract) { event.event_type='_retracted_replacement';event.updated_at=now;changes.push({kind:'retracted',eventId:event.id}); }
-    if (retract.some(event => instant(event.event_date)===instant(asset.last_replacement_at))) {
+    const unsupported=afterEvents.filter(event=>event.event_type==='replacement' && AUTO_TYPES.has(event.source_type) && aliases.includes(text(event.source_log_id)) && !supportsEvent(event));
+    const retract=unsupported.filter(event=>!authorControlProtects(event));
+    result.protected+=unsupported.length-retract.length;
+    // An automatic duplicate can share the current manual replacement instant.
+    // Withdrawing that source does not withdraw the independent manual basis
+    // or invalidate its already measured counter and owning revisions.
+    const preservedManualBasis=afterEvents.find(event => event.event_type==='replacement' && event.source_type==='manual' &&
+      Number.isFinite(instant(event.event_date)) && instant(event.event_date)===instant(asset.last_replacement_at));
+    for (const event of retract) { event.event_type='_retracted_replacement';event.updated_at=now;changes.push({kind:'retracted',eventId:event.id,
+      ...(preservedManualBasis?{replacementEventId:preservedManualBasis.id,preservedCurrentBasis:true}:{})}); }
+    if (!preservedManualBasis && retract.some(event => instant(event.event_date)===instant(asset.last_replacement_at))) {
       const remaining=afterEvents.filter(event => event.event_type==='replacement' && Number.isFinite(instant(event.event_date))).sort(order)[0];
       Object.assign(afterAsset,resetPatch(asset,remaining?.event_date || '',user,now));reset=true;
       const id=`replacement-auto-v3:reconcile:${await hash(`${physicalSource}|${tag}|${sourceHash}`)}`;
@@ -171,6 +207,23 @@ export async function reconcileApprovedReplacementLog(database,user,row,facts,op
     }
     for (const fact of tagFacts) {
       const active=afterEvents.filter(event => event.event_type==='replacement');
+      const manualClock=options.normalizationVersion===4 && fact.timePrecision==='minute'?active.find(event =>
+        event.source_type==='manual' && !midnight(event.event_date) && instant(event.event_date)===instant(afterAsset.last_replacement_at) &&
+        day(event.event_date)===day(fact.eventDate) && instant(event.event_date)!==instant(fact.eventDate)):null;
+      if (manualClock) {
+        const id=`replacement-auto-v3:clock-conflict:${await hash(`${physicalSource}|${tag}|${manualClock.id}|${sourceHash}|${fact.sourceKey}`)}`;
+        if (!afterEvents.some(event => event.id===id)) {
+          const meta={schemaVersion:3,replacementAutoV3:true,normalizationVersion:4,currentCycle:true,confirmationOnly:true,
+            completionClockConflict:true,replacementEventId:manualClock.id,currentLastReplacementAt:manualClock.event_date,
+            timePrecision:'minute',registeredBaseline:true,cycleStartRevision:afterAsset.cycle_start_revision,
+            cycleRuntimeRevision:afterAsset.cycle_runtime_revision,sourceCompletionAt:fact.eventDate,sourceKey:fact.sourceKey,
+            sourcePhysicalId:physicalSource,sourceSnapshotSha256:sourceHash};
+          const confirmation=eventRow(user,now,{id,tag,date:now,type:'cycle_source_reconcile',sourceId:text(row.id),sourceText:makeSource(meta,fact.sourceText),
+            note:'승인 원문 완료시각과 같은 날 수동 등록시각이 다름 · 별도 교체 여부 미확정 · 기존 누적·기준 보존'});
+          afterEvents.push(confirmation);changes.push({kind:'confirmed',eventId:id,replacementEventId:manualClock.id});
+        }
+        result.linked++;result.results.push({tagNumber:tag,kind:'linked',eventId:manualClock.id,completionClockConflict:true});continue;
+      }
       const downgraded=fact.timePrecision==='day'?active.find(event => {
         const prior=sourceMetadata(event);
         return prior && aliases.includes(text(event.source_log_id)) && prior.timePrecision==='minute' &&
@@ -231,10 +284,16 @@ export async function reconcileApprovedReplacementLog(database,user,row,facts,op
           const previous=sourceMetadata(existing);
           const knownClock=previous?.timePrecision==='minute' || fact.timePrecision==='minute' ||
             (!AUTO_TYPES.has(existing.source_type) && precision(existing)==='minute');
+          const registeredRange=options.normalizationVersion===4 && fact.timePrecision==='day' && !knownClock
+            ?currentVerifiedRange(afterAsset,afterEvents):null;
           const meta={schemaVersion:3,replacementAutoV3:true,currentCycle:true,confirmationOnly:true,replacementEventId:existing.id,
             currentLastReplacementAt:existing.event_date,timePrecision:knownClock?'minute':'day',recordDate:fact.recordDate,
             registeredBaseline:!AUTO_TYPES.has(existing.source_type),cycleStartRevision:afterAsset.cycle_start_revision,
-            cycleRuntimeRevision:afterAsset.cycle_runtime_revision,sourceKey:fact.sourceKey,sourcePhysicalId:physicalSource,sourceSnapshotSha256:sourceHash};
+            cycleRuntimeRevision:afterAsset.cycle_runtime_revision,sourceKey:fact.sourceKey,sourcePhysicalId:physicalSource,sourceSnapshotSha256:sourceHash,
+            ...(previous && validRangeSeed(previous)?{normalizationVersion:4,rangeTrackingAllowed:true,rangeStartAt:previous.rangeStartAt,
+              sourceWorkDate:previous.sourceWorkDate,sourceShift:previous.sourceShift}: {}),
+            ...(registeredRange?{normalizationVersion:4,registeredRuntimeRange:true,basisKind:'verified_runtime_range',registeredBaseline:true,
+              rangeTrackingAllowed:true,rangeStartAt:registeredRange.startAt,preservedRuntimeEventId:registeredRange.eventId}: {})};
           const confirmation=eventRow(user,now,{id,tag,date:now,type:'cycle_source_reconcile',sourceId:text(row.id),sourceText:makeSource(meta,fact.sourceText),
             note:'승인 업무일지 교체완료를 기존 등록 교체와 대조·자동 확인 · 누적시간과 Cycle 변경 없음'});
           afterEvents.push(confirmation);changes.push({kind:'confirmed',eventId:id,replacementEventId:existing.id});
@@ -244,12 +303,9 @@ export async function reconcileApprovedReplacementLog(database,user,row,facts,op
       const sameSource=active.filter(event => AUTO_TYPES.has(event.source_type) && aliases.includes(text(event.source_log_id)) &&
         ((fact.sourceKey && sourceMetadata(event)?.sourceKey===fact.sourceKey) ||
           (tagFacts.length===1 && day(event.event_date)===day(fact.eventDate))));
-      let authorSourceKey = null;
-      try { authorSourceKey = JSON.parse(fact.sourceKey); } catch {}
-      // A manually confirmed job keeps its physical identity when its author
-      // corrects a date without supplying a clock. Legacy inferred day facts
-      // retain their existing matching rules.
-      const authorDayCorrection = fact.timePrecision==='day' && Array.isArray(authorSourceKey) &&
+      let authorSourceKey=null;
+      try{authorSourceKey=JSON.parse(fact.sourceKey);}catch{}
+      const authorDayCorrection=fact.timePrecision==='day' && Array.isArray(authorSourceKey) &&
         authorSourceKey[3]==='author-confirmed-v1' && sameSource.length===1 &&
         sourceMetadata(sameSource[0])?.sourceKey===fact.sourceKey && precision(sameSource[0])==='day';
       const placeholder=(sameSource.length===1 && (fact.timePrecision==='minute' || authorDayCorrection)?sameSource[0]:null) ||
@@ -268,7 +324,7 @@ export async function reconcileApprovedReplacementLog(database,user,row,facts,op
       const meta={schemaVersion:3,replacementAutoV3:true,currentCycle:isCurrent,replacementEventId:eventId,
         currentLastReplacementAt:isCurrent?fact.eventDate:'',recordDate:fact.recordDate,timePrecision:fact.timePrecision,
         ...(isCurrent?{cycleStartRevision:afterAsset.cycle_start_revision,cycleRuntimeRevision:afterAsset.cycle_runtime_revision}:{}),
-        sourcePhysicalId:physicalSource,sourceSnapshotSha256:sourceHash,sourceKey:fact.sourceKey,runtimeAtReplacementKnown:false,previousStoredCounterPreserved:isCurrent};
+        sourcePhysicalId:physicalSource,sourceSnapshotSha256:sourceHash,sourceKey:fact.sourceKey,...(isCurrent?rangeSeedMetadata(row,fact,options):{}),runtimeAtReplacementKnown:false,previousStoredCounterPreserved:isCurrent};
       const sourceText=makeSource(meta,fact.sourceText);
       const beforeRuntime=priorStoredCounter;
       let event;

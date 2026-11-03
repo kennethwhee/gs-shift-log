@@ -18796,6 +18796,15 @@ async function loadBlowerReplacementAutoProofs(database, assets) {
   return proofsByTag;
 }
 
+function blowerReplacementDayRangeProof(asset, proof) {
+  if (proof?.normalizationVersion !== 4 || proof.rangeTrackingAllowed !== true ||
+      proof.timePrecision !== 'day' || proof.registeredBaseline === true ||
+      normalizeText(proof.cycleStartRevision) !== normalizeText(asset.cycle_start_revision)) return null;
+  const start = parseStrictRfc3339(normalizeText(proof.rangeStartAt));
+  const replacement = parseStrictRfc3339(normalizeText(asset.last_replacement_at));
+  return start && replacement && start.timestamp > replacement.timestamp ? start : null;
+}
+
 function blowerReplacementAutoProbeFailure(asset, proof) {
   if (!isReplacementAutoRevision(asset)) return null;
   const valid = proof?.schemaVersion === 3 && ['minute','day'].includes(proof.timePrecision) &&
@@ -18804,12 +18813,13 @@ function blowerReplacementAutoProbeFailure(asset, proof) {
     /^[a-f0-9]{64}$/.test(String(proof.sourceSnapshotSha256 || ''));
   if (!valid) return jsonResponse({ ok: false, code: 'BLOWER_REPLACEMENT_PROOF_REQUIRED',
     message: '자동 교체 등록의 근거와 현재 Cycle Revision을 확인할 수 없어 RUN 조회를 시작하지 않았습니다.' }, 409);
-  if (proof.timePrecision === 'day' && proof.registeredBaseline !== true) {
+  const dayRange = blowerReplacementDayRangeProof(asset, proof);
+  if (proof.timePrecision === 'day' && proof.registeredBaseline !== true && !dayRange) {
     return jsonResponse({ ok: false, code: 'BLOWER_REPLACEMENT_TIME_REQUIRED',
       message: '교체 완료일은 자동 등록됐지만 완료 시각이 없어 RUN 조회를 시작하지 않았습니다. 완료 시각 확인 후 조회해 주세요.' }, 409);
   }
-  if ((proof.clockKnown !== true && proof.registeredBaseline !== true) ||
-      normalizeText(proof.requiredStartAt) !== normalizeText(asset.last_replacement_at)) {
+  if (!dayRange && ((proof.clockKnown !== true && proof.registeredBaseline !== true) ||
+      normalizeText(proof.requiredStartAt) !== normalizeText(asset.last_replacement_at))) {
     return jsonResponse({ ok: false, code: 'BLOWER_REPLACEMENT_PROOF_REQUIRED',
       message: '자동 교체 등록의 시각 근거가 현재 Cycle과 달라 RUN 조회를 시작하지 않았습니다.' }, 409);
   }
@@ -18911,11 +18921,13 @@ async function createBlowerRuntimeProbeRequest(
     );
   }
 
+  let replacementAutoProof = null;
   if (isReplacementAutoRevision(asset)) {
     const proofs = internalOptions.replacementAutoProofsByTag instanceof Map
       ? internalOptions.replacementAutoProofsByTag
       : await loadBlowerReplacementAutoProofs(database, [asset]);
-    const failure = blowerReplacementAutoProbeFailure(asset, proofs.get(assetTag));
+    replacementAutoProof = proofs.get(assetTag);
+    const failure = blowerReplacementAutoProbeFailure(asset, replacementAutoProof);
     if (failure) return failure;
   }
 
@@ -19115,6 +19127,35 @@ async function createBlowerRuntimeProbeRequest(
       ) {
         await ensureAppendSchema(database);
       }
+    }
+  }
+
+  // A V4 date-only replacement certifies a later, measured range. It does not
+  // assert a replacement clock or authorize replaying an already seeded range.
+  const replacementDayRange = blowerReplacementDayRangeProof(asset, replacementAutoProof);
+  if (replacementDayRange) {
+    if (appendBase) {
+      const baseStart = parseStrictRfc3339(normalizeText(appendBase.startAt));
+      if (!baseStart || baseStart.timestamp !== replacementDayRange.timestamp ||
+          normalizeText(appendBase.cycleRuntimeRevision) !== expectedCycleRuntimeRevision) {
+        return jsonResponse({ ok: false, code: 'BLOWER_INCREMENTAL_BASE_REQUIRED',
+          message: '저장된 RUN 구간과 현재 증분 근거가 달라 전체 재조회로 전환하지 않았습니다.' }, 409);
+      }
+    } else {
+      const zero = value => value !== null && value !== undefined && value !== '' &&
+        typeof value !== 'boolean' && Number(value) === 0;
+      const freshRange = body.unifiedRefresh === true && body.incrementalRefresh === true &&
+        replacementAutoProof.rangeQueryEligible === true && expectedCycleStartState === 'pending' &&
+        !expectedCycleStartedAt && zero(asset.cycle_runtime_hours) && zero(asset.runtime_hours) &&
+        normalizeText(replacementAutoProof.cycleRuntimeRevision) === expectedCycleRuntimeRevision;
+      if (!freshRange) return jsonResponse({ ok: false, code: 'BLOWER_INCREMENTAL_BASE_REQUIRED',
+        message: '기존 RUN 구간 보호를 위해 전체 재조회로 전환하지 않았습니다. 검증된 증분 근거가 필요합니다.' }, 409);
+      const supplied = requestedStartText ? parseStrictRfc3339(requestedStartText) : null;
+      if (requestedStartText && (!supplied || supplied.timestamp !== replacementDayRange.timestamp)) {
+        return jsonResponse({ ok: false, code: 'BLOWER_REPLACEMENT_RANGE_INVALID',
+          message: '확인된 RUN 구간의 시작과 다른 조회 시작일시는 사용할 수 없습니다.' }, 409);
+      }
+      requestedStartText = normalizeText(replacementAutoProof.rangeStartAt);
     }
   }
 
