@@ -137,7 +137,24 @@ export async function reconcileApprovedReplacementLog(database,user,row,facts,op
       return tagFacts.some(fact => fact.sourceKey===prior.sourceKey ||
         (fact.timePrecision==='minute' && instant(fact.eventDate)===instant(event.event_date)));
     };
-    const retract=afterEvents.filter(event => event.event_type==='replacement' && AUTO_TYPES.has(event.source_type) && aliases.includes(text(event.source_log_id)) && !supportsEvent(event));
+    // An unchecked/stale author control is not permission to erase a prior
+    // registered event or reset its cycle. Existing unannotated V3 sources
+    // keep their previous reconciliation semantics.
+    const protectedEntryIds = Array.isArray(options.preserveSourceEntryIds) ? options.preserveSourceEntryIds : [];
+    const authorControlProtects = event => {
+      const prior = sourceMetadata(event);
+      let key = null;
+      try { key = JSON.parse(prior?.sourceKey || 'null'); } catch {}
+      const entryKey = Array.isArray(key) ? text(key[2]) : '';
+      // Older entries without IDs used a collection position. Assigning a new
+      // stable ID while editing must not turn that missing identity into
+      // authority to retract its already registered replacement/cycle.
+      const positional = /^(?:(?:entries|tmEntries|handoverEntries|remarkEntries)(?:\.(?:note|remark|remarks))?|note|remark|remarks):\d+$/.test(entryKey);
+      return entryKey && !positional ? protectedEntryIds.includes(entryKey) : options.preserveUnkeyedAutomaticEvents === true;
+    };
+    const unsupported = afterEvents.filter(event => event.event_type==='replacement' && AUTO_TYPES.has(event.source_type) && aliases.includes(text(event.source_log_id)) && !supportsEvent(event));
+    const retract = unsupported.filter(event => !authorControlProtects(event));
+    result.protected += unsupported.length - retract.length;
     for (const event of retract) { event.event_type='_retracted_replacement';event.updated_at=now;changes.push({kind:'retracted',eventId:event.id}); }
     if (retract.some(event => instant(event.event_date)===instant(asset.last_replacement_at))) {
       const remaining=afterEvents.filter(event => event.event_type==='replacement' && Number.isFinite(instant(event.event_date))).sort(order)[0];
@@ -227,7 +244,15 @@ export async function reconcileApprovedReplacementLog(database,user,row,facts,op
       const sameSource=active.filter(event => AUTO_TYPES.has(event.source_type) && aliases.includes(text(event.source_log_id)) &&
         ((fact.sourceKey && sourceMetadata(event)?.sourceKey===fact.sourceKey) ||
           (tagFacts.length===1 && day(event.event_date)===day(fact.eventDate))));
-      const placeholder=(sameSource.length===1 && fact.timePrecision==='minute'?sameSource[0]:null) ||
+      let authorSourceKey = null;
+      try { authorSourceKey = JSON.parse(fact.sourceKey); } catch {}
+      // A manually confirmed job keeps its physical identity when its author
+      // corrects a date without supplying a clock. Legacy inferred day facts
+      // retain their existing matching rules.
+      const authorDayCorrection = fact.timePrecision==='day' && Array.isArray(authorSourceKey) &&
+        authorSourceKey[3]==='author-confirmed-v1' && sameSource.length===1 &&
+        sourceMetadata(sameSource[0])?.sourceKey===fact.sourceKey && precision(sameSource[0])==='day';
+      const placeholder=(sameSource.length===1 && (fact.timePrecision==='minute' || authorDayCorrection)?sameSource[0]:null) ||
         (fact.timePrecision==='minute'?active.filter(event => ['shift_log_history_v12','shift_log_history_v13'].includes(event.source_type) && midnight(event.event_date) &&
           day(event.event_date)===day(fact.eventDate) && precision(event)==='day').sort(order)[0]:null);
       const currentMs=instant(afterAsset.last_replacement_at),factMs=instant(fact.eventDate);

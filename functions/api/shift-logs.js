@@ -1,3 +1,4 @@
+import { normalizeDiaryVbeltAnnotations, validateDiaryVbeltTargets } from '../_shared/diary-vbelt-confirm-v1.js';
 import { protectedRequest } from "../_shared/attachment-access.js";
 import { hydrateLegacyShiftLogAttachments } from "../_shared/legacy-shift-log-attachments.js";
 /* =========================================================
@@ -13130,7 +13131,7 @@ if (
       }
 
 
-      const createdLog =
+      let createdLog =
         await applyCreateRules(
           context.env.DB,
 
@@ -13145,6 +13146,14 @@ if (
           now
         );
 
+
+      try {
+        createdLog = normalizeDiaryVbeltAnnotations(createdLog);
+        await validateDiaryVbeltTargets(context.env.DB, createdLog);
+      } catch (error) {
+        if (!String(error?.code || '').startsWith('VBELT_CONFIRMATION_')) throw error;
+        return jsonResponse({ok:false,code:error.code,message:error.message},400);
+      }
 
       try {
         const savedLog =
@@ -13416,6 +13425,14 @@ if (
     );
 }
 
+
+try {
+  nextLog = normalizeDiaryVbeltAnnotations(nextLog, existingLog);
+  await validateDiaryVbeltTargets(context.env.DB, nextLog);
+} catch (error) {
+  if (!String(error?.code || '').startsWith('VBELT_CONFIRMATION_')) throw error;
+  return jsonResponse({ok:false,code:error.code,message:error.message},400);
+}
 
 const savedLog =
   await updateLog(

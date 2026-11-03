@@ -1,3 +1,4 @@
+import { inspectVbeltAnnotations, annotationControlsFragment, collectConfirmedVbeltFacts } from './diary-vbelt-confirm-v1.js';
 /* Approved replacement facts, separate from applying/resetting a cycle.
  * A day-precision event's 00:00 storage representation is NOT a reported
  * midnight completion. The consumer must preserve timePrecision and must not
@@ -48,11 +49,14 @@ export function collectApprovedReplacementFacts(row, recognitionAssets, adapters
   }
   if (!['결재완료','APPROVED','approved'].includes(text(row?.status))) return [];
   const rowRole = typeof adapters.normalizeRole === 'function' ? text(adapters.normalizeRole(row?.role)) : text(row?.role);
-  if (/^(?:PART_LEADER|GROUP_LEADER|파트장)$/i.test(rowRole)) return [];
   const recordDate = text(row?.work_date).slice(0,10);
   if (!day(recordDate)) return [];
   const assets = Array.isArray(recognitionAssets) ? recognitionAssets : [];
-  const fragments = adapters.contextualizeFragments(adapters.parseFragments(row, assets), row, assets);
+  const annotations = inspectVbeltAnnotations(row);
+  const confirmedFacts = collectConfirmedVbeltFacts(row, assets, annotations);
+  if (/^(?:PART_LEADER|GROUP_LEADER|파트장)$/i.test(rowRole)) return confirmedFacts;
+  const parsedFragments = adapters.contextualizeFragments(adapters.parseFragments(row, assets), row, assets);
+  const fragments = Array.isArray(parsedFragments) ? parsedFragments.filter(fragment => !annotationControlsFragment(annotations, fragment)) : parsedFragments;
   if (!Array.isArray(fragments)) throw new Error('Replacement parser returned an invalid fragment list.');
   const entryKeyFor = fragment => {
     const origin = fragment?.v3Origin || {};
@@ -78,7 +82,7 @@ export function collectApprovedReplacementFacts(row, recognitionAssets, adapters
       if (pieces(source).length === 1 && explicitCompletion(source) && positivePerformed(source)) explicitCompletionEntries.add(key);
     }
   }
-  const facts = new Map();
+  const facts = new Map(confirmedFacts.map(fact => [fact.sourceKey, fact]));
   for (const fragment of fragments) {
     if (fragment?.identityConflict === true || fragment?.v13Context?.identityConflict === true) continue;
     const source = text(adapters.sourceText(fragment));

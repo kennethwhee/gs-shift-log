@@ -136,7 +136,7 @@ export async function loadApprovedReplacementPage(database, body = {}, options =
     LEFT JOIN blower_log_receipts_v1 r ON r.log_id=${receiptKeySql('shift_logs', 's')}
     WHERE s.work_date>=? AND s.work_date<=? AND ${approved('s')}
       AND (julianday(s.updated_at) IS NULL OR julianday(s.updated_at)<=julianday(?))
-      AND ${likelyWork('s.log_json')}
+      AND (${likelyWork('s.log_json')} OR instr(s.log_json, '"vBeltReplacement"') > 0)
       AND (r.log_id IS NULL OR r.replacement_done<>1 OR r.source_snapshot<>${shiftSnapshot})
     ORDER BY s.work_date,s.id LIMIT ?`;
   const canonical = await database.prepare(canonicalSql).bind(window.fromDate, window.endDate, window.snapshotAt, limit + 1).all();

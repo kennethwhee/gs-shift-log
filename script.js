@@ -14053,6 +14053,7 @@ async function loadPreviousShiftHandoverEntriesForCurrentEditor() {
           tag,
 
           content,
+          vBeltReplacement: window.GSDiaryVBeltConfirm?.resetCopiedAnnotation(entry, content),
 
           attachmentName:
             String(
@@ -19587,6 +19588,9 @@ function createMemberImportedEntry(
         entry?.content ||
         ""
       ).trim(),
+    vBeltReplacement: window.GSDiaryVBeltConfirm
+      ? window.GSDiaryVBeltConfirm.copyAnnotation(entry)
+      : entry?.vBeltReplacement,
 
     importedFromRole:
       normalizedRole,
@@ -33403,6 +33407,9 @@ function fillLogEditor(
           normalizedEntry?.content ||
           ""
         ).trim(),
+      vBeltReplacement: window.GSDiaryVBeltConfirm
+        ? window.GSDiaryVBeltConfirm.copyNormalizedAnnotation(entry, normalizedEntry)
+        : normalizedEntry?.vBeltReplacement,
 
       attachmentName:
         String(
@@ -35086,7 +35093,9 @@ function addOrUpdateLogEntry() {
 
 
     content,
-
+    vBeltReplacement: window.GSDiaryVBeltConfirm
+      ? window.GSDiaryVBeltConfirm.legacyInputAnnotation(previousEntryData, content)
+      : previousEntryData?.vBeltReplacement,
 
     importedFromRole:
       finalSourceRole,
@@ -37838,7 +37847,7 @@ const category =
       <div
         class="log-entry-document-body"
       >
-        ${categoryBadgeHtml}${timeHtml}${contentHtml}${tagHtml}
+        ${categoryBadgeHtml}${timeHtml}${contentHtml}${tagHtml}${window.GSDiaryVBeltConfirm?.badgeHtml(entry) || ""}
 
       </div>
 
@@ -39745,6 +39754,9 @@ const resolvedImportedFromRole =
                 entry?.content ||
                 ""
               ).trim(),
+            vBeltReplacement: window.GSDiaryVBeltConfirm
+              ? window.GSDiaryVBeltConfirm.copyAnnotation(entry)
+              : entry?.vBeltReplacement,
 
             attachmentName:
               String(
@@ -43565,6 +43577,9 @@ function collectLogEntriesForDisplay(
 
         const finalEntry = {
           ...normalizedEntry,
+          vBeltReplacement: window.GSDiaryVBeltConfirm
+            ? window.GSDiaryVBeltConfirm.copyNormalizedAnnotation(sourceEntry, normalizedEntry)
+            : normalizedEntry?.vBeltReplacement,
 
           importedFromRole:
             sourceRole
@@ -49280,6 +49295,9 @@ function resolveDetailEntrySourceRole(entry, detailLog) {
 
           collected.push({
             ...normalizedEntry,
+            vBeltReplacement: window.GSDiaryVBeltConfirm
+              ? window.GSDiaryVBeltConfirm.copyNormalizedAnnotation(rawEntry, normalizedEntry)
+              : normalizedEntry?.vBeltReplacement,
 
             sourceRole,
 
@@ -50736,6 +50754,7 @@ function openLogDetail(
               ? continuationHtml
               : tagHtml
           }
+          ${window.GSDiaryVBeltConfirm?.badgeHtml(entry) || ""}
 
         </span>
 
@@ -206720,6 +206739,7 @@ document.addEventListener(
           </button>
 
         </div>
+        ${window.GSDiaryVBeltConfirm?.editorHtml() || ""}
 
       </div>
     `;
@@ -206734,7 +206754,7 @@ document.addEventListener(
       "afterend",
       editorRow
     );
-
+    window.GSDiaryVBeltConfirm?.mountEditor(editorRow, null, ".leader-role-quick-add-content");
 
     window.requestAnimationFrame(
       () => {
@@ -206841,6 +206861,9 @@ document.addEventListener(
       ).trim();
 
 
+    const vBeltConfirmation = window.GSDiaryVBeltConfirm?.readEditor(editorRow, content);
+    if (vBeltConfirmation?.ok === false) return;
+
     const newEntry = {
       id:
         typeof createId ===
@@ -206864,6 +206887,7 @@ document.addEventListener(
         "",
 
       content,
+      vBeltReplacement: vBeltConfirmation?.annotation,
 
       attachmentName:
         "",
@@ -225727,6 +225751,9 @@ function removeDisplayedOverrides() {
                 entry
               ) ||
               entry;
+            if (window.GSDiaryVBeltConfirm) {
+              entry.vBeltReplacement = window.GSDiaryVBeltConfirm.copyNormalizedAnnotation(rawEntry, entry);
+            }
           }
 
           entry.content =
@@ -249642,6 +249669,7 @@ if (
               "",
 
             content,
+            vBeltReplacement: window.GSDiaryVBeltConfirm?.resetCopiedAnnotation(sourceEntry, content),
 
             importedFromRole:
               "파트장",
@@ -250861,6 +250889,7 @@ if (
 
         </label>
 
+        ${window.GSDiaryVBeltConfirm?.editorHtml() || ""}
 
         <div class="section-context-entry-editor__actions">
 
@@ -250990,6 +251019,8 @@ if (
       editor
     );
 
+
+    window.GSDiaryVBeltConfirm?.mountEditor(editor, existingEntry);
 
     definition.section.classList.add(
       "is-context-entry-open"
@@ -251164,6 +251195,8 @@ if (
       currentRole ===
       "파트장";
 
+    const vBeltConfirmation = window.GSDiaryVBeltConfirm?.readEditor(editor, content, previousEntry);
+    if (vBeltConfirmation?.ok === false) return null;
 
     return {
       ...(
@@ -251225,6 +251258,9 @@ if (
             ),
 
       content,
+      vBeltReplacement: vBeltConfirmation
+        ? vBeltConfirmation.annotation
+        : previousEntry?.vBeltReplacement,
 
       attachmentName:
         String(

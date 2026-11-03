@@ -1,0 +1,14 @@
+.diary-vbelt-confirm { margin: 8px 0 2px; padding: 8px 10px; border: 1px solid #d7e2ec; border-radius: 6px; background: #f7fafc; color: #334b63; font-size: 12px; }
+.diary-vbelt-confirm [hidden], .diary-vbelt-confirm[hidden] { display: none !important; }
+.diary-vbelt-confirm__check { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.diary-vbelt-confirm__checkbox { width: 15px; height: 15px; margin: 0; }
+.diary-vbelt-confirm__help, .diary-vbelt-confirm__notice, .diary-vbelt-confirm__error { margin: 6px 0; font-size: 11px; line-height: 1.5; }
+.diary-vbelt-confirm__notice { color: #8a5a14; }
+.diary-vbelt-confirm__error { color: #a52b32; }
+.diary-vbelt-confirm__target { display: grid; grid-template-columns: minmax(180px, 1fr) 135px 125px 24px; align-items: end; gap: 6px; margin: 7px 0; }
+.diary-vbelt-confirm__target label { display: flex; min-width: 0; flex-direction: column; gap: 3px; font-size: 11px; }
+.diary-vbelt-confirm__target select, .diary-vbelt-confirm__target input { width: 100%; min-width: 0; height: 30px; padding: 3px 5px; border: 1px solid #cbd7e2; border-radius: 4px; background: #fff; color: #253b52; font: inherit; box-sizing: border-box; }
+.diary-vbelt-confirm__add, .diary-vbelt-confirm__retry, .diary-vbelt-confirm__remove { min-height: 27px; padding: 3px 7px; border: 1px solid #cbd7e2; border-radius: 4px; background: #fff; color: #355e83; font: inherit; cursor: pointer; }
+.diary-vbelt-confirm__retry { margin-left: 6px; }
+.diary-vbelt-confirmed-badge { display: inline-block; margin-left: 6px; padding: 1px 5px; border: 1px solid #c6dfd3; border-radius: 4px; background: #edf7f1; color: #397056; font-size: 10px; font-weight: 600; line-height: 1.5; vertical-align: middle; white-space: nowrap; }
+@media (max-width: 700px) { .diary-vbelt-confirm__target { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 24px; } .diary-vbelt-confirm__target label:first-child { grid-column: 1 / -1; } }

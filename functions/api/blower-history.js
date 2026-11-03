@@ -1,3 +1,4 @@
+import { inspectVbeltAnnotations, annotationControlsFragment } from '../_shared/diary-vbelt-confirm-v1.js';
 import { handleBlowerSchedule } from "../_shared/blower-schedule-v1.js";
 import { incrementalEvidence, verifiedAppendBase, loadAppendBase, loadAppendIntent, combineAppendProbe, cycleRuntimeCoverage } from "../_shared/blower-incremental.js";
 import { reviewedCycleSourceWarning } from "../_shared/blower-cycle-source-review.js";
@@ -523,7 +524,7 @@ async function getAuthenticatedUser(context, options = {}) {
     Number.isNaN(lastUsedAt.getTime()) ||
     now.getTime() - lastUsedAt.getTime() >= 5 * 60 * 1000;
 
-  if (shouldTouch) {
+  if (shouldTouch && options.readOnly !== true) {
     await database
       .prepare(`
         UPDATE shift_log_sessions
@@ -4684,6 +4685,17 @@ async function handleGet(context, user) {
   const url = new URL(context.request.url);
   const action = normalizeText(url.searchParams.get("action")) || "data";
   const permissions = buildPermissions(user);
+
+  if (action === 'replacement_assets') {
+    if (!user) return jsonResponse({ok:false,message:'로그인이 필요합니다.'},401);
+    const result = await database.prepare(`SELECT tag_number,blower_type,unit_no,asset_group,position_label,display_name
+      FROM blower_history_assets WHERE enabled=1 ORDER BY sort_order,tag_number`).all();
+    if (!Array.isArray(result?.results) || result.success === false) throw new Error('Replacement asset list unavailable');
+    return jsonResponse({ok:true,assets:result.results.map(asset => ({
+      tagNumber:asset.tag_number,equipmentName:asset.display_name,displayName:asset.display_name,
+      blowerType:asset.blower_type,unitNo:asset.unit_no,assetGroup:asset.asset_group,positionLabel:asset.position_label
+    }))});
+  }
 
   if (action === 'limestone_run_tracking') {
     if (!user) return jsonResponse({ok:false,message:'로그인이 필요합니다.'},401);
@@ -12185,7 +12197,8 @@ async function scanShiftLogs(database, user, body, prepared = null) {
   };
 
   for (const row of logs) {
-    const rawFragments = parseOnce(row);
+    const annotations = inspectVbeltAnnotations(row);
+    const rawFragments = parseOnce(row).filter(fragment => !annotationControlsFragment(annotations, fragment));
     const prioritized = applyDutyRolePriority(row, rawFragments, rolePriorityContext, recognitionAssets);
 
     if (prioritized.excludedPartLeader) {
@@ -15276,8 +15289,10 @@ async function reflectApprovedReplacementPageV3(database, user, body, options = 
       [fact.sourceText,...(fact.candidateTexts || [])].some(text => comparable(text) === comparable(candidate.source_text))));
     totals.protected += detected.length - facts.length;
     detectedCount += detected.length;
+    const annotations = inspectVbeltAnnotations(row);
     const applied = await reconcileApprovedReplacementLog(database, actor, row, facts,
-      { now: options.now || new Date(), sourceGuard: replacementSourceGuard(row) });
+      { now: options.now || new Date(), sourceGuard: replacementSourceGuard(row),
+        preserveSourceEntryIds: annotations.entryIds, preserveUnkeyedAutomaticEvents: annotations.hasAnnotations });
     if (!applied.ok) return jsonResponse({ ok: false, code: applied.code,
       message: "업무일지 또는 교체 기준이 처리 중 바뀌었습니다. 완료된 원문은 보존하고 변경된 원문은 다시 확인합니다." }, applied.status || 409);
     for (const key of Object.keys(totals)) totals[key] += Number(applied[key] || 0);
@@ -15482,16 +15497,17 @@ async function handlePost(context, user, body) {
 
 export async function onRequestGet(context) {
   try {
+    const replacementAssetRead = new URL(context.request.url).searchParams.get('action') === 'replacement_assets';
     const authentication = await getAuthenticatedUser(
       context,
-      { optional: true }
+      { optional: true, readOnly: replacementAssetRead }
     );
 
     if (authentication.error) {
       return authentication.error;
     }
 
-    if (authentication.user) {
+    if (authentication.user && !replacementAssetRead) {
       await ensureBlowerHistorySchemaReady(context.env.DB);
     }
     return await handleGet(context, authentication.user);
