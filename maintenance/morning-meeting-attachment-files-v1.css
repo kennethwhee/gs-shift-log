@@ -1,0 +1,161 @@
+/* Filenames stay inside the existing cards; the folder controls are unchanged. */
+#efficiencyMorningMeetingView .efficiency-morning-meeting-upload-card__content .morning-meeting-current-file-name {
+  display: block !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  color: #64748b !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  line-height: 1.4 !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  -webkit-line-clamp: unset !important;
+  line-clamp: unset !important;
+}
+
+#efficiencyMorningMeetingView .efficiency-morning-meeting-upload-shell.morning-meeting-has-coal-file-reference {
+  grid-template-rows: minmax(68px, 1fr) auto auto;
+}
+
+#efficiencyMorningMeetingView .morning-meeting-has-coal-file-reference > .efficiency-morning-meeting-upload-card {
+  min-height: 68px !important;
+  padding-bottom: 8px !important;
+  border-bottom: 0 !important;
+}
+
+#efficiencyMorningMeetingView .morning-meeting-coal-file-reference {
+  min-width: 0;
+  padding: 0 12px 8px;
+  border: 1px solid #cad8e7;
+  border-top: 0;
+  border-bottom: 0;
+  background: #fbfdff;
+  color: #64748b;
+}
+
+#efficiencyMorningMeetingView .morning-meeting-coal-file-reference [hidden],
+#efficiencyMorningMeetingView .morning-meeting-coal-file-reference[hidden] {
+  display: none !important;
+}
+
+#efficiencyMorningMeetingView .morning-meeting-has-coal-file-reference:has(> .efficiency-morning-meeting-upload-card:is(.is-selected, .is-complete)) > .morning-meeting-coal-file-reference {
+  border-color: #54a877;
+  background: #f3fbf6;
+}
+
+#efficiencyMorningMeetingView .morning-meeting-coal-file-list {
+  display: grid;
+  gap: 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#efficiencyMorningMeetingView .morning-meeting-coal-file-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 22px;
+}
+
+#efficiencyMorningMeetingView .morning-meeting-coal-file-name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#efficiencyMorningMeetingView .morning-meeting-coal-file-remove,
+#efficiencyMorningMeetingView .morning-meeting-coal-file-undo__button {
+  appearance: none;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  font-family: inherit;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+#efficiencyMorningMeetingView .morning-meeting-coal-file-remove {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  color: #8997a7;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+#efficiencyMorningMeetingView .morning-meeting-coal-file-remove:hover:not(:disabled) {
+  background: #fff0f1;
+  color: #b13d49;
+}
+
+#efficiencyMorningMeetingView .morning-meeting-coal-file-undo {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  min-width: 0;
+  margin-top: 4px;
+  color: #7b8999;
+  font-size: 10px;
+  line-height: 22px;
+}
+
+#efficiencyMorningMeetingView .morning-meeting-coal-file-undo__button {
+  min-height: 22px;
+  color: #326da8;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 22px;
+  white-space: nowrap;
+}
+
+#efficiencyMorningMeetingView .morning-meeting-coal-file-undo__button:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+#efficiencyMorningMeetingView .morning-meeting-coal-file-reference button:focus-visible {
+  outline: 2px solid #74a8d4;
+  outline-offset: 1px;
+}
+
+#efficiencyMorningMeetingView .morning-meeting-coal-file-reference button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+#efficiencyMorningMeetingView .morning-meeting-file-announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  #efficiencyMorningMeetingView .morning-meeting-coal-file-reference {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+}

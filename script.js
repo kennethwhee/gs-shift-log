@@ -147355,6 +147355,11 @@ function updateMorningMeetingCreateButton() {
   const state =
     getMorningMeetingWorkbookState();
 
+  if (state.coalAttachmentExporting === true) {
+    if (elements.createButton) elements.createButton.disabled = true;
+    return;
+  }
+
 
   /* ===================================================
     숫자값 검사
@@ -169146,6 +169151,11 @@ async function createMorningMeetingWorkbook() {
   const state =
     getMorningMeetingWorkbookState();
 
+  if (state.coalAttachmentExporting === true) {
+    if (elements.createButton) elements.createButton.disabled = true;
+    return;
+  }
+
 
   hideMorningMeetingWorkbookError();
 
@@ -169795,6 +169805,8 @@ const gearPinionForWorkbook =
   }
 
 
+  state.coalAttachmentExporting = true;
+  window.refreshEfficiencyMorningMeetingAttachmentFiles?.();
   try {
     // Freeze selected-date saved values before folder permission/template awaits.
     const finalWorkbookCurrentValueCollectorV9 = window.morningMeetingWorkbookCurrentValues;
@@ -169804,7 +169816,12 @@ const gearPinionForWorkbook =
     }
     let finalWorkbookCurrentValueBundleV9 =
       finalWorkbookCurrentValueCollectorV9.capture({targetDate: closedValuesTargetDate});
+    const workbookCoalRevision = Number(state.coalFilesRevision || 0);
     const assertWorkbookSelection = () => {
+      if (getMorningMeetingWorkbookState() !== state ||
+          Number(state.coalFilesRevision || 0) !== workbookCoalRevision) {
+        throw new Error("엑셀 생성 중 운탄일지 첨부가 바뀌었습니다. 다시 분석한 후 생성해 주세요.");
+      }
       if (finalWorkbookCurrentValueCollectorV9.targetDate() !== closedValuesTargetDate) {
         throw new Error("엑셀 생성 중 기준일이 바뀌었습니다. 선택일을 확인하고 다시 생성해 주세요.");
       }
@@ -170877,6 +170894,8 @@ if (
     }
 
 
+    state.coalAttachmentExporting = false;
+    window.refreshEfficiencyMorningMeetingAttachmentFiles?.();
     updateMorningMeetingCreateButton();
   }
 }
@@ -177439,6 +177458,9 @@ function resetShiftPart() {
 (function initializeEfficiencyMorningMeetingCoalLogUpload() {
   "use strict";
 
+  // Only current-session exclusions; original files are never deleted.
+  let removedCoalLogFiles = [];
+
 
   /* =====================================================
     상태
@@ -177746,6 +177768,7 @@ function resetShiftPart() {
         분석에는 문제가 없다.
       */
 
+      input.value = ""; // Never retain excluded files in a stale native FileList.
       console.warn(
         "운탄일지 input FileList 동기화 실패:",
         error
@@ -177764,12 +177787,15 @@ function resetShiftPart() {
   function resetCoalAnalysisState(
     state
   ) {
+    state.coalFilesRevision = Number(state.coalFilesRevision || 0) + 1;
+    state.coalAnalysisRunId = Number(state.coalAnalysisRunId || 0) + 1;
     state.coalSelection =
       null;
 
 
     state.coalAnalysisResults =
       [];
+    window.resetEfficiencyMorningMeetingCoalSelection?.();
   }
 
 
@@ -177994,6 +178020,9 @@ function resetShiftPart() {
       );
 
 
+    const incomingKeys = new Set(incomingFiles.map(createCoalLogFileKey));
+    removedCoalLogFiles = removedCoalLogFiles.filter(entry => !incomingKeys.has(createCoalLogFileKey(entry.file)));
+
     state.coalLogFiles =
       mergedFiles;
 
@@ -178067,6 +178096,7 @@ function resetShiftPart() {
   ====================================================== */
 
   function resetCoalLogFiles() {
+    removedCoalLogFiles = [];
     const elements =
       getElements();
 
@@ -178326,6 +178356,51 @@ function resetShiftPart() {
 
     다음 단계 복수 분석기에서 사용한다.
   ====================================================== */
+
+  function replaceActiveCoalLogFiles(files) {
+    const state = getState();
+    state.coalLogFiles = files;
+    state.coalLogFile = files[files.length - 1] || null;
+    resetCoalAnalysisState(state);
+    setInputFiles(getElements().input, files);
+    renderCoalLogUploadState();
+    refreshMorningMeetingState();
+    document.dispatchEvent(new CustomEvent("efficiencyMorningMeetingCoalFilesChanged", {
+      detail: {count: files.length, files: files.slice()}
+    }));
+  }
+
+  window.removeEfficiencyMorningMeetingCoalLogFile = function (file) {
+    const state = getState();
+    if (state.coalAttachmentExporting === true) return false;
+    const files = normalizeCoalLogFiles(state.coalLogFiles);
+    const index = files.indexOf(file);
+    if (index < 0) return false;
+    removedCoalLogFiles.push({file, index});
+    files.splice(index, 1);
+    replaceActiveCoalLogFiles(files);
+    return true;
+  };
+
+  window.undoEfficiencyMorningMeetingCoalLogFiles = function () {
+    const state = getState();
+    if (state.coalAttachmentExporting === true || !removedCoalLogFiles.length) return false;
+    const files = normalizeCoalLogFiles(state.coalLogFiles);
+    const keys = new Set(files.map(createCoalLogFileKey));
+    for (const entry of removedCoalLogFiles.slice().reverse()) {
+      const key = createCoalLogFileKey(entry.file);
+      if (keys.has(key)) continue;
+      files.splice(Math.min(entry.index, files.length), 0, entry.file);
+      keys.add(key);
+    }
+    removedCoalLogFiles = [];
+    replaceActiveCoalLogFiles(files);
+    return true;
+  };
+
+  window.getEfficiencyMorningMeetingRemovedCoalLogCount = () => removedCoalLogFiles.length;
+  window.isEfficiencyMorningMeetingCoalLogFileExcluded = file =>
+    removedCoalLogFiles.some(entry => createCoalLogFileKey(entry.file) === createCoalLogFileKey(file));
 
   window.getEfficiencyMorningMeetingCoalLogFiles =
     function getEfficiencyMorningMeetingCoalLogFiles() {
@@ -180934,6 +181009,14 @@ async function analyzeSingleCoalLogFile(
 async function analyzeCoalLogFile() {
   const state =
     getState();
+  const coalFilesRevision = Number(state.coalFilesRevision || 0);
+  const coalAnalysisRunId = Number(state.coalAnalysisRunId || 0) + 1;
+  state.coalAnalysisRunId = coalAnalysisRunId;
+  const isCurrentCoalAnalysis = () =>
+    window.efficiencyMorningMeetingUploadState === state &&
+    Number(state.coalFilesRevision || 0) === coalFilesRevision &&
+    state.coalAnalysisRunId === coalAnalysisRunId;
+
 
 
   const elements =
@@ -181161,6 +181244,7 @@ async function analyzeCoalLogFile() {
           );
 
 
+        if (!isCurrentCoalAnalysis()) return null;
         analysisResults.push(
           result
         );
@@ -181301,6 +181385,7 @@ async function analyzeCoalLogFile() {
       TM 복수 분석에서 다시 사용한다.
     ==================================================== */
 
+    if (!isCurrentCoalAnalysis()) return null;
     state.coalAnalysisResults =
       analysisResults;
 
@@ -181449,6 +181534,7 @@ async function analyzeCoalLogFile() {
   } catch (
     error
   ) {
+    if (!isCurrentCoalAnalysis()) return null;
     console.error(
       "운탄일지 복수 분석 실패",
       error
@@ -181719,16 +181805,7 @@ async function analyzeCoalLogFile() {
       );
 
 
-    elements.coalCard
-      ?.addEventListener(
-        "drop",
-        () => {
-          window.setTimeout(
-            resetSelection,
-            0
-          );
-        }
-      );
+    // Drag/drop is reset synchronously by resetCoalAnalysisState().
 
 
     updateSelectedState();
@@ -186431,7 +186508,8 @@ function updateSelectionState() {
 
   function waitForCoalAnalysis(
     timeoutMilliseconds =
-      15000
+      15000,
+    isCurrent = () => true
   ) {
     const startedAt =
       Date.now();
@@ -186441,6 +186519,7 @@ function updateSelectionState() {
       resolve => {
         const check =
           () => {
+            if (!isCurrent()) { resolve(false); return; }
             if (
               getSelection()
                 .analyzed ===
@@ -186501,12 +186580,18 @@ function updateSelectionState() {
   - TM이 없는 날짜는 0건으로 처리
 ====================================================== */
 
-async function refreshAfterAnalysis() {
+async function refreshAfterAnalysis(sourceRevision, analysisRunId) {
+  const sourceState = getState();
+  const isCurrent = () => window.efficiencyMorningMeetingUploadState === sourceState &&
+    Number(sourceState.coalFilesRevision || 0) === sourceRevision &&
+    Number(sourceState.coalAnalysisRunId || 0) === analysisRunId;
+  if (!isCurrent()) return;
   hideError();
 
 
   const completed =
-    await waitForCoalAnalysis();
+    await waitForCoalAnalysis(15000, isCurrent);
+  if (!isCurrent()) return;
 
 
   if (
@@ -186716,6 +186801,7 @@ async function refreshAfterAnalysis() {
         await extractCoalTmItems(
           sourceFile
         );
+      if (!isCurrent() || state.coalSelection !== selection) return;
 
 
       const workDate =
@@ -186912,6 +186998,7 @@ async function refreshAfterAnalysis() {
       5. 최종 TM 목록 저장
     ==================================================== */
 
+    if (!isCurrent() || state.coalSelection !== selection) return;
     selection.coalTmItems =
       combinedCoalTmItems;
 
@@ -186972,6 +187059,7 @@ async function refreshAfterAnalysis() {
   } catch (
     error
   ) {
+    if (!isCurrent()) return;
     console.error(
       "운탄일지 TM 분석 실패",
       error
@@ -187271,10 +187359,10 @@ function bindEvents() {
       "click",
 
       () => {
-        window.setTimeout(
-          refreshAfterAnalysis,
-          0
-        );
+        const state = getState();
+        const revision = Number(state.coalFilesRevision || 0);
+        const runId = Number(state.coalAnalysisRunId || 0);
+        window.setTimeout(() => refreshAfterAnalysis(revision, runId), 0);
       }
     );
 
@@ -187380,6 +187468,7 @@ function bindEvents() {
 
 
     bindEvents();
+    document.addEventListener("efficiencyMorningMeetingCoalFilesChanged", renderAll);
 
     renderAll();
   }
@@ -232525,6 +232614,8 @@ async function loadFoldersBeforeAnalysis() {
     };
   }
 
+  const sourceState = window.efficiencyMorningMeetingUploadState;
+  const sourceRevision = Number(sourceState?.coalFilesRevision || 0);
   loading =
     true;
 
@@ -232594,6 +232685,8 @@ async function loadFoldersBeforeAnalysis() {
           continue;
         }
 
+        // A folder reload must not restore a file explicitly excluded this session.
+        if (config.key === "coal" && window.isEfficiencyMorningMeetingCoalLogFileExcluded?.(file)) continue;
         selectedFiles.set(
           config.key,
           file
@@ -232620,6 +232713,10 @@ async function loadFoldersBeforeAnalysis() {
       }
     }
 
+    if (window.efficiencyMorningMeetingUploadState !== sourceState ||
+        Number(sourceState?.coalFilesRevision || 0) !== sourceRevision) {
+      return {canContinue: false, loadedCount: 0, failures: []};
+    }
     if (
       selectedFiles.size >
         0
