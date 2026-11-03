@@ -1,4 +1,5 @@
 import { protectedRequest } from "../_shared/attachment-access.js";
+import { attachmentStateForShiftLogRow } from "../_shared/legacy-shift-log-attachments.js";
 /* =========================================================
   GS Shift Log 신규 업무일지 첨부파일 API
 
@@ -659,15 +660,7 @@ async function findShiftLogRow(
   return database
     .prepare(`
       SELECT
-        id,
-        work_date,
-        shift,
-        role,
-        author,
-        author_id,
-        author_role,
-        status,
-        revision
+        *
 
       FROM shift_logs
 
@@ -1198,11 +1191,10 @@ async function getAttachmentRowsByLogId(
       .all();
 
 
-  return Array.isArray(
-    result.results
-  )
-    ? result.results
-    : [];
+  if (!result || result.success === false || !Array.isArray(result.results)) {
+    throw new Error("SHIFT_LOG_ATTACHMENT_RESULT_UNAVAILABLE");
+  }
+  return result.results;
 }
 
 /* =========================================================
@@ -1651,10 +1643,10 @@ async function handleGet(
         );
 
 
-      const attachments =
-        rows.map(
-          convertAttachmentRow
-        );
+      const attachmentState = await attachmentStateForShiftLogRow(
+        context.env.DB, logRow, rows.map(convertAttachmentRow)
+      );
+      const { attachments } = attachmentState;
 
 
       return jsonResponse({
@@ -1663,10 +1655,10 @@ async function handleGet(
 
         logId,
 
-        attachments,
+        ...attachmentState,
 
         totalCount:
-          attachments.length
+          attachmentState.attachmentLoadError ? null : attachments.length
       });
     }
 
@@ -2065,10 +2057,10 @@ export async function onRequestPost(
       );
 
 
-    const attachments =
-      savedRows.map(
-        convertAttachmentRow
-      );
+    const attachmentState = await attachmentStateForShiftLogRow(
+      context.env.DB, logRow, savedRows.map(convertAttachmentRow)
+    );
+    const { attachments } = attachmentState;
 
 
     return jsonResponse(
@@ -2078,13 +2070,13 @@ export async function onRequestPost(
 
         logId,
 
-        attachments,
+        ...attachmentState,
 
         uploadedCount:
           files.length,
 
         totalCount:
-          attachments.length
+          attachmentState.attachmentLoadError ? null : attachments.length
       },
       201
     );

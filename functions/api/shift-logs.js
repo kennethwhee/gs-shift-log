@@ -1,4 +1,5 @@
 import { protectedRequest } from "../_shared/attachment-access.js";
+import { hydrateLegacyShiftLogAttachments } from "../_shared/legacy-shift-log-attachments.js";
 /* =========================================================
   GS Shift Log 신규 업무일지 공용 저장 API
 
@@ -975,12 +976,10 @@ async function attachShiftLogAttachments(
           .all();
 
 
-      const rows =
-        Array.isArray(
-          result.results
-        )
-          ? result.results
-          : [];
+      if (!result || result.success === false || !Array.isArray(result.results)) {
+        throw new Error("SHIFT_LOG_ATTACHMENT_RESULT_UNAVAILABLE");
+      }
+      const rows = result.results;
 
 
       rows.forEach(
@@ -1045,38 +1044,19 @@ async function attachShiftLogAttachments(
     );
 
 
-    return safeLogs.map(
-      log => {
-        return {
-          ...log,
-
-          attachments:
-            Array.isArray(
-              log.attachments
-            )
-              ? log.attachments
-              : []
-        };
-      }
-    );
+    return hydrateLegacyShiftLogAttachments(database, safeLogs, {
+      knownLogs: safeLogs,
+      modernComplete: false
+    });
   }
 
 
-  return safeLogs.map(
-    log => {
-      return {
-        ...log,
-
-        attachments:
-          attachmentMap.get(
-            normalizeText(
-              log.id
-            )
-          ) ||
-          []
-      };
-    }
-  );
+  return hydrateLegacyShiftLogAttachments(database, safeLogs.map(
+    log => ({
+      ...log,
+      attachments: attachmentMap.get(normalizeText(log.id)) || []
+    })
+  ), {knownLogs: safeLogs});
 }
 
 /* =========================================================

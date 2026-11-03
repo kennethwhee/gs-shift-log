@@ -51245,8 +51245,18 @@ const attachments =
   Array.isArray(
     log.attachments
   )
-    ? log.attachments
+    ? log.attachments.filter(Boolean)
     : [];
+
+
+const attachmentLoadIncomplete =
+  log.attachmentLoadStatus === "partial" ||
+  log.attachmentLoadError === true;
+
+const attachmentLoadWarningHtml =
+  attachmentLoadIncomplete
+    ? `<div class="detail-empty-message" role="status">첨부파일 정보를 모두 확인하지 못했습니다. 다시 조회해 주세요.</div>`
+    : "";
 
 
 const normalizedAttachments =
@@ -51279,8 +51289,11 @@ const attachmentHtml =
           )
           .join("")}
       </div>
+      ${attachmentLoadWarningHtml}
     `
-    : `
+    : attachmentLoadIncomplete
+      ? attachmentLoadWarningHtml
+      : `
       <div
         class="
           detail-empty-message
@@ -51575,7 +51588,7 @@ const attachmentHtml =
 
 
             <span class="shift-log-detail-count">
-              ${attachments.length}개
+              ${attachmentLoadIncomplete ? "확인 필요" : `${attachments.length}개`}
             </span>
 
           </div>
@@ -209628,6 +209641,24 @@ if (
     }
 
 
+    const originalStorageType =
+      String(attachment.storageType || attachment.storage_type || "").trim().toLowerCase();
+    const attachmentUrls =
+      [attachment.url, attachment.previewUrl, attachment.preview_url];
+    const hasModernIdentity =
+      originalStorageType === "shift-log-r2" ||
+      attachmentUrls.some(value => String(value || "").includes("/api/shift-log-files"));
+    const isLegacyAttachment =
+      attachment.isLegacy === true ||
+      String(attachment.source || "").trim().toLowerCase() === "legacy" ||
+      originalStorageType === "legacy" ||
+      attachmentUrls.some(value => String(value || "").includes("/api/legacy-attachment")) ||
+      (!hasModernIdentity && /^\d+$/.test(attachmentId));
+
+    const attachmentApiUrl =
+      isLegacyAttachment ? "/api/legacy-attachment" : SHIFT_LOG_FILE_API_URL;
+
+
     const fileName =
       String(
         attachment.name ||
@@ -209647,7 +209678,7 @@ if (
         ""
       ).trim() ||
       (
-        `${SHIFT_LOG_FILE_API_URL}` +
+        `${attachmentApiUrl}` +
         `?id=${encodeURIComponent(
           attachmentId
         )}`
@@ -209661,7 +209692,7 @@ if (
         ""
       ).trim() ||
       (
-        `${SHIFT_LOG_FILE_API_URL}` +
+        `${attachmentApiUrl}` +
         `?id=${encodeURIComponent(
           attachmentId
         )}` +
@@ -209727,7 +209758,7 @@ if (
         과거 첨부파일과 구분하기 위한 값
       */
       storageType:
-        "shift-log-r2"
+        isLegacyAttachment ? "legacy" : "shift-log-r2"
     };
   }
 
@@ -209789,7 +209820,12 @@ if (
       uploadFiles.length ===
         0
     ) {
-      return [];
+      return {
+        attachments: [],
+        legacyAttachmentCount: 0,
+        attachmentLoadStatus: "complete",
+        attachmentLoadError: false
+      };
     }
 
 
@@ -209867,13 +209903,21 @@ if (
         : [];
 
 
-    return attachments
-      .map(
-        normalizeShiftLogRealAttachment
-      )
-      .filter(
-        Boolean
-      );
+    const normalizedAttachments = attachments
+      .map(normalizeShiftLogRealAttachment)
+      .filter(Boolean);
+    const incomplete =
+      result.attachmentLoadStatus === "partial" ||
+      result.attachmentLoadError === true;
+
+    return {
+      attachments: normalizedAttachments,
+      legacyAttachmentCount: incomplete
+        ? Math.max(normalizedAttachments.length, Number(result.legacyAttachmentCount) || 0)
+        : normalizedAttachments.length,
+      attachmentLoadStatus: incomplete ? "partial" : "complete",
+      attachmentLoadError: incomplete
+    };
   }
 
 
@@ -210001,11 +210045,12 @@ if (
 
 
       try {
-        const attachments =
+        const attachmentResult =
           await uploadShiftLogRealAttachments(
             savedLog.id,
             pendingFiles
           );
+        const attachments = attachmentResult.attachments;
 
 
         /*
@@ -210019,8 +210064,7 @@ if (
         const updatedLog = {
           ...savedLog,
 
-          attachments:
-            attachments
+          ...attachmentResult
         };
 
 
@@ -211382,6 +211426,16 @@ window
       ).trim();
 
 
+    if (
+      attachment.isLegacy === true ||
+      String(attachment.source || "").trim().toLowerCase() === "legacy" ||
+      storageType.toLowerCase() === "legacy" ||
+      attachmentUrl.includes("/api/legacy-attachment")
+    ) {
+      return false;
+    }
+
+
     return (
       storageType ===
         "shift-log-r2" ||
@@ -211919,6 +211973,25 @@ window
     메모리에 있는 업무일지 첨부정보도 갱신
   ====================================================== */
 
+  function getSyncedShiftLogAttachmentCount(log, nextAttachments) {
+    if (
+      log.attachmentLoadStatus !== "partial" &&
+      log.attachmentLoadError !== true
+    ) {
+      return nextAttachments.length;
+    }
+
+    const previousKnownCount = Array.isArray(log.attachments)
+      ? log.attachments.filter(Boolean).length
+      : 0;
+    const removedCount = Math.max(0, previousKnownCount - nextAttachments.length);
+    return Math.max(
+      nextAttachments.length,
+      (Number(log.legacyAttachmentCount) || 0) - removedCount
+    );
+  }
+
+
   function syncSavedAttachmentsToLogState() {
     const logId =
       getCurrentEditingShiftLogId();
@@ -211976,7 +212049,10 @@ window
               ...log,
 
               attachments:
-                nextAttachments
+                nextAttachments,
+
+              legacyAttachmentCount:
+                getSyncedShiftLogAttachmentCount(log, nextAttachments)
             };
           }
         );
@@ -212012,7 +212088,10 @@ window
               ...log,
 
               attachments:
-                nextAttachments
+                nextAttachments,
+
+              legacyAttachmentCount:
+                getSyncedShiftLogAttachmentCount(log, nextAttachments)
             };
           }
         );
@@ -212068,6 +212147,12 @@ window
         "삭제할 첨부파일을 찾을 수 없습니다."
       );
 
+      return;
+    }
+
+
+    if (!isEditableShiftLogR2Attachment(targetAttachment)) {
+      showToast("과거 업무일지 첨부파일은 여기서 삭제할 수 없습니다.");
       return;
     }
 
