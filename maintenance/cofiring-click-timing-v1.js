@@ -7,9 +7,11 @@
     const clearTimer=options.clearTimeout||root.clearTimeout?.bind(root);
     const requestFrame=options.requestAnimationFrame||root.requestAnimationFrame?.bind(root);
     const cancelFrame=options.cancelAnimationFrame||root.cancelAnimationFrame?.bind(root);
+    const document=options.document||root.document;
+    let finishTimeout=null,visibilityHandler=null;
     let sequence=0,token=null,disposed=false,startedMono=0,tick=null,frames=[],finishGuard=null;
     let value=empty();
-    function empty(){return {status:'idle',mode:'',period:null,startedAt:null,finishedAt:null,elapsedMs:0,phase:'',pendingRequest:false,expectedRequestId:null,previousRequestId:null,requestId:null,source:null,querySeconds:null,workerSeconds:null,controllerSeconds:null,agentSeconds:null,reason:null,marks:{},details:[]};}
+    function empty(){return {status:'idle',mode:'',period:null,startedAt:null,finishedAt:null,elapsedMs:0,phase:'',pendingRequest:false,expectedRequestId:null,previousRequestId:null,requestId:null,source:null,querySeconds:null,workerSeconds:null,controllerSeconds:null,agentSeconds:null,reason:null,domReadyMs:null,completionBasis:null,marks:{},details:[]};}
     function state(){return {...value,period:value.period?{...value.period}:null,marks:{...value.marks},details:value.details.map(row=>({...row}))};}
     function emit(){if(!disposed){try{options.onChange?.(state());}catch(_){}}}
     function stamp(){try{const t=utcNow();return t instanceof Date?t.toISOString():String(t);}catch(_){return null;}}
@@ -26,7 +28,13 @@
     }
     function active(){return value.status==='running'||value.status==='finishing';}
     function matches(t){return !disposed&&t!==null&&t===token&&active();}
-    function clearWork(){if(tick!==null){clearTimer?.(tick);tick=null;}for(const f of frames){if(f.kind==='frame')cancelFrame?.(f.handle);else clearTimer?.(f.handle);}frames=[];finishGuard=null;}
+    function clearWork(){
+      if(tick!==null){clearTimer?.(tick);tick=null;}
+      if(finishTimeout!==null){clearTimer?.(finishTimeout);finishTimeout=null;}
+      if(visibilityHandler){document?.removeEventListener?.('visibilitychange',visibilityHandler);visibilityHandler=null;}
+      for(const f of frames){if(f.kind==='frame')cancelFrame?.(f.handle);else clearTimer?.(f.handle);}
+      frames=[];finishGuard=null;
+    }
     function terminate(status,reason){if(!active())return false;elapsed();clearWork();value.status=status;value.reason=String(reason||status);value.finishedAt=stamp();value.pendingRequest=false;token=null;emit();return true;}
     function current(t){if(!matches(t))return false;let ok=true;try{ok=options.isCurrent?.(state())!==false;}catch(_){ok=false;}if(!ok){terminate('cancelled','context_changed');return false;}return true;}
     function scheduleTick(t){if(!setTimer||!matches(t))return;const handle=setTimer(()=>{if(tick!==handle||!matches(t))return;tick=null;if(!current(t))return;elapsed();emit();scheduleTick(t);},200);tick=handle;}
@@ -51,7 +59,7 @@
       if(Object.hasOwn(value.marks,name))return false;
       elapsed();value.marks[name]=value.elapsedMs;return true;
     }
-    function details(data){
+    function details(data,basis){
       const rows=[],add=(label,n)=>{if(seconds(n)!==null)rows.push({label,seconds:n});};
       const delta=(a,b)=>seconds(a)!==null&&seconds(b)!==null&&b>=a?(b-a)/1000:null;
       const m=value.marks;
@@ -71,6 +79,7 @@
       const sums=name=>{const matches=phases.filter(p=>p?.name===name&&p.outcome==='complete'&&seconds(p.elapsedSeconds)!==null);return matches.length?matches.reduce((n,p)=>n+p.elapsedSeconds,0):null;};
       add('Excel 준비',seconds(stage.preparationSeconds));
       add('  Excel 연결 (준비에 포함)',sums('setupComAttach'));
+      for(const [name,label] of [['setupBaselineHostSnapshot','기본 상태 확인'],['setupExcelOptions','Excel 옵션'],['setupDataParcLoad','DataPARC 추가기능'],['setupHostWait','Host 확인'],['setupStartupWorkbookClose','시작 통합문서 정리'],['setupQueryWorkbookAndFormulas','조회 통합문서·수식']])add('  준비 · '+label,sums(name));
       add('DataPARC 조회',data.querySeconds);
       add('Excel 종료·정리',seconds(stage.cleanupSeconds));
       if(seconds(stage.cleanupSeconds)===null){const names=['cleanupCloseQuit','cleanupComReleaseAndGc','cleanupExcelExit','cleanupHostExit','cleanupFinalUniverse'],values=names.map(sums);if(values.every(n=>n!==null))add('Excel 종료·정리',values.reduce((a,b)=>a+b,0));}
@@ -78,6 +87,11 @@
       add('진행상태 전송 마무리 (PC 처리에 포함)',seconds(timing.agent?.progressDrainSeconds));
       add('완료 관측 → 결과 수신',delta(m.complete_seen,m.result_received));
       add('결과 수신 → 화면 반영',delta(m.result_received,value.elapsedMs));
+      if(seconds(m.result_received)!==null&&seconds(value.domReadyMs)!==null){
+        add('  결과 수신 → 계산·DOM 준비',delta(m.result_received,value.domReadyMs));
+        const label=basis==='dom_ready_hidden'?'백그라운드 DOM 기준':basis==='dom_ready_timeout'?'프레임 대기 상한 적용':'2프레임';
+        add('  DOM 준비 → 완료 처리 ('+label+')',delta(value.domReadyMs,value.elapsedMs));
+      }
       const pcBasis=wholePc??seconds(data.controllerSeconds);
       if(data.source==='new_query'&&pcBasis!==null&&value.elapsedMs/1000>=pcBasis)add(wholePc!==null?'요청·전송·화면 처리 (잔여)':'PC 실행 전후·통신·화면 처리 (잔여)',value.elapsedMs/1000-pcBasis);
       return rows;
@@ -94,13 +108,26 @@
     function finish(t,data={},guardFn){
       if(!current(t)||value.status!=='running'||!resultMatches(data)||!guardPasses(guardFn))return false;
       const result={requestId:id(data.requestId),source:typeof data.source==='string'?data.source:null,querySeconds:seconds(data.querySeconds),workerSeconds:seconds(data.workerSeconds),controllerSeconds:seconds(data.controllerSeconds),agentSeconds:agentSeconds(data)};
-      value.status='finishing';finishGuard=guardFn;elapsed();emit();
-      // Two foreground animation opportunities approximate screen update. This
-      // is not a measurement of the display's physical paint completion.
-      nextFrame(t,()=>nextFrame(t,()=>{
-        if(!resultMatches(result)||!guardPasses(finishGuard)){terminate('cancelled','context_changed');return;}
-        elapsed();clearWork();Object.assign(value,result,{status:'complete',finishedAt:stamp(),reason:null,details:details(data)});token=null;emit();
-      }));
+      // The caller has rendered the validated result DOM before invoking finish.
+      // Animation scheduling must not hold that result behind the busy overlay forever.
+      value.status='finishing';finishGuard=guardFn;elapsed();value.domReadyMs=value.elapsedMs;emit();
+      const hidden=()=>document?.hidden===true||document?.visibilityState==='hidden';
+      const settle=basis=>{
+        if(!current(t)||value.status!=='finishing')return false;
+        if(!resultMatches(result)||!guardPasses(finishGuard)){terminate('cancelled','context_changed');return false;}
+        elapsed();const rows=details(data,basis);clearWork();
+        Object.assign(value,result,{status:'complete',finishedAt:stamp(),reason:null,completionBasis:basis,details:rows});token=null;emit();return true;
+      };
+      if(!current(t)||value.status!=='finishing')return true;
+      if(hidden()){settle('dom_ready_hidden');return true;}
+      if(document?.addEventListener){
+        visibilityHandler=()=>{if(hidden())settle('dom_ready_hidden');};
+        document.addEventListener('visibilitychange',visibilityHandler);
+      }
+      // Best-effort fallback: suspended browsers may delay timers too. This is
+      // verified DOM readiness, never a claim that the display physically painted.
+      if(setTimer)finishTimeout=setTimer(()=>settle('dom_ready_timeout'),1000);
+      nextFrame(t,()=>nextFrame(t,()=>settle('animation_frames')));
       return true;
     }
     function fail(t,reason){if(!current(t))return false;return terminate('failed',reason||'calculation_failed');}
