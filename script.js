@@ -46223,9 +46223,202 @@ function approveCurrentDetailLog() {
   첨부 이미지 팝업 상태
 ========================================================= */
 
+/* ATTACHMENT_IMAGE_ZOOM_V1_START */
+function createAttachmentImageZoomController(modal) {
+  const viewport = modal.querySelector("#attachmentPreviewViewport");
+  const image = modal.querySelector("#attachmentPreviewImage");
+  const zoomOut = modal.querySelector("#attachmentPreviewZoomOut");
+  const zoomIn = modal.querySelector("#attachmentPreviewZoomIn");
+  const fitButton = modal.querySelector("#attachmentPreviewZoomFit");
+  const zoomValue = modal.querySelector("#attachmentPreviewZoomValue");
+  const pointers = new Map();
+  let active = false, ready = false, zoom = 1, x = 0, y = 0;
+  let baseWidth = 0, baseHeight = 0, gesture = null;
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+  const isOpen = () => active && modal.classList.contains("is-open");
+
+  function paint() {
+    const limitX = Math.max(0, (baseWidth * zoom - viewport.clientWidth) / 2);
+    const limitY = Math.max(0, (baseHeight * zoom - viewport.clientHeight) / 2);
+    x = clamp(x, -limitX, limitX);
+    y = clamp(y, -limitY, limitY);
+    image.style.width = `${baseWidth}px`;
+    image.style.height = `${baseHeight}px`;
+    image.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px) scale(${zoom})`;
+    zoomValue.textContent = `${Math.round(zoom * 100)}%`;
+    zoomOut.disabled = !ready || zoom <= 1;
+    zoomIn.disabled = !ready || zoom >= 8;
+    fitButton.disabled = !ready;
+    viewport.classList.toggle("is-zoomed", ready && zoom > 1);
+    viewport.classList.toggle("is-dragging", ready && zoom > 1 && pointers.size > 0);
+  }
+
+  function clearPointers() {
+    const ids = [...pointers.keys()];
+    pointers.clear();
+    gesture = null;
+    for (const id of ids) {
+      try {
+        if (viewport.hasPointerCapture(id)) viewport.releasePointerCapture(id);
+      } catch (_) { /* The browser may already have released a cancelled pointer. */ }
+    }
+  }
+
+  function measure() {
+    if (!isOpen() || !ready) return;
+    const width = viewport.clientWidth, height = viewport.clientHeight;
+    if (width <= 32 || height <= 32 || !image.naturalWidth || !image.naturalHeight) return;
+    const fit = Math.min((width - 32) / image.naturalWidth,
+      (height - 32) / image.naturalHeight, 1);
+    const nextWidth = image.naturalWidth * fit;
+    if (baseWidth > 0) {
+      const ratio = nextWidth / baseWidth;
+      x *= ratio;
+      y *= ratio;
+    }
+    baseWidth = nextWidth;
+    baseHeight = image.naturalHeight * fit;
+    clearPointers();
+    paint();
+  }
+
+  function point(clientX, clientY) {
+    const rect = viewport.getBoundingClientRect();
+    return {x: clientX - rect.left - rect.width / 2,
+      y: clientY - rect.top - rect.height / 2};
+  }
+
+  function changeZoom(next, anchor = {x: 0, y: 0}, movedAnchor = anchor) {
+    if (!isOpen() || !ready || !Number.isFinite(next)) return;
+    const nextZoom = clamp(next, 1, 8);
+    x = movedAnchor.x - (anchor.x - x) * nextZoom / zoom;
+    y = movedAnchor.y - (anchor.y - y) * nextZoom / zoom;
+    zoom = nextZoom;
+    if (zoom === 1) x = y = 0;
+    paint();
+  }
+
+  function fit() {
+    if (!isOpen() || !ready) return;
+    clearPointers();
+    zoom = 1;
+    x = y = 0;
+    measure();
+  }
+
+  // Only the photo viewport consumes Ctrl/Meta + wheel; normal page zoom elsewhere is unchanged.
+  viewport.addEventListener("wheel", event => {
+    if (!isOpen() || !(event.ctrlKey || event.metaKey) || !event.cancelable) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (!ready || !Number.isFinite(event.deltaY)) return;
+    const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.clientHeight : 1;
+    const delta = clamp(event.deltaY * unit, -240, 240);
+    changeZoom(zoom * Math.exp(-delta * 0.002), point(event.clientX, event.clientY));
+  }, {passive: false});
+
+  zoomOut.addEventListener("click", () => changeZoom(zoom / 1.25));
+  zoomIn.addEventListener("click", () => changeZoom(zoom * 1.25));
+  fitButton.addEventListener("click", fit);
+  viewport.addEventListener("dblclick", event => {
+    if (!isOpen() || !ready) return;
+    event.preventDefault();
+    if (zoom > 1) fit();
+    else changeZoom(2, point(event.clientX, event.clientY));
+  });
+  image.draggable = false;
+  image.addEventListener("dragstart", event => event.preventDefault());
+
+  function currentGesture() {
+    const points = [...pointers.values()];
+    if (!points.length) return null;
+    if (points.length === 1) return {center: points[0], distance: 0};
+    return {center: {x: (points[0].x + points[1].x) / 2,
+      y: (points[0].y + points[1].y) / 2},
+      distance: Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y)};
+  }
+
+  viewport.addEventListener("pointerdown", event => {
+    if (!isOpen() || !ready || pointers.size >= 2 || event.button > 0) return;
+    if (event.pointerType !== "touch" && zoom <= 1) return;
+    event.preventDefault();
+    pointers.set(event.pointerId, point(event.clientX, event.clientY));
+    try { viewport.setPointerCapture(event.pointerId); } catch (_) { /* Optional in older browsers. */ }
+    gesture = currentGesture();
+    paint();
+  });
+
+  viewport.addEventListener("pointermove", event => {
+    if (!isOpen() || !ready || !pointers.has(event.pointerId)) return;
+    event.preventDefault();
+    pointers.set(event.pointerId, point(event.clientX, event.clientY));
+    const next = currentGesture();
+    const factor = gesture?.distance > 0 && next.distance > 0
+      ? next.distance / gesture.distance : 1;
+    if (gesture) changeZoom(zoom * factor, gesture.center, next.center);
+    gesture = next;
+  });
+
+  function endPointer(event) {
+    if (!pointers.has(event.pointerId)) return;
+    pointers.delete(event.pointerId);
+    gesture = currentGesture();
+    try {
+      if (viewport.hasPointerCapture(event.pointerId)) viewport.releasePointerCapture(event.pointerId);
+    } catch (_) { /* Capture may already have ended. */ }
+    paint();
+  }
+  for (const name of ["pointerup", "pointercancel", "lostpointercapture"]) {
+    viewport.addEventListener(name, endPointer);
+  }
+
+  modal.addEventListener("keydown", event => {
+    if (!isOpen() || !ready || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (event.target?.matches?.("input, textarea, select, [contenteditable='true']")) return;
+    if (!["+", "=", "-", "0"].includes(event.key)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.key === "0") fit();
+    else changeZoom(zoom * (event.key === "-" ? 1 / 1.25 : 1.25));
+  });
+
+  if (typeof ResizeObserver === "function") {
+    const observer = new ResizeObserver(measure);
+    observer.observe(viewport);
+  }
+  window.addEventListener("resize", measure);
+
+  return {
+    reset() {
+      clearPointers();
+      active = true;
+      ready = false;
+      zoom = 1;
+      x = y = baseWidth = baseHeight = 0;
+      paint();
+    },
+    loaded() {
+      if (!isOpen() || !image.naturalWidth || !image.naturalHeight) return;
+      ready = true;
+      measure();
+    },
+    deactivate() {
+      clearPointers();
+      active = ready = false;
+      zoom = 1;
+      x = y = baseWidth = baseHeight = 0;
+      paint();
+    }
+  };
+}
+/* ATTACHMENT_IMAGE_ZOOM_V1_END */
+
 const attachmentPreviewState = {
   items: [],
-  currentIndex: 0
+  currentIndex: 0,
+  renderSequence: 0,
+  sourceTimer: null,
+  returnFocus: null
 };
 
 
@@ -46310,6 +46503,9 @@ function ensureAttachmentPreviewModal() {
   if (
     existingModal
   ) {
+    if (!existingModal.attachmentImageZoom) {
+      existingModal.attachmentImageZoom = createAttachmentImageZoomController(existingModal);
+    }
     return existingModal;
   }
 
@@ -46383,6 +46579,7 @@ function ensureAttachmentPreviewModal() {
       role="dialog"
       aria-modal="true"
       aria-label="첨부 이미지 보기"
+      class="attachment-image-dialog"
       style="
         position:relative;
         z-index:1;
@@ -46505,6 +46702,14 @@ function ensureAttachmentPreviewModal() {
 
       </header>
 
+      <div class="attachment-image-toolbar" role="group" aria-label="사진 확대 조절">
+        <button type="button" id="attachmentPreviewZoomOut" aria-label="사진 축소" title="사진 축소 (-)" disabled>−</button>
+        <output id="attachmentPreviewZoomValue" aria-label="화면 맞춤 대비 확대 비율">100%</output>
+        <button type="button" id="attachmentPreviewZoomIn" aria-label="사진 확대" title="사진 확대 (+)" disabled>+</button>
+        <button type="button" id="attachmentPreviewZoomFit" title="화면 맞춤 (0)" disabled>화면 맞춤</button>
+        <span id="attachmentPreviewZoomHelp">Ctrl + 휠로 확대 · 드래그로 이동</span>
+      </div>
+
 
       <div
         style="
@@ -46565,10 +46770,15 @@ function ensureAttachmentPreviewModal() {
 
 
         <div
+          id="attachmentPreviewViewport"
+          tabindex="0"
+          role="group"
+          aria-label="사진 확대 및 이동 영역"
+          aria-describedby="attachmentPreviewZoomHelp"
           style="
             position:relative;
 
-            display:flex;
+            display:block;
 
             width:100%;
             height:100%;
@@ -46579,7 +46789,8 @@ function ensureAttachmentPreviewModal() {
             align-items:center;
             justify-content:center;
 
-            padding:24px 80px;
+            padding:0;
+            overflow:hidden;
 
             box-sizing:border-box;
           "
@@ -46591,11 +46802,14 @@ function ensureAttachmentPreviewModal() {
             style="
               display:block;
 
-              max-width:100%;
-              max-height:100%;
-
-              width:auto;
-              height:auto;
+              max-width:none;
+              max-height:none;
+              position:absolute;
+              left:50%;
+              top:50%;
+              width:0;
+              height:0;
+              transform-origin:center;
 
               object-fit:contain;
 
@@ -46767,60 +46981,28 @@ function ensureAttachmentPreviewModal() {
     );
 
 
-  const previewImage =
-    document.getElementById(
-      "attachmentPreviewImage"
-    );
-
-
-  previewImage?.addEventListener(
-    "load",
-    () => {
-      const loadingElement =
-        document.getElementById(
-          "attachmentPreviewLoading"
-        );
-
-
-      if (
-        loadingElement
-      ) {
-        loadingElement.style.display =
-          "none";
-      }
-
-
-      previewImage.style.display =
-        "block";
+  modal.attachmentImageZoom = createAttachmentImageZoomController(modal);
+  modal.addEventListener("keydown", event => {
+    if (!modal.classList.contains("is-open")) return;
+    if (["Escape", "ArrowLeft", "ArrowRight"].includes(event.key)) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.key === "Escape") closeAttachmentPreview();
+      else moveAttachmentPreview(event.key === "ArrowLeft" ? -1 : 1);
+      return;
     }
-  );
-
-
-  previewImage?.addEventListener(
-    "error",
-    () => {
-      const loadingElement =
-        document.getElementById(
-          "attachmentPreviewLoading"
-        );
-
-
-      if (
-        loadingElement
-      ) {
-        loadingElement.style.display =
-          "block";
-
-        loadingElement.textContent =
-          "이미지를 불러오지 못했습니다.";
-      }
-
-
-      previewImage.style.display =
-        "none";
+    if (event.key !== "Tab") return;
+    const controls = [...modal.querySelectorAll("button, [tabindex='0']")]
+      .filter(node => !node.disabled && !node.hidden && node.style.display !== "none");
+    const first = controls[0], last = controls[controls.length - 1];
+    if (event.shiftKey && (document.activeElement === first || !modal.contains(document.activeElement))) {
+      event.preventDefault();
+      last?.focus();
+    } else if (!event.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) {
+      event.preventDefault();
+      first?.focus();
     }
-  );
-
+  });
 
   return modal;
 }
@@ -46947,77 +47129,50 @@ function renderCurrentAttachmentPreview() {
   }
 
 
-  if (
-    previewImage
-  ) {
-    previewImage.hidden =
-      false;
+  const modal = document.getElementById("attachmentPreviewModal");
+  const sequence = ++attachmentPreviewState.renderSequence;
+  window.clearTimeout(attachmentPreviewState.sourceTimer);
+  attachmentPreviewState.sourceTimer = null;
+  modal?.attachmentImageZoom?.reset();
+  const isCurrent = () => attachmentPreviewState.renderSequence === sequence
+    && modal?.classList.contains("is-open")
+    && attachmentPreviewState.items[attachmentPreviewState.currentIndex] === currentItem;
 
-    previewImage.style.display =
-      "none";
-
-    previewImage.alt =
-      currentItem.name ||
-      "첨부 이미지";
-
-
-    previewImage.onload =
-      () => {
-        previewImage.hidden =
-          false;
-
-        previewImage.style.display =
-          "block";
-
-
-        if (
-          loadingElement
-        ) {
-          loadingElement.hidden =
-            true;
-
-          loadingElement.style.display =
-            "none";
-        }
-      };
-
-
-    previewImage.onerror =
-      () => {
-        previewImage.hidden =
-          true;
-
-        previewImage.style.display =
-          "none";
-
-
-        if (
-          loadingElement
-        ) {
-          loadingElement.hidden =
-            false;
-
-          loadingElement.style.display =
-            "block";
-
-          loadingElement.textContent =
-            "이미지를 불러오지 못했습니다.";
-        }
-      };
-
-
-    previewImage.removeAttribute(
-      "src"
-    );
-
-
-    window.setTimeout(
-      () => {
-        previewImage.src =
-          currentItem.url;
-      },
-      0
-    );
+  if (previewImage) {
+    previewImage.onload = null;
+    previewImage.onerror = null;
+    previewImage.hidden = false;
+    previewImage.style.display = "none";
+    previewImage.alt = currentItem.name || "첨부 이미지";
+    previewImage.removeAttribute("src");
+    previewImage.onload = () => {
+      if (!isCurrent() || previewImage.getAttribute("src") !== currentItem.url
+          || !previewImage.complete || !previewImage.naturalWidth) return;
+      previewImage.hidden = false;
+      previewImage.style.display = "block";
+      if (loadingElement) {
+        loadingElement.hidden = true;
+        loadingElement.style.display = "none";
+      }
+      modal?.attachmentImageZoom?.loaded();
+    };
+    previewImage.onerror = () => {
+      if (!isCurrent() || previewImage.getAttribute("src") !== currentItem.url
+          || !previewImage.complete || previewImage.naturalWidth > 0) return;
+      previewImage.hidden = true;
+      previewImage.style.display = "none";
+      modal?.attachmentImageZoom?.deactivate();
+      if (loadingElement) {
+        loadingElement.hidden = false;
+        loadingElement.style.display = "block";
+        loadingElement.textContent = "이미지를 불러오지 못했습니다.";
+      }
+    };
+    attachmentPreviewState.sourceTimer = window.setTimeout(() => {
+      if (!isCurrent()) return;
+      attachmentPreviewState.sourceTimer = null;
+      previewImage.src = currentItem.url;
+    }, 0);
   }
 
 
@@ -47108,6 +47263,9 @@ function openAttachmentPreview(
 
   const modal =
     ensureAttachmentPreviewModal();
+  if (!modal.classList.contains("is-open")) {
+    attachmentPreviewState.returnFocus = document.activeElement;
+  }
 
 
   /*
@@ -47142,6 +47300,7 @@ function openAttachmentPreview(
 
 
   renderCurrentAttachmentPreview();
+  modal.querySelector("button[data-attachment-preview-close]")?.focus({preventScroll: true});
 }
 
 
@@ -47196,6 +47355,11 @@ function closeAttachmentPreview() {
   }
 
 
+  ++attachmentPreviewState.renderSequence;
+  window.clearTimeout(attachmentPreviewState.sourceTimer);
+  attachmentPreviewState.sourceTimer = null;
+  modal.attachmentImageZoom?.deactivate();
+
   modal.classList.remove(
     "is-open"
   );
@@ -47228,6 +47392,8 @@ function closeAttachmentPreview() {
   if (
     previewImage
   ) {
+    previewImage.onload = null;
+    previewImage.onerror = null;
     previewImage.removeAttribute(
       "src"
     );
@@ -47243,6 +47409,10 @@ function closeAttachmentPreview() {
 
   attachmentPreviewState.currentIndex =
     0;
+
+  const returnFocus = attachmentPreviewState.returnFocus;
+  attachmentPreviewState.returnFocus = null;
+  if (returnFocus?.isConnected) returnFocus.focus({preventScroll: true});
 
 
   const hasOtherOpenModal =

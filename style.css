@@ -121476,3 +121476,66 @@ html body #efficiencyArmRollTab.efficiency-team-tab .icon {
   }
 }
 /* GS_MAIN_LOG_INFO_DIVIDER_V2_END */
+
+
+/* ATTACHMENT_IMAGE_ZOOM_V1: only the attachment photo viewer. */
+#attachmentPreviewModal .attachment-image-toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 16px;
+  color: #dbeafe;
+  background: #172033;
+  border-bottom: 1px solid rgba(255, 255, 255, .12);
+  font-size: 12px;
+  line-height: 1.4;
+}
+#attachmentPreviewModal .attachment-image-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  min-height: 32px;
+  padding: 4px 10px;
+  color: #f8fafc;
+  background: #263552;
+  border: 1px solid #465675;
+  border-radius: 7px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+#attachmentPreviewModal .attachment-image-toolbar button:disabled {
+  opacity: .4;
+  cursor: default;
+}
+#attachmentPreviewModal .attachment-image-toolbar button:not(:disabled):hover {
+  background: #354c73;
+}
+#attachmentPreviewModal button:focus-visible,
+#attachmentPreviewViewport:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: -3px;
+}
+#attachmentPreviewZoomValue {
+  min-width: 48px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+#attachmentPreviewZoomHelp { margin-left: 8px; color: #b8c7dd; }
+#attachmentPreviewViewport { touch-action: none; user-select: none; overscroll-behavior: contain; }
+#attachmentPreviewViewport.is-zoomed { cursor: grab; }
+#attachmentPreviewViewport.is-dragging { cursor: grabbing; }
+#attachmentPreviewImage { user-select: none; -webkit-user-drag: none; }
+#attachmentPreviewLoading { pointer-events: none; }
+@media (max-width: 600px) {
+  #attachmentPreviewModal { padding: 8px !important; }
+  #attachmentPreviewModal .attachment-image-dialog { width: 100% !important; height: 94vh !important; height: 94dvh !important; }
+  #attachmentPreviewModal .attachment-image-toolbar { gap: 6px; padding: 6px 8px; }
+  #attachmentPreviewZoomHelp { width: 100%; margin: 0; text-align: center; font-size: 11px; }
+  #attachmentPreviewPreviousButton { left: 6px !important; width: 34px !important; height: 48px !important; }
+  #attachmentPreviewNextButton { right: 6px !important; width: 34px !important; height: 48px !important; }
+}
