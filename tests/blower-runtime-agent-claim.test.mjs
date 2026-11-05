@@ -130,6 +130,8 @@ function normalizeAgentResult(raw, expected) {
   vm.runInContext(`
     const BLOWER_RUNTIME_PROBE_REQUEST_TYPE = "blower_runtime_probe";
     ${extractFunction(agentSource, "parseBlowerRuntimeProbeTimestamp")}
+    ${extractFunction(agentSource, "parseBlowerRunIntervalStart")}
+    ${extractFunction(agentSource, "blowerRunTrailingBoundary")}
     ${extractFunction(agentSource, "normalizeBlowerRuntimeProbeResult")}
     this.normalizeResult = normalizeBlowerRuntimeProbeResult;
   `, context);

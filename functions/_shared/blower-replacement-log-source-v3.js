@@ -85,11 +85,13 @@ function canonicalMirror(alias, legacyAlias, index, v4 = false, suppression = fa
 }
 function likelyWork(expression) {
   const lower = `lower(${expression})`;
-  const belt = [`instr(${lower},'belt')>0`, `instr(${lower},'blet')>0`, `instr(${expression},'벨트')>0`].join(' OR ');
-  const context = ['blower', 'fbhe', 'seal pot', 'sealpot', 'limestone', 'fly ash', 'flyash', 'hhl60', 'hhl10', 'sdf01an', 'lmdf01', 'etg30', 'eth03', 'hrj01']
-    .map(word => `instr(${lower},${literal(word)})>0`)
-    .concat(['블로워', '브로워', '송풍기', '유기성', '축분', '석회석'].map(word => `instr(${expression},${literal(word)})>0`)).join(' OR ');
-  return `((${belt}) AND (${context}))`;
+  const matchAny = (value, words) => `(${words.map(word => `instr(${value},${literal(word)})>0`).join(' OR ')})`;
+  const belt = `(${matchAny(lower, ['belt', 'blet'])} OR ${matchAny(expression, ['벨트'])})`;
+  const names = matchAny(lower, ['blower', 'fbhe', 'seal pot', 'sealpot', 'limestone', 'fly ash', 'flyash']);
+  const tagFragments = matchAny(lower, ['hhl60', 'hhl10', 'sdf01an', 'lmdf01', 'etg30', 'eth03', 'hrj01']);
+  const koreanNames = matchAny(expression, ['블로워', '브로워', '송풍기', '유기성', '축분', '석회석']);
+  // Group the equipment alternatives to keep the nested D1 guards shallow.
+  return `(${belt} AND (${names} OR ${tagFragments} OR ${koreanNames}))`;
 }
 function aliases(values) { return [...new Set(values.filter(value => value !== null && value !== undefined && String(value).length).map(String))]; }
 function parsedJson(raw, label) {

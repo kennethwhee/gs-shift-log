@@ -31,6 +31,7 @@ test('deterministic invocation, SQL parameter, function argument and statement l
     ['D1_ERROR: too many subrequests', 'BLOWER_LOG_D1_REQUEST_LIMIT'],
     ['D1_ERROR: too many SQL variables', 'BLOWER_LOG_D1_QUERY_LIMIT'],
     ['D1_ERROR: too many arguments on function json_array', 'BLOWER_LOG_D1_QUERY_LIMIT'],
+    ['D1_ERROR: Expression tree is too large (maximum depth 100): SQLITE_ERROR', 'BLOWER_LOG_D1_QUERY_LIMIT'],
     ['D1_ERROR: SQL statement exceeds maximum length', 'BLOWER_LOG_D1_QUERY_LIMIT'],
     ['D1_ERROR: SQLITE_TOOBIG', 'BLOWER_LOG_D1_QUERY_LIMIT']
   ]) {

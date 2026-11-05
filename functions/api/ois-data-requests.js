@@ -1,6 +1,7 @@
 import dailyOperationQueryContract from "../../daily-operation/daily-operation-query-contract.js";
 import { prepareScheduledBatch, scheduledBatchStatements, isScheduledBatchConflict } from "../_shared/blower-schedule-v1.js";
 import { loadAppendBase, verifiedAppendBase, ensureAppendSchema, appendIntentStatement, BLOWER_LIMESTONE_INCREMENTAL_VERSION } from "../_shared/blower-incremental.js";
+import { validatedFirstRunStart, validatedTrailingStateStart } from "../_shared/blower-run-transition.js";
 import { replacementAutoCycleProof, isReplacementAutoRevision } from "../_shared/blower-replacement-auto-v3.js";
 import bedAshMinuteContract from "../../efficiency/bed-ash-minute-contract.js";
 
@@ -18401,6 +18402,11 @@ function normalizeBlowerRuntimeProbeResult(
     );
   }
 
+  const transitionEvidence = {
+    ...rawResult, chunks: normalizedChunks, startState, endState, runningSeconds
+  };
+  const trailingStateStartedAt = validatedTrailingStateStart(transitionEvidence);
+  const firstRunStartedAt = validatedFirstRunStart(transitionEvidence);
 
   return {
     result: {
@@ -18461,6 +18467,8 @@ function normalizeBlowerRuntimeProbeResult(
         Math.round(
           runningSeconds
         ),
+      ...(trailingStateStartedAt ? { trailingStateStartedAt } : {}),
+      ...(firstRunStartedAt ? { firstRunStartedAt } : {}),
       collectedAt:
         parsedCollectedAt.text
     }

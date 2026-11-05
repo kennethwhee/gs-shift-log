@@ -54,6 +54,44 @@ const LOW_TEXT='Limestone Blower #A V-Belt 전량 파손 -> 14:20 Belt 교체 �
 const HIGH_TEXT='Limestone Blower #A V-Belt 전량 파손되어 투입 불가 상태\n- Manual Slide Close 및 Blower 정지 후 차단기 OFF -> 밸브 및 차단기 원복\n- <BM작업> 14:24 Blower #A V-Belt 전량 교체하여 정상화 완료';
 function actualPair(f){f.shift('a-low',LIME_DAY,'BO1',[{id:'low-job',time:'11:27',content:LOW_TEXT}]);f.shift('z-high',LIME_DAY,'BCO1',[{id:'high-job',time:'11:27',content:HIGH_TEXT}]);}
 async function seedR4(f){const page=await loadApprovedReplacementPage(f.db,{limit:8},{now:NOW,analysisVersion:4});const assets=f.sql.prepare('SELECT * FROM blower_history_assets').all();for(const row of page.logs){const facts=api.collectReplacementFactsForRolePriority(row,assets);const result=await reconcileApprovedReplacementLog(f.db,USER,row,facts,{now:NOW,normalizationVersion:4,sourceGuard:replacementSourceGuard(row)});assert.equal(result.ok,true);}await storeReplacementLogReceipts(f.db,page.logs,NOW);}
+
+test('an approved legacy replacement fits D1 expression depth with deletion suppression enabled', async t => {
+  const f = await fixture();
+  t.after(() => f.sql.close());
+  f.sql.exec(`CREATE TABLE legacy_log_suppressions (
+    legacy_diary_id TEXT NOT NULL, work_date TEXT NOT NULL, shift TEXT NOT NULL, role TEXT NOT NULL,
+    PRIMARY KEY (legacy_diary_id, work_date, shift, role))`);
+  f.prime(LIME);
+  f.legacy(810, 'POCHEON#20260918#DAY#BCO1', LIME_DAY, 'BCO1', LOW_TEXT);
+
+  const { compile_options: depthOption } = f.sql.prepare('PRAGMA compile_options').all()
+    .find(row => row.compile_options.startsWith('MAX_EXPR_DEPTH='));
+  const sqliteDepth = Number(depthOption.split('=')[1]);
+  assert.ok(sqliteDepth >= 100);
+  // Node SQLite exposes its compiled limit but cannot lower it. Padding the
+  // guard's left-associated condition reserves all but D1's 100 levels.
+  const padding = ' AND 1'.repeat(sqliteDepth - 100);
+  const originalPrepare = f.db.prepare;
+  let checkedGuards = 0;
+  f.db.prepare = sql => {
+    if (sql.includes('INSERT INTO blower_history_atomic_guard') && sql.includes('FROM legacy_logs replacement_source')) {
+      const paddedGuard = sql.replace(' THEN 1 ELSE 0 END)', `${padding} THEN 1 ELSE 0 END)`);
+      f.sql.prepare(`EXPLAIN ${paddedGuard}`);
+      checkedGuards++;
+    }
+    return originalPrepare(sql);
+  };
+
+  const page = await f.step({ normalizationVersion: 4, limit: 1 });
+  assert.equal(page.status, 200, JSON.stringify(page));
+  assert.equal(checkedGuards, 2);
+  assert.equal(page.scannedLogCount, 1);
+  assert.equal(page.autoAppliedReplacementCount, 1);
+  assert.equal(f.asset(LIME).last_replacement_at, '2026-09-17T15:00:00.000Z');
+  const replay = await f.step({ normalizationVersion: 4, limit: 1 });
+  assert.equal(replay.scannedLogCount, 0);
+});
+
 test('actual September 18 wording selects BCO1 14:24 across pages while preserving manual 14:20 and every measured asset value',async t=>{
  const f=await fixture();t.after(()=>f.sql.close());f.prime(LIME,'2026-09-18T14:20:00+09:00',1119.1);f.event(LIME);f.oldDp(LIME);actualPair(f);await seedR4(f);
  const before=f.sql.prepare('SELECT * FROM blower_history_assets ORDER BY tag_number').all();let window=null,cursor=null;

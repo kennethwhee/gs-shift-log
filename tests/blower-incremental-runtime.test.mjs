@@ -19,13 +19,13 @@ async function setup(tag=TAGS[0],legacy=true){
    expectedLastReplacementAt:a.last_replacement_at,expectedCycleStartState:a.cycle_start_state,
    expectedCycleStartedAt:a.cycle_started_at||'',expectedCycleStartRevision:a.cycle_start_revision||'',expectedCycleRuntimeRevision:a.cycle_runtime_revision,...extra},token);
  };
- f.finish=async(item,seconds=3601,startState='running',endState='running')=>{
+ f.finish=async(item,seconds=3601,startState='running',endState='running',runIntervals)=>{
   const claim=await agentClaim(f.database);assert.equal(claim.status,200,JSON.stringify(claim.body));
   const claimed=claim.body.items.excel;assert.equal(claimed.id,item.id);
   const expected=agent.parseClaim(claimed),hours=seconds/3600;
   const raw={...claimed.probe,ok:true,observedAt:claimed.probe.endAt,collectedAt:new Date().toISOString(),
    completedChunkCount:1,startState,endState,runningSeconds:seconds,totalRunningHours:hours,
-   chunks:[{index:1,startAt:claimed.probe.startAt,endAt:claimed.probe.endAt,startState,endState,runningSeconds:seconds,totalRunningHours:hours}]};
+   chunks:[{index:1,startAt:claimed.probe.startAt,endAt:claimed.probe.endAt,startState,endState,runningSeconds:seconds,totalRunningHours:hours,runIntervals}]};
   const normalized=agent.normalizeResult(raw,expected);
   const done=await agentComplete(f.database,item.id,normalized);assert.equal(done.status,200,JSON.stringify(done.body));return done;
  };
@@ -57,6 +57,34 @@ test('zero-run segment preserves total, updates last success, and the next segme
  const f=await setup();try{await f.seed(12000);f.advance(3600000);const a=await f.create();await f.finish(a.body.item,0,'running','stopped');const saved=await f.sync(a.body.item.id);assert.equal(saved.status,200,JSON.stringify(saved.body));assert.equal(saved.body.runtimeHours,12000/3600);const boundary=f.read().cycle_runtime_anchor_at;
  f.advance(3600000);const b=await f.create();assert.equal(Date.parse(b.body.item.probe.startAt),Date.parse(boundary));await f.finish(b.body.item,1777,'stopped','running');const r=await f.sync(b.body.item.id);assert.equal(r.body.runtimeHours,13777/3600);
  }finally{f.close();}
+});
+
+test('observed RUN transition survives queue completion, sync and an unchanged append without replacing cycle coverage', async () => {
+ const f = await setup('204HHL60AP611');
+ try {
+  const initial = (await f.create()).body.item;
+  const transition = new Date(Date.parse(initial.probe.endAt) - 1800 * 1000).toISOString();
+  await f.finish(initial, 1800, 'stopped', 'running', [{ start: transition, hours: 0.5 }]);
+  const saved = await f.sync(initial.id);
+  assert.equal(saved.status, 200, JSON.stringify(saved.body));
+  const basis = () => history.currentDataParcRuntimeBasis(f.read(), f.events());
+  assert.equal(basis().trailingStateStartedAt, transition);
+  assert.equal(Date.parse(basis().startAt), Date.parse(initial.probe.startAt));
+
+  f.advance(3600000);
+  const append = (await f.create()).body.item;
+  await f.finish(append, 3600);
+  assert.equal((await f.sync(append.id)).status, 200);
+  assert.equal(basis().trailingStateStartedAt, transition);
+  assert.equal(basis().runningSeconds, 5400);
+
+  f.advance(3600000);
+  const ambiguous = (await f.create()).body.item;
+  await f.finish(ambiguous, 3599);
+  assert.equal((await f.sync(ambiguous.id)).status, 200);
+  assert.equal(basis().trailingStateStartedAt, undefined);
+  assert.equal(basis().runningSeconds, 8999);
+ } finally { f.close(); }
 });
 test('up-to-date same-second Latest does not open another request or change records',async()=>{const f=await setup();try{await f.seed();const before=f.read();const count=f.sqlite.prepare('SELECT COUNT(*) n FROM ois_data_requests').get().n;const r=await f.create();assert.equal(r.body.upToDate,true);assert.equal(r.status,200);assert.deepEqual(f.read(),before);assert.equal(f.sqlite.prepare('SELECT COUNT(*) n FROM ois_data_requests').get().n,count);}finally{f.close();}});
 test('pending request reuse does not replace the baseline and completing it adds once',async()=>{const f=await setup();try{await f.seed();f.advance(3600000);const a=await f.create(),b=await f.create();assert.equal(a.body.item.id,b.body.item.id);assert.equal(b.body.reused,true);await f.finish(a.body.item,2000);const r=await f.sync(a.body.item.id);assert.equal(r.body.runtimeHours,5601/3600);}finally{f.close();}});

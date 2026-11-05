@@ -96,6 +96,116 @@ test("the working Silo B source stays fixed and legacy cycle metadata remains ac
   }
 });
 
+test("detailed DataPARC rows prove the trailing state without sending raw intervals", () => {
+  const claim = item("204HHL60AP611");
+  const expected = agent.parseClaim(claim);
+  const running = rawResult(claim);
+  running.startState = running.chunks[0].startState = "stopped";
+  const excelStart = (Date.UTC(2026, 8, 8, 1) - Date.UTC(1899, 11, 30)) / 86400000;
+  running.chunks[0].runIntervals = [{ start: excelStart, hours: 1 }];
+  const result = agent.normalizeResult(running, expected);
+  assert.equal(result.trailingStateStartedAt, "2026-09-07T16:00:00.000Z");
+  assert.equal(result.runningSeconds, 3600);
+  assert.equal(Object.hasOwn(result.chunks[0], "runIntervals"), false);
+
+  const stopped = rawResult(claim, "stopped");
+  stopped.runningSeconds = stopped.chunks[0].runningSeconds = 2700;
+  stopped.totalRunningHours = stopped.chunks[0].totalRunningHours = 0.75;
+  stopped.chunks[0].runIntervals = [
+    { start: "2026-09-08 00:15:00", hours: 0.5 },
+    { start: "2026-09-07T16:00:00Z", hours: 0.25 }
+  ];
+  assert.equal(agent.normalizeResult(stopped, expected).trailingStateStartedAt, "2026-09-07T16:15:00.000Z");
+
+  for (const intervals of [undefined, [{ start: "2026-09-08 01:01:00", hours: 1 }],
+    [{ start: "2026-09-08 00:00:00", hours: 1 }], [{ start: "not a clock", hours: 1 }],
+    [{ start: "2026-09-08 01:30:00", hours: 0.5 }]]) {
+    running.chunks[0].runIntervals = intervals;
+    const ambiguous = agent.normalizeResult(running, expected);
+    assert.equal(ambiguous.trailingStateStartedAt, undefined);
+    assert.equal(ambiguous.runningSeconds, 3600);
+  }
+});
+
+test("a proven transition survives only fully verified same-state following chunks", () => {
+  const claim = item("204HHL60AP621");
+  const middle = "2026-10-09T00:00:00+09:00";
+  const end = "2026-10-09T02:00:00+09:00";
+  claim.targetDate = `v1|${claim.probe.assetTag}|${START}|${end}`;
+  Object.assign(claim.probe, { endAt: end, chunkCount: 2 });
+  const result = { ...rawResult(claim), observedAt: end, collectedAt: "2026-10-08T17:00:05Z",
+    completedChunkCount: 2, startState: "stopped", runningSeconds: 14400, totalRunningHours: 4,
+    chunks: [
+      { index: 1, startAt: START, endAt: middle, startState: "stopped", endState: "running",
+        runningSeconds: 7200, totalRunningHours: 2, runIntervals: [{ start: "2026-10-08 22:00:00", hours: 2 }] },
+      { index: 2, startAt: middle, endAt: end, startState: "running", endState: "running",
+        runningSeconds: 7200, totalRunningHours: 2, runIntervals: [
+          { start: middle, hours: 1 }, { start: "2026-10-09 01:00:00", hours: 1 }
+        ] }
+    ] };
+  const expected = agent.parseClaim(claim);
+  assert.equal(agent.normalizeResult(result, expected).trailingStateStartedAt, "2026-10-08T13:00:00.000Z");
+  delete result.chunks[1].runIntervals;
+  assert.equal(agent.normalizeResult(result, expected).trailingStateStartedAt, undefined);
+});
+
+test("Seal Pot A and C report the first RUN after a verified stopped prefix even when the blower restarts later", () => {
+  const middle = "2026-10-09T00:00:00+09:00";
+  const later = "2026-11-09T00:00:00+09:00";
+  const end = "2026-11-09T02:00:00+09:00";
+  for (const assetTag of ["204HHL10AN611", "204HHL10AN631", "204HHL10AN621"]) {
+    const claim = item(assetTag);
+    claim.targetDate = `v1|${assetTag}|${START}|${end}`;
+    Object.assign(claim.probe, { endAt: end, chunkCount: 3, expectedLastReplacementAt: START });
+    const raw = {
+      ...rawResult(claim), observedAt: end, collectedAt: end, completedChunkCount: 3,
+      startState: "stopped", runningSeconds: 7200, totalRunningHours: 2,
+      chunks: [
+        { index: 1, startAt: START, endAt: middle, startState: "stopped", endState: "stopped",
+          runningSeconds: 0, totalRunningHours: 0, runIntervals: [] },
+        { index: 2, startAt: middle, endAt: later, startState: "stopped", endState: "stopped",
+          runningSeconds: 3600, totalRunningHours: 1, runIntervals: [
+            { start: "2026-10-09 16:00:00", hours: 0.5 }, { start: "2026-10-09 06:00:00", hours: 0.5 }
+          ] },
+        { index: 3, startAt: later, endAt: end, startState: "stopped", endState: "running",
+          runningSeconds: 3600, totalRunningHours: 1, runIntervals: [{ start: "2026-11-09 01:00:00", hours: 1 }] }
+      ]
+    };
+    const expected = agent.parseClaim(claim);
+    const firstRun = assetTag === "204HHL10AN621" ? undefined : "2026-10-08T21:00:00.000Z";
+    const result = agent.normalizeResult(raw, expected);
+    assert.equal(result.firstRunStartedAt, firstRun);
+    assert.equal(result.trailingStateStartedAt, "2026-11-08T16:00:00.000Z");
+    assert.equal(result.runningSeconds, 7200);
+    assert.ok(result.chunks.every(chunk => !Object.hasOwn(chunk, "runIntervals")));
+
+    delete raw.chunks[2].runIntervals;
+    assert.equal(agent.normalizeResult(raw, expected).firstRunStartedAt, firstRun);
+    delete raw.chunks[0].runIntervals;
+    assert.equal(agent.normalizeResult(raw, expected).firstRunStartedAt, undefined);
+  }
+});
+
+test("Seal Pot first RUN is omitted for a partial window, an append, and ambiguous first positive detail", () => {
+  const claim = item("204HHL10AN611");
+  const raw = rawResult(claim);
+  raw.startState = raw.chunks[0].startState = "stopped";
+  raw.chunks[0].runIntervals = [{ start: "2026-09-08 01:00:00", hours: 1 }];
+  assert.equal(agent.normalizeResult(raw, agent.parseClaim(claim)).firstRunStartedAt, undefined);
+
+  raw.expectedLastReplacementAt = claim.probe.expectedLastReplacementAt = START;
+  assert.equal(agent.normalizeResult(raw, agent.parseClaim(claim)).firstRunStartedAt, "2026-09-07T16:00:00.000Z");
+  const revision = claim.probe.expectedCycleRuntimeRevision;
+  raw.expectedCycleRuntimeRevision = claim.probe.expectedCycleRuntimeRevision = `append-v1:${revision}`;
+  assert.equal(agent.normalizeResult(raw, agent.parseClaim(claim)).firstRunStartedAt, undefined);
+
+  raw.expectedCycleRuntimeRevision = claim.probe.expectedCycleRuntimeRevision = revision;
+  raw.chunks[0].runIntervals = [{ start: START, hours: 1 }];
+  assert.equal(agent.normalizeResult(raw, agent.parseClaim(claim)).firstRunStartedAt, undefined);
+  raw.chunks[0].runIntervals = [{ start: "2026-09-08 01:30:00", hours: 0.5 }];
+  assert.equal(agent.normalizeResult(raw, agent.parseClaim(claim)).firstRunStartedAt, undefined);
+});
+
 test("the Agent rejects unsupported assets and conflicting canonical queue identities", () => {
   for (const asset of ["104HHL60AP612", "104HHL10AN612", "204LMDF01AN002", "104ETH03AN603", "", "104eth03an601"]) {
     assert.throws(() => agent.parseClaim(item(asset)), /payload/);

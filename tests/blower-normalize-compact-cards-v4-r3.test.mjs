@@ -126,6 +126,51 @@ test('complete certified coverage has no uncertainty badge and keeps its explici
   assert.deepEqual(a, before);
 });
 
+test('a measured FBHE transition and an approved stop note stay separate from the belt-cycle value', () => {
+  const a = measured({ tagNumber: '204HHL60AP621', blowerType: 'fbhe', unitNo: '2',
+    cycleSourceReview: null, dataParcRuntimeBasis: { startAt: REPLACEMENT, observedAt: END,
+      trailingStateStartedAt: '2026-10-30T04:37:56.000Z', coverageComplete: true },
+    runRuntime: { verified: true, source: 'dataparc', state: 'stopped', measuredAt: END },
+    stopMaintenance: { kind: 'oil_fill_pipe', workDate: '2026-10-30' } });
+  const ui = harness([a]);
+  const card = ui.renderAllOverviewCard(a);
+  oneAmount(card, '404.3시간');
+  assert.match(visible(card), /V-Belt 누적 조회 기간 2026-09-25 14:40/);
+  assert.match(visible(card), /최근 RUN 정지 시각 2026-10-30 13:37/);
+  assert.match(visible(card), /10\/30 업무일지 · 오일 주입구 연결 파이프 교체 · V-Belt 누적 유지/);
+
+  a.runRuntime.state = 'running';
+  const running = visible(ui.renderAllOverviewCard(a));
+  assert.match(running, /최근 연속 기동 구간 2026-10-30 13:37 → 2026-11-04 04:24/);
+  assert.doesNotMatch(running, /오일 주입구/);
+  a.runRuntime.measuredAt = REPLACEMENT;
+  assert.doesNotMatch(visible(ui.renderAllOverviewCard(a)), /최근 연속 기동 구간/);
+});
+
+test('2호기 Seal Pot A and C show a RUN accumulation period only after the first startup is verified', () => {
+  const origin = '2026-05-10T15:00:00.000Z';
+  for (const tagNumber of ['204HHL10AN611', '204HHL10AN631']) {
+    const dataParcTag = `GSPOGE.ABB_DCS.${tagNumber}XB04`;
+    const a = measured({ tagNumber, dataParcTag, blowerType: 'seal_pot', unitNo: '2', lastReplacementAt: origin,
+      cycleSourceReview: null, dataParcRuntimeBasis: { startAt: '2026-05-11T09:00:00.000Z', observedAt: END,
+        requiredStartAt: origin, dataParcTag, coverageComplete: false },
+      runRuntime: { verified: true, source: 'dataparc', state: 'running', measuredAt: END } });
+    const ui = harness([a]);
+    assert.match(visible(ui.renderAllOverviewCard(a)), /일부 기간 RUN 누적/);
+    ui.openAssetHistory(tagNumber);
+    assert.match(ui.elements.historyCycleSummary.innerHTML, /data-history-action="seal_pot_first_run"/);
+
+    a.dataParcRuntimeBasis = { ...a.dataParcRuntimeBasis, startAt: origin, coverageComplete: true,
+      firstRunStartedAt: '2026-05-11T09:01:22.000Z' };
+    const card = visible(ui.renderAllOverviewCard(a));
+    assert.match(card, /RUN 누적 기간 2026-05-11 18:01:22 → 2026-11-04 04:24/);
+    assert.doesNotMatch(card, /일부 기간 RUN 누적/);
+    ui.openAssetHistory(tagNumber);
+    assert.match(visible(ui.elements.historyCycleSummary.innerHTML), /검증 조회 기간 2026-05-11 00:00/);
+    assert.doesNotMatch(ui.elements.historyCycleSummary.innerHTML, /data-history-action="seal_pot_first_run"/);
+  }
+});
+
 test('day-only replacement ranges retain an explicit missing completion-time badge and their conservative queried start', () => {
   const a = measured({ tagNumber: '204HHL60AP621', blowerType: 'fbhe', unitNo: '2',
     lastReplacementAt: '2026-10-29T15:00:00.000Z', cycleBasisKind: 'replacement_source_review',

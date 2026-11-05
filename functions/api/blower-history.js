@@ -1,5 +1,7 @@
 import { handleBlowerSchedule } from "../_shared/blower-schedule-v1.js";
 import { incrementalEvidence, verifiedAppendBase, loadAppendBase, loadAppendIntent, combineAppendProbe, cycleRuntimeCoverage } from "../_shared/blower-incremental.js";
+import { savedFirstRunStart, savedTrailingStateStart, validatedFirstRunStart, validatedTrailingStateStart } from "../_shared/blower-run-transition.js";
+import { blowerStopMaintenanceKind, loadBlowerStopMaintenance } from "../_shared/blower-stop-maintenance.js";
 import { reviewedCycleSourceWarning } from "../_shared/blower-cycle-source-review.js";
 import { reconcileApprovedReplacementLog, replacementAutoCycleProof, isReplacementAutoRevision } from "../_shared/blower-replacement-auto-v3.js";
 import { collectApprovedReplacementFacts } from "../_shared/blower-replacement-facts-v3.js";
@@ -1834,6 +1836,11 @@ function currentDataParcRuntimeBasis(asset, rows) {
         currentHours === null || basisHours === null || Math.abs(currentHours - basisHours) > 0.000001) return null;
     const append = verifiedAppendBase(asset, rows, source.dataParcTag);
     const coverage = cycleRuntimeCoverage(asset, coverageStartAt);
+    const trailingStateStartedAt = isFbheSealRunAsset(asset) && source.endState === asset.cycle_runtime_state &&
+      observed === Date.parse(asset.cycle_runtime_anchor_at) ? savedTrailingStateStart(source, rows) : "";
+    const firstRunStartedAt = coverage.complete && append?.requestId === source.requestId &&
+      source.endState === asset.cycle_runtime_state && observed === Date.parse(asset.cycle_runtime_anchor_at)
+      ? savedFirstRunStart(source, rows) : "";
     return { startAt: coverageStartAt, observedAt: source.observedAt || source.endAt, requestId: source.requestId,
       runtimeHours: Number(row.runtime_hours), dataParcTag: source.dataParcTag,
       coverageComplete: coverage.complete, requiredStartAt: coverage.requiredStartAt,
@@ -1841,6 +1848,8 @@ function currentDataParcRuntimeBasis(asset, rows) {
       appendReady: Boolean(append && append.requestId === source.requestId),
       runningSeconds: incremental ? incremental.totalRunningSeconds : source.runningSeconds,
       lastQueryStartAt: source.startAt, lastAddedSeconds: incremental ? incremental.deltaRunningSeconds : null,
+      ...(trailingStateStartedAt ? { trailingStateStartedAt } : {}),
+      ...(firstRunStartedAt ? { firstRunStartedAt } : {}),
       ...(confirmedChangeover && start > replacement && append?.requestId === source.requestId
         ? { confirmedGapRecoveryEligible: true } : {}) };
   }
@@ -2215,14 +2224,71 @@ async function buildRefreshStatePage(database, user, cursor = '', limit = 2) {
     nextCursor: done ? null : selected.at(-1).tag_number, generatedAt: new Date().toISOString() });
 }
 
+export function readStopMaintenanceDiary(row, catalog) {
+  const maintenance = [];
+  const belts = /belt|blet|벨트/i.test(row.log_json || '') ? collectReplacementFactsForRolePriority(row, catalog) : [];
+  if (!/\boil\b|오일|윤활유/i.test(row.log_json || '')) return { maintenance, belts };
+
+  const origins = new Map();
+  for (const fragment of parseShiftLogFragments(row, catalog)) {
+    const origin = fragment.v3Origin;
+    if (!origin || fragmentSourceRole(fragment) !== row.role) continue;
+    const key = `${origin.collectionName}:${origin.entryIndex}`;
+    if (fragment.identityConflict || !origins.has(key)) origins.set(key, fragment.identityConflict ? null : origin);
+  }
+  for (const origin of origins.values()) {
+    if (!origin || !/^(?:[01]?\d|2[0-3]):[0-5]\d$/.test(origin.entryTimeText)) continue;
+    const lines = normalizeCanonicalEvidence(origin.entryContent).split(/\r?\n/)
+      .map(line => line.trim().replace(/^(?:->|→|[-–•])\s*/, '')).filter(Boolean);
+    if (!lines.length) continue;
+    const kinds = lines.map(blowerStopMaintenanceKind);
+    const workIndex = kinds.findIndex(Boolean);
+    if (workIndex < 0 || kinds.filter(Boolean).length !== 1) continue;
+    const contextFor = line => v13IdentityFromText(line, row.role, catalog, origin.structuredIdentityText);
+    const targetFor = line => v13ResolveTargets({ sourceText: line, role: row.role, workDate: row.work_date,
+      v13Context: contextFor(line) }, catalog);
+    const targets = targetFor(lines[0]);
+    if (targets.length !== 1) continue;
+    const [asset] = targets;
+    if (!isFbheSealRunAsset(asset) || DUTY_ROLE_UNIT[row.role] !== asset.unit_no) continue;
+
+    if (workIndex > 0) {
+      // An unlabelled continuation can belong to the stopped machine only
+      // within the same explicit oil job. A B→A switch does not move the job to A.
+      const work = contextFor(lines[workIndex]);
+      const workTargets = targetFor(lines[workIndex]);
+      const sameTarget = workTargets.length === 1 && workTargets[0].tag_number === asset.tag_number;
+      const unscoped = !work.hasManagedIdentity && !work.explicitPositions.length && !work.explicitUnits.length;
+      if (!/\boil\b|오일|윤활유/i.test(lines[0]) || workIndex !== lines.length - 1 ||
+          work.identityConflict || !(sameTarget || unscoped) ||
+          !lines.slice(1, workIndex).every(line => {
+            const pair = operationChangeoverPair(line);
+            return pair && /(?:교체|절체)\s*운전\s*$/.test(line) &&
+              !/(?:예정|계획|요청|검토|취소|미실시)/.test(line) &&
+              operationContextAsset(contextFor(line), pair.fromPosition, catalog, row.work_date)?.tag_number === asset.tag_number;
+          })) continue;
+    }
+    const eventAt = detectionDateTime({ ...row, sourceTime: origin.entryTime });
+    if (eventAt) maintenance.push({ tagNumber: asset.tag_number, kind: kinds[workIndex], eventAt });
+  }
+  return { maintenance, belts };
+}
+
 async function buildFullData(database, user) {
   const authenticated = Boolean(user);
   const settings = await loadSettings(database);
   const assets = await loadAssetStates(database, settings);
+  const catalog = authenticated ? assets.map(asset => ({ tag_number: asset.tagNumber, unit_no: asset.unitNo,
+    blower_type: asset.blowerType, position_label: asset.positionLabel, asset_group: asset.assetGroup,
+    sort_order: asset.sortOrder, enabled: 1 })) : [];
+  const [events, stopMaintenance] = await Promise.all([
+    loadEvents(database, 10000),
+    authenticated ? loadBlowerStopMaintenance(database, assets, row => readStopMaintenanceDiary(row, catalog)) : null
+  ]);
   const responseAssets = authenticated
-    ? assets
+    ? assets.map(asset => stopMaintenance.has(asset.tagNumber)
+      ? { ...asset, stopMaintenance: stopMaintenance.get(asset.tagNumber) } : asset)
     : sanitizeAssetsForAnonymous(assets);
-  const events = await loadEvents(database, 10000);
   const candidates = authenticated
     ? await loadCandidates(database, "pending", 300)
     : [];
@@ -2753,6 +2819,8 @@ function normalizeDataParcRuntimeProbeResult(value, requestId, now = new Date(),
     return dataParcRuntimeValidationFailure("DataPARC 전체 운전시간 합계가 분할 조회 결과와 일치하지 않습니다.");
   }
 
+  const trailingStateStartedAt = validatedTrailingStateStart(raw);
+  const firstRunStartedAt = validatedFirstRunStart(raw);
   return {
     error: "",
     code: "",
@@ -2779,6 +2847,8 @@ function normalizeDataParcRuntimeProbeResult(value, requestId, now = new Date(),
       runningSeconds: raw.runningSeconds,
       runtimeHours: raw.runningSeconds / 3600,
       chunkCount: raw.chunkCount,
+      ...(trailingStateStartedAt ? { trailingStateStartedAt } : {}),
+      ...(firstRunStartedAt ? { firstRunStartedAt } : {}),
       isRunning: raw.endState === "running"
     }
   };
@@ -7484,6 +7554,8 @@ function dataParcRuntimeSyncSourceText(probe) {
     runningSeconds: probe.runningSeconds,
     chunkCount: probe.chunkCount,
     collectedAt: probe.collectedAt,
+    ...(probe.trailingStateStartedAt ? { trailingStateStartedAt: probe.trailingStateStartedAt } : {}),
+    ...(probe.firstRunStartedAt && !probe.incremental ? { firstRunStartedAt: probe.firstRunStartedAt } : {}),
     ...(probe.signalOnlyCycle === true ? { signalOnlyCycle: true } : {}),
     ...(probe.incremental ? { incremental: probe.incremental } : {})
   });
@@ -7748,6 +7820,10 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
   }
   try { probe = combineAppendProbe(probe, appendIntent); }
   catch (e) { return jsonResponse({ ok: false, code: e.code, message: e.message }, 409); }
+  if (body.requireFirstRunStart === true && (!probe.firstRunStartedAt || probe.incremental)) {
+    return jsonResponse({ ok: false, code: "DATAPARC_FIRST_RUN_UNVERIFIED",
+      message: "조회 시작부터 최초 RUN 전환을 확인하지 못했습니다. 기존 누적시간과 조회 기준을 유지했습니다." }, 409);
+  }
   const sourceText = dataParcRuntimeSyncSourceText(probe);
 
   if (sourceText.length > 2000) {
@@ -15469,7 +15545,7 @@ function classifyBlowerLogFailure(error) {
     code = 'BLOWER_LOG_D1_CAPACITY_LIMIT'; failureKind = 'capacity_limit';
   } else if (/too many API requests by single Worker invocation|too many subrequests(?:\b|$)|too many queries (?:by|in|per|for) (?:a |the |single )?(?:Worker )?(?:request|invocation)\b/i.test(detail)) {
     code = 'BLOWER_LOG_D1_REQUEST_LIMIT'; failureKind = 'request_limit';
-  } else if (/too many SQL variables|too many arguments (?:on|to) function|SQL(?: statement)? (?:is )?too (?:long|large)|SQL statement.{0,80}(?:maximum|limit)|statement.{0,60}exceeds.{0,40}(?:size|length)|SQLITE_TOOBIG/i.test(detail)) {
+  } else if (/too many SQL variables|too many arguments (?:on|to) function|expression tree is too large|SQL(?: statement)? (?:is )?too (?:long|large)|SQL statement.{0,80}(?:maximum|limit)|statement.{0,60}exceeds.{0,40}(?:size|length)|SQLITE_TOOBIG/i.test(detail)) {
     code = 'BLOWER_LOG_D1_QUERY_LIMIT'; failureKind = 'query_limit';
   } else if (/D1_TYPE_ERROR|D1_COLUMN_NOTFOUND|no such (?:table|column)|syntax error|datatype mismatch/i.test(detail)) {
     code = 'BLOWER_LOG_D1_QUERY_INVALID'; failureKind = 'invalid_query';

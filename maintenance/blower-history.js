@@ -1529,6 +1529,9 @@
       : "미설정";
     const isDataparcRuntimeAsset = isDataParcRuntimeAsset(asset);
     const dataparcRuntimeBasis = isDataparcRuntimeAsset ? getLatestDataParcRuntimeBasis(asset.tagNumber) : null;
+    const transition = typeof verifiedRunTransition === 'function' ? verifiedRunTransition(asset, runView?.basis || dataparcRuntimeBasis) : null;
+    const firstRunPeriod = typeof sealPotFirstRunPeriod === 'function' ? sealPotFirstRunPeriod(asset, runView?.basis) : '';
+    const maintenance = typeof stopMaintenanceText === 'function' ? stopMaintenanceText(asset) : '';
     const preview = state.limestoneRunPreviews?.[asset.tagNumber];
     // The old parallel tracking strip is intentionally hidden: the card now
     // displays the proven RUN hours in the single primary metric.
@@ -1541,12 +1544,12 @@
     const dataparcRuntimeBasisLine = runView
       ? `<div class="dataparc-runtime-row run-source-row" data-run-source="${escapeHtml(asset.runRuntime?.source || "unverified")}">
           <div class="dataparc-runtime-basis">
-            <span>${runView.automaticReplacement ? "교체 자동반영" : manualRuntime ? "수동 보정 기준시각" : "데이터 조회 기간"}</span>
-            ${runView.automaticReplacement ? `<strong>${escapeHtml(replacementAutoDateText(asset))}</strong>` : runView.basis ? `<strong>${escapeHtml(formatKstDateTimeDisplay(runView.basis.startAt))} → ${escapeHtml(formatKstDateTimeDisplay(runView.basis.observedAt))}</strong>`
+            <span>${runView.automaticReplacement ? "교체 자동반영" : manualRuntime ? "수동 보정 기준시각" : firstRunPeriod ? "RUN 누적 기간" : "데이터 조회 기간"}</span>
+            ${runView.automaticReplacement ? `<strong>${escapeHtml(replacementAutoDateText(asset))}</strong>` : runView.basis ? `<strong>${escapeHtml(firstRunPeriod || `${formatKstDateTimeDisplay(runView.basis.startAt)} → ${formatKstDateTimeDisplay(runView.basis.observedAt)}`)}</strong>`
               : runView.manual ? `<strong>${escapeHtml(formatKstDateTimeDisplay(runView.measuredAt))} 기준</strong>` : ""}
             ${partialCoverage ? "" : `<small title="${escapeHtml(runView.message)}">${escapeHtml(runView.automaticReplacement ? runView.clockUnknown ? "완료 시각 미기록" : "RUN 조회 대기" : runView.message)}</small>`}
           </div>
-          <div class="run-source-mobile"><span>${runView.automaticReplacement ? "교체 자동반영" : manualRuntime ? "수동 보정 기준시각" : "데이터 조회 기간"}</span><small>${escapeHtml(runView.automaticReplacement ? replacementAutoDateText(asset) : runView.basis ? `${formatKstDateTimeDisplay(runView.basis.startAt).slice(5)} → ${formatKstDateTimeDisplay(runView.basis.observedAt).slice(5)}` : runView.manual && !asset.dataParcTag ? "RUN 연결 필요" : runView.measuredAt ? `${formatKstDateTimeDisplay(runView.measuredAt).slice(5)} 기준` : "이력에서 확인")}</small></div>
+          <div class="run-source-mobile"><span>${runView.automaticReplacement ? "교체 자동반영" : manualRuntime ? "수동 보정 기준시각" : firstRunPeriod ? "RUN 누적 기간" : "데이터 조회 기간"}</span><small>${escapeHtml(runView.automaticReplacement ? replacementAutoDateText(asset) : firstRunPeriod || (runView.basis ? `${formatKstDateTimeDisplay(runView.basis.startAt).slice(5)} → ${formatKstDateTimeDisplay(runView.basis.observedAt).slice(5)}` : runView.manual && !asset.dataParcTag ? "RUN 연결 필요" : runView.measuredAt ? `${formatKstDateTimeDisplay(runView.measuredAt).slice(5)} 기준` : "이력에서 확인"))}</small></div>
         </div>`
       : dataparcRuntimeBasis
       ? `<div class="dataparc-runtime-row">
@@ -1579,6 +1582,8 @@
         </div>
 
         ${dataparcRuntimeBasisLine}
+        ${transition ? `<div class="run-history-note" data-run-transition="true"><strong>${escapeHtml(transition.label)}</strong><small>${escapeHtml(transition.period)}</small></div>` : ""}
+        ${maintenance ? `<div class="run-history-note" data-stop-maintenance="true"><strong>${escapeHtml(maintenance)}</strong></div>` : ""}
         ${coverageStatus ? `<div class="run-history-note" data-run-coverage="partial" data-run-basis-status="${escapeHtml(coverageStatus.key)}" title="${escapeHtml(partialCoverage.warning)}"><strong>${escapeHtml(coverageStatus.label)}</strong></div>` : ""}
         ${trackingDetail}
         ${previewDetail}
@@ -1907,6 +1912,54 @@
     return `${formatKstDateTimeDisplay(basis.startAt)} → ${formatKstDateTimeDisplay(basis.observedAt)}`;
   }
 
+  function verifiedRunTransition(asset, basis) {
+    const runtime = asset.runRuntime;
+    const start = Date.parse(basis?.startAt);
+    const observed = Date.parse(basis?.observedAt);
+    const transition = Date.parse(basis?.trailingStateStartedAt);
+    if (runtime?.verified !== true || runtime.source !== 'dataparc' ||
+        observed !== Date.parse(runtime.measuredAt) || !(start < transition && transition < observed)) return null;
+    const date = formatKstDateTimeDisplay(basis.trailingStateStartedAt);
+    if (runtime.state === 'running') return { label: '최근 연속 기동 구간', period: `${date} → ${formatKstDateTimeDisplay(basis.observedAt)}` };
+    if (runtime.state === 'stopped') return { label: '최근 RUN 정지 시각', period: date };
+    return null;
+  }
+
+  function sealPotFirstRunBasis(asset) {
+    const tag = asset?.tagNumber;
+    const basis = asset?.dataParcRuntimeBasis;
+    const origin = Date.parse('2026-05-11T00:00:00+09:00');
+    if (!/^204HHL10AN(?:611|631)$/.test(tag) || asset.blowerType !== 'seal_pot' || asset.cycleStartState !== 'legacy' ||
+        Date.parse(asset.lastReplacementAt) !== origin || Date.parse(basis?.requiredStartAt) !== origin ||
+        !(Date.parse(basis?.startAt) >= origin) || basis?.dataParcTag !== `GSPOGE.ABB_DCS.${tag}XB04` ||
+        asset.runRuntime?.verified !== true || asset.runRuntime.source !== 'dataparc' ||
+        Date.parse(asset.runRuntime.measuredAt) !== Date.parse(basis?.observedAt)) return null;
+    return basis;
+  }
+
+  function sealPotFirstRunPeriod(asset, basis) {
+    if (!basis || basis !== sealPotFirstRunBasis(asset) || basis.coverageComplete !== true) return '';
+    const start = Date.parse(basis.firstRunStartedAt), end = Date.parse(basis.observedAt);
+    if (!(Date.parse(basis.startAt) < start && start < end)) return '';
+    const exactStart = `${formatKstDateTimeDisplay(start)}:${String(new Date(start).getUTCSeconds()).padStart(2, '0')}`;
+    return `${exactStart} → ${formatKstDateTimeDisplay(end)}`;
+  }
+
+  function runCoverageGap(basis) {
+    const required = Date.parse(basis?.requiredStartAt), measured = Date.parse(basis?.startAt);
+    return basis?.coverageComplete === false && required < measured
+      ? `등록 기준과 조회 시작 사이 ${formatKstDateTimeDisplay(basis.requiredStartAt)} → ${formatKstDateTimeDisplay(basis.startAt)} 미조회`
+      : '';
+  }
+
+  function stopMaintenanceText(asset) {
+    const note = asset.stopMaintenance;
+    const action = note?.kind === 'oil_fill_pipe' ? '오일 주입구 연결 파이프 교체'
+      : note?.kind === 'oil_change' ? '오일 교체 완료' : '';
+    return action && asset.runRuntime?.state === 'stopped' && /^\d{4}-\d{2}-\d{2}$/.test(note.workDate)
+      ? `${note.workDate.slice(5).replace('-', '/')} 업무일지 · ${action} · V-Belt 누적 유지` : '';
+  }
+
   function compactRunCoverageStatus(coverage) {
     if (!coverage) return null;
     if (coverage.rolePriority) return { key: coverage.rolePriority.key, label: coverage.rolePriority.label };
@@ -1930,6 +1983,10 @@
     // displayed period must BOTH remain from the same previous V-Belt checkpoint.
     const view = trackedRun ? { ...underlyingView, state: trackedRun.state,
       label: trackedRun.stateLabel } : underlyingView;
+    const transition = typeof verifiedRunTransition === 'function' ? verifiedRunTransition(asset, view.basis) : null;
+    const firstRunPeriod = typeof sealPotFirstRunPeriod === 'function' ? sealPotFirstRunPeriod(asset, view.basis) : '';
+    const gap = typeof runCoverageGap === 'function' ? runCoverageGap(partialCoverage?.basis) : '';
+    const maintenance = typeof stopMaintenanceText === 'function' ? stopMaintenanceText(asset) : '';
     const severity = displaySeverity(asset);
     const position = formatCardPosition(asset);
     const replacement = asset.lastReplacementAt && !isAssetAwaitingBackfill(asset)
@@ -1965,10 +2022,12 @@
           <span><small>${partialCoverage?.rolePriority ? '상위 보직 교체 기준' : partialCoverage?.replacementClockConfirmed ? '최근 V-Belt 교체' : partialCoverage?.registeredRuntimeRange ? 'RUN 조회기준' : automaticReplacement ? '교체 자동반영' : partialCoverage?.rangeTracking ? '교체일' : partialCoverage?.sourceReview ? '등록기준' : escapeHtml(cycleReferenceLabel(asset))}</small><strong>${escapeHtml(replacement)}</strong></span>
         </span>
         <span class="all-overview-query-period">
-          <small>${manualRuntime ? "수동 보정 기준시각" : "데이터 조회 기간"}</small>
-          <strong>${escapeHtml(manualRuntime ? formatKstDateTimeDisplay(asset.runRuntime.measuredAt) : allOverviewBasisText(view.basis))}</strong>
+          <small>${manualRuntime ? "수동 보정 기준시각" : firstRunPeriod ? "RUN 누적 기간" : transition ? "V-Belt 누적 조회 기간" : "데이터 조회 기간"}</small>
+          <strong>${escapeHtml(manualRuntime ? formatKstDateTimeDisplay(asset.runRuntime.measuredAt) : firstRunPeriod || allOverviewBasisText(view.basis))}</strong>
         </span>
-        ${coverageStatus ? `<span class="all-overview-query-period" data-run-coverage="partial" data-run-basis-status="${escapeHtml(coverageStatus.key)}" title="${escapeHtml(partialCoverage.warning)}"><strong>${escapeHtml(coverageStatus.label)}</strong></span>` : ""}
+        ${transition ? `<span class="all-overview-query-period" data-run-transition="true"><small>${escapeHtml(transition.label)}</small><strong>${escapeHtml(transition.period)}</strong></span>` : ""}
+        ${maintenance ? `<span class="all-overview-query-period" data-stop-maintenance="true"><strong>${escapeHtml(maintenance)}</strong></span>` : ""}
+        ${coverageStatus ? `<span class="all-overview-query-period" data-run-coverage="partial" data-run-basis-status="${escapeHtml(coverageStatus.key)}" title="${escapeHtml([partialCoverage.warning, gap].filter(Boolean).join(' · '))}"><strong>${escapeHtml(coverageStatus.label)}</strong></span>` : ""}
         ${trackingLine}
         ${previewLine}
       </button>`;
@@ -2775,6 +2834,17 @@
       `;
 
     if (partialCoverage) elements.historyCycleSummary.innerHTML += commonRunCoverageNotice(partialCoverage);
+    const transition = verifiedRunTransition(asset, runView?.basis || getLatestDataParcRuntimeBasis(asset.tagNumber));
+    const maintenance = stopMaintenanceText(asset);
+    const firstRunBasis = sealPotFirstRunBasis(asset);
+    const firstRunPeriod = sealPotFirstRunPeriod(asset, firstRunBasis);
+    if (firstRunPeriod) {
+      elements.historyCycleSummary.innerHTML += `<div class="run-history-note"><strong>확인된 기동부터 RUN 누적</strong><small>${escapeHtml(firstRunPeriod)}</small><small>검증 조회 기간 ${escapeHtml(allOverviewBasisText(firstRunBasis))}</small></div>`;
+    } else if (firstRunBasis && hasAuthenticatedWriteAccess() && !isMobileMonitoringView()) {
+      elements.historyCycleSummary.innerHTML += `<div class="run-history-note"><strong>실제 기동 기준 확인</strong><small>5월 11일 00:00부터 RUN 신호를 다시 읽습니다. 앞 구간이 정지이고 첫 기동이 확인되면 새 기준으로 저장합니다.</small><button type="button" class="button" data-mobile-write data-history-action="seal_pot_first_run" ${state.busy || state.unifiedRefreshBusy || state.dataparcRuntimeBusy ? "disabled" : ""}>실제 기동 기준 확인</button></div>`;
+    }
+    if (transition) elements.historyCycleSummary.innerHTML += `<div class="run-history-note" data-run-transition="true"><strong>${escapeHtml(transition.label)}</strong><small>${escapeHtml(transition.period)}</small></div>`;
+    if (maintenance) elements.historyCycleSummary.innerHTML += `<div class="run-history-note" data-stop-maintenance="true"><strong>${escapeHtml(maintenance)}</strong></div>`;
     if (confirmedGapRecoveryProof(asset) && hasAuthenticatedWriteAccess() && !isMobileMonitoringView()) {
       elements.historyCycleSummary.innerHTML += `<div class="run-history-note" data-confirmed-gap-recovery="true"><strong>확정된 교체시각부터 보완 조회 가능</strong><small>교체시각부터 현재까지 RUN을 다시 측정합니다. 성공하면 새 측정값으로 갱신하며 기존 조회 이력은 남습니다.</small><button type="button" class="button" data-mobile-write data-history-action="confirmed_gap_recovery" ${state.busy || state.unifiedRefreshBusy || state.dataparcRuntimeBusy ? "disabled" : ""}>누적 구간 보완 조회</button></div>`;
     }
@@ -10194,13 +10264,25 @@
       setDataparcRuntimeStatus(normalizedTag, "대기 중");
       await waitForDataparcRuntimeProbe(requestId, normalizedTag);
       if (recovery) await verifyFreshConfirmedGapRecovery(recovery.proof, recovery.owner);
+      if (signalOptions.requireFirstRunStart === true) {
+        const completed = await apiRequest({ method: "GET",
+          url: `${OIS_REQUEST_API_URL}?action=status_batch&ids=${encodeURIComponent(requestId)}&_=${Date.now()}` });
+        const result = completed?.items?.find(item => item.id === requestId && item.status === "complete")?.result;
+        const first = Date.parse(result?.firstRunStartedAt);
+        if (result?.assetTag !== normalizedTag || result.dataParcTag !== dataParcTag ||
+            Date.parse(result.startAt) !== Date.parse(requestedStartAt) ||
+            !(Date.parse(requestedStartAt) < first && first < Date.parse(result.observedAt))) {
+          throw new Error("첫 RUN 전환을 확인하지 못했습니다. 기존 누적시간과 조회 기준을 유지했습니다.");
+        }
+      }
       setDataparcRuntimeStatus(normalizedTag, "저장 중");
 
       const applied = await apiRequest({
         method: "POST",
         body: {
           action: "dataparc_runtime_sync",
-          requestId
+          requestId,
+          ...(signalOptions.requireFirstRunStart === true ? { requireFirstRunStart: true } : {})
         }
       });
 
@@ -11747,6 +11829,16 @@
       if (!button || !state.historyAssetTag) return;
       const action = button.dataset.historyAction;
       const tagNumber = state.historyAssetTag;
+      if (action === "seal_pot_first_run") {
+        const basis = sealPotFirstRunBasis(findAsset(tagNumber));
+        if (!basis || !hasAuthenticatedWriteAccess() || stopMobileMutation(event) ||
+            state.busy || state.unifiedRefreshBusy || state.backfillRunning || state.dataparcRuntimeBusy) return;
+        elements.historyDialog.close();
+        void syncDataParcBlowerRuntime(tagNumber, basis.requiredStartAt, {
+          dataParcTag: basis.dataParcTag, confirmRunSignal: true, requireFirstRunStart: true
+        });
+        return;
+      }
       if (action === "confirmed_gap_recovery") {
         elements.historyDialog.close();
         openDataParcRuntimeDialog(tagNumber, { confirmedGap: true });

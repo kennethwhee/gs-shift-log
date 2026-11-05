@@ -12706,6 +12706,8 @@ try {
       $values = $intervalRange.Value2
       $intervalCount = 0
       $runningHours = 0.0
+      $runIntervals = [System.Collections.Generic.List[object]]::new()
+      $collectRunIntervals = $assetTag -match '^(?:104|204)HHL(?:60AP|10AN)(?:611|621|631)$'
 
       if ($values -is [System.Array]) {
         for (
@@ -12727,6 +12729,9 @@ try {
 
           $intervalCount += 1
           $runningHours += $durationHours
+          if ($collectRunIntervals -and $durationHours -gt 0) {
+            $runIntervals.Add(@{ start = $intervalStart; hours = $durationHours })
+          }
         }
       }
 
@@ -12758,6 +12763,7 @@ try {
         endState = $endState
         totalRunningHours = [Math]::Round($runningSeconds / 3600.0, 6)
         runningSeconds = $runningSeconds
+        runIntervals = $runIntervals.ToArray()
       }
     } finally {
       Release-ProbeCom $totalCell
@@ -14087,6 +14093,8 @@ public static class GsBlowerRuntimeNativeOmV1
           $values = $intervalRange.Value2
           $intervalCount = 0
           $runningHours = 0.0
+          $runIntervals = [System.Collections.Generic.List[object]]::new()
+          $collectRunIntervals = $probe.AssetTag -match '^(?:104|204)HHL(?:60AP|10AN)(?:611|621|631)$'
 
           if ($values -is [System.Array]) {
             for (
@@ -14104,6 +14112,9 @@ public static class GsBlowerRuntimeNativeOmV1
               }
               $intervalCount += 1
               $runningHours += $durationHours
+              if ($collectRunIntervals -and $durationHours -gt 0) {
+                $runIntervals.Add(@{ start = $intervalStart; hours = $durationHours })
+              }
             }
           }
 
@@ -14134,6 +14145,7 @@ public static class GsBlowerRuntimeNativeOmV1
             endState = $endState
             totalRunningHours = [Math]::Round($runningSeconds / 3600.0, 6)
             runningSeconds = $runningSeconds
+            runIntervals = $runIntervals.ToArray()
           }
         } finally {
           Release-ProbeCom $totalCell
@@ -17497,6 +17509,63 @@ function parseBlowerRuntimeProbeRequest(
 }
 
 
+function parseBlowerRunIntervalStart(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    // Excel Value2 returns a date serial in the Korean time used by fnValTime.
+    return Date.UTC(1899, 11, 30) + Math.round(value * 86400000) - 9 * 3600000;
+  }
+  if (typeof value !== "string") return NaN;
+
+  const text = value.trim().replace(/\//g, "-").replace(" ", "T");
+  const timestamp = /(?:Z|[+-]\d{2}:\d{2})$/.test(text) ? text : `${text}+09:00`;
+  try {
+    return parseBlowerRuntimeProbeTimestamp(timestamp, "DataPARC RUN 시작시각").milliseconds;
+  } catch {
+    return NaN;
+  }
+}
+
+function blowerRunTrailingBoundary(chunk, start, end) {
+  if (!Array.isArray(chunk.runIntervals) || chunk.runIntervals.length >= 200) return null;
+  const edgeTolerance = 1; // Excel serial conversion and interval durations round to milliseconds.
+  const intervals = [];
+  let detailMilliseconds = 0;
+
+  for (const detail of chunk.runIntervals) {
+    const from = parseBlowerRunIntervalStart(detail?.start);
+    const duration = Number.isFinite(detail?.hours) ? Math.round(detail.hours * 3600000) : NaN;
+    const to = from + duration;
+    if (!Number.isFinite(from) || !Number.isFinite(to) || duration <= 0 ||
+        from < start - edgeTolerance || to > end + edgeTolerance) return null;
+    intervals.push({ from, to });
+    detailMilliseconds += duration;
+  }
+
+  // Only use optional interval detail when it agrees with the validated sum.
+  if (Math.abs(detailMilliseconds - chunk.runningSeconds * 1000) > 500 + edgeTolerance) return null;
+  if (!intervals.length) {
+    return chunk.startState === "stopped" && chunk.endState === "stopped" ? { unchanged: true } : null;
+  }
+
+  intervals.sort((left, right) => left.from - right.from);
+  const first = intervals[0];
+  let last = first;
+  for (const interval of intervals.slice(1)) {
+    const gap = interval.from - last.to;
+    if (gap < -edgeTolerance) return null;
+    // The historian may report contiguous RUN intervals as separate rows.
+    last = gap <= edgeTolerance ? { from: last.from, to: Math.max(last.to, interval.to) } : interval;
+  }
+
+  const startsRunning = first.from <= start + edgeTolerance;
+  const endsRunning = last.to >= end - edgeTolerance;
+  if (startsRunning !== (chunk.startState === "running") ||
+      endsRunning !== (chunk.endState === "running")) return null;
+  if (endsRunning && last.from <= start + edgeTolerance) return { unchanged: true };
+
+  return { startedAt: endsRunning ? last.from : last.to, firstRunStartedAt: first.from };
+}
+
 function normalizeBlowerRuntimeProbeResult(
   raw,
   expected
@@ -17558,6 +17627,13 @@ function normalizeBlowerRuntimeProbeResult(
     Math.round(seconds / 3600 * 1000000) / 1000000;
   let previous = null;
   let summedSeconds = 0;
+  let trailingStateStartedAt = null;
+  let firstRunStartedAt = null;
+  const cycleStart = expected.expectedCycleStartState === "started"
+    ? expected.expectedCycleStartedAt : expected.expectedLastReplacementAt;
+  let firstRunPending = (expected.assetTag === "204HHL10AN611" || expected.assetTag === "204HHL10AN631") &&
+    raw.startState === "stopped" && expected.startMilliseconds === Date.parse(cycleStart) &&
+    !expected.expectedCycleRuntimeRevision.startsWith("append-v1:");
 
   const normalizedChunks = chunks.map((chunk, index) => {
     const start = parseBlowerRuntimeProbeTimestamp(
@@ -17613,6 +17689,17 @@ function normalizeBlowerRuntimeProbeResult(
       totalRunningHours: chunk.totalRunningHours,
       runningSeconds: chunk.runningSeconds
     };
+    const boundary = blowerRunTrailingBoundary(chunk, start.milliseconds, end.milliseconds);
+    if (!boundary?.unchanged) trailingStateStartedAt = boundary?.startedAt ?? null;
+    // A missing or uncertain leading chunk can hide an earlier start.
+    // Preserve the first validated onset once found, even across later restarts.
+    if (firstRunPending && !(boundary?.unchanged && chunk.startState === "stopped" && chunk.runningSeconds === 0)) {
+      firstRunPending = false;
+      if (chunk.startState === "stopped" && chunk.runningSeconds > 0 &&
+          boundary?.firstRunStartedAt > start.milliseconds && boundary.firstRunStartedAt < end.milliseconds) {
+        firstRunStartedAt = boundary.firstRunStartedAt;
+      }
+    }
     previous = normalized;
     summedSeconds += chunk.runningSeconds;
     return normalized;
@@ -17668,6 +17755,8 @@ function normalizeBlowerRuntimeProbeResult(
     totalRunningHours: raw.totalRunningHours,
     runningSeconds: raw.runningSeconds,
     collectedAt: new Date(collected.milliseconds).toISOString(),
+    ...(firstRunStartedAt === null ? {} : { firstRunStartedAt: new Date(firstRunStartedAt).toISOString() }),
+    ...(trailingStateStartedAt === null ? {} : { trailingStateStartedAt: new Date(trailingStateStartedAt).toISOString() }),
     chunks: normalizedChunks
   };
 }
