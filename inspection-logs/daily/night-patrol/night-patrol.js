@@ -449,6 +449,9 @@ let nightPatrolSavedSnapshot =
 let nightPatrolSaveTimer =
   null;
 
+let nightPatrolRecordGeneration = 0;
+let nightPatrolSaveSequence = 0;
+
 
 /* =========================================================
   오늘 날짜 YYYY-MM-DD
@@ -1478,6 +1481,11 @@ function loadNightPatrolRecord(
   dateValue,
   listNumber
 ) {
+  // A timer scheduled on the previous form must not save a newly opened date.
+  window.clearTimeout(nightPatrolSaveTimer);
+  nightPatrolSaveTimer = null;
+  nightPatrolRecordGeneration += 1;
+
   let savedRecord =
     null;
 
@@ -1551,6 +1559,8 @@ function loadNightPatrolRecord(
       "idle"
     );
   }
+
+  window.GSNightPatrolHistory?.refresh();
 }
 
 
@@ -2188,6 +2198,9 @@ async function saveNightPatrolRecord(
       false
   } = options;
 
+  window.clearTimeout(nightPatrolSaveTimer);
+  nightPatrolSaveTimer = null;
+
   collectPatrolScreenValues();
 
   if (
@@ -2212,6 +2225,9 @@ async function saveNightPatrolRecord(
 
     return false;
   }
+
+  const saveSequence = ++nightPatrolSaveSequence;
+  const recordGeneration = nightPatrolRecordGeneration;
 
 
   /* =====================================================
@@ -2287,6 +2303,8 @@ async function saveNightPatrolRecord(
 
   savePatrolMembers();
 
+  const savedRecord = createPatrolRecord();
+
 
   /* =====================================================
     야간 순찰일지 저장
@@ -2297,7 +2315,7 @@ async function saveNightPatrolRecord(
       storageKey,
 
       JSON.stringify(
-        createPatrolRecord()
+        savedRecord
       )
     );
 
@@ -2318,6 +2336,10 @@ async function saveNightPatrolRecord(
 
   nightPatrolSavedSnapshot =
     createPatrolSnapshot();
+
+  const savedSnapshot = nightPatrolSavedSnapshot;
+  // History reflects persisted data even if the separate schedule sync fails.
+  window.GSNightPatrolHistory?.refresh();
 
 
   /* =====================================================
@@ -2357,13 +2379,13 @@ async function saveNightPatrolRecord(
       syncResult =
         await synchronizeNightPatrolScheduleStatus({
           dateValue:
-            nightPatrolState.date,
+            savedRecord.date,
 
           listNumber:
-            nightPatrolState.listNumber,
+            savedRecord.listNumber,
 
           documentStatus:
-            nightPatrolState.documentStatus
+            savedRecord.documentStatus
         });
 
     } catch (
@@ -2377,6 +2399,15 @@ async function saveNightPatrolRecord(
         error
       );
     }
+  }
+
+  // A previous save must not overwrite feedback for another date or newer edits.
+  if (
+    recordGeneration !== nightPatrolRecordGeneration ||
+    saveSequence !== nightPatrolSaveSequence ||
+    createPatrolSnapshot() !== savedSnapshot
+  ) {
+    return true;
   }
 
 

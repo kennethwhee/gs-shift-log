@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>야간 순찰 점검일지</title>
   <link rel="stylesheet" href="./night-patrol.css?v=20260803-5" />
-  <script src="./night-patrol.js?v=20260804-1" defer></script>
+  <link rel="stylesheet" href="./night-patrol-history.css?v=20261106-history-v1" />
+  <script src="./night-patrol.js?v=20261106-history-v1" defer></script>
+  <script src="./night-patrol-history.js?v=20261106-history-v1" defer></script>
 </head>
 <body>
   <main class="patrol-app">
@@ -19,8 +21,21 @@
           </p>
         </div>
 
-        <div class="patrol-save-state" id="patrolSaveState" data-state="idle">
-          저장 전
+        <div class="patrol-history-toolbar-actions">
+          <button
+            type="button"
+            class="patrol-history-launch-button"
+            id="openPatrolHistoryButton"
+            aria-controls="patrolHistoryDialog"
+            aria-haspopup="dialog"
+          >
+            저장 목록
+            <span class="patrol-history-count" data-patrol-history-count>0</span>
+          </button>
+
+          <div class="patrol-save-state" id="patrolSaveState" data-state="idle">
+            저장 전
+          </div>
         </div>
       </div>
 
@@ -149,7 +164,16 @@
         </button>
       </div>
 
-      <div class="patrol-footer__right">
+      <div class="patrol-footer__right patrol-history-footer-actions">
+        <button
+          type="button"
+          class="patrol-secondary-button"
+          id="openPatrolHistoryFooterButton"
+          aria-controls="patrolHistoryDialog"
+          aria-haspopup="dialog"
+        >
+          저장 목록
+        </button>
         <button type="button" class="patrol-secondary-button" id="printPatrolButton">
           인쇄 미리보기
         </button>
@@ -162,6 +186,126 @@
       </div>
     </footer>
   </main>
+
+  <dialog
+    class="patrol-history-dialog"
+    id="patrolHistoryDialog"
+    aria-labelledby="patrolHistoryTitle"
+    aria-describedby="patrolHistoryDescription"
+  >
+    <header class="patrol-history-header">
+      <div>
+        <span class="patrol-history-eyebrow">NIGHT PATROL RECORDS</span>
+        <h2 id="patrolHistoryTitle">저장된 야간 순찰일지</h2>
+        <p id="patrolHistoryDescription">
+          현재 브라우저에 저장된 일지를 점검일자와 순찰 목록별로 확인합니다.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        class="patrol-history-close-button"
+        id="closePatrolHistoryButton"
+        aria-label="저장 목록 닫기"
+      >
+        ×
+      </button>
+    </header>
+
+    <div class="patrol-history-filters">
+      <div class="patrol-history-month-filter">
+        <label class="patrol-history-field">
+          <span>점검 월</span>
+          <input type="month" id="patrolHistoryMonth" autofocus />
+        </label>
+        <button
+          type="button"
+          class="patrol-history-button"
+          id="patrolHistoryAllDatesButton"
+        >
+          전체 기간
+        </button>
+      </div>
+
+      <label class="patrol-history-field patrol-history-status-filter">
+        <span>점검 상태</span>
+        <select id="patrolHistoryStatus">
+          <option value="all">전체 상태</option>
+          <option value="작성중">작성중</option>
+          <option value="점검완료">점검완료</option>
+        </select>
+      </label>
+
+      <button
+        type="button"
+        class="patrol-history-button patrol-history-refresh-button"
+        id="refreshPatrolHistoryButton"
+      >
+        새로고침
+      </button>
+    </div>
+
+    <p
+      class="patrol-history-message"
+      id="patrolHistoryMessage"
+      role="status"
+      aria-atomic="true"
+    >
+      저장된 일지를 불러오고 있습니다.
+    </p>
+
+    <div class="patrol-history-table-wrap" tabindex="0" aria-label="저장된 순찰일지 목록">
+      <table class="patrol-history-table">
+        <caption class="patrol-history-visually-hidden">
+          점검일자와 순찰 목록별로 저장된 야간 순찰일지
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">점검일자</th>
+            <th scope="col">순찰 목록</th>
+            <th scope="col">순찰자</th>
+            <th scope="col">점검 상태</th>
+            <th scope="col">점검 결과</th>
+            <th scope="col">저장 시각</th>
+            <th scope="col">열기</th>
+          </tr>
+        </thead>
+        <tbody id="patrolHistoryBody"></tbody>
+      </table>
+    </div>
+
+    <footer class="patrol-history-footer">
+      <nav class="patrol-history-pagination" aria-label="저장 목록 페이지">
+        <button
+          type="button"
+          class="patrol-history-button"
+          id="prevPatrolHistoryPageButton"
+          aria-label="이전 페이지"
+          disabled
+        >
+          이전
+        </button>
+        <span class="patrol-history-page-info" id="patrolHistoryPageInfo">1 / 1</span>
+        <button
+          type="button"
+          class="patrol-history-button"
+          id="nextPatrolHistoryPageButton"
+          aria-label="다음 페이지"
+          disabled
+        >
+          다음
+        </button>
+      </nav>
+
+      <button
+        type="button"
+        class="patrol-history-button patrol-history-done-button"
+        id="closePatrolHistoryFooterButton"
+      >
+        닫기
+      </button>
+    </footer>
+  </dialog>
 
   <!-- =====================================================
     인쇄 전 미리보기
