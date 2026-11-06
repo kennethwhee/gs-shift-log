@@ -135,6 +135,17 @@
   white-space: normal;
 }
 
+/* SOLID_FUEL_ISSUE_INLINE_V1: keep the unloading badge beside its issue text. */
+#troublePanel td.equipment > .sf-issue-source {
+  margin: 0 6px 0 0;
+  vertical-align: baseline;
+  white-space: nowrap;
+}
+
+#troublePanel td.equipment > .sf-issue-source + .sf-issue-text {
+  display: inline;
+}
+
 @media (max-width: 760px) {
   #recordModal .editor label.record-trouble-check {
     min-height: 44px;
