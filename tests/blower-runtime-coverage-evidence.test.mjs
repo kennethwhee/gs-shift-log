@@ -268,8 +268,8 @@ test('generic evidence rejects an older equal RUN receipt when the latest same-a
       newer.created_at = changedAt; newer.updated_at = changedAt;
       const rows = [newer, receipt, replacementRow], before = JSON.stringify({ asset, rows });
       const basis = api.currentDataParcRuntimeBasis(asset, rows);
-      if (sourceType !== 'dataparc_runtime') assert.equal(basis?.appendReady, true,
-        'the read-only evidence guard must reject stale ownership without changing the legacy append selector');
+      assert.notEqual(basis?.appendReady, true,
+        'a conflicting current owner must not authorize an append using an older equal-valued receipt');
       const evidence = projection({ asset, rows, basis });
       assert.equal(evidence.source, 'unverified', `${tag}/${sourceType}`);
       assert.equal(evidence.measurementVerified, false, `${tag}/${sourceType}`);
@@ -287,6 +287,8 @@ test('a valid latest RUN owner preserves both nonzero and measured-zero evidence
     const older = manualRow(asset, { runtime_hours: 2, created_at: '2026-11-05T23:59:59.000Z',
       updated_at: '2026-11-05T23:59:59.000Z' });
     const rows = [receipt, older, replacement(asset.tag_number)], before = JSON.stringify({ asset, rows });
+    assert.equal(api.currentDataParcRuntimeBasis(asset, rows)?.appendReady, true,
+      'the latest valid owner remains appendable, including an explicitly measured zero');
     const evidence = projection({ asset, rows });
     assert.equal(evidence.source, 'dataparc');
     assert.equal(evidence.measurementVerified, true);

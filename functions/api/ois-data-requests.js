@@ -3,6 +3,8 @@ import { prepareScheduledBatch, scheduledBatchStatements, isScheduledBatchConfli
 import { loadAppendBase, verifiedAppendBase, ensureAppendSchema, appendIntentStatement, BLOWER_LIMESTONE_INCREMENTAL_VERSION } from "../_shared/blower-incremental.js";
 import { validatedFirstRunStart, validatedTrailingStateStart } from "../_shared/blower-run-transition.js";
 import { replacementAutoCycleProof, isReplacementAutoRevision } from "../_shared/blower-replacement-auto-v3.js";
+import { ROLE_RECOVERY_PREFIX, loadRolePriorityRecoveryProof, validateRoleRecoveryView, ensureRoleRecoverySchema,
+  roleRecoveryQueueStatements, validRoleRecoveryReuse, roleRecoveryErrorResponse } from "../_shared/blower-role-recovery-v1.js";
 import bedAshMinuteContract from "../../efficiency/bed-ash-minute-contract.js";
 
 "use strict";
@@ -18939,6 +18941,20 @@ async function createBlowerRuntimeProbeRequest(
     if (failure) return failure;
   }
 
+  let roleRecovery = null;
+  if (body.rolePriorityRecovery === true) {
+    if (internalOptions.prepareOnly === true || internalOptions.lookupOnly === true) return jsonResponse({ok:false,
+      code:'BLOWER_ROLE_RECOVERY_EXPLICIT_REQUIRED',message:'선택 교체시각 보완은 개별 확인 작업으로 실행해 주세요.'},400);
+    try {
+      roleRecovery = await loadRolePriorityRecoveryProof(database,asset,{now:internalOptions.now});
+      validateRoleRecoveryView({...body,dataParcTag},roleRecovery);
+      await ensureRoleRecoverySchema(database);
+    } catch(error) {
+      if (error?.code && error?.status) return roleRecoveryErrorResponse(error);
+      throw error;
+    }
+  }
+
 
   const expectedLastReplacementAt =
     normalizeText(
@@ -19099,6 +19115,7 @@ async function createBlowerRuntimeProbeRequest(
 
   // BLOWER_INCREMENTAL_REFRESH_V1: only the top Latest action may append.
   // Never trust client-provided totals, checkpoints, or a manually entered start.
+  if (roleRecovery) requestedStartText = roleRecovery.selectedCompletionAt;
   let appendBase = null;
   if (body.incrementalRefresh === true) {
     if (body.unifiedRefresh !== true) return jsonResponse({ ok: false, code: "BLOWER_INCREMENTAL_MODE_INVALID",
@@ -19305,6 +19322,7 @@ async function createBlowerRuntimeProbeRequest(
 
 
   const reuseKey =
+    (roleRecovery ? ROLE_RECOVERY_PREFIX : '') +
     (limestoneTrackingOnly ? 'limestone-run-ledger-v1:' : '') +
     (appendBase ? "append-v1:" : "") +
     (signalOnlyCycle ? "signal-only-v1:" : "") +
@@ -19319,6 +19337,7 @@ async function createBlowerRuntimeProbeRequest(
         expectedCycleStartedAt,
         expectedCycleStartRevision,
         expectedCycleRuntimeRevision,
+        ...(roleRecovery ? [roleRecovery.snapshotSha256,roleRecovery.selectedCompletionAt] : []),
         ...(assetTag === BLOWER_RUNTIME_PROBE_ASSET_TAG ? [] : [dataParcTag]),
         ...(appendBase ? ["incremental-v1", appendBase.eventId, appendBase.runningSeconds, appendBase.startAt] : [])
       ])
@@ -19376,6 +19395,8 @@ async function createBlowerRuntimeProbeRequest(
       now
     )
   ) {
+    if (roleRecovery && !await validRoleRecoveryReuse(database,activeRequest.id,roleRecovery)) return jsonResponse({ok:false,
+      code:'BLOWER_ROLE_RECOVERY_INTENT_CONFLICT',message:'진행 중인 조회의 교체 근거가 달라 기존 값을 유지했습니다.'},409);
     if (internalOptions.prepareOnly === true) return {
       preparedBlowerRuntimeProbe: true,
       kind: "reused_active",
@@ -19447,6 +19468,8 @@ async function createBlowerRuntimeProbeRequest(
       now
     )
   ) {
+    if (roleRecovery && !await validRoleRecoveryReuse(database,completeRequest.id,roleRecovery)) return jsonResponse({ok:false,
+      code:'BLOWER_ROLE_RECOVERY_INTENT_CONFLICT',message:'완료 조회의 교체 근거가 달라 기존 값을 유지했습니다.'},409);
     if (
       internalOptions.prepareOnly ===
         true
@@ -19558,7 +19581,11 @@ async function createBlowerRuntimeProbeRequest(
 
 
   try {
+    const recoveryStatements = roleRecovery
+      ? roleRecoveryQueueStatements(database,roleRecovery,requestId,requestedAt)
+      : {before:[],after:[]};
     await database.batch([
+      ...recoveryStatements.before,
       database
         .prepare(`
           INSERT INTO ois_data_requests (
@@ -19623,11 +19650,12 @@ async function createBlowerRuntimeProbeRequest(
           probeExpectedCycleStartRevision,
           // Older history deployments will reject this synthetic revision rather
           // than mistake a delta for a full-cycle total. The Agent just echoes it.
-          appendBase ? `append-v1:${expectedCycleRuntimeRevision}` : expectedCycleRuntimeRevision,
+          roleRecovery ? ROLE_RECOVERY_PREFIX + expectedCycleRuntimeRevision : appendBase ? `append-v1:${expectedCycleRuntimeRevision}` : expectedCycleRuntimeRevision,
           requestedAt,
           requestedAt
         ),
-      ...(appendBase ? [appendIntentStatement(database, requestId, appendBase, requestedAt)] : [])
+      ...(appendBase ? [appendIntentStatement(database, requestId, appendBase, requestedAt)] : []),
+      ...recoveryStatements.after
     ]);
   } catch (
     error
@@ -19682,6 +19710,8 @@ async function createBlowerRuntimeProbeRequest(
       if (
         reusableConcurrentRequest
       ) {
+        if (roleRecovery && !await validRoleRecoveryReuse(database,reusableConcurrentRequest.id,roleRecovery)) return jsonResponse({ok:false,
+          code:'BLOWER_ROLE_RECOVERY_INTENT_CONFLICT',message:'동시 조회의 교체 근거가 달라 기존 값을 유지했습니다.'},409);
         return blowerRuntimeProbeCreateResponse(
           reusableConcurrentRequest,
           reusableConcurrentRequest.status ===
@@ -19693,6 +19723,8 @@ async function createBlowerRuntimeProbeRequest(
     }
 
 
+    if (roleRecovery && /CHECK constraint failed/i.test(String(error?.message || error))) return jsonResponse({ok:false,
+      code:'BLOWER_ROLE_RECOVERY_CONFLICT',message:'요청 중 교체 근거 또는 기존 누적값이 변경되어 조회를 시작하지 않았습니다. 다시 확인해 주세요.'},409);
     throw error;
   }
 

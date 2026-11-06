@@ -53,11 +53,12 @@ function strictVerifiedAppendBase(asset, rows, dataParcTag) {
   // Latest timestamp-owned event, not just ANY historical row with equal hours.
   const matching = (rows || []).filter(r => r.tag_number === asset.tag_number &&
     ['runtime_correction','startup','operation_start','operation_stop'].includes(r.event_type) &&
-    instant(r.event_date) === anchor && near(number(r.runtime_hours), stored))
+    instant(r.event_date) === anchor)
     .sort((a,b) => (instant(b.updated_at || b.created_at || b.event_date) - instant(a.updated_at || a.created_at || a.event_date)) ||
       String(b.created_at || '').localeCompare(String(a.created_at || '')) || String(b.id).localeCompare(String(a.id)));
   const row = matching[0];
-  if (!row || row.source_type !== 'dataparc_runtime' || row.event_type !== 'runtime_correction') return null;
+  if (!row || !near(number(row.runtime_hours), stored) ||
+      row.source_type !== 'dataparc_runtime' || row.event_type !== 'runtime_correction') return null;
   let s; try { s = JSON.parse(row.source_text); } catch { return null; }
   if (!s || typeof s !== 'object' || Array.isArray(s)) return null;
   const actualCycleStartState = asset.cycle_start_state || 'legacy';
@@ -126,10 +127,11 @@ function verifiedManualBoundaryAppendBase(asset, rows, dataParcTag) {
 
   const relevant = (rows || []).filter(r => r.tag_number === asset.tag_number &&
     ['runtime_correction','startup','operation_start','operation_stop'].includes(r.event_type));
-  const currentOwner = relevant.filter(r => instant(r.event_date) === currentAnchor && sameManualRuntime(number(r.runtime_hours), currentHours))
+  const currentOwner = relevant.filter(r => instant(r.event_date) === currentAnchor)
     .sort(eventOrder)[0];
   const ownerState = manualRuntimeOverlayState(currentOwner);
-  if (!currentOwner || currentOwner.source_type !== 'manual' || !ownerState || ownerState !== asset.cycle_runtime_state) return null;
+  if (!currentOwner || !sameManualRuntime(number(currentOwner.runtime_hours), currentHours) ||
+      currentOwner.source_type !== 'manual' || !ownerState || ownerState !== asset.cycle_runtime_state) return null;
 
   const candidates = relevant.filter(r => r.source_type === 'dataparc_runtime' && r.event_type === 'runtime_correction')
     .map(row => {
@@ -147,7 +149,9 @@ function verifiedManualBoundaryAppendBase(asset, rows, dataParcTag) {
       cycle_runtime_anchor_at: candidate.observedAt,
       cycle_runtime_state: candidate.source?.endState || ''
     };
-    const base = strictVerifiedAppendBase(shadow, [candidate.row], dataParcTag);
+    // Keep competing owners at the predecessor timestamp visible. Validating
+    // one row alone could revive an older equal total after a newer correction.
+    const base = strictVerifiedAppendBase(shadow, relevant, dataParcTag);
     if (!base || !sameManualRuntime(base.runtimeHours, currentHours)) continue;
 
     const overlays = relevant.filter(r => {

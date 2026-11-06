@@ -153,7 +153,7 @@ test('a verified zero-second partial receipt can append without fabricating a st
   assert.deepEqual(asset, before);
 });
 
-test('automatic or basis-confirmed Limestone holds a late-start partial receipt without a full-cycle rebuild', () => {
+test('automatic or basis-confirmed Limestone continues a verified late-start range without a full-cycle rebuild', () => {
   const strictBasisTags = new Set(['103HRJ01AN602', '203HRJ01AN601', '203HRJ01AN602']);
   for (const automatic of [true, false]) for (const asset of inventory().filter(a => strictBasisTags.has(a.tagNumber))) {
     asset.limestoneAutoApply = automatic;
@@ -161,10 +161,17 @@ test('automatic or basis-confirmed Limestone holds a late-start partial receipt 
     Object.assign(asset.dataParcRuntimeBasis, { coverageComplete: false,
       startAt: '2026-10-02T00:00:00Z', coverageStartAt: '2026-10-02T00:00:00Z' });
     const before = structuredClone(asset), result = core.plan([asset], NOW);
-    assert.equal(result.tasks.length, 0, 'the existing Limestone API baseline restriction stays authoritative');
-    assert.equal(result.skipped.length, 1);
-    assert.match(result.skipped[0].message, /Limestone.*전체 재조회하지 않음/);
-    assert.deepEqual(asset, before, 'holding preserves the original range and total without a full rebuild');
+    assert.equal(result.tasks.length, 1, JSON.stringify(result));
+    assert.equal(result.skipped.length, 0);
+    const [task] = result.tasks;
+    assert.equal(task.incremental, true);
+    assert.equal(task.partialRange, true);
+    assert.equal(task.limestoneAutoRebuild, undefined);
+    assert.equal(task.startAt, asset.dataParcRuntimeBasis.startAt);
+    assert.equal(task.queryStartAt, asset.dataParcRuntimeBasis.observedAt);
+    assert.equal(task.partialBase.runningSeconds, asset.dataParcRuntimeBasis.runningSeconds);
+    assert.equal(task.runReviewStatus.key, 'coverage-gap');
+    assert.deepEqual(asset, before, 'planning preserves the original measured start, total and review requirement');
   }
 });
 

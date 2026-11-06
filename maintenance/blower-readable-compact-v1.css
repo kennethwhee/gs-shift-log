@@ -635,6 +635,13 @@ button.all-overview-card[data-severity="overdue"]:hover { border-left-color: var
 .all-overview-card.is-assessed[data-severity="overdue"],
 .all-overview-card.is-assessed[data-severity="overdue"] + .overview-next-action { border-left-color: var(--overdue); }
 
+/* A Blower's explicit stopped state colors its entire card. Runtime
+   values, review borders and intermittent-operation classification stay intact. */
+.all-overview-card-shell.is-stopped > .all-overview-card.is-assessed,
+.all-overview-card-shell.is-stopped > .overview-next-action { background: #fff1f1; }
+.all-overview-card-shell.is-stopped > .all-overview-card.is-assessed:hover,
+.all-overview-card-shell.is-stopped > .overview-next-action:hover { background: #ffe7e7; }
+
 @media (min-width: 1181px) and (max-width: 1400px) {
   .all-overview-card.is-assessed .all-overview-identity strong { font-size: 12px; }
   .overview-runtime-heading > small, .overview-fact-row > small { font-size: 9px; }

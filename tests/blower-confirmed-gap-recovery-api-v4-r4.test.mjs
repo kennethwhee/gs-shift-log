@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import vm from 'node:vm';
 import {createHash} from 'node:crypto';
+import {createRequire} from 'node:module';
 import {DatabaseSync} from 'node:sqlite';
 import {__blowerHistoryTest as history} from '../functions/api/blower-history.js';
 
@@ -20,6 +22,22 @@ const OWNER={employeeNo:'gap-recovery-test-owner',name:'Recovery fixture',isSupe
 const TOKEN='gap-recovery-local-session';
 const NOW=new Date(Math.floor(Date.now()/1000)*1000);
 const parse=async response=>({status:response.status,body:await response.json()});
+const require=createRequire(import.meta.url);
+const uiSource=fs.readFileSync(new URL('../maintenance/blower-history.js',import.meta.url),'utf8');
+function dashboardUi(data){
+ const context=vm.createContext({console,URL,URLSearchParams,navigator:{},
+  fetch(){throw new Error('A dashboard projection must not initiate a query');},
+  localStorage:{getItem(){return JSON.stringify({sessionToken:TOKEN});}},
+  document:{readyState:'loading',addEventListener(){}},
+  window:{BlowerUnifiedRefresh:require('../maintenance/blower-unified-refresh.js'),
+   BlowerRuntimeAssessment:require('../maintenance/blower-runtime-assessment.js'),
+   matchMedia(){return {matches:false};},addEventListener(){}}});
+ const marker='  if (document.readyState === "loading") {';
+ assert.equal(uiSource.split(marker).length,2);
+ vm.runInContext(uiSource.replace(marker,'globalThis.ui={state,confirmedGapRecoveryProof,allOverviewRuntimeAssessment};\n'+marker),context);
+ context.ui.state.data=data;
+ return context.ui;
+}
 
 async function fixture(t){
  const sql=new DatabaseSync(':memory:'); t.after(()=>sql.close());
@@ -71,6 +89,50 @@ async function fixture(t){
  const assertPreserved=()=>{assert.deepEqual(asset(),before);assert.deepEqual(events(),originalEvents);};
  return {sql,db,asset,events,before,originalEvents,body,create,completed,install,apply,assertPreserved};
 }
+
+test('ordinary dashboard data and planning expose the same recovery guard and the real Bag B projection enables its guarded action',async t=>{
+ const f=await fixture(t);
+ const get=async(action,user)=>parse(await history.handleGet({env:{DB:f.db},
+  request:new Request('https://example.test/api/blower-history?action='+action)},user));
+ const ordinary=await get('data',OWNER),planning=await get('refresh_state',OWNER),publicData=await get('data',null);
+ for(const result of [ordinary,planning,publicData])assert.equal(result.status,200);
+ const normalAsset=ordinary.body.assets.find(a=>a.tagNumber===TAG);
+ const planningAsset=planning.body.assets.find(a=>a.tagNumber===TAG);
+ const publicAsset=publicData.body.assets.find(a=>a.tagNumber===TAG);
+ for(const asset of [normalAsset,planningAsset,publicAsset]){
+  assert.equal(asset.hasUnverifiedDataParcHistory,false,'a verified same-cycle receipt must be explicit in every projection');
+  assert.equal(asset.dataParcRuntimeBasis.confirmedGapRecoveryEligible,true);
+ }
+ assert.deepEqual(normalAsset.dataParcRuntimeBasis,planningAsset.dataParcRuntimeBasis);
+ const ui=dashboardUi(ordinary.body);
+ assert.ok(ui.confirmedGapRecoveryProof(normalAsset),'use actual normal-data output, not a fixture-supplied guard');
+ assert.equal(ui.allOverviewRuntimeAssessment(normalAsset).nextActionKey,'confirmed_gap_recovery');
+ const publicUi=dashboardUi(publicData.body);
+ assert.equal(publicUi.allOverviewRuntimeAssessment(publicAsset).nextActionKey,'history','exposing evidence does not grant write access');
+ f.assertPreserved();
+ const beforeChanges=f.sql.prepare('SELECT total_changes() n').get().n;
+ await history.loadAssetStates(f.db,{flyash_bag:{}},{assetRows:[f.asset()],skipDecorations:true});
+ assert.equal(f.sql.prepare('SELECT total_changes() n').get().n,beforeChanges,'projection does not change stored evidence');
+});
+
+test('ordinary data keeps damaged current-cycle history guarded instead of exposing a recovery action',async t=>{
+ const f=await fixture(t);
+ f.sql.prepare("UPDATE blower_history_events SET updated_at=? WHERE tag_number=? AND source_type='dataparc_runtime'")
+  .run('2026-11-04T00:00:00.000Z',TAG);
+ const beforeAsset=f.asset(),beforeEvents=f.events();
+ for(const action of ['data','refresh_state']){
+  const result=await parse(await history.handleGet({env:{DB:f.db},
+   request:new Request('https://example.test/api/blower-history?action='+action)},OWNER));
+  assert.equal(result.status,200);
+  const asset=result.body.assets.find(a=>a.tagNumber===TAG);
+  assert.equal(asset.hasUnverifiedDataParcHistory,true);
+  assert.equal(asset.dataParcRuntimeBasis,null);
+  const ui=dashboardUi(result.body);
+  assert.equal(ui.confirmedGapRecoveryProof(asset),null);
+  assert.notEqual(ui.allOverviewRuntimeAssessment(asset).nextActionKey,'confirmed_gap_recovery');
+ }
+ assert.deepEqual(f.asset(),beforeAsset);assert.deepEqual(f.events(),beforeEvents);
+});
 
 test('R4 actual Bag B full request begins at confirmed replacement, retains saved value pending, and stores one verified full total',async t=>{
  const f=await fixture(t);

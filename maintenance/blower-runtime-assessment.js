@@ -21,6 +21,7 @@
   const ACTIONS = Object.freeze({
     seal_pot_first_run: '실제 기동 기준 확인',
     confirmed_gap_recovery: '누락 구간 보완',
+    selected_basis_recovery: '선택 기준으로 다시 계산',
     limestone_basis_confirm: '교체 기준 확인',
     runtime_query: '조회 기준 확인',
     history: '근거 보기'

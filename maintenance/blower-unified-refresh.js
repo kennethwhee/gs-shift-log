@@ -353,10 +353,6 @@ DP_TAGS.add("203HRJ01AN602");
         skip('일부 기간 RUN 누적 · 교체 기준 확인 필요 · 기존 조회값 보호 · 전체 재조회하지 않음');
         continue;
       }
-      if ((automaticLimestone || basisConfirmed) && partialRange && !rangeTracking && time(previous.startAt) !== replacement) {
-        skip('Limestone 저장 교체기준부터 검증된 RUN 범위 확인 필요 · 기존 조회값 보호 · 전체 재조회하지 않음');
-        continue;
-      }
       if (previewOnly) {
         // An absolute last-24h window is independent of a disputed historical
         // maintenance reset. The existing read-only probe can safely observe
@@ -394,7 +390,7 @@ DP_TAGS.add("203HRJ01AN602");
       // A verified partial receipt may advance its own measured range. It does
       // not certify the omitted leading interval or a physical replacement time.
       const automaticAppend = automaticLimestone && previous?.appendReady === true &&
-        previous.dataParcTag === dataParcTag && (time(previous.startAt) === replacement || rangeTracking && !!partialBase) &&
+        previous.dataParcTag === dataParcTag && (time(previous.startAt) === replacement || !!partialBase) &&
         Number.isFinite(time(previous.observedAt)) && time(previous.observedAt) > replacement &&
         time(previous.observedAt) <= end;
       const limestoneAutoRebuild = automaticLimestone && !automaticAppend;

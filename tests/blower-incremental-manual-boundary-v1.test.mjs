@@ -119,6 +119,17 @@ test('manual runtime correction with a changed cumulative value still fails clos
   assert.equal(verifiedAppendBase(asset(1), [manualStopRow(1), dp], SIGNAL), null);
 });
 
+test('a manual boundary cannot resurrect an older equal receipt hidden by a newer owner at the predecessor timestamp', () => {
+  const older = dpRow({ runningSeconds: 3600 }), newer = dpRow({ runningSeconds: 7200 });
+  const source = JSON.parse(newer.source_text);
+  source.requestId = 'newer-competing-query';
+  Object.assign(newer, { id: `dataparc_runtime:${source.requestId}`, source_log_id: source.requestId,
+    source_text: JSON.stringify(source), created_at: '2026-09-11T07:33:01+09:00',
+    updated_at: '2026-09-11T07:33:01+09:00' });
+  const current = asset(1), rows = [manualStopRow(1), newer, older];
+  assert.equal(verifiedAppendBase(current, rows, SIGNAL), null);
+});
+
 test('an arbitrary anchor/state mutation without a real manual boundary event remains unverified', () => {
   const dp = dpRow({runningSeconds: 0, endState: 'running'});
   assert.equal(verifiedAppendBase(asset(0), [dp], SIGNAL), null);

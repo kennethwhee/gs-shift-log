@@ -141,6 +141,42 @@ test('all 27 retain their numbers and group order; review and freshness counts u
   assert.match(ui.elements.assetGroups.innerHTML, /교체 알림<\/span><strong>0대/);
 });
 
+test('stopped cards include intermittent units with a stopped observation, preserve nonzero totals, and never infer a stop from zero or unknown state', () => {
+  const stopped = { cycleRuntimeState: 'stopped', operationState: 'stopped', isRunning: false };
+  const scenarios = [
+    [measured('204HHL60AP621', 'fbhe', 1060.2, stopped), true],
+    [measured('104HHL10AN611', 'seal_pot', 0, stopped), true],
+    [measured('104ETH03AN601', 'flyash_silo', 2326.3, stopped), true],
+    [measured('104HHL60AP621', 'fbhe', 0, { ...stopped,
+      cycleSourceReview: { code: 'VERIFIED_RUNTIME_RANGE', cycleBasisConfirmed: false, measuredRangeMayContinue: true } }), true],
+    [measured('204HHL60AP611', 'fbhe', 0), false],
+    [measured('104SDF01AN001', 'organic_fuel', 1322.5, stopped), true],
+    [measured('204LMDF01AN001', 'organic_fuel', 0, { ...stopped, assetGroup: 'manure' }), true],
+    [measured('104SDF01AN002', 'organic_fuel', 0), false],
+    [measured('204SDF01AN001', 'organic_fuel', 0,
+      { cycleRuntimeState: 'unknown', operationState: 'unknown', isRunning: false }), false],
+    [measured('204HHL60AP631', 'fbhe', 719.4,
+      { cycleRuntimeState: 'unknown', operationState: 'unknown', isRunning: false }), false]
+  ];
+  for (const mobile of [false, true]) {
+    const assets = scenarios.map(([asset]) => asset), before = structuredClone(assets), { ui } = harness(assets, { mobile });
+    for (const [asset, expectedStopped] of scenarios) {
+      const card = ui.renderAllOverviewCard(asset);
+      const shellClasses = card.match(/<article class="([^"]+)"/)[1].split(/\s+/);
+      assert.equal(shellClasses.includes('is-stopped'), expectedStopped, `${asset.tagNumber}, mobile=${mobile}`);
+      assert.match(card, /class="overview-next-action"/, 'the same state wrapper includes the footer');
+      assert.ok(card.includes(`${asset.cycleElapsedHours.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간`));
+      if (asset.blowerType === 'organic_fuel') {
+        assert.match(card, /class="operation-mode-pill intermittent">간헐운전<\/span>/);
+        if (expectedStopped) assert.match(card, /class="operation-pill stopped">정지중<\/span>/);
+        else assert.doesNotMatch(card, /class="operation-pill stopped"/);
+      }
+    }
+    assert.match(ui.renderAllOverviewCard(assets[3]), /data-runtime-review="true"/);
+    assert.deepEqual(assets, before, 'a stopped background must not reset hours or alter the measurement');
+  }
+});
+
 test('filters and group review buttons select the same assets as the summary, without a query', () => {
   const assets = roster(), { ui } = harness(assets);
   for (const [filter, count] of [['review', 11], ['basis', 7], ['range', 4], ['behind', 1], ['running', 17], ['stopped', 5], ['intermittent', 5]]) {
@@ -330,6 +366,7 @@ test('a session-only Limestone preview remains visible without becoming a saved 
   assert.match(card, /data-limestone-run-preview="true"/);
   assert.match(card, /최근 RUN 확인 정지중 · 2026-10-31 16:30 · 누적 미반영/);
   assert.match(card, /class="operation-pill running">기동중/);
+  assert.doesNotMatch(card, /<article class="all-overview-card-shell is-stopped"/);
   assert.match(card, /922\.1시간/);
   assert.doesNotMatch(card, /24\.1시간|946\.2시간/);
   assert.deepEqual(ui.allOverviewRuntimeAssessment(a), before);

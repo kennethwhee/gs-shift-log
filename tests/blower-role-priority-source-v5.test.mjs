@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
-import {loadApprovedReplacementPage,storeReplacementLogReceipts,replacementSourceGuard,
+import {loadApprovedReplacementPage,loadCurrentReplacementRoleContext,storeReplacementLogReceipts,replacementSourceGuard,
   REPLACEMENT_ANALYSIS_VERSION,REPLACEMENT_NORMALIZE_ANALYSIS_VERSION,REPLACEMENT_ROLE_PRIORITY_ANALYSIS_VERSION,replacementRoleContextRows,replacementSourceHashes} from '../functions/_shared/blower-replacement-log-source-v3.js';
 import {inspectVbeltAnnotations,annotationControlsFragment,collectConfirmedVbeltFacts} from '../functions/_shared/diary-vbelt-confirm-v1.js';
 const NOW=new Date('2026-11-04T00:40:00.000Z'),STAMP='2026-09-04T12:00:00Z',WORK='2026-09-04',BELT='FBHE Blower #A V-Belt 교체 완료';
@@ -62,4 +62,133 @@ test('off-page canonical counterpart retains its numeric legacy alias for exclus
 });
 test('cross-family higher roles remain visible outside a one-row page and invalidate prior receipts',async t=>{
  const f=fixture();t.after(f.close);f.canonical('a-low',{role:'BO1'});f.canonical('b-high',{role:'BCO1'});const initial=await f.page();await storeReplacementLogReceipts(f.db,initial.logs,NOW);f.canonical('z-turbine',{role:'TGO'});const page=await f.page({limit:1});assert.equal(page.logs[0].id,'a-low');assert.deepEqual(replacementRoleContextRows(page.logs).map(row=>row.role).sort(),['BCO1','BO1','TGO']);for(const row of initial.logs)assert.equal(f.valid(row),0);
+});
+
+const currentContext = (f, selection = {workDate:WORK,shift:'DS'}, options = {now:NOW}) =>
+  loadCurrentReplacementRoleContext(f.db,selection,options);
+
+test('current role context includes processed R5 sources with byte-identical full snapshots and no writes',async t=>{
+  const f=fixture();t.after(f.close);
+  f.canonical('lower',{role:'BO1',shift:'DAY'});
+  const diary='POCHEON#20260904#DAY#BCO1';f.legacy(987,diary);
+  const raw=JSON.stringify({legacyDiaryId:diary,unparsedMetadata:'원문 전체 \\ 줄바꿈\n 😀',
+    entries:[{id:'selected-entry',time:'14:24',content:BELT,extra:'보존'}]});
+  f.canonical('selected',{log_json:raw});
+  f.canonical('other-shift',{shift:'NS'});f.canonical('other-day',{work_date:'2026-09-05'});
+  const page=await f.page();await storeReplacementLogReceipts(f.db,page.logs,NOW);
+  assert.equal((await f.page()).logs.length,0,'normal reconciliation skips completed receipts');
+  const before=f.sql.prepare('SELECT total_changes() n').get().n,writes=f.writes.length;
+  const receipts=f.sql.prepare('SELECT * FROM blower_log_receipts_v1 ORDER BY log_id').all();f.reads.length=0;
+  const current=await currentContext(f,{workDate:WORK,shift:'주간'});
+  assert.deepEqual(current.coverageIssues,[]);
+  assert.deepEqual(current.logs.map(r=>r.id),['lower','selected']);
+  assert.equal(current.logs.find(r=>r.id==='selected').log_json,raw);
+  for(const row of current.logs){
+    const original=page.logs.find(r=>r.id===row.id);
+    assert.equal(row.source_snapshot,original.source_snapshot);
+    assert.deepEqual(await replacementSourceHashes(row),await replacementSourceHashes(original));
+    assert.equal(f.valid(row),1);
+  }
+  for(const alias of ['selected','987',diary,'legacy-'+diary])assert.ok(current.logs[1].sourceAliases.includes(alias),alias);
+  assert.equal(f.reads.length,2,'one schema read and one bounded current-context read');
+  assert.equal(f.writes.length,writes);assert.equal(f.sql.prepare('SELECT total_changes() n').get().n,before);
+  assert.deepEqual(f.sql.prepare('SELECT * FROM blower_log_receipts_v1 ORDER BY log_id').all(),receipts);
+});
+
+test('current context rejects malformed source parameters before database reads',async t=>{
+  const f=fixture();t.after(f.close);
+  for(const selection of [null,[],{},
+    {workDate:'2026-02-30',shift:'DS'},{workDate:'2026-11-05',shift:'DS'},
+    {workDate:WORK,shift:'BOTH'},{workDate:WORK,shift:7},
+    {workDate:WORK+"' OR 1=1 --",shift:'DS'},
+    {workDate:WORK,shift:"DS' OR 1=1 --"},
+    {workDate:'2026-9-04',shift:'DS'}]){
+    await assert.rejects(currentContext(f,selection),e=>e.code==='BLOWER_ROLE_PRIORITY_CONTEXT_INVALID'&&e.status===400);
+  }
+  for(const now of [new Date('invalid'),'2026-11-04',null])
+    await assert.rejects(currentContext(f,{workDate:WORK,shift:'DS'},{now}),e=>e.code==='BLOWER_ROLE_PRIORITY_CONTEXT_INVALID'&&e.status===400);
+  assert.equal(f.reads.length,0);assert.equal(f.writes.length,0);
+});
+
+test('current reload and old guards detect edited, deleted, unapproved or suppressed processed sources',async t=>{
+  for(const mode of ['edit','delete','unapprove','suppress']){
+    const f=fixture();t.after(f.close);const diary='POCHEON#20260904#DAY#BCO1';
+    f.canonical('lower',{role:'BO1'});f.canonical('legacy-'+diary);
+    const old=await currentContext(f);await storeReplacementLogReceipts(f.db,old.logs,NOW);
+    if(mode==='edit')f.sql.prepare('UPDATE shift_logs SET log_json=? WHERE id=?')
+      .run(JSON.stringify({entries:[{content:BELT,time:'14:25'}]}),'legacy-'+diary);
+    if(mode==='delete')f.sql.prepare('DELETE FROM shift_logs WHERE id=?').run('legacy-'+diary);
+    if(mode==='unapprove')f.sql.prepare('UPDATE shift_logs SET status=? WHERE id=?').run('작성중','legacy-'+diary);
+    if(mode==='suppress')f.suppress(diary);
+    const before=f.sql.prepare('SELECT total_changes() n').get().n,next=await currentContext(f);
+    assert.deepEqual(next.logs.map(r=>r.id).sort(),mode==='edit'?['legacy-'+diary,'lower'].sort():['lower'],mode);
+    for(const row of old.logs)assert.equal(f.valid(row),0,mode+' invalidates the whole old role dependency');
+    for(const row of next.logs)assert.equal(f.valid(row),1,mode);
+    assert.notEqual((await replacementSourceHashes(next.logs.find(r=>r.id==='lower'))).sourceSnapshotSha256,
+      (await replacementSourceHashes(old.logs.find(r=>r.id==='lower'))).sourceSnapshotSha256,mode);
+    assert.equal(f.sql.prepare('SELECT total_changes() n').get().n,before);
+  }
+});
+
+test('a newly approved role enters the current context even after the earlier receipt was processed',async t=>{
+  const f=fixture();t.after(f.close);f.canonical('lower',{role:'BO1'});f.canonical('higher',{status:'작성중'});
+  const old=await currentContext(f);await storeReplacementLogReceipts(f.db,old.logs,NOW);
+  f.sql.prepare("UPDATE shift_logs SET status='APPROVED',updated_at=? WHERE id='higher'")
+    .run(new Date(NOW.getTime()+1000).toISOString());
+  const next=await currentContext(f);
+  assert.deepEqual(next.logs.map(r=>r.id),['higher','lower']);
+  assert.equal(f.valid(old.logs[0]),0);
+  assert.ok(next.logs.every(r=>f.valid(r)===1),'current approval has no stale pagination-snapshot cutoff');
+});
+
+test('current context preserves legacy fallback, canonical mirror precedence and suppression',async t=>{
+  const f=fixture();t.after(f.close);const diary='POCHEON#20260904#DAY#BCO1';
+  f.legacy(987,diary);f.canonical('legacy-'+diary,{status:'작성중',shift:'DAY'});
+  const old=await currentContext(f,{workDate:WORK,shift:'DAY'});
+  assert.equal(old.logs.length,1);assert.equal(old.logs[0].sourceTable,'legacy_logs');
+  assert.equal(f.valid(old.logs[0]),1);
+  f.sql.prepare("UPDATE shift_logs SET status='결재완료' WHERE id=?").run('legacy-'+diary);
+  const next=await currentContext(f);
+  assert.equal(next.logs.length,1);assert.equal(next.logs[0].sourceTable,'shift_logs');
+  assert.equal(f.valid(old.logs[0]),0);
+  for(const alias of ['987',diary,'legacy-'+diary])assert.ok(next.logs[0].sourceAliases.includes(alias),alias);
+  // Source suppression uses the original stored identity, including shift.
+  f.suppress(diary,{shift:'DAY'});f.suppress(diary,{shift:'DS'});
+  assert.equal(f.valid(next.logs[0]),0);assert.deepEqual((await currentContext(f)).logs,[]);
+  assert.equal(f.writes.length,0);
+});
+
+test('current context returns all 64 peers but refuses a 65th without truncating source certification',async t=>{
+  const f=fixture();t.after(f.close);
+  for(let i=0;i<32;i++)f.canonical('canonical-'+String(i).padStart(2,'0'),{role:i%2?'BCO1':'BO1'});
+  for(let i=0;i<32;i++)f.legacy(100+i,'fixture-legacy-'+i,{role:'BO1'});
+  const current=await currentContext(f);assert.equal(current.logs.length,64);
+  assert.ok(current.logs.every(r=>f.valid(r)===1));
+  const read=f.reads.find(r=>r.text.includes('AS context_snapshot'));
+  const plan=f.sql.prepare('EXPLAIN QUERY PLAN '+read.text).all(...read.values);
+  assert.ok(plan.some(r=>/SEARCH rps USING INDEX idx_shift_logs_date/.test(r.detail)),JSON.stringify(plan));
+  assert.ok(plan.some(r=>/SEARCH rph USING INDEX idx_legacy_logs_date/.test(r.detail)),JSON.stringify(plan));
+  assert.ok(!plan.some(r=>/SCAN rps\b|SCAN rph\b|SCAN rpc\b/.test(r.detail)),JSON.stringify(plan));
+  f.canonical('sixty-fifth');
+  const before=f.sql.prepare('SELECT total_changes() n').get().n;
+  await assert.rejects(currentContext(f),e=>e.code==='BLOWER_ROLE_PRIORITY_CONTEXT_LIMIT'&&e.status===409);
+  assert.equal(f.sql.prepare('SELECT total_changes() n').get().n,before);assert.equal(f.writes.length,0);
+});
+
+test('current recovery reads require source indexes and report missing source coverage without creating tables',async t=>{
+  for(const index of ['idx_shift_logs_date','idx_legacy_logs_date']){
+    const f=fixture();t.after(f.close);f.canonical('not-scanned');f.sql.exec('DROP INDEX '+index);
+    await assert.rejects(currentContext(f),e=>e.code==='BLOWER_REPLACEMENT_SOURCE_INDEX_REQUIRED');
+    assert.equal(f.reads.length,1);assert.ok(f.reads[0].text.includes('sqlite_master'));assert.equal(f.writes.length,0);
+  }
+  const bad=fixture({suppressionIndex:false});t.after(bad.close);
+  await assert.rejects(currentContext(bad),e=>e.code==='BLOWER_REPLACEMENT_SOURCE_INDEX_REQUIRED');
+  const f=fixture({suppression:false});t.after(f.close);f.canonical('current');
+  f.sql.exec('DROP TABLE legacy_logs; DROP TABLE blower_log_receipts_v1');
+  const tables=f.sql.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all();
+  const current=await currentContext(f);
+  assert.equal(current.logs.length,1);assert.equal(current.coverageIssues.length,2);
+  assert.match(current.coverageIssues.join(' '),/legacy_logs.*absent.*legacy_log_suppressions.*absent/);
+  assert.deepEqual(f.sql.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all(),tables);
+  assert.equal(f.writes.length,0,'neither receipts nor source tables are created by this read');
 });

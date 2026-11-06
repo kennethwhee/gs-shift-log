@@ -115,6 +115,7 @@
     unifiedFeedbackDismissed: false,
     dataparcRuntimeBusy: false,
     dataparcConfirmedGapRecovery: null,
+    dataparcRolePriorityRecovery: null,
     dataparcRuntimeTag: "",
     dataparcRuntimeStatus: ""
   };
@@ -201,6 +202,7 @@
       "dataparcRuntimeConfirmField",
       "dataparcRuntimeMinimum",
       "dataparcRuntimePreviousBasis",
+      "dataparcRuntimeRangeWarning",
       "dataparcRuntimeSubmitButton",
       "recordDialog",
       "recordForm",
@@ -2045,7 +2047,9 @@
     let action = { key: "history", label: "근거 보기", available: true };
     if (canManage) {
       const firstRun = sealPotFirstRunBasis(asset);
-      if (review && firstRun && !sealPotFirstRunPeriod(asset, firstRun)) {
+      if (review?.key === "role-priority-run-rebuild" && rolePriorityRecoveryProof(asset)) {
+        action = { key: "selected_basis_recovery", label: "선택 기준으로 다시 계산", available: true };
+      } else if (review && firstRun && !sealPotFirstRunPeriod(asset, firstRun)) {
         action = { key: "seal_pot_first_run", label: "실제 기동 기준 확인", available: true };
       } else if (review && confirmedGapRecoveryProof(asset)) {
         action = { key: "confirmed_gap_recovery", label: "누락 구간 보완", available: true };
@@ -2123,15 +2127,15 @@
     const runtimeText = assessment.hours === null ? "조회 대기"
       : `${assessment.hours.toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간`;
     const actionLabel = assessment.nextActionKey === "history" && !assessment.requiresReview ? "이력 보기" : assessment.nextActionLabel;
-    return `<article class="all-overview-card-shell" data-runtime-review="${assessment.requiresReview ? "true" : "false"}" data-runtime-scope="${escapeHtml(assessment.scope)}">
+    return `<article class="all-overview-card-shell${operation.state === "stopped" ? " is-stopped" : ""}" data-runtime-review="${assessment.requiresReview ? "true" : "false"}" data-runtime-scope="${escapeHtml(assessment.scope)}">
       <button type="button" class="all-overview-card is-assessed" data-asset-action="history" data-tag="${escapeHtml(asset.tagNumber)}"
         data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(operationState)}" data-operation-mode="${operation.intermittent ? "intermittent" : "standard"}"
         ${disputedLimestone ? 'data-limestone-display="previous-checkpoint"' : ''} aria-label="${escapeHtml(`${position} 상세 이력 보기`)}">
         <span class="all-overview-card-head">
           <span class="all-overview-identity"><strong>${escapeHtml(position)}</strong><small>${escapeHtml(asset.tagNumber)}</small></span>
           <span class="all-overview-status-badges">${operation.intermittent
-            ? '<span class="operation-mode-pill intermittent">간헐운전</span>'
-            : `<span class="operation-pill ${escapeHtml(operation.state)}">${escapeHtml(operationLabel)}</span>`}</span>
+            ? '<span class="operation-mode-pill intermittent">간헐운전</span>' : ''}${!operation.intermittent || operation.state === "stopped"
+            ? `<span class="operation-pill ${escapeHtml(operation.state)}">${escapeHtml(operationLabel)}</span>` : ''}</span>
         </span>
         <span class="overview-runtime-heading"><small>누적 운전시간</small><span class="overview-runtime-scope" data-scope="${escapeHtml(assessment.scope)}">${escapeHtml(assessment.scopeLabel)}</span></span>
         <strong class="overview-runtime-value${assessment.scope === "pending" ? " is-pending" : ""}">${escapeHtml(runtimeText)}</strong>
@@ -2155,6 +2159,10 @@
     // Re-evaluate the existing permission and proof helpers at click time.
     if (!hasAuthenticatedWriteAccess() || isMobileMonitoringView() || state.busy || state.unifiedRefreshBusy ||
         state.dataparcRuntimeBusy || state.backfillRunning) { openAssetHistory(tagNumber); return; }
+    if (assessment.nextActionKey === "selected_basis_recovery" && rolePriorityRecoveryProof(asset)) {
+      openDataParcRuntimeDialog(tagNumber, { rolePriority: true });
+      return;
+    }
     if (assessment.nextActionKey === "confirmed_gap_recovery" && confirmedGapRecoveryProof(asset)) {
       openDataParcRuntimeDialog(tagNumber, { confirmedGap: true });
       return;
@@ -3131,6 +3139,10 @@
     }
     if (transition) elements.historyCycleSummary.innerHTML += `<div class="run-history-note" data-run-transition="true"><strong>${escapeHtml(transition.label)}</strong><small>${escapeHtml(transition.period)}</small></div>`;
     if (maintenance) elements.historyCycleSummary.innerHTML += `<div class="run-history-note" data-stop-maintenance="true"><strong>${escapeHtml(maintenance)}</strong></div>`;
+    const selectedBasisRecovery = rolePriorityRecoveryProof(asset);
+    if (selectedBasisRecovery && hasAuthenticatedWriteAccess() && !isMobileMonitoringView()) {
+      elements.historyCycleSummary.innerHTML += `<div class="run-history-note" data-selected-basis-recovery="true"><strong>선택한 교체시각으로 다시 계산 가능</strong><small>${escapeHtml(formatKstDateTimeDisplay(selectedBasisRecovery.startAt))}부터 RUN을 다시 측정합니다. 근거와 결과가 검증되면 교체 기준과 누적시간을 함께 갱신합니다.</small><button type="button" class="button" data-mobile-write data-history-action="selected_basis_recovery" ${state.busy || state.unifiedRefreshBusy || state.dataparcRuntimeBusy || state.backfillRunning ? "disabled" : ""}>선택 기준으로 다시 계산</button></div>`;
+    }
     if (confirmedGapRecoveryProof(asset) && hasAuthenticatedWriteAccess() && !isMobileMonitoringView()) {
       elements.historyCycleSummary.innerHTML += `<div class="run-history-note" data-confirmed-gap-recovery="true"><strong>확정된 교체시각부터 보완 조회 가능</strong><small>교체시각부터 현재까지 RUN을 다시 측정합니다. 성공하면 새 측정값으로 갱신하며 기존 조회 이력은 남습니다.</small><button type="button" class="button" data-mobile-write data-history-action="confirmed_gap_recovery" ${state.busy || state.unifiedRefreshBusy || state.dataparcRuntimeBusy ? "disabled" : ""}>누적 구간 보완 조회</button></div>`;
     }
@@ -10507,6 +10519,17 @@
 
     try {
       const recovery = signalOptions.confirmedGapRecovery;
+      const roleRecovery = signalOptions.rolePriorityRecovery;
+      if (roleRecovery && (recovery || signalOptions.requireFirstRunStart === true)) {
+        throw new Error("교체 기준 보완과 다른 조회를 함께 요청할 수 없습니다.");
+      }
+      if (roleRecovery) {
+        if (roleRecovery.proof.tagNumber !== normalizedTag || roleRecovery.proof.dataParcTag !== dataParcTag ||
+            Date.parse(requestedStartAt) !== Date.parse(roleRecovery.proof.startAt)) {
+          throw new Error("다시 계산할 설비·신호·교체시각이 변경됐습니다.");
+        }
+        await verifyFreshRolePriorityRecovery(roleRecovery.proof, roleRecovery.owner);
+      }
       if (recovery) {
         if (recovery.proof.tagNumber !== normalizedTag || recovery.proof.dataParcTag !== dataParcTag ||
             Date.parse(requestedStartAt) !== Date.parse(recovery.proof.startAt)) {
@@ -10532,6 +10555,15 @@
         expectedCycleStartRevision: recovery.proof.cycleStartRevision,
         expectedCycleRuntimeRevision: recovery.proof.cycleRuntimeRevision
       });
+      if (roleRecovery) Object.assign(createBody, {
+        rolePriorityRecovery: true, selectedCompletionAt: roleRecovery.proof.startAt,
+        unifiedRefresh: true, incrementalRefresh: false, requireIncrementalAppend: false,
+        expectedLastReplacementAt: roleRecovery.proof.lastReplacementAt,
+        expectedCycleStartState: roleRecovery.proof.cycleStartState,
+        expectedCycleStartedAt: roleRecovery.proof.cycleStartedAt,
+        expectedCycleStartRevision: roleRecovery.proof.cycleStartRevision,
+        expectedCycleRuntimeRevision: roleRecovery.proof.cycleRuntimeRevision
+      });
 
       const created = await apiRequest({
         method: "POST",
@@ -10552,6 +10584,7 @@
       setDataparcRuntimeStatus(normalizedTag, "대기 중");
       await waitForDataparcRuntimeProbe(requestId, normalizedTag);
       if (recovery) await verifyFreshConfirmedGapRecovery(recovery.proof, recovery.owner);
+      if (roleRecovery) await verifyFreshRolePriorityRecovery(roleRecovery.proof, roleRecovery.owner);
       if (signalOptions.requireFirstRunStart === true) {
         const completed = await apiRequest({ method: "GET",
           url: `${OIS_REQUEST_API_URL}?action=status_batch&ids=${encodeURIComponent(requestId)}&_=${Date.now()}` });
@@ -10568,7 +10601,7 @@
       const applied = await apiRequest({
         method: "POST",
         body: {
-          action: "dataparc_runtime_sync",
+          action: roleRecovery ? "apply_role_priority_runtime_recovery" : "dataparc_runtime_sync",
           requestId,
           ...(signalOptions.requireFirstRunStart === true ? { requireFirstRunStart: true } : {})
         }
@@ -10628,11 +10661,52 @@
     };
   }
 
+  function rolePriorityRecoveryProof(asset) {
+    const automatic = asset?.replacementAutoCycle;
+    const selected = window.BlowerUnifiedRefresh?.rolePriorityReview(asset)?.selected;
+    const basis = asset?.dataParcRuntimeBasis;
+    const storedHours = asset?.cycleElapsedHours ?? asset?.runtimeHours;
+    const target = Date.parse(selected?.selectedCompletionAt || "");
+    const prior = Date.parse(asset?.lastReplacementAt || "");
+    const observed = Date.parse(basis?.observedAt || "");
+    if (asset?.tagNumber !== "103HRJ01AN601" || asset.blowerType !== "limestone" ||
+        asset.enabled === false || asset.enabled === 0 || asset.cycleStartState !== "legacy" ||
+        automatic?.rolePriorityRecoveryEligible !== true || automatic.rolePrioritySourceRevoked === true ||
+        selected?.timePrecision !== "minute" || selected.requiredRebuild !== true ||
+        asset.hasUnverifiedDataParcHistory !== false || basis?.appendReady !== true ||
+        !Number.isFinite(target) || target % 60000 !== 0 || !(prior < target && target < observed) ||
+        Date.parse(basis.startAt || "") !== prior || basis.dataParcTag !== asset.dataParcTag ||
+        !isDataParcRunSignalTag(basis.dataParcTag) || !String(basis.requestId || "").trim() ||
+        !String(asset.cycleStartRevision || "").trim() || !String(asset.cycleRuntimeRevision || "").trim() ||
+        !Number.isSafeInteger(basis.runningSeconds) || basis.runningSeconds < 0 ||
+        !Number.isFinite(basis.runtimeHours) || Math.abs(basis.runtimeHours * 3600 - basis.runningSeconds) > 2 ||
+        !Number.isFinite(storedHours) || Math.abs(storedHours - basis.runtimeHours) > 0.000001) return null;
+    return {
+      tagNumber: asset.tagNumber, dataParcTag: basis.dataParcTag, startAt: selected.selectedCompletionAt,
+      lastReplacementAt: asset.lastReplacementAt, cycleStartState: asset.cycleStartState,
+      cycleStartedAt: String(asset.cycleStoredStartedAt ?? asset.cycleStartedAt ?? ""),
+      cycleStartRevision: asset.cycleStartRevision, cycleRuntimeRevision: asset.cycleRuntimeRevision,
+      previousRequestId: basis.requestId, previousStartAt: basis.startAt,
+      previousObservedAt: basis.observedAt, previousRunningSeconds: basis.runningSeconds,
+      selectedRole: selected.selectedRole, selectedSourceLogId: selected.selectedSourceLogId,
+      selectedSourceKey: selected.selectedSourceKey,
+      selectedSourceSnapshotSha256: selected.selectedSourceSnapshotSha256
+    };
+  }
+
   async function verifyFreshConfirmedGapRecovery(proof, owner) {
+    return verifyFreshRuntimeRecovery(proof, owner, confirmedGapRecoveryProof);
+  }
+
+  async function verifyFreshRolePriorityRecovery(proof, owner) {
+    return verifyFreshRuntimeRecovery(proof, owner, rolePriorityRecoveryProof);
+  }
+
+  async function verifyFreshRuntimeRecovery(proof, owner, currentProof) {
     const assertOwner = () => {
       if (!owner || getSessionToken() !== owner || !hasAuthenticatedWriteAccess() || isMobileMonitoringView() ||
           state.busy || state.unifiedRefreshBusy || state.backfillRunning ||
-          JSON.stringify(confirmedGapRecoveryProof(findAsset(proof.tagNumber))) !== JSON.stringify(proof)) {
+          JSON.stringify(currentProof(findAsset(proof.tagNumber))) !== JSON.stringify(proof)) {
         throw new Error("조회 기준 또는 로그인 상태가 변경됐습니다. 새로고침 후 보완 조회를 다시 열어 주세요.");
       }
     };
@@ -10653,7 +10727,7 @@
       }
       const asset = page.assets.find(a => a.tagNumber === proof.tagNumber);
       if (asset) {
-        if (JSON.stringify(confirmedGapRecoveryProof(asset)) !== JSON.stringify(proof)) {
+        if (JSON.stringify(currentProof(asset)) !== JSON.stringify(proof)) {
           throw new Error("서버의 교체 기준 또는 누적값이 변경됐습니다. 새로고침 후 보완 조회를 다시 열어 주세요.");
         }
         return;
@@ -10669,11 +10743,15 @@
 
     const normalizedTag = String(tagNumber || "").trim().toUpperCase();
     const asset = findAsset(normalizedTag);
-    const recovery = options.confirmedGap === true ? confirmedGapRecoveryProof(asset) : null;
+    const roleRecovery = options.rolePriority === true ? rolePriorityRecoveryProof(asset) : null;
+    const recovery = options.rolePriority === true ? roleRecovery
+      : options.confirmedGap === true ? confirmedGapRecoveryProof(asset) : null;
     state.dataparcConfirmedGapRecovery = null;
-    if (options.confirmedGap === true && (!recovery || !hasAuthenticatedWriteAccess() ||
+    state.dataparcRolePriorityRecovery = null;
+    if ((options.confirmedGap === true || options.rolePriority === true) &&
+        (options.confirmedGap === true && options.rolePriority === true || !recovery || !hasAuthenticatedWriteAccess() ||
         state.busy || state.unifiedRefreshBusy || state.backfillRunning || !getSessionToken())) {
-      showToast("확정된 교체시각과 보완 조회 조건을 확인할 수 없습니다.", "error");
+      showToast("교체시각의 근거와 보완 조회 조건을 확인할 수 없습니다.", "error");
       return;
     }
 
@@ -10732,6 +10810,11 @@
     elements.dataparcRuntimeConfirmSignal.checked = Boolean(savedSignal);
     elements.dataparcRuntimeConfirmSignal.disabled = Boolean(recovery);
     elements.dataparcRuntimeConfirmField.hidden = fixedSignal;
+    if (elements.dataparcRuntimeRangeWarning) {
+      elements.dataparcRuntimeRangeWarning.textContent = roleRecovery
+        ? "선택한 교체 완료시각부터 RUN을 다시 측정합니다. 근거와 결과가 검증되면 교체 기준과 누적시간을 함께 갱신합니다."
+        : "선택한 시각 이후의 RUN 누적시간과 현재 상태를 갱신합니다. V-Belt 교체일은 유지됩니다.";
+    }
     elements.dataparcRuntimeSourceHelp.textContent = previousBasis?.coverageComplete === false || asset.cycleSourceReview
       ? "저장된 조회구간을 표시합니다. [최신화]로 마지막 성공 이후 RUN을 이어서 확인하며, 교체 기준 확인 전에는 전체 Cycle 누적으로 확정하지 않습니다."
       : fixedSignal
@@ -10742,10 +10825,13 @@
         ? "현재 설비 TAG는 이력의 식별번호입니다. 임의로 AP/AN 또는 XB04를 바꾸지 말고 실제 1=기동·0=정지 RUN 전체 TAG를 입력해 주세요. 첫 조회는 확인된 실제 기동일이 있으면 그 시각부터, 없으면 교체일부터 RUN=1 구간만 합산합니다. 성공 후에는 [최신화]만 사용합니다."
         : "DataPARC에서 해당 설비의 RUN 신호 전체 TAG를 복사해 주세요. 조회·저장에 성공하면 다음부터 자동 입력됩니다.";
     if (recovery) {
-      state.dataparcConfirmedGapRecovery = { proof: recovery, owner: getSessionToken() };
-      elements.dataparcRuntimeMinimum.textContent = `확정된 교체 완료 ${formatKstDateTimeDisplay(recovery.startAt)}부터 현재까지 다시 측정합니다.`;
+      if (roleRecovery) state.dataparcRolePriorityRecovery = { proof: recovery, owner: getSessionToken() };
+      else state.dataparcConfirmedGapRecovery = { proof: recovery, owner: getSessionToken() };
+      elements.dataparcRuntimeMinimum.textContent = `${roleRecovery ? "업무일지에서 선택한 교체 완료" : "확정된 교체 완료"} ${formatKstDateTimeDisplay(recovery.startAt)}부터 현재까지 다시 측정합니다.`;
       elements.dataparcRuntimePreviousBasis.textContent = `기존 측정 구간: ${formatKstDateTimeDisplay(recovery.previousStartAt)} → ${formatKstDateTimeDisplay(recovery.previousObservedAt)}`;
-      elements.dataparcRuntimeSourceHelp.textContent = "누락 구간을 포함한 전체 기간의 RUN을 다시 측정합니다. 새 결과가 검증되면 누적값을 갱신합니다. 기존 값에 중복해서 더하지 않으며, 조회 실패 시 기존 값과 이력은 유지합니다.";
+      elements.dataparcRuntimeSourceHelp.textContent = roleRecovery
+        ? "선택한 완료시각부터 RUN을 다시 측정합니다. 업무일지 근거와 새 결과가 모두 검증된 뒤 교체 기준과 누적시간을 함께 갱신합니다. 조회 중에는 기존 값이 유지되며, 변경 전 이력은 보존됩니다."
+        : "누락 구간을 포함한 전체 기간의 RUN을 다시 측정합니다. 새 결과가 검증되면 누적값을 갱신합니다. 기존 값에 중복해서 더하지 않으며, 조회 실패 시 기존 값과 이력은 유지합니다.";
     }
     elements.dataparcRuntimeDialog.showModal();
     window.setTimeout(() => (savedSignal ? elements.dataparcRuntimeStartAt : elements.dataparcRuntimeSourceTag).focus(), 0);
@@ -10758,11 +10844,15 @@
     const tagNumber = String(elements.dataparcRuntimeDialogTag.value || "").trim().toUpperCase();
     const startAt = kstDateTimeInputToIso(elements.dataparcRuntimeStartAt.value);
     const confirmedGapRecovery = state.dataparcConfirmedGapRecovery;
-    if (confirmedGapRecovery && (confirmedGapRecovery.owner !== getSessionToken() ||
+    const rolePriorityRecovery = state.dataparcRolePriorityRecovery;
+    const selectedRecovery = rolePriorityRecovery || confirmedGapRecovery;
+    const currentProof = !selectedRecovery ? null
+      : rolePriorityRecovery ? rolePriorityRecoveryProof : confirmedGapRecoveryProof;
+    if (selectedRecovery && (rolePriorityRecovery && confirmedGapRecovery || selectedRecovery.owner !== getSessionToken() ||
         !hasAuthenticatedWriteAccess() || state.busy || state.unifiedRefreshBusy || state.backfillRunning ||
-        JSON.stringify(confirmedGapRecoveryProof(findAsset(tagNumber))) !== JSON.stringify(confirmedGapRecovery.proof) ||
-        Date.parse(startAt) !== Date.parse(confirmedGapRecovery.proof.startAt) ||
-        elements.dataparcRuntimeSourceTag.value !== confirmedGapRecovery.proof.dataParcTag)) {
+        JSON.stringify(currentProof(findAsset(tagNumber))) !== JSON.stringify(selectedRecovery.proof) ||
+        Date.parse(startAt) !== Date.parse(selectedRecovery.proof.startAt) ||
+        elements.dataparcRuntimeSourceTag.value !== selectedRecovery.proof.dataParcTag)) {
       showToast("보완 조회 기준이 변경됐습니다. 새로고침 후 다시 열어 주세요.", "error");
       return;
     }
@@ -10814,7 +10904,8 @@
     }
     elements.dataparcRuntimeDialog.close();
     state.dataparcConfirmedGapRecovery = null;
-    await syncDataParcBlowerRuntime(tagNumber, startAt, { dataParcTag, confirmRunSignal: true, confirmedGapRecovery });
+    state.dataparcRolePriorityRecovery = null;
+    await syncDataParcBlowerRuntime(tagNumber, startAt, { dataParcTag, confirmRunSignal: true, confirmedGapRecovery, rolePriorityRecovery });
   }
 
   function openRecordDialog(mode, tagNumber, candidate = null) {
@@ -12142,6 +12233,11 @@
         void syncDataParcBlowerRuntime(tagNumber, basis.requiredStartAt, {
           dataParcTag: basis.dataParcTag, confirmRunSignal: true, requireFirstRunStart: true
         });
+        return;
+      }
+      if (action === "selected_basis_recovery") {
+        elements.historyDialog.close();
+        openDataParcRuntimeDialog(tagNumber, { rolePriority: true });
         return;
       }
       if (action === "confirmed_gap_recovery") {

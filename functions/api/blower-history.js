@@ -9,6 +9,7 @@ import { collectApprovedReplacementFacts } from "../_shared/blower-replacement-f
 import { planBlowerRolePriority, shiftKey as replacementPriorityShiftKey } from "../_shared/blower-role-priority-v5.js";
 import { inspectVbeltAnnotations, annotationControlsFragment } from '../_shared/diary-vbelt-confirm-v1.js';
 import { reconcileCurrentRuntimeRecoveryV4 } from "../_shared/blower-normalize-recovery-v4.js";
+import { ROLE_RECOVERY_PREFIX, rolePriorityRecoveryProof, applyRolePriorityRecovery } from "../_shared/blower-role-recovery-v1.js";
 import { REPLACEMENT_ANALYSIS_VERSION, REPLACEMENT_NORMALIZE_ANALYSIS_VERSION, REPLACEMENT_ROLE_PRIORITY_ANALYSIS_VERSION, loadApprovedReplacementPage, storeReplacementLogReceipts, replacementSourceGuard, replacementRoleContextRows, replacementSourceHashes } from "../_shared/blower-replacement-log-source-v3.js";
 import { MANURE_INITIAL_RUN_CONFIG, initializeManureInitialRun, manureInitialRunBasis,
   manureInitialRunProjection, loadManureInitialAudit, configuredManureRunSignal,
@@ -2015,6 +2016,8 @@ async function loadAssetStates(database, settings, options = {}) {
     }
     const replacementAutoCycle = normalizeText(asset.last_replacement_at)
       ? replacementAutoCycleProof(asset, runtimeRows) : null;
+    if (replacementAutoCycle && rolePriorityRecoveryProof(asset,runtimeRows,replacementAutoCycle))
+      replacementAutoCycle.rolePriorityRecoveryEligible = true;
     // A reconciled completion clock fixes a source downgrade, not missing RUN.
     // Compare this proven physical boundary to the owned measured range instead
     // of treating a later registered startup as proof of an unqueried prefix.
@@ -2096,11 +2099,12 @@ async function loadAssetStates(database, settings, options = {}) {
         runRuntime: { verified: false, source: "replacement_auto", state: "unknown", needsQuery: true,
           measuredAt: "", legacyStoredHours: 0 }
       } : {}),
-      // A lightweight plan must not turn an unverified saved result into a
-      // fresh full-range query merely because event-list fallback was removed.
-      ...(options.planning ? { hasUnverifiedDataParcHistory: !runtimeBasis &&
+      // Dashboard recovery actions and lightweight plans share this evidence
+      // guard. An omitted flag must not hide a verified recovery path, and an
+      // unverified current receipt must never authorize a fresh full query.
+      hasUnverifiedDataParcHistory: !runtimeBasis &&
         !replacementAutoCycle?.freshQueryEligible && !replacementAutoCycle?.rangeQueryEligible &&
-        runtimeRows.some(row => dataParcRecordBelongsToCurrentCycle(asset, row)) } : {}) };
+        runtimeRows.some(row => dataParcRecordBelongsToCurrentCycle(asset, row)) };
   });
 }
 
@@ -7673,6 +7677,13 @@ function isMatchingDataParcRuntimeSyncIntent(intent, probe) {
   );
 }
 
+async function applyRolePriorityRuntimeRecovery(database,user,body,options={}) {
+  return applyRolePriorityRecovery(database,user,body,{...options,
+    normalizeProbe:normalizeDataParcRuntimeProbeResult,loadRuntimeIntent:loadDataParcRuntimeSyncIntent,
+    matchesRuntimeIntent:isMatchingDataParcRuntimeSyncIntent,runtimeSourceText:dataParcRuntimeSyncSourceText,
+    runtimeActionType:dataParcRuntimeSyncActionType,runtimeNote:dataParcRuntimeSyncNote});
+}
+
 async function applyDataParcRuntimeSync(database, user, body, options) {
   const runtimeOptions = options && typeof options === "object"
     ? options
@@ -7789,6 +7800,11 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
       message: "DataPARC 요청에 확정한 설비·운전 TAG·기간·Cycle 기준과 조회 결과가 일치하지 않습니다. 새로 조회해 주세요."
     }, 409);
   }
+  if (String(intent.reuse_key || '').startsWith(ROLE_RECOVERY_PREFIX) ||
+      String(intent.expected_cycle_runtime_revision || '').startsWith(ROLE_RECOVERY_PREFIX)) {
+    return jsonResponse({ok:false,code:'BLOWER_ROLE_RECOVERY_APPLY_REQUIRED',
+      message:'선택 교체시각 보완 조회는 근거와 누적값을 함께 검증하는 전용 반영 작업이 필요합니다. 기존 값을 유지합니다.'},409);
+  }
   // Separate historical RUN tracking is not an official cycle measurement.
   // In particular, an old completed ledger request cannot become cumulative
   // proof merely because the operational saved-baseline policy has changed.
@@ -7899,9 +7915,9 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
       message: 'DataPARC RUN 조회 결과는 확인할 수 있지만 실제 V-Belt 교체시각 확정 전에는 누적 운전시간에 반영할 수 없습니다.' }, 409);
   }
 
-  // A certificate authorizes a full cycle measurement, not an arbitrary recent
-  // subrange labelled as its whole total. Subsequent appends must retain that
-  // same certified coverage start through their server-owned base receipt.
+  // A fresh saved-baseline measurement must cover the whole registered range.
+  // Existing appends retain the measured range of the server-owned predecessor and
+  // its coverage status; an append does not certify any omitted prefix.
   if ((limestoneBasisConfirmed(asset) || savedBaselineAuto) && !appendIntent && !normalizationRange &&
       Date.parse(probe.startAt) !== Date.parse(asset.last_replacement_at)) {
     return jsonResponse({ ok: false, code: 'LIMESTONE_BASIS_FULL_RANGE_REQUIRED',
@@ -7948,11 +7964,9 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
 
   if (appendIntent) {
     const base = await loadAppendBase(database, asset, probe.dataParcTag);
-    if ((limestoneBasisConfirmed(asset) || savedBaselineAuto) && !normalizationRange && base &&
-        Date.parse(base.startAt) !== Date.parse(asset.last_replacement_at)) {
-      return jsonResponse({ ok: false, code: 'LIMESTONE_BASIS_FULL_RANGE_REQUIRED',
-        message: '저장된 교체 기준시각부터 검증된 전체 RUN 누적 기준이 없어 증분 반영할 수 없습니다.' }, 409);
-    }
+    // A server-owned partial receipt may continue from its measured endpoint.
+    // Keep its original coverage start and review state; this does not fill or
+    // certify the unmeasured prefix, including for saved-baseline Limestone.
     if (!base || base.eventId !== appendIntent.base_event_id || base.cycleRuntimeRevision !== appendIntent.base_revision ||
         Date.parse(base.observedAt) !== Date.parse(appendIntent.base_observed_at) ||
         Date.parse(base.startAt) !== Date.parse(appendIntent.coverage_start_at) || base.runningSeconds !== Number(appendIntent.base_running_seconds) ||
@@ -15664,6 +15678,10 @@ async function handlePost(context, user, body) {
     return applyDataParcRuntimeSync(database, user, body);
   }
 
+  if (action === 'apply_role_priority_runtime_recovery') {
+    return applyRolePriorityRuntimeRecovery(database,user,body);
+  }
+
   if (action === "ois_runtime_refresh_apply") {
     return applyOisRuntimeRefresh(database, user, body);
   }
@@ -15845,7 +15863,7 @@ export const __blowerHistoryTest = {
   latestSuccessfulDataParcTag,
   ensureHistoryRecoveryV12Schema,
   normalizeDataParcRuntimeProbeResult,
-  applyDataParcRuntimeSync, readLimestoneRunTracking, applyLimestoneRunTrack, limestoneRunDisputed,
+  applyDataParcRuntimeSync, applyRolePriorityRuntimeRecovery, readLimestoneRunTracking, applyLimestoneRunTrack, limestoneRunDisputed,
   limestoneBasisConfirmed, confirmLimestoneBasis,
   limestoneAutoApply, limestoneBasisReviewRequired,
   v12ApplyConfirmedEvents,

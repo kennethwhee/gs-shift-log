@@ -126,26 +126,27 @@ function rawSnapshotRow(snapshot) {
   }
   fail('보직 비교 원문 테이블이 다릅니다.');
 }
+function roleContextSnapshotRows(contextSnapshot, priority, suppression) {
+  const context=parsedJson(contextSnapshot,'보직 비교 목록');
+  if(!Array.isArray(context) || context.length>64) fail('같은 날짜·교대의 보직 비교 원문이 너무 많습니다.','BLOWER_ROLE_PRIORITY_CONTEXT_LIMIT');
+  return context.map(snapshot=>{
+    const contextEntry=typeof snapshot === 'string' ? parsedJson(snapshot,'보직 비교 항목') : snapshot;
+    if(!contextEntry || !Array.isArray(contextEntry.snapshot))fail('보직 비교 항목 형식이 다릅니다.');
+    const baseSnapshot=JSON.stringify(contextEntry.snapshot);
+    const raw=rawSnapshotRow(baseSnapshot);
+    if(raw.sourceTable==='shift_logs')Object.assign(raw,{aliasLegacyId:contextEntry.aliasLegacyId??null,aliasDiary:contextEntry.aliasDiary??null});
+    // Every peer shares the exact SQL dependency used by its source guard.
+    raw.source_snapshot=JSON.stringify([baseSnapshot,contextSnapshot]);
+    return normalize(raw,priority.shiftIndex,REPLACEMENT_ROLE_PRIORITY_ANALYSIS_VERSION,suppression,priority);
+  });
+}
 export function replacementRoleContextRows(primaryRows) {
   const all=new Map();
   for(const primary of primaryRows || []) {
     if(primary._rolePriorityVersion!==1) { all.set(primary.receiptId,primary); continue; }
     const wrapper=parsedJson(primary.source_snapshot,'보직 의존성');
     if(!Array.isArray(wrapper) || wrapper.length!==2) fail('보직 의존성 원문 형식이 다릅니다.');
-    const context=parsedJson(wrapper[1],'보직 비교 목록');
-    if(!Array.isArray(context) || context.length>64) fail('같은 날짜·교대의 보직 비교 원문이 너무 많습니다.','BLOWER_ROLE_PRIORITY_CONTEXT_LIMIT');
-    for(const snapshot of context) {
-      const contextEntry=typeof snapshot === 'string' ? parsedJson(snapshot,'보직 비교 항목') : snapshot;
-      if(!contextEntry || !Array.isArray(contextEntry.snapshot))fail('보직 비교 항목 형식이 다릅니다.');
-      const baseSnapshot=JSON.stringify(contextEntry.snapshot);
-      const raw=rawSnapshotRow(baseSnapshot);
-      if(raw.sourceTable==='shift_logs')Object.assign(raw,{aliasLegacyId:contextEntry.aliasLegacyId??null,aliasDiary:contextEntry.aliasDiary??null});
-      // Every peer shares the same date/shift context, so reconstructing
-      // its wrapper preserves exactly the SQL dependency used by its guard.
-      raw.source_snapshot=JSON.stringify([baseSnapshot,wrapper[1]]);
-      const row=normalize(raw,primary._rolePriorityConfig.shiftIndex,REPLACEMENT_ROLE_PRIORITY_ANALYSIS_VERSION,primary._suppressionAvailable,primary._rolePriorityConfig);
-      all.set(row.receiptId,row);
-    }
+    for(const row of roleContextSnapshotRows(wrapper[1],primary._rolePriorityConfig,primary._suppressionAvailable)) all.set(row.receiptId,row);
     all.set(primary.receiptId,primary);
   }
   return [...all.values()];
@@ -195,11 +196,7 @@ function normalize(row, shiftIndex, version = REPLACEMENT_ANALYSIS_VERSION, supp
     log_json: JSON.stringify(log), sourceAliases: aliases([rawId, row.legacy_diary_id, sourceId]) };
 }
 
-export async function loadApprovedReplacementPage(database, body = {}, options = {}) {
-  const baseVersion = analysisVersion(options.analysisVersion), v4 = baseVersion === REPLACEMENT_NORMALIZE_ANALYSIS_VERSION;
-  const priorityEnabled = v4 && options.rolePriority === true;
-  const version = priorityEnabled ? REPLACEMENT_ROLE_PRIORITY_ANALYSIS_VERSION : baseVersion;
-  const { window, limit } = parseWindow(body, options.now || new Date());
+async function replacementSourceConfig(database, { v4, receipts = true }) {
   const schemaResult = await database.prepare(`SELECT type,name,tbl_name,sql FROM sqlite_master WHERE (type='table' AND name IN (${TABLES.map(literal).join(',')})) OR (type='index' AND tbl_name IN (${TABLES.map(literal).join(',')}))`).all();
   const schema = Array.isArray(schemaResult?.results) ? schemaResult.results : [];
   const tables = new Map(schema.filter(row => row.type === 'table').map(row => [row.name, columns(row.sql)]));
@@ -208,7 +205,7 @@ export async function loadApprovedReplacementPage(database, body = {}, options =
   const legacy = tables.has('legacy_logs'), legacyIndex = leadingIndex(schema, 'legacy_logs', 'work_date');
   const suppression = tables.has('legacy_log_suppressions');
   if (!shiftIndex || !indexedColumn(schema, 'shift_logs', 'id') || !requireFields('shift_logs', ['id','work_date','shift','role','author','status','log_json','updated_at']) ||
-      !indexedColumn(schema, 'blower_log_receipts_v1', 'log_id') || !requireFields('blower_log_receipts_v1', ['log_id','source_snapshot','replacement_done','operation_done','processed_at'])) {
+      receipts && (!indexedColumn(schema, 'blower_log_receipts_v1', 'log_id') || !requireFields('blower_log_receipts_v1', ['log_id','source_snapshot','replacement_done','operation_done','processed_at']))) {
     fail('교체 원문 또는 처리 확인용 기존 인덱스·스키마가 없습니다. 전체 테이블 스캔은 실행하지 않았습니다.', 'BLOWER_REPLACEMENT_SOURCE_INDEX_REQUIRED');
   }
   if (legacy && (!legacyIndex || !indexedColumn(schema, 'legacy_logs', 'id') || !indexedColumn(schema, 'legacy_logs', 'legacy_diary_id') ||
@@ -220,6 +217,44 @@ export async function loadApprovedReplacementPage(database, body = {}, options =
   }
   const coverageIssues = legacy ? [] : ['legacy_logs is absent; historical legacy-only approvals were not scanned.'];
   if (v4 && !suppression) coverageIssues.push('legacy_log_suppressions is absent; deleted legacy diary suppression could not be verified.');
+  return { shiftIndex, legacyIndex, legacy, suppression, coverageIssues };
+}
+
+/* Reload one current approved R5 role context, including processed sources.
+ * This is evidence for a separately guarded recovery, never reconciliation:
+ * there are no receipt reads/writes, source mutations, or schema migrations.
+ * Callers must reject coverageIssues before certifying a selected source. */
+export async function loadCurrentReplacementRoleContext(database, selection = {}, options = {}) {
+  const now = options?.now === undefined ? new Date() : options.now;
+  const workDate = selection?.workDate;
+  const rawShift = typeof selection?.shift === 'string' ? selection.shift.trim().toUpperCase() : '';
+  const shift = ({ DS:'DS', DAY:'DS', '주간':'DS', NS:'NS', NIGHT:'NS', '야간':'NS' })[rawShift];
+  const calendar = typeof workDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(workDate)
+    ? Date.parse(workDate + 'T00:00:00Z') : NaN;
+  if (!selection || typeof selection !== 'object' || Array.isArray(selection) ||
+      !(now instanceof Date) || !Number.isFinite(now.getTime()) || !Number.isFinite(calendar) ||
+      new Date(calendar).toISOString().slice(0,10) !== workDate || workDate > kstDay(now.getTime()) || !shift) {
+    fail('현재 승인 교체 원문의 날짜·교대를 확인할 수 없습니다.', 'BLOWER_ROLE_PRIORITY_CONTEXT_INVALID', 400);
+  }
+  const { shiftIndex, legacyIndex, legacy, suppression, coverageIssues } =
+    await replacementSourceConfig(database, { v4:true, receipts:false });
+  const priority = { shiftIndex, legacyIndex, legacy, suppression, snapshotAt:now.toISOString() };
+  // The same SQL builds every R5 peer dependency and already uses LIMIT 65;
+  // return at most 64 sources or fail, rather than truncating certification.
+  const sql = `SELECT ${priorityContextSql('selected',REPLACEMENT_ROLE_PRIORITY_ANALYSIS_VERSION,priority)} AS context_snapshot
+    FROM (SELECT ? AS work_date, ? AS shift) selected`;
+  const result = await database.prepare(sql).bind(workDate,shift).all();
+  if (!Array.isArray(result?.results) || result.results.length !== 1 ||
+      typeof result.results[0].context_snapshot !== 'string') fail('현재 승인 교체 원문 목록을 확인할 수 없습니다.');
+  return { logs:roleContextSnapshotRows(result.results[0].context_snapshot,priority,suppression), coverageIssues };
+}
+
+export async function loadApprovedReplacementPage(database, body = {}, options = {}) {
+  const baseVersion = analysisVersion(options.analysisVersion), v4 = baseVersion === REPLACEMENT_NORMALIZE_ANALYSIS_VERSION;
+  const priorityEnabled = v4 && options.rolePriority === true;
+  const version = priorityEnabled ? REPLACEMENT_ROLE_PRIORITY_ANALYSIS_VERSION : baseVersion;
+  const { window, limit } = parseWindow(body, options.now || new Date());
+  const { shiftIndex, legacyIndex, legacy, suppression, coverageIssues } = await replacementSourceConfig(database, { v4 });
   const priority = priorityEnabled ? { shiftIndex, legacyIndex, legacy, suppression, snapshotAt:window.snapshotAt } : null;
   const shiftSnapshot = sourceSnapshotSql('shift_logs', 's', version, priority);
   const aliasSelect = legacy ? 'h.id AS aliasLegacyId,h.legacy_diary_id AS aliasDiary' : 'NULL AS aliasLegacyId,NULL AS aliasDiary';

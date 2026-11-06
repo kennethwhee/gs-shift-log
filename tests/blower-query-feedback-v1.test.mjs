@@ -118,14 +118,14 @@ test('unverified current-cycle stored result cannot become a fresh full-range qu
  await h.run();assert.equal(h.calls.batch,0);assert.equal(h.calls.reload,1);assert.equal(h.elements.unifiedRefreshStatus.dataset.state,'partial');
  assert.match(h.state.unifiedRefreshResults[0].message,/기존 조회값 보호/);
 });
-test('SQLite planning conservatively flags unverified stored DataPARC history without changing the default asset projection',async()=>{
+test('SQLite planning and the dashboard share the unverified stored DataPARC history guard without writing values',async()=>{
  const f=await databaseFixture();try{
   f.sql.prepare('UPDATE blower_history_assets SET last_replacement_at=? WHERE tag_number=?').run(asset.lastReplacementAt,TAG);
   f.sql.prepare(`INSERT INTO blower_history_events(id,tag_number,event_type,event_date,source_type,source_text,created_by_id,created_by_name,created_at,updated_at)
    VALUES(?,?,'runtime_correction',?,'dataparc_runtime',?,'fixture','fixture',?,?)`).run('legacy',TAG,'2026-10-20T00:00:00Z','{}',NOW,NOW);
   const result=await api.buildRefreshState(f.database,{name:'Test'});const found=result.assets.find(a=>a.tagNumber===TAG);
   assert.equal(found.dataParcRuntimeBasis,null);assert.equal(found.hasUnverifiedDataParcHistory,true);
-  const original=await api.loadAssetStates(f.database,{});assert.equal(original.find(a=>a.tagNumber===TAG).hasUnverifiedDataParcHistory,undefined);
+  const original=await api.loadAssetStates(f.database,{});assert.equal(original.find(a=>a.tagNumber===TAG).hasUnverifiedDataParcHistory,true);
   assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM blower_history_events').get().n,1);
  }finally{f.sql.close();}
 });
