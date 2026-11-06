@@ -97,6 +97,9 @@ function initializeSootBlowerWeeklyInspection() {
   const saveButton =
     document.getElementById("sootCheckSaveButton");
 
+  const importPreviousButton =
+    document.getElementById("importPreviousSootButton");
+
   const previewButton =
     document.getElementById("sootCheckPreviewButton");
 
@@ -158,6 +161,7 @@ function initializeSootBlowerWeeklyInspection() {
   let currentRevision = 0;
   let archiveAllLogs = [];
   let isDirty = false;
+  let importedDraftNeedsSave = false;
   let isApplyingData = false;
   let lastLoadedDate = "";
   let draftSaveTimer = null;
@@ -852,6 +856,7 @@ function initializeSootBlowerWeeklyInspection() {
     inspectionDate.disabled = isBusy;
     [
       saveButton,
+      importPreviousButton,
       previewButton,
       archiveOpenButton
     ].forEach(button => {
@@ -876,6 +881,9 @@ function initializeSootBlowerWeeklyInspection() {
     );
 
     window.clearTimeout(draftSaveTimer);
+
+    draftSaveTimer = null;
+    if (importedDraftNeedsSave) return;
 
     draftSaveTimer = window.setTimeout(
       saveRecoveryDraft,
@@ -983,6 +991,8 @@ function initializeSootBlowerWeeklyInspection() {
 
 
   function clearFormForNewDate() {
+    importedDraftNeedsSave = false;
+
     applyFormData({
       partLeaderApproval: "",
       unit1Inspector: "",
@@ -1017,6 +1027,9 @@ function initializeSootBlowerWeeklyInspection() {
     currentRevision = Number(log.serverRevision) || 0;
     lastLoadedDate = inspectionDate.value;
     isDirty = false;
+    importedDraftNeedsSave = false;
+    window.clearTimeout(draftSaveTimer);
+    draftSaveTimer = null;
     isApplyingData = false;
 
     setSaveState(
@@ -1036,6 +1049,9 @@ function initializeSootBlowerWeeklyInspection() {
 
 
   function saveRecoveryDraft() {
+    // Printing, navigation and editing must not persist imported contents.
+    if (importedDraftNeedsSave) return;
+
     const dateValue = normalizeText(inspectionDate.value);
 
     if (!dateValue) {
@@ -1084,6 +1100,9 @@ function initializeSootBlowerWeeklyInspection() {
   ======================================================= */
 
   async function loadLogForDate(dateValue) {
+    window.clearTimeout(draftSaveTimer);
+    draftSaveTimer = null;
+
     const targetDate = normalizeText(dateValue);
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
@@ -1151,6 +1170,14 @@ function initializeSootBlowerWeeklyInspection() {
   ======================================================= */
 
   async function saveInspectionLog() {
+    if (importedDraftNeedsSave &&
+        (!lastLoadedDate || inspectionDate.value !== lastLoadedDate)) {
+      const message = "현재 선택한 날짜의 일지 조회가 완료되지 않았습니다. 날짜를 다시 선택하거나 새로고침한 뒤 저장해 주세요.";
+      setSaveState(message, "error");
+      window.alert(message);
+      return;
+    }
+
     const dateValue =
       normalizeText(
         inspectionDate.value
@@ -2014,6 +2041,111 @@ function initializeSootBlowerWeeklyInspection() {
       100
     );
   }
+
+
+  /* =======================================================
+    이전 일지의 내용만 현재 날짜에 불러오기
+  ======================================================= */
+
+  function previousSootValue(value) {
+    if (value == null) return "";
+    if (!["string", "number", "boolean"].includes(typeof value) ||
+        (typeof value === "number" && !Number.isFinite(value))) {
+      throw new Error("이전 일지의 입력 내용 형식을 확인할 수 없습니다.");
+    }
+    return String(value).replace(/\r\n?/g, "\n").trim();
+  }
+
+  async function readPreviousSootContent(source, { signal }) {
+    if (!lastLoadedDate || inspectionDate.value !== lastLoadedDate) {
+      throw new Error("현재 선택한 날짜의 일지 조회가 완료되지 않았습니다. 날짜를 다시 선택하거나 새로고침한 뒤 불러와 주세요.");
+    }
+    window.clearTimeout(draftSaveTimer);
+    draftSaveTimer = null;
+
+    const payload = await requestApi(
+      `${SOOT_BLOWER_WEEKLY_API_URL}?date=${encodeURIComponent(source.date)}`,
+      { signal }
+    );
+    if (!payload || payload.ok !== true ||
+        !Object.prototype.hasOwnProperty.call(payload, "log")) {
+      throw new Error("이전 일지 조회 응답을 확인하지 못했습니다. 현재 내용은 유지됩니다.");
+    }
+    if (payload.log === null) {
+      throw new Error("선택한 날짜에 저장된 Soot Blower 점검일지가 없습니다.");
+    }
+    const log = payload.log;
+    const form = log?.form;
+    if (!log || typeof log !== "object" || Array.isArray(log) ||
+        log.inspectionDate !== source.date || log.shift !== "NS" ||
+        !form || typeof form !== "object" || Array.isArray(form) ||
+        !form.units || typeof form.units !== "object" || Array.isArray(form.units)) {
+      throw new Error("이전 일지의 날짜 또는 점검항목 형식을 확인할 수 없습니다.");
+    }
+    const units = {};
+    for (const unit of ["unit1", "unit2"]) {
+      const rows = form.units[unit];
+      if (!Array.isArray(rows) || rows.length !== SOOT_CHECK_ITEMS.length) {
+        throw new Error("이전 일지의 호기별 34개 점검항목을 확인할 수 없습니다.");
+      }
+      units[unit] = SOOT_CHECK_ITEMS.map((item, index) => {
+        const row = rows[index];
+        const key = item.groupKey === "sonic"
+          ? `acoustic-${item.number.toLowerCase()}`
+          : `${item.groupKey}-${item.number}`;
+        if (!row || typeof row !== "object" || Array.isArray(row) ||
+            row.number !== item.number || row.key !== key || row.type !== item.type) {
+          throw new Error("이전 일지와 현재 일지의 점검항목이 달라 내용을 불러올 수 없습니다.");
+        }
+        const rawStatus = previousSootValue(row.status);
+        const status = normalizeStatus(rawStatus);
+        if (rawStatus && !status) {
+          throw new Error("이전 일지의 점검결과는 O 또는 X여야 합니다.");
+        }
+        return {
+          number: item.number,
+          status,
+          remark: previousSootValue(row.remark),
+          occurrenceDate: previousSootValue(row.occurrenceDate)
+        };
+      });
+    }
+    return {
+      partLeaderApproval: "",
+      unit1Inspector: previousSootValue(form.unit1Inspector),
+      unit2Inspector: previousSootValue(form.unit2Inspector),
+      units
+    };
+  }
+
+  function applyPreviousSootContent(content) {
+    window.clearTimeout(draftSaveTimer);
+    draftSaveTimer = null;
+    isApplyingData = true;
+    try {
+      applyFormData(content);
+    } finally {
+      isApplyingData = false;
+    }
+    isDirty = true;
+    importedDraftNeedsSave = true;
+    setSaveState("이전 일지 불러옴 · 확인 후 일지 저장");
+  }
+
+  window.GSInspectionPreviousContent?.create({
+    button: importPreviousButton,
+    title: "Soot Blower 주간점검일지",
+    defaultDays: 7,
+    getTarget: () => ({ date: inspectionDate.value }),
+    getSnapshot: () => JSON.stringify({
+      date: inspectionDate.value, id: currentLogId,
+      revision: currentRevision, lastLoadedDate, form: collectFormData()
+    }),
+    isBusy: () => Boolean(saveButton?.disabled || isApplyingData),
+    isDirty: () => isDirty,
+    read: readPreviousSootContent,
+    apply: applyPreviousSootContent
+  });
 
 
   /* =======================================================

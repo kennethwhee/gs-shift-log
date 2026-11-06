@@ -451,6 +451,8 @@ let nightPatrolSaveTimer =
 
 let nightPatrolRecordGeneration = 0;
 let nightPatrolSaveSequence = 0;
+let nightPatrolActiveSaves = 0;
+let nightPatrolImportedDraftNeedsSave = false;
 
 
 /* =========================================================
@@ -1284,6 +1286,8 @@ function markPatrolDirty() {
     nightPatrolSaveTimer
   );
 
+  nightPatrolSaveTimer = null;
+  if (nightPatrolImportedDraftNeedsSave) return;
 
   nightPatrolSaveTimer =
     window.setTimeout(
@@ -1485,6 +1489,7 @@ function loadNightPatrolRecord(
   window.clearTimeout(nightPatrolSaveTimer);
   nightPatrolSaveTimer = null;
   nightPatrolRecordGeneration += 1;
+  nightPatrolImportedDraftNeedsSave = false;
 
   let savedRecord =
     null;
@@ -2193,10 +2198,26 @@ async function synchronizeNightPatrolScheduleStatus(
 async function saveNightPatrolRecord(
   options = {}
 ) {
+  nightPatrolActiveSaves += 1;
+  const importButton = document.getElementById("importPreviousPatrolButton");
+  if (importButton) importButton.disabled = true;
+  try {
+    return await saveNightPatrolRecordContents(options);
+  } finally {
+    nightPatrolActiveSaves -= 1;
+    if (importButton) importButton.disabled = nightPatrolActiveSaves > 0;
+  }
+}
+
+async function saveNightPatrolRecordContents(
+  options = {}
+) {
   const {
     silent =
       false
   } = options;
+
+  if (silent && nightPatrolImportedDraftNeedsSave) return false;
 
   window.clearTimeout(nightPatrolSaveTimer);
   nightPatrolSaveTimer = null;
@@ -2337,6 +2358,7 @@ async function saveNightPatrolRecord(
   nightPatrolSavedSnapshot =
     createPatrolSnapshot();
 
+  nightPatrolImportedDraftNeedsSave = false;
   const savedSnapshot = nightPatrolSavedSnapshot;
   // History reflects persisted data even if the separate schedule sync fails.
   window.GSNightPatrolHistory?.refresh();
@@ -4498,6 +4520,76 @@ function bindNightPatrolEvents() {
 
 
 /* =========================================================
+  이전 일지 내용을 현재 날짜의 미저장 초안으로 불러오기
+========================================================= */
+
+function readPreviousNightPatrolContents(source) {
+  const key = getPatrolStorageKey(source.date, source.listNumber);
+  const text = window.localStorage.getItem(key);
+  if (text === null) throw new Error("선택한 날짜와 순찰 목록에 저장된 일지가 없습니다.");
+  let record;
+  try { record = JSON.parse(text); }
+  catch (_) { throw new Error("저장된 일지 내용을 읽을 수 없습니다. 현재 작성 내용은 유지됩니다."); }
+  const validText = value => typeof value === "string";
+  const statuses = ["양호", "이상", "미점검", "해당없음"];
+  if (!record || typeof record !== "object" || Array.isArray(record) ||
+      record.date !== source.date || Number(record.listNumber) !== source.listNumber ||
+      !Array.isArray(record.members) || record.members.length !== 3 || !record.members.every(validText) ||
+      !Array.isArray(record.entries) || record.entries.length !== 20 ||
+      !record.entries.every(entry => entry && validText(entry.pointId) && entry.pointId.trim() &&
+        validText(entry.pointName) && entry.pointName.trim() && statuses.includes(entry.status) &&
+        (entry.note == null || validText(entry.note))) ||
+      (record.generalNote != null && !validText(record.generalNote))) {
+    throw new Error("저장된 일지의 날짜·목록 또는 점검 내용이 올바르지 않습니다. 현재 작성 내용은 유지됩니다.");
+  }
+  return {
+    members: record.members.map(value => value.trim()),
+    entries: record.entries.map(entry => ({
+      pointId: entry.pointId.trim(), pointName: entry.pointName.trim(),
+      status: entry.status, note: String(entry.note || "").trim()
+    })),
+    generalNote: record.generalNote || ""
+  };
+}
+
+function applyPreviousNightPatrolContents(content) {
+  window.clearTimeout(nightPatrolSaveTimer);
+  nightPatrolSaveTimer = null;
+  nightPatrolRecordGeneration += 1;
+  nightPatrolImportedDraftNeedsSave = true;
+  nightPatrolState.members = [...content.members];
+  // 순찰 지점은 날짜별로 바뀌므로 지점명과 결과·특이사항을 함께 복사한다.
+  nightPatrolState.entries = content.entries.map((entry, index) => ({
+    ...entry,
+    entryId: [nightPatrolState.date, nightPatrolState.listNumber, entry.pointId, index].join("|"),
+    time: NIGHT_PATROL_TIMES[Math.floor(index / 5)]
+  }));
+  nightPatrolState.generalNote = content.generalNote;
+  nightPatrolState.documentStatus = "작성중";
+  nightPatrolState.updatedAt = "";
+  nightPatrolState.completedAt = "";
+  renderNightPatrolScreen();
+  setPatrolSaveState("이전 일지 불러옴 · 확인 후 저장", "dirty");
+}
+
+function initializePreviousNightPatrolContents() {
+  window.GSInspectionPreviousContent?.create({
+    button: document.getElementById("importPreviousPatrolButton"),
+    title: "야간 순찰 점검일지",
+    defaultDays: 1,
+    getTarget: () => ({ date: nightPatrolState.date, listNumber: nightPatrolState.listNumber }),
+    getSnapshot: () => {
+      collectPatrolScreenValues();
+      return JSON.stringify([nightPatrolRecordGeneration, createPatrolRecord()]);
+    },
+    isBusy: () => nightPatrolActiveSaves > 0,
+    isDirty: () => createPatrolSnapshot() !== nightPatrolSavedSnapshot,
+    read: source => readPreviousNightPatrolContents(source),
+    apply: content => applyPreviousNightPatrolContents(content)
+  });
+}
+
+/* =========================================================
   초기 실행
 ========================================================= */
 
@@ -4522,6 +4614,8 @@ function initializeNightPatrolPage() {
     getTodayInputValue(),
     1
   );
+
+  initializePreviousNightPatrolContents();
 }
 
 

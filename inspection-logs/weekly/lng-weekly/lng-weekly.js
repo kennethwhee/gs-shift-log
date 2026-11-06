@@ -100,6 +100,9 @@ function initializeLngWeeklyInspection() {
       "lngCheckSaveButton"
     );
 
+  const importPreviousButton =
+    document.getElementById("importPreviousLngButton");
+
   const previewButton =
     document.getElementById(
       "lngCheckPreviewButton"
@@ -247,6 +250,8 @@ function initializeLngWeeklyInspection() {
 
   let isDirty =
     false;
+
+  let importedDraftNeedsSave = false;
 
   let isApplyingData =
     false;
@@ -1013,6 +1018,7 @@ function ensureAreaCells() {
   ) {
     [
       saveButton,
+      importPreviousButton,
       previewButton,
       archiveOpenButton,
       templateEditButton
@@ -1060,6 +1066,9 @@ function ensureAreaCells() {
     window.clearTimeout(
       draftSaveTimer
     );
+
+    draftSaveTimer = null;
+    if (importedDraftNeedsSave) return;
 
     draftSaveTimer =
       window.setTimeout(
@@ -1228,6 +1237,8 @@ function ensureAreaCells() {
 
 
   function clearFormForNewDate() {
+    importedDraftNeedsSave = false;
+
     getFormFieldElements().forEach(
       element => {
         element.value =
@@ -1299,6 +1310,10 @@ function ensureAreaCells() {
     isDirty =
       false;
 
+    importedDraftNeedsSave = false;
+    window.clearTimeout(draftSaveTimer);
+    draftSaveTimer = null;
+
     isApplyingData =
       false;
 
@@ -1327,6 +1342,9 @@ function ensureAreaCells() {
 
 
   function saveRecoveryDraft() {
+    // Imported contents are not a saved or recoverable log until explicit save.
+    if (importedDraftNeedsSave) return;
+
     const dateValue =
       normalizeText(
         inspectionDate.value
@@ -1463,6 +1481,9 @@ function ensureAreaCells() {
   async function loadLogForDate(
     dateValue
   ) {
+    window.clearTimeout(draftSaveTimer);
+    draftSaveTimer = null;
+
     const targetDate =
       normalizeText(
         dateValue
@@ -1611,6 +1632,14 @@ function ensureAreaCells() {
   ======================================================= */
 
   async function saveInspectionLog() {
+    if (importedDraftNeedsSave &&
+        (!lastLoadedDate || inspectionDate.value !== lastLoadedDate)) {
+      const message = "현재 선택한 날짜의 일지 조회가 완료되지 않았습니다. 날짜를 다시 선택하거나 새로고침한 뒤 저장해 주세요.";
+      setSaveState(message, "error");
+      window.alert(message);
+      return;
+    }
+
     const dateValue =
       normalizeText(
         inspectionDate.value
@@ -2842,6 +2871,109 @@ function replaceCloneFieldsWithText(
       100
     );
   }
+
+
+  /* =======================================================
+    이전 일지의 내용만 현재 날짜에 불러오기
+  ======================================================= */
+
+  function previousLngValue(value) {
+    if (value == null) return "";
+    if (!["string", "number", "boolean"].includes(typeof value) ||
+        (typeof value === "number" && !Number.isFinite(value))) {
+      throw new Error("이전 일지의 입력 내용 형식을 확인할 수 없습니다.");
+    }
+    return String(value).replace(/\r\n?/g, "\n");
+  }
+
+  async function readPreviousLngContent(source, { signal }) {
+    if (!lastLoadedDate || inspectionDate.value !== lastLoadedDate) {
+      throw new Error("현재 선택한 날짜의 일지 조회가 완료되지 않았습니다. 날짜를 다시 선택하거나 새로고침한 뒤 불러와 주세요.");
+    }
+    window.clearTimeout(draftSaveTimer);
+    draftSaveTimer = null;
+
+    const payload = await requestApi(
+      `${LNG_WEEKLY_API_URL}?date=${encodeURIComponent(source.date)}`,
+      { signal }
+    );
+    if (!payload || payload.ok !== true ||
+        !Object.prototype.hasOwnProperty.call(payload, "log")) {
+      throw new Error("LNG 이전 일지 조회 응답을 확인하지 못했습니다. 서버 조회 기능을 확인해 주세요. 현재 내용은 유지됩니다.");
+    }
+    if (payload.log === null) {
+      throw new Error("선택한 날짜에 저장된 LNG 점검일지가 없습니다.");
+    }
+    const log = payload.log;
+    if (!log || typeof log !== "object" || Array.isArray(log) ||
+        log.inspectionDate !== source.date || log.shift !== "DS" ||
+        !log.form || typeof log.form !== "object" || Array.isArray(log.form) ||
+        !log.form.fields || typeof log.form.fields !== "object" || Array.isArray(log.form.fields)) {
+      throw new Error("이전 일지의 날짜 또는 입력 내용 형식을 확인할 수 없습니다.");
+    }
+    if (!Array.isArray(log.templateItems) || log.templateItems.length !== 28 ||
+        log.templateItems.some((item, index) => typeof item === "string"
+          ? !item.trim()
+          : !item || typeof item !== "object" || Array.isArray(item) ||
+            typeof item.item !== "string" || !item.item.trim() ||
+            (item.number != null && item.number !== index + 1))) {
+      throw new Error("이전 일지의 점검항목 양식을 확인할 수 없습니다.");
+    }
+    if (JSON.stringify(cloneTemplateItems(log.templateItems)) !==
+        JSON.stringify(cloneTemplateItems(currentTemplateItems))) {
+      throw new Error("이전 일지와 현재 일지의 점검항목이 달라 내용을 불러올 수 없습니다.");
+    }
+    const formElements = getFormFieldElements();
+    const hasTechnicalField = formElements.some(element =>
+      (element.id.startsWith("lngContent") || element.id.startsWith("lngAction") ||
+        element.id === "lngRemark") &&
+      Object.prototype.hasOwnProperty.call(log.form.fields, element.id)
+    );
+    if (!hasTechnicalField) {
+      throw new Error("이전 일지의 점검 내용 형식을 확인할 수 없습니다. 현재 내용은 유지됩니다.");
+    }
+    const fields = {};
+    for (const element of formElements) {
+      const approval = element.id === "lngPartLeaderApproval" ||
+        element.id === "lngTeamLeaderApproval";
+      fields[element.id] = approval ? "" : previousLngValue(
+        Object.prototype.hasOwnProperty.call(log.form.fields, element.id)
+          ? log.form.fields[element.id]
+          : ""
+      );
+    }
+    return { fields, inspectorName: fields.lngInspectorName || "", remark: fields.lngRemark || "" };
+  }
+
+  function applyPreviousLngContent(content) {
+    window.clearTimeout(draftSaveTimer);
+    draftSaveTimer = null;
+    isApplyingData = true;
+    try {
+      applyFormData(content);
+    } finally {
+      isApplyingData = false;
+    }
+    isDirty = true;
+    importedDraftNeedsSave = true;
+    setSaveState("이전 일지 불러옴 · 확인 후 일지 저장");
+  }
+
+  window.GSInspectionPreviousContent?.create({
+    button: importPreviousButton,
+    title: "LNG System 주간점검 일지",
+    defaultDays: 7,
+    getTarget: () => ({ date: inspectionDate.value }),
+    getSnapshot: () => JSON.stringify({
+      date: inspectionDate.value, id: currentLogId, revision: currentRevision,
+      lastLoadedDate,
+      form: collectFormData(), templateItems: cloneTemplateItems(currentTemplateItems)
+    }),
+    isBusy: () => Boolean(saveButton?.disabled || isApplyingData),
+    isDirty: () => isDirty,
+    read: readPreviousLngContent,
+    apply: applyPreviousLngContent
+  });
 
 
   /* =======================================================

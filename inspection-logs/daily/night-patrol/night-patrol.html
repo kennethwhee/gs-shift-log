@@ -6,7 +6,9 @@
   <title>야간 순찰 점검일지</title>
   <link rel="stylesheet" href="./night-patrol.css?v=20260803-5" />
   <link rel="stylesheet" href="./night-patrol-history.css?v=20261106-history-v1" />
-  <script src="./night-patrol.js?v=20261106-history-v1" defer></script>
+  <link rel="stylesheet" href="../../inspection-previous-content.css?v=20261106-previous-v1" />
+  <script src="../../inspection-previous-content.js?v=20261106-previous-v1" defer></script>
+  <script src="./night-patrol.js?v=20261106-previous-v1" defer></script>
   <script src="./night-patrol-history.js?v=20261106-history-v1" defer></script>
 </head>
 <body>
@@ -22,6 +24,15 @@
         </div>
 
         <div class="patrol-history-toolbar-actions">
+          <button
+            type="button"
+            class="patrol-history-launch-button inspection-previous-launch"
+            id="importPreviousPatrolButton"
+            aria-haspopup="dialog"
+          >
+            이전 일지 불러오기
+          </button>
+
           <button
             type="button"
             class="patrol-history-launch-button"

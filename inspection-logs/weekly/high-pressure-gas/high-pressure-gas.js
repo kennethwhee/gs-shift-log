@@ -152,6 +152,9 @@ function initializeHighPressureGasCheck() {
       "gasCheckSaveButton"
     );
 
+  const importPreviousButton =
+    document.getElementById("importPreviousGasButton");
+
   const previewButton =
     document.getElementById(
       "gasCheckPreviewButton"
@@ -298,6 +301,8 @@ function initializeHighPressureGasCheck() {
 
   let isDirty =
     false;
+
+  let importedDraftNeedsSave = false;
 
   let isApplyingData =
     false;
@@ -1029,6 +1034,7 @@ function initializeHighPressureGasCheck() {
   ) {
     [
       saveButton,
+      importPreviousButton,
       previewButton,
       historyButton,
       templateEditButton
@@ -1078,6 +1084,9 @@ function initializeHighPressureGasCheck() {
     window.clearTimeout(
       draftSaveTimer
     );
+
+    draftSaveTimer = null;
+    if (importedDraftNeedsSave) return;
 
     draftSaveTimer =
       window.setTimeout(
@@ -1323,6 +1332,8 @@ function initializeHighPressureGasCheck() {
 
 
   function clearFormForNewDate() {
+    importedDraftNeedsSave = false;
+
     FORM_INPUT_IDS.forEach(
       id => {
         if (
@@ -1401,6 +1412,10 @@ function initializeHighPressureGasCheck() {
     isDirty =
       false;
 
+    importedDraftNeedsSave = false;
+    window.clearTimeout(draftSaveTimer);
+    draftSaveTimer = null;
+
     isApplyingData =
       false;
 
@@ -1442,6 +1457,9 @@ function initializeHighPressureGasCheck() {
 
 
   function saveRecoveryDraft() {
+    // Imported contents remain in memory until the user explicitly saves.
+    if (importedDraftNeedsSave) return;
+
     const dateValue =
       normalizeText(
         inspectionDate.value
@@ -1626,6 +1644,9 @@ function initializeHighPressureGasCheck() {
   async function loadLogForDate(
     dateValue
   ) {
+    window.clearTimeout(draftSaveTimer);
+    draftSaveTimer = null;
+
     const targetDate =
       normalizeText(
         dateValue
@@ -1775,6 +1796,14 @@ function initializeHighPressureGasCheck() {
   ======================================================= */
 
   async function saveInspectionLog() {
+    if (importedDraftNeedsSave &&
+        (!lastLoadedDate || inspectionDate.value !== lastLoadedDate)) {
+      const message = "현재 선택한 날짜의 일지 조회가 완료되지 않았습니다. 날짜를 다시 선택하거나 새로고침한 뒤 저장해 주세요.";
+      setSaveState(message, "error");
+      window.alert(message);
+      return;
+    }
+
     const dateValue =
       normalizeText(
         inspectionDate.value
@@ -3556,6 +3585,97 @@ async function deleteArchiveLog(
       100
     );
   }
+
+
+  /* =======================================================
+    이전 일지의 내용만 현재 날짜에 불러오기
+  ======================================================= */
+
+  function previousGasValue(value) {
+    if (value == null) return "";
+    if (!["string", "number", "boolean"].includes(typeof value) ||
+        (typeof value === "number" && !Number.isFinite(value))) {
+      throw new Error("이전 일지의 입력 내용 형식을 확인할 수 없습니다.");
+    }
+    return String(value).replace(/\r\n?/g, "\n").trim();
+  }
+
+  async function readPreviousGasContent(source, { signal }) {
+    if (!lastLoadedDate || inspectionDate.value !== lastLoadedDate) {
+      throw new Error("현재 선택한 날짜의 일지 조회가 완료되지 않았습니다. 날짜를 다시 선택하거나 새로고침한 뒤 불러와 주세요.");
+    }
+    window.clearTimeout(draftSaveTimer);
+    draftSaveTimer = null;
+
+    const payload = await requestApi(
+      `${HIGH_PRESSURE_GAS_API_URL}?date=${encodeURIComponent(source.date)}`,
+      { signal }
+    );
+    if (!payload || payload.ok !== true ||
+        !Object.prototype.hasOwnProperty.call(payload, "log")) {
+      throw new Error("이전 일지 조회 응답을 확인하지 못했습니다. 현재 내용은 유지됩니다.");
+    }
+    if (payload.log === null) {
+      throw new Error("선택한 날짜에 저장된 고압가스 점검일지가 없습니다.");
+    }
+    const log = payload.log;
+    if (!log || typeof log !== "object" || Array.isArray(log) ||
+        log.inspectionDate !== source.date || log.shift !== "DS" ||
+        !log.form || typeof log.form !== "object" || Array.isArray(log.form) ||
+        !Array.isArray(log.form.results) || log.form.results.length !== 12) {
+      throw new Error("이전 일지의 날짜 또는 점검항목 형식을 확인할 수 없습니다.");
+    }
+    if (!Array.isArray(log.templateItems) || log.templateItems.length !== 12 ||
+        log.templateItems.some((item, index) => !item || typeof item !== "object" ||
+          Array.isArray(item) || typeof item.item !== "string" || !item.item.trim() ||
+          typeof item.description !== "string" ||
+          (item.number != null && item.number !== index + 1))) {
+      throw new Error("이전 일지의 점검항목 양식을 확인할 수 없습니다.");
+    }
+    if (JSON.stringify(cloneTemplateItems(log.templateItems)) !==
+        JSON.stringify(cloneTemplateItems(currentTemplateItems))) {
+      throw new Error("이전 일지와 현재 일지의 점검항목이 달라 내용을 불러올 수 없습니다.");
+    }
+    return {
+      safetyManager: "",
+      safetyGeneralManager: "",
+      inspectorName: previousGasValue(log.form.inspectorName),
+      overallResult: previousGasValue(log.form.overallResult),
+      results: log.form.results.map(previousGasValue),
+      workplaceConfirmation: "",
+      finalInspector: ""
+    };
+  }
+
+  function applyPreviousGasContent(content) {
+    window.clearTimeout(draftSaveTimer);
+    draftSaveTimer = null;
+    isApplyingData = true;
+    try {
+      applyFormData(content);
+    } finally {
+      isApplyingData = false;
+    }
+    isDirty = true;
+    importedDraftNeedsSave = true;
+    setSaveState("이전 일지 불러옴 · 확인 후 일지 저장");
+  }
+
+  window.GSInspectionPreviousContent?.create({
+    button: importPreviousButton,
+    title: "고압가스 저장시설 주간점검표",
+    defaultDays: 7,
+    getTarget: () => ({ date: inspectionDate.value }),
+    getSnapshot: () => JSON.stringify({
+      date: inspectionDate.value, id: currentLogId, revision: currentRevision,
+      lastLoadedDate,
+      form: collectFormData(), templateItems: cloneTemplateItems(currentTemplateItems)
+    }),
+    isBusy: () => Boolean(saveButton?.disabled || isApplyingData),
+    isDirty: () => isDirty,
+    read: readPreviousGasContent,
+    apply: applyPreviousGasContent
+  });
 
 
   /* =======================================================

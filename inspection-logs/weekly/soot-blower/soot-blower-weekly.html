@@ -15,8 +15,18 @@
     href="soot-blower-weekly.css?v=20260927-inspection-compact-v1"
   >
 
+  <link
+    rel="stylesheet"
+    href="../../inspection-previous-content.css?v=20261106-previous-v1"
+  >
+
   <script
-    src="soot-blower-weekly.js?v=20260927-soot-api-v1"
+    src="../../inspection-previous-content.js?v=20261106-previous-v1"
+    defer
+  ></script>
+
+  <script
+    src="soot-blower-weekly.js?v=20261106-previous-v1"
     defer
   ></script>
 </head>
@@ -62,6 +72,15 @@
 
 
         <div class="soot-check-toolbar__actions">
+          <button
+            type="button"
+            class="inspection-previous-launch"
+            id="importPreviousSootButton"
+            aria-haspopup="dialog"
+          >
+            이전 일지 불러오기
+          </button>
+
           <button
             type="button"
             id="sootArchiveOpenButton"
