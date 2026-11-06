@@ -37,7 +37,7 @@ function asset(overrides = {}) {
 
 test('all-status dashboard owns one latest-query card, one refresh action, and one inline status', () => {
   assert.equal((html.match(/id="refreshButton"/g) || []).length, 1);
-  assert.match(html, /id="overviewRefreshPanel"[\s\S]*?<span>최신 조회<\/span>[\s\S]*?id="overviewLatestQueryAt"/);
+  assert.match(html, /id="overviewRefreshPanel"[\s\S]*?<span>가장 최근 반영<\/span>[\s\S]*?id="overviewLatestQueryAt"/);
   assert.equal((html.match(/id="overviewRefreshInlineStatus"/g) || []).length, 1);
   assert.match(html, /id="overviewRefreshCount"/);
   assert.match(html, /id="overviewRefreshElapsed"/);

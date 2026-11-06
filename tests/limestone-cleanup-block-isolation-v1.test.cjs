@@ -52,6 +52,7 @@ function agentHarness({ cofiring = false, bedAsh = false, response, api } = {}) 
     isBedAshExcelBlocked: () => bedAsh,
     normalizeOisAgentText: value => String(value ?? '').trim(),
     DAILY_OPERATION_REQUEST_TYPE: 'daily_operation_data',
+    BLOWER_RUNTIME_PROBE_REQUEST_TYPE: 'blower_runtime_probe',
     getOisAgentApiUrl: (_config, params) => {
       const url = new URL('https://example.test/api/ois-data-requests');
       for (const [name, value] of Object.entries(params)) url.searchParams.set(name, String(value));

@@ -78,6 +78,8 @@
     data: null,
     activeType: "all",
     statusFilter: "all",
+    overviewFilter: "all",
+    overviewFilterType: "",
     historyAssetTag: "",
     subview: "overview",
     busy: false,
@@ -1003,6 +1005,12 @@
   }
 
   function renderStatusFilters() {
+    if (state.activeType === "all" && window.BlowerRuntimeAssessment) {
+      const toolbar = elements.statusFilters.closest?.(".status-toolbar");
+      if (toolbar) toolbar.hidden = true;
+      elements.statusFilters.innerHTML = "";
+      return;
+    }
     const assets = getActiveAssets();
     const missingSlots = getActiveMissingSlots();
     const counts = assets.reduce((result, asset) => {
@@ -1970,7 +1978,200 @@
     return { key: "coverage-gap", label: "누적 구간 확인" };
   }
 
-  function renderAllOverviewCard(asset) {
+  // The overview shares one presentation assessment for its values, review
+  // filters and counts. It never changes the saved runtime or its receipt.
+  function overviewManualTimestamp(asset) {
+    const evidence = asset.runtimeCoverageEvidence;
+    if (evidence?.version !== 1 && asset.runRuntime?.verified === true && asset.runRuntime.source === "manual" &&
+        Number.isFinite(Date.parse(asset.runRuntime.measuredAt || ""))) return asset.runRuntime.measuredAt;
+    const stored = asset.cycleElapsedHours ?? asset.runtimeHours;
+    const ownerAt = asset.runRuntime?.measuredAt || asset.runtimeMeasuredAt || asset.cycleRuntimeAnchorAt;
+    return evidence?.version === 1 && evidence.source === "manual" && evidence.measurementVerified === true &&
+      stored !== null && stored !== undefined && typeof stored !== "boolean" &&
+      !(typeof stored === "string" && !stored.trim()) && typeof evidence.hours === "number" &&
+      Number.isFinite(Number(stored)) && Math.abs(evidence.hours - Number(stored)) <= 0.000001 &&
+      Number.isFinite(Date.parse(evidence.observedAt || "")) && Date.parse(evidence.observedAt) === Date.parse(ownerAt || "")
+      ? evidence.observedAt : "";
+  }
+
+  function allOverviewRuntimeAssessment(asset, view = allOverviewOperation(asset), referenceObservedAt = null) {
+    const assessor = window.BlowerRuntimeAssessment;
+    if (!assessor?.assess) return null;
+    const coverage = commonRunCoverage(asset);
+    const basis = asset.dataParcRuntimeBasis || view.basis;
+    const manualAt = overviewManualTimestamp(asset);
+    const manual = Boolean(manualAt);
+    const rawHours = manual ? asset.cycleElapsedHours ?? asset.runtimeHours
+      : coverage ? coverage.hours : asset.cycleElapsedHours ?? asset.runtimeHours;
+    const hours = rawHours === null || rawHours === undefined || typeof rawHours === "boolean" ||
+      typeof rawHours === "string" && !rawHours.trim() ? null
+      : Number.isFinite(Number(rawHours)) && Number(rawHours) >= 0 ? Number(rawHours) : null;
+    const evidence = asset.runtimeCoverageEvidence;
+    const ownerAt = asset.runRuntime?.measuredAt || asset.runtimeMeasuredAt || asset.cycleRuntimeAnchorAt;
+    const linkedEvidence = evidence?.version === 1 && evidence.source === "dataparc" &&
+      evidence.measurementVerified === true && hours !== null && typeof evidence.hours === "number" &&
+      Math.abs(evidence.hours - hours) <= 0.000001 && typeof evidence.requestId === "string" &&
+      evidence.requestId.length > 0 && evidence.requestId === basis?.requestId &&
+      Number.isFinite(Date.parse(evidence.observedAt || "")) &&
+      Date.parse(evidence.observedAt) === Date.parse(basis?.observedAt || "") &&
+      (!ownerAt || Date.parse(evidence.observedAt) === Date.parse(ownerAt)) &&
+      (!asset.runRuntime || asset.runRuntime.verified === true && asset.runRuntime.source === "dataparc");
+    const measuredBasis = linkedEvidence ? evidence : view.basis;
+    let review = compactRunCoverageStatus(coverage);
+    const explicitReview = Boolean(coverage?.sourceReview || coverage?.rolePriority || coverage?.completionClockConflict ||
+      coverage?.automaticReplacement || coverage?.rangeTracking || coverage?.registeredRuntimeRange);
+    if (linkedEvidence && review?.key === "coverage-gap" && !explicitReview &&
+        evidence.wholeCycleVerified === true) review = null;
+    else if (linkedEvidence && review?.key === "coverage-gap" && evidence.coverageComplete === true &&
+        evidence.missingLeadingSeconds === 0 && evidence.cycleBasisConfirmed !== true) {
+      review = { key: "replacement-basis-review", label: "교체 기준 확인" };
+    }
+    // An independent Limestone RUN ledger does not certify the old belt
+    // checkpoint. Keep that physical-basis review even on an older API that
+    // supplies dates without canonical coverage evidence, or after a manual
+    // correction that establishes only a value, not a replacement boundary.
+    if (!review && isLimestoneDisputedAsset(asset)) {
+      review = { key: "replacement-basis-review", label: "교체 기준 확인" };
+    }
+    const pending = asset.replacementAutoCycle?.requiresRunRefresh === true || hours === null ||
+      asset.measurementRequired === true && asset.runRuntime?.verified !== true;
+    // A canonical rejection must not be promoted again by legacy date-only or
+    // family-specific fallback projections. Those fallbacks serve older APIs.
+    const measured = !manual && (linkedEvidence || evidence?.version !== 1 &&
+      (asset.runRuntime?.verified === true && asset.runRuntime.source === "dataparc" ||
+        !review && !pending && isDataParcRuntimeAsset(asset) && measuredBasis?.startAt && measuredBasis?.observedAt));
+    const canManage = hasAuthenticatedWriteAccess() && !isMobileMonitoringView() &&
+      !state.busy && !state.unifiedRefreshBusy && !state.dataparcRuntimeBusy && !state.backfillRunning;
+    let action = { key: "history", label: "근거 보기", available: true };
+    if (canManage) {
+      const firstRun = sealPotFirstRunBasis(asset);
+      if (review && firstRun && !sealPotFirstRunPeriod(asset, firstRun)) {
+        action = { key: "seal_pot_first_run", label: "실제 기동 기준 확인", available: true };
+      } else if (review && confirmedGapRecoveryProof(asset)) {
+        action = { key: "confirmed_gap_recovery", label: "누락 구간 보완", available: true };
+      } else if (review?.key === "replacement-basis-review" && asset.blowerType === "limestone" &&
+          LIMESTONE_DISPUTED_RUN_TAGS.has(asset.tagNumber)) {
+        action = { key: "limestone_basis_confirm", label: "교체 기준 확인", available: true };
+      } else if (pending && asset.lastReplacementAt && isDataParcRuntimeAsset(asset)) {
+        action = { key: "runtime_query", label: "조회 기준 확인", available: true };
+      }
+    }
+    const trackedRun = manual ? null : verifiedLimestoneRunDisplay(asset);
+    return assessor.assess({
+      tagNumber: asset.tagNumber, enabled: asset.enabled, hours,
+      provenance: manual ? "manual" : measured ? "measured" : hours !== null ? "retained" : "unknown",
+      pending, wholeCycleVerified: linkedEvidence && evidence.wholeCycleVerified === true,
+      coverage: manual ? { complete: null, startAt: null, observedAt: null, requiredStartAt: null, missingLeadingSeconds: null } : {
+        complete: linkedEvidence ? evidence.coverageComplete : measuredBasis?.coverageComplete,
+        startAt: measuredBasis?.startAt, observedAt: measuredBasis?.observedAt,
+        requiredStartAt: measuredBasis?.requiredStartAt,
+        missingLeadingSeconds: linkedEvidence ? evidence.missingLeadingSeconds : null
+      },
+      review, action,
+      operation: { state: manual ? asset.runRuntime?.state || asset.cycleRuntimeState : trackedRun?.state || view.state,
+        intermittent: view.intermittent,
+        observedAt: manualAt || trackedRun?.basis?.observedAt || ownerAt || view.basis?.observedAt },
+      referenceObservedAt: referenceObservedAt || allOverviewQueryStats().latest?.observedAt
+    });
+  }
+
+  function overviewSeparateRunObservedAt(assessment) {
+    const operation = assessment?.operation;
+    return assessment?.scope !== "manual" && ["running", "stopped"].includes(operation?.state) &&
+      operation.observedAt && Date.parse(operation.observedAt) !== Date.parse(assessment.coverage?.observedAt || "")
+      ? operation.observedAt : "";
+  }
+
+  function matchesOverviewFilter(asset, assessment, filter = state.overviewFilter || "all", type = state.overviewFilterType || "") {
+    if (type && asset.blowerType !== type) return false;
+    if (!assessment) return true;
+    if (!assessment.enabled) return false;
+    if (filter === "review") return assessment.requiresReview;
+    if (["basis", "range", "measurement"].includes(filter)) return assessment.requiresReview && assessment.reviewGroup === filter;
+    if (filter === "behind") return assessment.freshness.state === "behind";
+    if (filter === "running" || filter === "stopped") return !assessment.operation.intermittent && assessment.operation.state === filter;
+    if (filter === "intermittent") return assessment.operation.intermittent;
+    if (filter === "alerts") return ["warning", "critical", "overdue"].includes(displaySeverity(asset));
+    return true;
+  }
+
+  function renderRuntimeAssessmentOverviewCard(asset, info) {
+    const { assessment, view, position, replacement, severity, disputedLimestone, transition, maintenance, partialCoverage, preview } = info;
+    const operation = assessment.operation;
+    const operationState = operation.intermittent ? "intermittent" : operation.state;
+    const operationLabel = operation.state === "running" ? "기동중" : operation.state === "stopped" ? "정지중" : "상태 미확인";
+    const referenceLabel = isInitialStartupBasis(asset) ? "최초 기동" : partialCoverage?.registeredRuntimeRange ? "조회 기준" : "교체 기준";
+    const referenceValue = replacement.split(" · ")[0];
+    const manual = assessment.scope === "manual";
+    const startText = manual ? formatKstDateTimeDisplay(overviewManualTimestamp(asset))
+      : assessment.coverage.startAt ? formatKstDateTimeDisplay(assessment.coverage.startAt) : "조회 전";
+    const observedText = manual ? "직접 입력값" : assessment.coverage.observedAt
+      ? formatKstDateTimeDisplay(assessment.coverage.observedAt) : "조회 전";
+    const behind = assessment.freshness.state === "behind";
+    const shortMaintenance = maintenance ? maintenance.replace(/^.*?업무일지 · /, "") : "";
+    const shortTransition = transition ? `${operation.state === "stopped" ? "최근 정지" : "최근 연속 기동"} ${transition.period.split(" → ")[0]}` : "";
+    const note = assessment.reasonLabel || shortMaintenance || shortTransition || "";
+    const separateRunAt = overviewSeparateRunObservedAt(assessment);
+    const previewAt = !manual && preview ? preview.previewObservedAt : "";
+    const separateRunNote = previewAt
+      ? `최근 RUN 확인 ${preview.previewState === "running" ? "기동중" : "정지중"} · ${formatKstDateTimeDisplay(previewAt)} · 누적 미반영`
+      : separateRunAt ? `최근 RUN 확인 ${formatKstDateTimeDisplay(separateRunAt)} · 누적 미반영` : "";
+    const separateRunAttributes = previewAt ? ' data-limestone-run-preview="true"'
+      : ` data-operation-observed-at="${escapeHtml(separateRunAt)}"${disputedLimestone ? ' data-limestone-run-asof="true"' : ''}`;
+    const noteTitle = [assessment.reasonLabel, maintenance, transition ? `${transition.label} ${transition.period}` : "", separateRunNote].filter(Boolean).join(" · ");
+    const exactPeriod = manual ? `수동 보정 기준시각 ${startText}` : `데이터 조회 기간 ${startText} → ${observedText}`;
+    const runtimeText = assessment.hours === null ? "조회 대기"
+      : `${assessment.hours.toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간`;
+    const actionLabel = assessment.nextActionKey === "history" && !assessment.requiresReview ? "이력 보기" : assessment.nextActionLabel;
+    return `<article class="all-overview-card-shell" data-runtime-review="${assessment.requiresReview ? "true" : "false"}" data-runtime-scope="${escapeHtml(assessment.scope)}">
+      <button type="button" class="all-overview-card is-assessed" data-asset-action="history" data-tag="${escapeHtml(asset.tagNumber)}"
+        data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(operationState)}" data-operation-mode="${operation.intermittent ? "intermittent" : "standard"}"
+        ${disputedLimestone ? 'data-limestone-display="previous-checkpoint"' : ''} aria-label="${escapeHtml(`${position} 상세 이력 보기`)}">
+        <span class="all-overview-card-head">
+          <span class="all-overview-identity"><strong>${escapeHtml(position)}</strong><small>${escapeHtml(asset.tagNumber)}</small></span>
+          <span class="all-overview-status-badges">${operation.intermittent
+            ? '<span class="operation-mode-pill intermittent">간헐운전</span>'
+            : `<span class="operation-pill ${escapeHtml(operation.state)}">${escapeHtml(operationLabel)}</span>`}</span>
+        </span>
+        <span class="overview-runtime-heading"><small>누적 운전시간</small><span class="overview-runtime-scope" data-scope="${escapeHtml(assessment.scope)}">${escapeHtml(assessment.scopeLabel)}</span></span>
+        <strong class="overview-runtime-value${assessment.scope === "pending" ? " is-pending" : ""}">${escapeHtml(runtimeText)}</strong>
+        <span class="overview-fact-row overview-reference" title="${escapeHtml(`${referenceLabel} ${replacement}`)}"><small>${escapeHtml(referenceLabel)}</small><strong>${escapeHtml(referenceValue)}</strong></span>
+        <span class="overview-query-facts" aria-label="${escapeHtml(exactPeriod)}" title="${escapeHtml(exactPeriod)}">
+          <span class="overview-fact-row"><small>${manual ? "보정 시각" : "조회 시작"}</small><strong>${escapeHtml(startText)}</strong></span>
+          <span class="overview-fact-row" data-freshness="${escapeHtml(assessment.freshness.state)}"><small>${manual ? "입력 방식" : "반영 시각"}</small><strong>${escapeHtml(observedText)}</strong>${behind ? '<em title="다른 설비의 가장 최근 조회 종료시각보다 앞선 값입니다. 조회 실패를 뜻하지 않습니다.">이전</em>' : ""}</span>
+        </span>
+        <span class="overview-card-note"${assessment.requiresReview ? ` data-run-coverage="partial" data-run-basis-status="${escapeHtml(assessment.reasonKey)}"` : ""} title="${escapeHtml(noteTitle)}">${note ? escapeHtml(note) : '<span aria-hidden="true">&nbsp;</span>'}${separateRunNote ? `<small class="overview-run-asof"${separateRunAttributes}>${escapeHtml(separateRunNote)}</small>` : ""}</span>
+      </button>
+      <button type="button" class="overview-next-action" data-asset-action="overview_review" data-tag="${escapeHtml(asset.tagNumber)}" data-overview-next="${escapeHtml(assessment.nextActionKey)}"
+        aria-label="${escapeHtml(`${position} ${actionLabel}`)}"><span>${escapeHtml(actionLabel)}</span><span aria-hidden="true">→</span></button>
+    </article>`;
+  }
+
+  function openOverviewAssessmentAction(tagNumber) {
+    const asset = findAsset(tagNumber);
+    if (!asset) return;
+    const assessment = allOverviewRuntimeAssessment(asset);
+    if (!assessment || assessment.nextActionKey === "history") { openAssetHistory(tagNumber); return; }
+    // Re-evaluate the existing permission and proof helpers at click time.
+    if (!hasAuthenticatedWriteAccess() || isMobileMonitoringView() || state.busy || state.unifiedRefreshBusy ||
+        state.dataparcRuntimeBusy || state.backfillRunning) { openAssetHistory(tagNumber); return; }
+    if (assessment.nextActionKey === "confirmed_gap_recovery" && confirmedGapRecoveryProof(asset)) {
+      openDataParcRuntimeDialog(tagNumber, { confirmedGap: true });
+      return;
+    }
+    if (assessment.nextActionKey === "limestone_basis_confirm") { openLimestoneBasisDialog(tagNumber); return; }
+    if (assessment.nextActionKey === "runtime_query") { openDataParcRuntimeDialog(tagNumber); return; }
+    // The first-run workflow starts a query from its explicit history button.
+    // Opening an overview card only opens and focuses that existing workflow.
+    openAssetHistory(tagNumber);
+    if (assessment.nextActionKey === "seal_pot_first_run") {
+      const button = elements.historyCycleSummary.querySelector?.('[data-history-action="seal_pot_first_run"]');
+      button?.scrollIntoView?.({ block: "nearest" });
+      button?.focus?.();
+    }
+  }
+
+  function renderAllOverviewCard(asset, runtimeAssessment = null) {
     const partialCoverage = typeof commonRunCoverage === "function" ? commonRunCoverage(asset) : null;
     const coverageStatus = compactRunCoverageStatus(partialCoverage);
     const manualRuntime = asset.runRuntime?.verified === true && asset.runRuntime.source === "manual";
@@ -2006,6 +2207,14 @@
     const previewLine = disputedLimestone && !trackedRun && preview?.previewOnly === true && ['running','stopped'].includes(preview.previewState)
       ? `<span class="all-overview-query-period" data-limestone-run-preview="true"><small>최근 RUN 확인 (누적 미반영)</small><strong>${escapeHtml(preview.previewState === 'running' ? 'RUN=1 · 기동' : 'RUN=0 · 정지')} · ${escapeHtml(formatKstDateTimeDisplay(preview.previewObservedAt))} · 구간 ${escapeHtml(Number(preview.previewHours).toFixed(1))}h</strong></span>`
       : '';
+    const assessment = runtimeAssessment || allOverviewRuntimeAssessment(asset, view);
+    if (assessment) return renderRuntimeAssessmentOverviewCard(asset, {
+      assessment, view, position, replacement, severity, disputedLimestone, transition, maintenance, partialCoverage,
+      preview: disputedLimestone && !trackedRun && preview?.previewOnly === true &&
+        ["running", "stopped"].includes(preview.previewState) && typeof preview.previewObservedAt === "string" &&
+        /(?:Z|[+-]\d{2}:\d{2})$/.test(preview.previewObservedAt) && Number.isFinite(Date.parse(preview.previewObservedAt))
+        ? preview : null
+    });
     return `
       <button type="button" class="all-overview-card" data-asset-action="history" data-tag="${escapeHtml(asset.tagNumber)}"
         data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(overviewOperationState)}" data-operation-mode="${view.intermittent ? "intermittent" : "standard"}"${disputedLimestone ? ' data-limestone-display="previous-checkpoint"' : ''}
@@ -2046,8 +2255,16 @@
   }
 
   function renderAllOverviewDashboard(assets, missingSlots) {
-    const filteredAssets = assets.filter(asset => state.statusFilter === "all" || displaySeverity(asset) === state.statusFilter);
-    const filteredMissing = ["all", "unknown"].includes(state.statusFilter) ? missingSlots : [];
+    const assessmentEnabled = Boolean(window.BlowerRuntimeAssessment?.assess);
+    if (assessmentEnabled) assets = assets.filter(asset => asset.enabled !== false && asset.enabled !== 0);
+    const referenceObservedAt = assessmentEnabled ? allOverviewQueryStats().latest?.observedAt : null;
+    const assessments = new Map(assessmentEnabled ? assets.map(asset =>
+      [asset.tagNumber, allOverviewRuntimeAssessment(asset, allOverviewOperation(asset), referenceObservedAt)]) : []);
+    const filteredAssets = assets.filter(asset => (state.statusFilter === "all" || displaySeverity(asset) === state.statusFilter) &&
+      (!assessmentEnabled || matchesOverviewFilter(asset, assessments.get(asset.tagNumber))));
+    const filteredMissing = ["all", "unknown"].includes(state.statusFilter) &&
+      (!assessmentEnabled || ["all", "review", "measurement"].includes(state.overviewFilter || "all"))
+      ? missingSlots.filter(slot => !assessmentEnabled || !state.overviewFilterType || slot.blowerType === state.overviewFilterType) : [];
     const types = state.data?.types || [];
     const operationViews = assets.map(allOverviewOperation);
     // Intermittent organic/manure Blowers have their own operating-mode bucket.
@@ -2060,7 +2277,7 @@
     ).length + missingSlots.length;
     const intermittentCount = assets.filter(asset => asset.blowerType === "organic_fuel" || asset.assetGroup === "manure").length;
     const replacementAlerts = assets.filter(asset => ["warning", "critical", "overdue"].includes(displaySeverity(asset))).length;
-    const summary = `
+    let summary = `
       <section class="all-overview-summary" aria-label="전체 Blower 요약">
         <div><span>전체</span><strong>${(assets.length + missingSlots.length).toLocaleString("ko-KR")}대</strong></div>
         <div><span>현재 기동</span><strong>${running.toLocaleString("ko-KR")}대</strong></div>
@@ -2069,6 +2286,26 @@
         <div><span>확인 필요</span><strong>${needsCheck.toLocaleString("ko-KR")}대</strong></div>
         <div><span>교체 알림</span><strong>${replacementAlerts.toLocaleString("ko-KR")}대</strong></div>
       </section>`;
+    if (assessmentEnabled) {
+      const counts = window.BlowerRuntimeAssessment.summarize([...assessments.values()]);
+      const filter = state.overviewFilter || "all";
+      const summaryButton = (key, label, count, title = "") => `<button type="button" class="overview-count-filter${filter === key && !state.overviewFilterType ? " is-active" : ""}"
+        data-overview-filter="${escapeHtml(key)}" aria-pressed="${filter === key && !state.overviewFilterType ? "true" : "false"}"${title ? ` title="${escapeHtml(title)}"` : ""}><span>${escapeHtml(label)}</span><strong>${count.toLocaleString("ko-KR")}대</strong></button>`;
+      const reviewButtons = [["basis", "교체 기준", counts.basisReview], ["range", "조회 구간", counts.rangeReview],
+        ["measurement", "조회 필요", counts.measurementReview + missingSlots.length], ["behind", "조회 시각 차이", counts.behind]]
+        .filter(([key, , count]) => count > 0 || filter === key)
+        .map(([key, label, count]) => `<button type="button" class="overview-review-filter${filter === key && !state.overviewFilterType ? " is-active" : ""}" data-overview-filter="${key}" aria-pressed="${filter === key && !state.overviewFilterType ? "true" : "false"}">${label}<strong>${count}대</strong></button>`).join("");
+      const filteredNote = filter !== "all" || state.overviewFilterType
+        ? `<span class="overview-filter-result">${filteredAssets.length + filteredMissing.length} / ${assets.length + missingSlots.length}대 표시</span>` : "";
+      summary = `<section class="all-overview-summary is-assessed" aria-label="전체 Blower 요약 및 필터">
+        ${summaryButton("all", "전체", counts.total + missingSlots.length)}
+        ${summaryButton("running", "기동", counts.running, "각 카드의 RUN 확인 시각 기준입니다.")}
+        ${summaryButton("stopped", "정지", counts.stopped, "각 카드의 RUN 확인 시각 기준입니다.")}
+        ${summaryButton("intermittent", "간헐운전", counts.intermittent, "유기성·축분 Blower의 운전 특성입니다. 기동·정지 집계와 구분합니다.")}
+        ${summaryButton("review", "확인 필요", counts.requiresReview + missingSlots.length, "교체 기준·조회 구간·측정 근거를 확인할 설비입니다. 조회 시각 차이는 별도로 표시합니다.")}
+        ${summaryButton("alerts", "교체 알림", replacementAlerts)}
+      </section><div class="overview-assessment-context"><div class="overview-review-filters">${reviewButtons}${filteredNote}</div><small>누적 반영 시각과 RUN 확인 시각이 다르면 카드에 따로 표시합니다.</small></div>`;
+    }
     const unitGroupMeta = (item, blowerType) => {
       const groupKey = String(item?.assetGroup || item?.groupKey || "").trim().toLowerCase();
       const unitNo = String(item?.unitNo || "").trim().toLowerCase();
@@ -2111,25 +2348,29 @@
               </header>
               <div class="all-overview-unit-card-grid" data-card-count="${cardCountClass}">
                 ${entries.map(entry => entry.kind === "asset"
-                  ? renderAllOverviewCard(entry.item)
+                  ? renderAllOverviewCard(entry.item, assessments.get(entry.item.tagNumber))
                   : renderAllOverviewMissingCard(entry.item)).join("")}
               </div>
             </section>`;
         }).join("");
 
+      const typeReviewCount = assessmentEnabled ? assets.filter(asset => asset.blowerType === type.key && assessments.get(asset.tagNumber)?.requiresReview).length
+        + missingSlots.filter(slot => slot.blowerType === type.key).length : 0;
+      const typeReviewButton = typeReviewCount ? `<button type="button" class="overview-group-review" data-overview-filter="review" data-overview-filter-type="${escapeHtml(type.key)}">확인 ${typeReviewCount}대</button>` : "";
       return `
         <section class="all-overview-group" data-overview-type="${escapeHtml(type.key)}">
-          <header><h3>${escapeHtml(type.label)}</h3><span>${total.toLocaleString("ko-KR")}대</span></header>
+          <header><h3>${escapeHtml(type.label)}</h3><span class="overview-group-count">${typeReviewButton}<span>${total.toLocaleString("ko-KR")}대</span></span></header>
           <div class="all-overview-unit-layout" data-unit-count="${unitGroups.size}">
             ${unitPanels}
           </div>
         </section>`;
     }).join("");
-    return `<div class="all-overview-dashboard">${summary}${groups || '<div class="empty-state compact">선택한 상태의 Blower가 없습니다.</div>'}</div>`;
+    return `<div class="all-overview-dashboard${assessmentEnabled ? " has-runtime-assessment" : ""}">${summary}${groups || '<div class="empty-state compact">선택한 상태의 Blower가 없습니다.</div>'}</div>`;
   }
 
   function allOverviewQueryStats() {
     const rows = (state.data?.assets || []).map(asset => {
+      if (window.BlowerRuntimeAssessment && (asset.enabled === false || asset.enabled === 0 || overviewManualTimestamp(asset))) return null;
       const basis = getLatestDataParcRuntimeBasis(asset.tagNumber);
       const observedAt = String(basis?.observedAt || "").trim();
       const observedTime = Date.parse(observedAt);
@@ -2138,6 +2379,7 @@
     rows.sort((left, right) => left.observedTime - right.observedTime);
     return {
       queriedCount: rows.length,
+      latestCount: rows.length ? rows.filter(row => row.observedTime === rows[rows.length - 1].observedTime).length : 0,
       latest: rows[rows.length - 1] || null,
       oldest: rows[0] || null
     };
@@ -2540,12 +2782,20 @@
     if (stats.oldest && stats.latest && stats.latest.observedTime - stats.oldest.observedTime >= 60000) {
       detail += ` · 가장 오래된 조회 ${formatKstDateTimeDisplay(stats.oldest.observedAt)}`;
     }
+    if (window.BlowerRuntimeAssessment && stats.queriedCount) {
+      const earlier = stats.queriedCount - stats.latestCount;
+      detail = `조회 이력 ${stats.queriedCount}대 · 같은 종료시각 ${stats.latestCount}대` +
+        (earlier ? ` · 이전 조회 ${earlier}대 (${formatKstDateTimeDisplay(stats.oldest.observedAt)})` : " · 전체 시각 일치") +
+        " · 전체 최신화는 마지막 성공 이후를 이어서 조회합니다.";
+    }
     elements.overviewLatestQueryDetail.textContent = detail;
     updateOverviewRefreshProgress();
   }
 
   function renderAssets() {
-    const assets = getActiveAssets();
+    const activeAssets = getActiveAssets();
+    const assets = state.activeType === "all" && window.BlowerRuntimeAssessment
+      ? activeAssets.filter(asset => asset.enabled !== false && asset.enabled !== 0) : activeAssets;
     const missingSlots = getActiveMissingSlots();
     const setting = getActiveSetting();
     const html = state.activeType === "all"
@@ -2553,13 +2803,19 @@
       : buildAssetSectionsHtml(assets, missingSlots, setting, state.statusFilter);
 
     const total = assets.length + missingSlots.length;
-    const visible = state.statusFilter === "all"
+    const overviewFiltered = state.activeType === "all" && window.BlowerRuntimeAssessment &&
+      (state.overviewFilter !== "all" || state.overviewFilterType);
+    const visible = overviewFiltered
+      ? assets.filter(asset => matchesOverviewFilter(asset, allOverviewRuntimeAssessment(asset))).length +
+        (["all", "review", "measurement"].includes(state.overviewFilter) ? missingSlots.filter(slot =>
+          !state.overviewFilterType || slot.blowerType === state.overviewFilterType).length : 0)
+      : state.statusFilter === "all"
       ? total
       : assets.filter(asset => displaySeverity(asset) === state.statusFilter).length
         + (state.statusFilter === "unknown" ? missingSlots.length : 0);
 
-    elements.visibleAssetCount.hidden = state.statusFilter === "all";
-    elements.visibleAssetCount.textContent = state.statusFilter === "all"
+    elements.visibleAssetCount.hidden = state.statusFilter === "all" && !overviewFiltered;
+    elements.visibleAssetCount.textContent = state.statusFilter === "all" && !overviewFiltered
       ? ""
       : `${visible.toLocaleString("ko-KR")} / ${total.toLocaleString("ko-KR")}대`;
     elements.assetGroups.innerHTML = html || `
@@ -2802,6 +3058,11 @@
 
     state.historyAssetTag = tagNumber;
     const partialCoverage = commonRunCoverage(asset);
+    const overviewView = allOverviewOperation(asset);
+    const runtimeAssessment = allOverviewRuntimeAssessment(asset, overviewView);
+    const savedCoverageStatus = compactRunCoverageStatus(partialCoverage);
+    const differentCoverageAssessment = Boolean(runtimeAssessment && partialCoverage &&
+      (!runtimeAssessment.requiresReview || runtimeAssessment.reasonKey !== savedCoverageStatus?.key));
     const severity = displaySeverity(asset);
     const awaitingBackfill = isAssetAwaitingBackfill(asset);
     const cycleStartState = String(asset.cycleStartState || "legacy");
@@ -2833,7 +3094,32 @@
         <div class="history-unknown"><strong>확정된 V-Belt 교체 이력이 없습니다.</strong><span>검토 대기 후보를 확인하거나 최초 이력을 직접 등록해 주세요.</span></div>
       `;
 
-    if (partialCoverage) elements.historyCycleSummary.innerHTML += commonRunCoverageNotice(partialCoverage);
+    if (runtimeAssessment && asset.lastReplacementAt && !awaitingBackfill) {
+      const manualAt = overviewManualTimestamp(asset);
+      const period = manualAt ? formatKstDateTimeDisplay(manualAt)
+        : runtimeAssessment.coverage.startAt && runtimeAssessment.coverage.observedAt
+          ? `${formatKstDateTimeDisplay(runtimeAssessment.coverage.startAt)} → ${formatKstDateTimeDisplay(runtimeAssessment.coverage.observedAt)}` : "조회 이력 없음";
+      const operation = runtimeAssessment.operation;
+      const stateLabel = operation.state === "running" ? "기동중" : operation.state === "stopped" ? "정지중" : "미확인";
+      const operationText = `${manualAt ? "기록 상태" : "최근 RUN 상태"} ${stateLabel}` +
+        (operation.observedAt ? ` · ${formatKstDateTimeDisplay(operation.observedAt)}` : "") +
+        (overviewSeparateRunObservedAt(runtimeAssessment) ? " · 누적 미반영" : "");
+      const runtimeText = runtimeAssessment.hours === null ? "조회 대기"
+        : `${runtimeAssessment.hours.toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간`;
+      const policyAlert = ["warning", "critical", "overdue"].includes(severity);
+      elements.historyCycleSummary.innerHTML = `
+        <span class="status-pill ${runtimeAssessment.requiresReview ? "runtime_unknown" : policyAlert ? escapeHtml(severity) : "unset"}" data-runtime-assessment="${escapeHtml(runtimeAssessment.scope)}">${escapeHtml(runtimeAssessment.reasonLabel || (policyAlert ? severityLabel(severity) : runtimeAssessment.scopeLabel))}</span>
+        <div><span>${isInitialStartupBasis(asset) ? "최초 기동" : partialCoverage?.registeredRuntimeRange ? "조회 기준" : "교체 기준"}</span><strong>${escapeHtml(cycleReferenceDisplay(asset))}</strong></div>
+        <div><span>누적 범위</span><strong>${escapeHtml(runtimeAssessment.scopeLabel)}</strong></div>
+        <div><span>누적 운전시간</span><strong>${escapeHtml(runtimeText)}</strong></div>
+        <div class="run-history-note" data-runtime-assessment-period="true"><strong>${manualAt ? "보정 시각" : "데이터 조회 기간"}</strong><small>${escapeHtml(period)}</small><span>${escapeHtml(operationText)}</span>${runtimeAssessment.freshness.state === "behind" ? '<span>다른 설비의 최신 조회와 반영 시각이 다릅니다.</span>' : ""}</div>`;
+    }
+    if (partialCoverage) {
+      const notice = commonRunCoverageNotice(partialCoverage);
+      elements.historyCycleSummary.innerHTML += differentCoverageAssessment
+        ? `<details class="runtime-source-details"><summary>기존 저장 구간 정보</summary><small>저장된 조회 기준과 검토 정보를 보존합니다. 현재 누적 범위는 상단의 측정 근거를 기준으로 표시합니다.</small>${notice}</details>`
+        : notice;
+    }
     const transition = verifiedRunTransition(asset, runView?.basis || getLatestDataParcRuntimeBasis(asset.tagNumber));
     const maintenance = stopMaintenanceText(asset);
     const firstRunBasis = sealPotFirstRunBasis(asset);
@@ -2859,7 +3145,9 @@
     }
     if (runView && asset.lastReplacementAt) {
       const legacy = asset.runRuntime?.legacyStoredHours;
-      elements.historyCycleSummary.innerHTML += `<div class="run-history-note"><strong>${escapeHtml(runView.sourceLabel)}</strong>${runView.automaticReplacement ? `<small>${escapeHtml(replacementAutoDateText(asset))}</small>` : runView.basis ? `<small>${escapeHtml(formatKstDateTimeDisplay(runView.basis.startAt))} → ${escapeHtml(formatKstDateTimeDisplay(runView.basis.observedAt))}</small>` : runView.manual ? `<small>${escapeHtml(formatKstDateTimeDisplay(runView.measuredAt))} 기준</small>` : ""}<span>${escapeHtml(partialCoverage?.replacementClockConfirmed ? partialCoverage.warning : runView.message)}</span>${!runView.verified && !runView.pending && !runView.partial && Number.isFinite(legacy) ? `<small>기존 저장값 ${Number(legacy).toLocaleString("ko-KR", { maximumFractionDigits: 1 })}시간은 RUN 확인값이 아닙니다. 원본 이력과 변경 기록은 보존됩니다.</small>` : ""}</div>`;
+      const message = differentCoverageAssessment ? runtimeAssessment.reasonLabel || "현재 누적의 측정 근거입니다."
+        : partialCoverage?.replacementClockConfirmed ? partialCoverage.warning : runView.message;
+      elements.historyCycleSummary.innerHTML += `<div class="run-history-note"><strong>${escapeHtml(runView.sourceLabel)}</strong>${runView.automaticReplacement ? `<small>${escapeHtml(replacementAutoDateText(asset))}</small>` : runView.basis ? `<small>${escapeHtml(formatKstDateTimeDisplay(runView.basis.startAt))} → ${escapeHtml(formatKstDateTimeDisplay(runView.basis.observedAt))}</small>` : runView.manual ? `<small>${escapeHtml(formatKstDateTimeDisplay(runView.measuredAt))} 기준</small>` : ""}<span>${escapeHtml(message)}</span>${!runView.verified && !runView.pending && !runView.partial && Number.isFinite(legacy) ? `<small>기존 저장값 ${Number(legacy).toLocaleString("ko-KR", { maximumFractionDigits: 1 })}시간은 RUN 확인값이 아닙니다. 원본 이력과 변경 기록은 보존됩니다.</small>` : ""}</div>`;
     }
     if (elements.limestoneBasisButton) {
       const allowed = hasAuthenticatedWriteAccess() && !isMobileMonitoringView() &&
@@ -11792,6 +12080,8 @@
       const button = event.target.closest("[data-status-filter]");
       if (!button) return;
       state.statusFilter = button.dataset.statusFilter || "all";
+      state.overviewFilter = "all";
+      state.overviewFilterType = "";
       renderStatusFilters();
       renderAssets();
     });
@@ -11801,8 +12091,23 @@
     });
 
     elements.assetGroups.addEventListener("click", event => {
+      const overviewFilter = event.target.closest("[data-overview-filter]");
+      if (overviewFilter?.dataset.overviewFilter) {
+        const filter = overviewFilter.dataset.overviewFilter;
+        if (!["all", "running", "stopped", "intermittent", "review", "alerts", "basis", "range", "measurement", "behind"].includes(filter)) return;
+        state.overviewFilter = filter;
+        state.overviewFilterType = overviewFilter.dataset.overviewFilterType || "";
+        state.statusFilter = "all";
+        renderStatusFilters();
+        renderAssets();
+        return;
+      }
       const button = event.target.closest("[data-asset-action]");
       if (!button) return;
+      if (button.dataset.assetAction === "overview_review") {
+        openOverviewAssessmentAction(button.dataset.tag);
+        return;
+      }
       if (button.dataset.assetAction === "history") {
         openAssetHistory(button.dataset.tag);
         return;

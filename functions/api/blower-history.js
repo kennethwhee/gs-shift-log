@@ -2,6 +2,7 @@ import { handleBlowerSchedule } from "../_shared/blower-schedule-v1.js";
 import { incrementalEvidence, verifiedAppendBase, loadAppendBase, loadAppendIntent, combineAppendProbe, cycleRuntimeCoverage } from "../_shared/blower-incremental.js";
 import { savedFirstRunStart, savedTrailingStateStart, validatedFirstRunStart, validatedTrailingStateStart } from "../_shared/blower-run-transition.js";
 import { blowerStopMaintenanceKind, loadBlowerStopMaintenance } from "../_shared/blower-stop-maintenance.js";
+import { buildRuntimeCoverageEvidence, currentManualRuntimeMeasurement } from "../_shared/blower-runtime-coverage-evidence.js";
 import { reviewedCycleSourceWarning } from "../_shared/blower-cycle-source-review.js";
 import { reconcileApprovedReplacementLog, replacementAutoCycleProof, isReplacementAutoRevision } from "../_shared/blower-replacement-auto-v3.js";
 import { collectApprovedReplacementFacts } from "../_shared/blower-replacement-facts-v3.js";
@@ -1886,12 +1887,11 @@ function fbheSealRunProvenance(asset, rows, now = new Date()) {
   // finding ANY older manual row with an equal number is not verification.
   const matching = (rows || []).filter(row => row.tag_number === asset.tag_number &&
     ["runtime_correction", "startup", "operation_start", "operation_stop"].includes(row.event_type) &&
-    Date.parse(row.event_date) === anchor && numeric(row.runtime_hours) &&
-    Math.abs(Number(row.runtime_hours) - stored) < 0.000001)
+    Date.parse(row.event_date) === anchor)
     .sort((a,b) => Date.parse(b.updated_at || b.created_at || b.event_date) - Date.parse(a.updated_at || a.created_at || a.event_date) ||
       String(b.created_at || "").localeCompare(String(a.created_at || "")) || String(b.id || "").localeCompare(String(a.id || "")));
   const owner = matching[0];
-  if (!owner) return base;
+  if (!owner || !numeric(owner.runtime_hours) || Math.abs(Number(owner.runtime_hours) - stored) >= 0.000001) return base;
   let evidence = {}; try { evidence = JSON.parse(owner.source_text || "{}"); } catch { /* legacy plain text */ }
   if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) evidence = {};
   const state = asset.cycle_runtime_state;
@@ -2002,15 +2002,13 @@ async function loadAssetStates(database, settings, options = {}) {
 
     const runtimeBasis = currentDataParcRuntimeBasis(asset, runtimeRows);
     const runRuntime = fbheSealRunProvenance(asset, runtimeRows, now);
+    let manualMeasurement = null;
     if (runRuntime) {
       asset.runtime_measurement_verified = runRuntime.verified;
       asset.runtime_measured_at = runRuntime.measuredAt;
     } else if (usesMeasuredBlowerRuntime(asset)) {
-      const manual = runtimeRows.find(row => row.tag_number === asset.tag_number && row.source_type === "manual" &&
-        ["runtime_correction", "startup"].includes(row.event_type) &&
-        new Date(row.event_date).getTime() >= new Date(asset.last_replacement_at || "").getTime() &&
-        Number.isFinite(Number(row.runtime_hours)) && Number(row.runtime_hours) >= 0 &&
-        Math.abs(Number(row.runtime_hours) - Number(asset.cycle_runtime_hours)) < 0.000001);
+      const manual = currentManualRuntimeMeasurement(asset, runtimeRows, { now, stateForEvent: runtimeBoundaryState });
+      manualMeasurement = manual || null;
       asset.runtime_measurement_verified = Boolean((runtimeBasis && Number.isFinite(runtimeBasis.runtimeHours) && Math.abs(runtimeBasis.runtimeHours - Number(asset.cycle_runtime_hours)) < 0.000001) || manual);
       asset.runtime_measured_at = manual && (!runtimeBasis || Date.parse(manual.event_date) > Date.parse(runtimeBasis.observedAt))
         ? manual.event_date : runtimeBasis?.observedAt || "";
@@ -2063,11 +2061,16 @@ async function loadAssetStates(database, settings, options = {}) {
           measuredRangeMayContinue: false,
           message: "승인 업무일지의 벨트 교체 완료는 자동 반영됐습니다. 완료 시각은 미기록이므로 날짜를 자정 완료로 간주하지 않습니다." }
         : null);
+    // Preserve measured interval coverage before the legacy guard is downgraded
+    // for source uncertainty. A missing clock is not itself a missing interval.
+    const measuredBasis = runtimeBasis ? { ...runtimeBasis } : null;
     if (cycleSourceReview && runtimeBasis) {
       runtimeBasis.cycleBasisConfirmed = cycleSourceReview.cycleBasisConfirmed === true;
       if (normalizationReview || rolePriorityReview || rolePriorityRevokedReview) runtimeBasis.coverageComplete = false;
     }
     const initialBasis = manureInitialRunProjection(asset, runtimeRows, initialRunAudit);
+    const runtimeCoverageEvidence = buildRuntimeCoverageEvidence({ asset, rows: runtimeRows, measuredBasis,
+      runRuntime, manualMeasurement, replacementAutoCycle, cycleSourceReview, initialBasis });
     return { ...buildAssetState(
       asset,
       settings[asset.blower_type],
@@ -2079,6 +2082,7 @@ async function loadAssetStates(database, settings, options = {}) {
       dataParcTag: latestSuccessfulDataParcTag(asset.tag_number, runtimeRows) || configuredManureRunSignal(asset),
       limestoneSignalCandidate: LIMESTONE_RUN_SIGNAL_CANDIDATES[asset.tag_number] || "",
       dataParcRuntimeBasis: runtimeBasis,
+      runtimeCoverageEvidence,
       ...(replacementAutoCycle ? { replacementAutoCycle } : {}),
       ...(cycleSourceReview ? { cycleSourceReview, actualLastReplacementAt: cycleSourceReview.cycleBasisConfirmed === true ? confirmedReplacementAt : "",
         cycleBasisKind: cycleSourceReview.cycleBasisConfirmed === true ? "replacement"

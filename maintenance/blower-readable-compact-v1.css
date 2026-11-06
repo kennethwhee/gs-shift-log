@@ -1,7 +1,5 @@
-/* BLOWER READABLE COMPACT V1 — design proposal, not a production installation.
-   Append after existing Blower styles. Does not calculate or overwrite values,
-   status attributes, alert thresholds, permissions, or acquisition behavior.
-   Reviewed against the archived 2026-09-15 markup only. */
+/* Blower compact presentation. This stylesheet does not calculate or overwrite
+   runtimes, permissions, source records, alert thresholds or query behavior. */
 
 .page-shell { padding-top: 12px; padding-bottom: 18px; }
 .page-header { margin-bottom: 8px; gap: 16px; }
@@ -533,4 +531,143 @@ button.all-overview-card[data-severity="overdue"]:hover { border-left-color: var
     margin-top: auto;
     padding-top: 6px;
   }
+}
+
+/* One stable overview layout for all 27 assets. Whole-cycle provenance,
+   measured-window scope and freshness are distinct from operating state. */
+.all-overview-summary.is-assessed > .overview-count-filter {
+  display: flex; align-items: center; justify-content: space-between;
+  min-width: 0; gap: 8px; padding: 6px 10px; min-height: 39px;
+  border: 1px solid #d8e2eb; border-radius: 7px;
+  background: #f7f9fc; color: #20364b; text-align: left; box-shadow: none;
+}
+.all-overview-summary.is-assessed > .overview-count-filter.is-active,
+.all-overview-summary.is-assessed > .overview-count-filter:hover { background: #edf5ff; border-color: #96b9df; }
+.all-overview-summary.is-assessed > .overview-count-filter[data-overview-filter="review"] { color: #8b5b13; }
+.all-overview-summary.is-assessed > .overview-count-filter[aria-pressed="true"] { border-color: #4b8bc5; box-shadow: inset 0 0 0 1px #4b8bc5; }
+.overview-count-filter:focus-visible,
+.overview-review-filter:focus-visible,
+.overview-group-review:focus-visible,
+.overview-next-action:focus-visible,
+.all-overview-card.is-assessed:focus-visible { outline: 2px solid #287ac2; outline-offset: 2px; }
+.overview-assessment-context {
+  grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 5px 12px; margin-top: -3px; padding-inline: 1px;
+}
+.overview-assessment-context > small { font-size: 10px; line-height: 1.4; color: #64778a; }
+.overview-review-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.overview-review-filter,
+.overview-group-review {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 25px;
+  padding: 3px 8px; border: 1px solid #dfd5c0; border-radius: 6px;
+  background: #fffaf0; color: #79591f; font: inherit; font-size: 11px; font-weight: 600;
+  box-shadow: none;
+}
+.overview-review-filter strong { font-weight: 850; }
+.overview-review-filter[data-overview-filter="behind"] { background: #f5f8fb; border-color: #d7e1ea; color: #536d84; }
+.overview-review-filter.is-active { background: #fff0d1; border-color: #b68b3d; }
+.overview-filter-result { padding-inline: 4px; font-size: 11px; color: #64778a; }
+.overview-group-count { display: inline-flex; align-items: center; gap: 8px; }
+.overview-group-review { min-height: 23px; padding: 2px 7px; font-size: 10px; }
+.has-runtime-assessment .all-overview-unit-panel { display: flex; flex-direction: column; min-width: 0; }
+.has-runtime-assessment .all-overview-unit-card-grid { flex: 1; align-items: stretch; }
+.all-overview-card-shell { display: flex; flex-direction: column; min-width: 0; height: 100%; }
+.all-overview-card.is-assessed {
+  display: grid; grid-template-rows: 31px 17px 24px 17px 35px minmax(min-content, 1fr);
+  flex: 1; align-content: start; gap: 3px; min-height: 0; margin: 0; padding: 7px;
+  border-radius: 6px 6px 0 0; border-bottom-color: #e5ebf0; border-left-color: #c4d2df;
+  background: #fff; color: #20364b;
+}
+.all-overview-card.is-assessed .all-overview-card-head { align-items: start; flex-wrap: nowrap; gap: 4px; }
+.all-overview-card.is-assessed .all-overview-identity strong { font-size: 13px; line-height: 16px; }
+.all-overview-card.is-assessed .all-overview-identity small { font-size: 10px; line-height: 12px; margin-top: 2px; }
+.all-overview-card.is-assessed .all-overview-status-badges { margin-left: auto; }
+.overview-runtime-heading { display: flex; align-items: center; justify-content: space-between; gap: 4px; min-width: 0; }
+.overview-runtime-heading > small { color: #62798d; font-size: 10px; font-weight: 600; line-height: 1.3; }
+.overview-runtime-scope {
+  display: inline-flex; align-items: center; min-height: 17px; padding: 1px 5px;
+  border-radius: 4px; background: #eef3f7; color: #506d84; font-size: 9px; font-weight: 750; line-height: 1.3;
+}
+.overview-runtime-scope[data-scope="whole"] { background: #eaf2fc; color: #315e89; }
+.all-overview-card-shell[data-runtime-review="true"] .overview-runtime-scope { background: #fff4dd; color: #85601d; }
+.overview-runtime-value {
+  display: block; align-self: center; min-width: 0; font-size: 22px; line-height: 1.1;
+  font-weight: 850; text-align: right; font-variant-numeric: tabular-nums; letter-spacing: -.025em;
+  white-space: nowrap;
+}
+.overview-runtime-value.is-pending { font-size: 13px; line-height: 1.4; color: #697f91; }
+.overview-fact-row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 5px; align-items: center; min-width: 0; }
+.overview-fact-row > small { font-size: 10px; color: #708396; font-weight: 600; line-height: 1.3; }
+.overview-fact-row > strong { font-size: 10.5px; font-weight: 700; text-align: right; line-height: 1.35; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.overview-reference > strong { color: #29455d; }
+.overview-query-facts { display: grid; grid-template-rows: repeat(2, minmax(0, 1fr)); border-top: 1px solid #e7edf2; padding-top: 3px; gap: 2px; }
+.overview-query-facts strong { color: #416c91; }
+.overview-fact-row[data-freshness="behind"] { grid-template-columns: auto minmax(0, 1fr) auto; gap: 3px; }
+.overview-fact-row > em { font-size: 9px; font-style: normal; line-height: 1.3; color: #8b641f; background: #fff2d9; padding: 1px 3px; border-radius: 3px; }
+.overview-card-note {
+  align-self: start; padding-top: 3px; min-width: 0; min-height: 28px;
+  color: #677d90; font-size: 10.5px; line-height: 14px; font-weight: 600; word-break: keep-all;
+}
+.overview-card-note[data-run-basis-status] { color: #8b651f; }
+.overview-run-asof {
+  display: block; margin-top: 3px; color: #536d84;
+  font-size: 10px; line-height: 14px; font-weight: 600; white-space: normal; overflow-wrap: anywhere;
+}
+.overview-next-action {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  min-width: 0; min-height: 29px; width: 100%; padding: 4px 8px;
+  border: 1px solid #d8e0e7; border-top: 0; border-left: 3px solid #c4d2df;
+  border-radius: 0 0 6px 6px; background: #f8fafc; color: #456780;
+  font-family: inherit; font-size: 11px; line-height: 1.4; font-weight: 750; text-align: left; box-shadow: none;
+}
+.overview-next-action:hover { background: #eef5fc; color: #245e91; }
+.runtime-source-details { grid-column: 1 / -1; border-top: 1px solid #e2e7eb; padding-top: 7px; }
+.runtime-source-details > summary { cursor: pointer; font-size: 12px; font-weight: 700; color: #526f87; }
+.runtime-source-details > small { display: block; margin: 6px 0; color: #6a7f90; font-size: 11px; line-height: 1.5; }
+.runtime-source-details .run-history-note { padding: 7px !important; }
+.all-overview-card-shell[data-runtime-review="true"] .all-overview-card.is-assessed,
+.all-overview-card-shell[data-runtime-review="true"] .overview-next-action { border-left-color: #cda55b; }
+.all-overview-card-shell[data-runtime-review="true"] .overview-next-action { background: #fffaf1; color: #806024; }
+.all-overview-card.is-assessed[data-severity="warning"],
+.all-overview-card.is-assessed[data-severity="warning"] + .overview-next-action { border-left-color: var(--warning); }
+.all-overview-card.is-assessed[data-severity="critical"],
+.all-overview-card.is-assessed[data-severity="critical"] + .overview-next-action { border-left-color: var(--critical); }
+.all-overview-card.is-assessed[data-severity="overdue"],
+.all-overview-card.is-assessed[data-severity="overdue"] + .overview-next-action { border-left-color: var(--overdue); }
+
+@media (min-width: 1181px) and (max-width: 1400px) {
+  .all-overview-card.is-assessed .all-overview-identity strong { font-size: 12px; }
+  .overview-runtime-heading > small, .overview-fact-row > small { font-size: 9px; }
+  .overview-runtime-scope { font-size: 8.5px; padding-inline: 4px; }
+  .overview-fact-row > strong { font-size: 9.5px; }
+  .overview-runtime-value { font-size: 20px; }
+}
+@media (max-width: 700px), (max-width: 1024px) and (hover: none) and (pointer: coarse) {
+  .all-overview-summary.is-assessed > .overview-count-filter { min-height: 36px; padding: 5px 7px; gap: 4px; }
+  .all-overview-summary.is-assessed strong { display: inline; margin: 0; font-size: 18px; }
+  .overview-assessment-context { gap: 5px; }
+  .overview-assessment-context > small { font-size: 9px; }
+  .overview-review-filter { min-height: 28px; padding: 4px 7px; font-size: 10px; }
+  .all-overview-card.is-assessed { padding: 6px; grid-template-rows: 31px 17px 24px 17px 35px minmax(min-content, 1fr); }
+  .all-overview-card.is-assessed .all-overview-identity strong { font-size: 12px; }
+  .all-overview-card.is-assessed .all-overview-identity small { font-size: 9px; }
+  .overview-runtime-heading > small, .overview-fact-row > small { font-size: 9px; }
+  .overview-runtime-scope { padding-inline: 3px; font-size: 8.5px; }
+  .overview-runtime-value { font-size: 20px; }
+  .overview-fact-row { gap: 3px; }
+  .overview-fact-row > strong { font-size: 9px; }
+  .overview-card-note { font-size: 10px; }
+  .overview-next-action { min-height: 34px; padding: 5px 7px; font-size: 10px; }
+}
+
+/* Below the usual phone width, keep complete timestamps readable by stacking
+   labels and values. All cards in the same row retain identical row tracks. */
+@media (max-width: 380px) {
+  .all-overview-card.is-assessed { grid-template-rows: 46px 32px 24px 28px 58px minmax(min-content, 1fr); }
+  .overview-runtime-heading { flex-wrap: wrap; align-content: start; justify-content: flex-start; gap: 2px 4px; }
+  .overview-fact-row,
+  .overview-fact-row[data-freshness="behind"] { position: relative; grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .overview-fact-row > strong { min-width: 0; text-align: left; font-size: 10px; line-height: 14px; }
+  .overview-fact-row > small { font-size: 9px; line-height: 12px; }
+  .overview-fact-row > em { position: absolute; right: 0; top: 0; }
 }

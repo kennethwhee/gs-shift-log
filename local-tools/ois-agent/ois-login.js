@@ -10899,6 +10899,7 @@ async function getNextOisAgentRequest(
       "cofiring_period",
       "daily_data_excel",
       DAILY_OPERATION_REQUEST_TYPE,
+      BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
       "logsheet_pdf",
       "open_final_excel_folder"
     ];
@@ -11153,6 +11154,7 @@ async function getNextOisAgentLaneRequests(
       "cofiring_period",
       "daily_data_excel",
       DAILY_OPERATION_REQUEST_TYPE,
+      BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
       "logsheet_pdf",
       "open_final_excel_folder"
     ];
