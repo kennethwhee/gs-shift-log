@@ -130,7 +130,7 @@ function renderTargets(state) {
 }
 
 function syncVisibility(state) {
-  const candidate = isReplacementCandidate(state.input.value);
+  const candidate = isReplacementCandidate(state.getContent());
   state.root.hidden = !candidate && !state.invalidated;
   state.root.querySelector('.diary-vbelt-confirm__check').hidden = !candidate;
   state.root.querySelector('.diary-vbelt-confirm__details').hidden = !candidate || !state.checkbox.checked;
@@ -164,17 +164,19 @@ async function ensureAssets(state) {
   }
 }
 
-function mountEditor(editor, previousEntry = null, inputSelector = '.section-context-entry-content') {
+function mountEditor(editor, previousEntry = null, inputSelector = '.section-context-entry-content', readContent = value => value) {
   const root = editor.querySelector('.diary-vbelt-confirm');
   const input = editor.querySelector(inputSelector);
   if (!root || !input || editorStates.has(editor)) return;
-  const annotation = copyAnnotation(previousEntry, input.value);
+  const getContent = () => readContent(input.value);
+  const initialContent = getContent();
+  const annotation = copyAnnotation(previousEntry, initialContent);
   const raw = previousEntry?.vBeltReplacement;
   const state = {
-    editor, root, input, checkbox: root.querySelector('.diary-vbelt-confirm__checkbox'),
+    editor, root, getContent, checkbox: root.querySelector('.diary-vbelt-confirm__checkbox'),
     hadAnnotation: hasAnnotation(previousEntry),
-    content: normalizeContent(input.value),
-    invalidated: hasAnnotation(previousEntry) && !normalizeAnnotation(raw, input.value),
+    content: normalizeContent(initialContent),
+    invalidated: hasAnnotation(previousEntry) && !normalizeAnnotation(raw, initialContent),
     targets: annotation?.confirmed ? annotation.targets.map(target => ({ ...target })) : [{ tagNumber: '', replacedOn: editorDate(), completedTime: '' }],
     assets: [], loading: false
   };
@@ -184,7 +186,7 @@ function mountEditor(editor, previousEntry = null, inputSelector = '.section-con
   syncVisibility(state);
   if (state.checkbox.checked) void ensureAssets(state);
   input.addEventListener('input', () => {
-    const nextContent = normalizeContent(input.value);
+    const nextContent = normalizeContent(getContent());
     if (nextContent !== state.content) {
       if (state.checkbox.checked || state.hadAnnotation) {
         state.invalidated = true;
@@ -227,7 +229,7 @@ function readEditor(editor, content, previousEntry = null) {
   const state = editorStates.get(editor);
   if (!state) return { ok: true, annotation: legacyInputAnnotation(previousEntry, content) };
   const normalized = normalizeContent(content);
-  const currentInput = normalizeContent(state.input.value);
+  const currentInput = normalizeContent(state.getContent());
   // Compare the live input before the editor's existing numbering/time cleanup.
   // This catches programmatic edits without treating that cleanup as a new edit.
   if (currentInput !== state.content) {

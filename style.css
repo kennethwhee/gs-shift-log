@@ -118057,10 +118057,7 @@ table {
   .section-context-entry-editor.is-handover {
     grid-template-columns:
       max-content
-      minmax(
-        300px,
-        max-content
-      )
+      max-content
       minmax(
         220px,
         1fr
@@ -119960,7 +119957,7 @@ html body
   [HANDOVER-TAG-INLINE-V1]
 
   PC 인계사항 입력:
-  구분 → 시간 → 현재시간 → TAG 를 한 줄로 배치한다.
+  구분 → 현재시간 → TAG 를 한 줄로 배치한다.
 
   기존 저장/표시 로직은 건드리지 않는다.
   "인계사항" 선택 시 TAG 숨김 동작도 그대로 유지한다.
@@ -121781,3 +121778,29 @@ html body #efficiencyArmRollTab.efficiency-team-tab .icon {
 }
 
 /* GS_MECHANICAL_PREVIEW_PAIR_V4_R1_END */
+
+@media screen and (min-width: 769px) {
+  /* Place the confirmation after the composer's existing rows. */
+  #logEditorModal .section-context-entry-editor > .diary-vbelt-confirm {
+    grid-column: 1 / -1;
+    grid-row: -1;
+    min-width: 0;
+    margin: 4px 0 2px;
+  }
+
+  /* Collapse the reserved list space only while the empty row is present. */
+  #logEditorModal .log-entry-table-wrap:has(> table > :is(#tmIssueEntryTableBody, #logEntryTableBody, #noteEntryTableBody) > .log-entry-empty-row:only-child),
+  #logEditorModal .log-entry-table:has(> :is(#tmIssueEntryTableBody, #logEntryTableBody, #noteEntryTableBody) > .log-entry-empty-row:only-child),
+  #logEditorModal :is(#tmIssueEntryTableBody, #logEntryTableBody, #noteEntryTableBody):has(> .log-entry-empty-row:only-child),
+  #logEditorModal :is(#tmIssueEntryTableBody, #logEntryTableBody, #noteEntryTableBody) > .log-entry-empty-row:only-child {
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  #logEditorModal :is(#tmIssueEntryTableBody, #logEntryTableBody, #noteEntryTableBody) > .log-entry-empty-row:only-child > td {
+    box-sizing: border-box;
+    height: 33px !important;
+    min-height: 0 !important;
+    padding: 4px 10px !important;
+  }
+}

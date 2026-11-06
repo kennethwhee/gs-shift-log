@@ -29274,6 +29274,13 @@ bindClick(
         return;
       }
 
+      if (
+        event.target instanceof Element &&
+        event.target.closest("#logEditorModal .section-context-entry-editor")
+      ) {
+        return;
+      }
+
 
       if (
         elements
@@ -29290,7 +29297,8 @@ bindClick(
 
       if (
         appState
-          .editingEntryIndex >= 0
+          .editingEntryIndex >= 0 &&
+        !diaryContextEntryDrafts?.hasPending()
       ) {
         cancelLogEntryEdit();
 
@@ -29316,7 +29324,19 @@ bindClick(
             "is-open"
           )
       ) {
-        closeLogEditor();
+        if (diaryContextEntryDrafts?.hasPending()) {
+          if (
+            !event.isComposing &&
+            event.keyCode !== 229 &&
+            !document.querySelector(
+              ".modal-backdrop.is-open:not(#logEditorModal), .compact-confirm-backdrop"
+            )
+          ) {
+            requestCloseLogEditor();
+          }
+        } else {
+          closeLogEditor();
+        }
       }
     }
   );
@@ -32281,6 +32301,8 @@ function updateShiftMemberCardStates() {
 
 let logEditorSavedSnapshot =
   "";
+let diaryContextEntryDrafts = null;
+let logEditorClosePending = false;
 
 
 /* =========================================================
@@ -32311,6 +32333,10 @@ function createLogEditorSnapshot() {
     )
     .forEach(
       (field) => {
+        if (field.closest(".section-context-entry-editor")) {
+          return;
+        }
+
         /*
           파일 입력은 파일명만 저장한다.
         */
@@ -32405,6 +32431,7 @@ function markLogEditorAsSaved() {
 
 function hasUnsavedLogEditorChanges() {
   return (
+    diaryContextEntryDrafts?.hasPending() ||
     createLogEditorSnapshot() !==
     logEditorSavedSnapshot
   );
@@ -32423,6 +32450,7 @@ function hasUnsavedLogEditorChanges() {
 
 async function requestCloseLogEditor() {
   if (
+    logEditorClosePending ||
     !elements.logEditorModal
       ?.classList
       .contains(
@@ -32442,30 +32470,22 @@ async function requestCloseLogEditor() {
   }
 
 
-  const shouldClose =
-    await showCompactConfirm({
-      title:
-        "입력 중단",
-
-      message:
-        "아직 저장하지 않은 내용이 있습니다. 입력을 중단하시겠습니까?",
-
-      confirmText:
-        "중단",
-
-      cancelText:
-        "계속 작성"
+  logEditorClosePending = true;
+  try {
+    const shouldClose = await showCompactConfirm({
+      title: "입력 중단",
+      message: diaryContextEntryDrafts?.hasPending()
+        ? "목록에 추가하거나 수정 완료하지 않은 항목이 있습니다. 입력을 중단하시겠습니까?"
+        : "아직 저장하지 않은 내용이 있습니다. 입력을 중단하시겠습니까?",
+      confirmText: "중단",
+      cancelText: "계속 작성"
     });
-
-
-  if (
-    !shouldClose
-  ) {
-    return;
+    if (shouldClose) {
+      closeLogEditor();
+    }
+  } finally {
+    logEditorClosePending = false;
   }
-
-
-  closeLogEditor();
 }
 
 
@@ -32475,7 +32495,12 @@ async function requestCloseLogEditor() {
   확인 절차 없이 모달만 닫는다.
 ========================================================= */
 
-function closeLogEditor() {
+function closeLogEditor({ afterSave = false } = {}) {
+  if (afterSave && diaryContextEntryDrafts?.hasPending()) {
+    return;
+  }
+  diaryContextEntryDrafts?.clear();
+
   closeModal(
     elements.logEditorModal
   );
@@ -32489,6 +32514,8 @@ function closeLogEditor() {
 }
 
 function resetLogEditor() {
+  diaryContextEntryDrafts?.clear();
+
   elements.logEditorForm.reset();
 
   setEditorDateFromSelectedDate();
@@ -33923,7 +33950,7 @@ function parseLeadingLogTimeExpression(
     800
   */
   const timeTokenPattern =
-    "(?:(?:[01]?\\d|2[0-3]):[0-5]\\d|\\d{3,4})";
+    "(?:(?:[01]?\\d|2[0-3]):[0-5]\\d|(?:[01]\\d|2[0-3]|\\d)[0-5]\\d)";
 
 
   /*
@@ -33953,7 +33980,7 @@ function parseLeadingLogTimeExpression(
       "(?:" +
       separatorPattern +
       timeTokenPattern +
-      ")*)"
+      ")*)(?=$|\\s|[,/·:](?!\\d))"
     );
 
 
@@ -40590,7 +40617,7 @@ if (
     */
     window.setTimeout(
       () => {
-        closeLogEditor();
+        closeLogEditor({ afterSave: true });
       },
       120
     );
@@ -62291,7 +62318,7 @@ saveCurrentLog =
       if (
         closeAfterSave
       ) {
-        closeLogEditor();
+        closeLogEditor({ afterSave: true });
       }
 
 
@@ -81396,7 +81423,7 @@ async function handleMemberApprovalRequestClick(
 
 
   if (
-    !shouldRequest
+    !shouldRequest || diaryContextEntryDrafts?.blockSave()
   ) {
     return;
   }
@@ -83047,7 +83074,7 @@ function ensureLeaderFooterButtons() {
       });
 
     if (
-      !shouldComplete
+      !shouldComplete || diaryContextEntryDrafts?.blockSave()
     ) {
       return;
     }
@@ -210481,7 +210508,7 @@ if (
           typeof closeLogEditor ===
             "function"
         ) {
-          closeLogEditor();
+          closeLogEditor({ afterSave: true });
         }
 
 
@@ -250074,12 +250101,9 @@ if (
   ];
 
 
-  let activeEditorSection =
-    null;
-
-
-  let editingEntryIndex =
-    -1;
+  const contextDrafts = new Map();
+  let activeDraft = null;
+  let draftShelf = null;
 
 
   const originalStartLogEntryEdit =
@@ -250168,83 +250192,24 @@ if (
   }
 
 
-  function normalizeTime(
-    value
-  ) {
-    const raw =
-      String(
-        value ||
-        ""
-      ).trim();
+  function isTimedContextSection(type) {
+    return type === SECTION_TYPES.ISSUE || type === SECTION_TYPES.HANDOVER;
+  }
 
+  function normalizeTimedContextBody(text) {
+    // Dates and malformed times can be literal work text.
+    return /^\d{2,4}[:：-]\d/.test(text) ? text : normalizeContent(text);
+  }
 
-    if (
-      !raw
-    ) {
-      return "";
+  function splitContextEntryText(value, previousTime = "") {
+    const text = String(value || "").replace(/\r\n?/g, "\n").trim();
+    const storedTime = String(previousTime || "").trim();
+    if (storedTime && (text === storedTime || text.startsWith(storedTime + " "))) {
+      return { time: storedTime, content: text.slice(storedTime.length).trim() };
     }
 
-
-    /*
-      단일 3~4자리 숫자만 입력한 경우
-      HH:MM으로 편의 변환한다.
-
-      예:
-      800  → 08:00
-      1545 → 15:45
-
-      그 외 여러 시간·범위 입력은 그대로 보존한다.
-    */
-    if (
-      /^\d{3,4}$/.test(
-        raw
-      )
-    ) {
-      const padded =
-        raw.padStart(
-          4,
-          "0"
-        );
-
-
-      const hour =
-        Number(
-          padded.slice(
-            0,
-            2
-          )
-        );
-
-
-      const minute =
-        Number(
-          padded.slice(
-            2
-          )
-        );
-
-
-      if (
-        hour >= 0 &&
-        hour <= 23 &&
-        minute >= 0 &&
-        minute <= 59
-      ) {
-        return (
-          padded.slice(
-            0,
-            2
-          ) +
-          ":" +
-          padded.slice(
-            2
-          )
-        );
-      }
-    }
-
-
-    return raw;
+    const parsed = parseLeadingLogTimeExpression(text);
+    return { time: parsed.timeText, content: parsed.content };
   }
 
 
@@ -250512,56 +250477,130 @@ if (
   }
 
 
-  function closeActiveEditor(
-    options = {}
-  ) {
-    const {
-      resetEditing =
-        true
-    } = options;
-
-
-    document
-      .querySelectorAll(
-        ".section-context-entry-editor"
+  function snapshotContextEntry(editor) {
+    return JSON.stringify(
+      Array.from(editor.querySelectorAll("input, select, textarea"), field =>
+        field.type === "checkbox" ? field.checked : field.value
       )
-      .forEach(
-        editor => {
-          editor.remove();
-        }
-      );
+    );
+  }
 
+  function hasDraftChanges(draft) {
+    return Boolean(draft && snapshotContextEntry(draft.editor) !== draft.initialValues);
+  }
 
-    document
-      .querySelectorAll(
-        ".section-context-entry-enabled.is-context-entry-open"
-      )
-      .forEach(
-        section => {
-          section.classList.remove(
-            "is-context-entry-open"
-          );
-        }
-      );
-
-
-    activeEditorSection =
-      null;
-
-
-    if (
-      resetEditing
-    ) {
-      editingEntryIndex =
-        -1;
-
-      if (
-        appState
-      ) {
-        appState.editingEntryIndex =
-          -1;
-      }
+  function findPendingDraft() {
+    if (hasDraftChanges(activeDraft)) {
+      return activeDraft;
     }
+    return Array.from(contextDrafts.values()).find(hasDraftChanges);
+  }
+
+  function getDraftEntryIndex(draft) {
+    const entry = draft.entry;
+    const entries = appState.editorEntries;
+    if (!entry || !Array.isArray(entries)) {
+      return -1;
+    }
+
+    const originalIndex = entries.indexOf(entry);
+    if (originalIndex >= 0 || !entry.id) {
+      return originalIndex;
+    }
+
+    const matchingEntries = entries.filter(candidate => candidate?.id === entry.id);
+    if (matchingEntries.length === 1 && JSON.stringify(matchingEntries[0]) === JSON.stringify(entry)) {
+      return entries.indexOf(matchingEntries[0]);
+    }
+    return -1;
+  }
+
+  function isContextEntryLocked() {
+    return elements.logEditorForm?.matches(".is-approval-requested, .is-leader-approved");
+  }
+
+  function focusContextEditor(draft) {
+    window.requestAnimationFrame(() => {
+      if (activeDraft === draft) {
+        draft.editor.querySelector(".section-context-entry-content")?.focus();
+      }
+    });
+  }
+
+  function closeActiveEditor({ preserveDraft = false, restoreFocus = false } = {}) {
+    if (!activeDraft) {
+      return;
+    }
+
+    const { section, editor, type } = activeDraft;
+    if (preserveDraft && hasDraftChanges(activeDraft)) {
+      if (!draftShelf) {
+        // Keep in-flight V-Belt catalog updates connected, outside the log form.
+        draftShelf = document.createElement("div");
+        draftShelf.hidden = true;
+        elements.logEditorModal.appendChild(draftShelf);
+      }
+      draftShelf.appendChild(editor);
+    } else {
+      editor.remove();
+      contextDrafts.delete(type);
+    }
+
+    section.classList.remove("is-context-entry-open");
+    activeDraft = null;
+    appState.editingEntryIndex = -1;
+
+    if (restoreFocus) {
+      const addButton = section.querySelector(".section-context-inline-add-button:not([hidden])")
+        || getSectionHeader(section)?.querySelector(".section-context-add-button:not([hidden])");
+      addButton?.focus();
+    }
+  }
+
+  function clearContextDrafts() {
+    closeActiveEditor();
+    draftShelf?.remove();
+    draftShelf = null;
+    contextDrafts.clear();
+  }
+
+  function activateContextDraft(draft, definition, insertPoint) {
+    if (activeDraft !== draft) {
+      closeActiveEditor({ preserveDraft: true });
+      draft.section = definition.section;
+      insertPoint.insertAdjacentElement("beforebegin", draft.editor);
+      if (draft.initialValues === null) {
+        const readContent = isTimedContextSection(draft.type)
+          ? value => splitContextEntryText(value, draft.entry?.time).content
+          : undefined;
+        window.GSDiaryVBeltConfirm?.mountEditor(draft.editor, draft.entry, undefined, readContent);
+        draft.initialValues = snapshotContextEntry(draft.editor);
+      }
+      draft.section.classList.add("is-context-entry-open");
+      activeDraft = draft;
+      appState.editingEntryIndex = getDraftEntryIndex(draft);
+    }
+    focusContextEditor(draft);
+  }
+
+  function blockDiarySaveForDraft() {
+    const draft = findPendingDraft();
+    if (!draft) {
+      return false;
+    }
+
+    const definition = getDefinitionByType(draft.type);
+    const insertPoint = getSectionInsertPoint(definition?.section);
+    if (isContextEntryLocked()) {
+      showToast("작성 중인 항목이 있습니다. 결재 잠금이 해제되면 이어서 작성할 수 있습니다.");
+    } else if (insertPoint && definition.isAvailable()) {
+      activateContextDraft(draft, definition, insertPoint);
+      const action = draft.entry ? "수정 완료" : "＋ 추가";
+      showToast(`${definition.title}에서 ${action} 또는 취소를 누른 뒤 다시 시도해 주세요.`);
+    } else {
+      showToast("작성 중인 지시사항이 있습니다. 파트장 보직에서 입력을 마무리해 주세요.");
+    }
+    return true;
   }
 
 
@@ -250636,19 +250675,11 @@ if (
     const sectionType =
       definition.type;
 
-
-    const content =
-      normalizeContent(
-        existingEntry?.content ||
-        ""
-      );
-
-
-    const time =
-      String(
-        existingEntry?.time ||
-        ""
-      ).trim();
+    const hasTime = isTimedContextSection(sectionType);
+    const existingContent = String(existingEntry?.content || "").trim();
+    const time = hasTime ? String(existingEntry?.time || "").trim() : "";
+    const body = hasTime ? normalizeTimedContextBody(existingContent) : normalizeContent(existingContent);
+    const content = [time, body].filter(Boolean).join(" ");
 
 
     const issueCategory =
@@ -250676,15 +250707,6 @@ if (
     const isHandover =
       sectionType ===
       SECTION_TYPES.HANDOVER;
-
-
-    const hasTime =
-      [
-        SECTION_TYPES.ISSUE,
-        SECTION_TYPES.HANDOVER
-      ].includes(
-        sectionType
-      );
 
 
     const existingHandoverCategory =
@@ -250823,26 +250845,13 @@ if (
       hasTime
         ? `
           <div class="section-context-entry-time-group">
-
-            <label class="section-context-entry-field section-context-entry-field--time">
-              <span>시간</span>
-
-              <input
-                type="text"
-                class="section-context-entry-time"
-                value="${typeof escapeHtml === "function" ? escapeHtml(time) : time}"
-                placeholder="예: 08:00"
-                autocomplete="off"
-              />
-            </label>
-
             <button
               type="button"
               class="section-context-entry-now"
+              title="내용 앞에 현재시간 입력"
             >
               현재시간
             </button>
-
           </div>
         `
         : "";
@@ -250904,7 +250913,7 @@ if (
                 ? 3
                 : 4
             }"
-            placeholder="${definition.title} 내용을 입력하세요."
+            placeholder="${hasTime ? "예: 08:57 설비 점검" : `${definition.title} 내용을 입력하세요.`}"
           >${typeof escapeHtml === "function" ? escapeHtml(content) : content}</textarea>
 
         </label>
@@ -250940,9 +250949,12 @@ if (
 
   function openSectionEditor(
     definition,
-    existingEntry = null,
-    entryIndex = -1
+    existingEntry = null
   ) {
+    if (isContextEntryLocked()) {
+      return;
+    }
+
     if (
       !definition?.section ||
       !definition.isAvailable()
@@ -250977,89 +250989,41 @@ if (
     }
 
 
-    if (
-      activeEditorSection ===
-        definition.section &&
-      !existingEntry
-    ) {
-      closeActiveEditor();
-
+    let draft = contextDrafts.get(definition.type);
+    if (draft && draft === activeDraft && !existingEntry) {
+      closeActiveEditor({ preserveDraft: true, restoreFocus: true });
       return;
     }
 
-
-    closeActiveEditor({
-      resetEditing:
-        false
-    });
-
-
-    editingEntryIndex =
-      Number.isInteger(
-        entryIndex
-      )
-        ? entryIndex
-        : -1;
-
-
     if (
-      appState
+      draft &&
+      existingEntry &&
+      draft.entry !== existingEntry &&
+      appState.editorEntries?.[getDraftEntryIndex(draft)] !== existingEntry
     ) {
-      appState.editingEntryIndex =
-        editingEntryIndex;
-    }
-
-
-    const wrapper =
-      document.createElement(
-        "div"
-      );
-
-
-    wrapper.innerHTML =
-      createEditorHtml(
-        definition,
-        existingEntry
-      ).trim();
-
-
-    const editor =
-      wrapper.firstElementChild;
-
-
-    if (
-      !editor
-    ) {
-      return;
-    }
-
-
-    insertPoint.insertAdjacentElement(
-      "beforebegin",
-      editor
-    );
-
-
-    window.GSDiaryVBeltConfirm?.mountEditor(editor, existingEntry);
-
-    definition.section.classList.add(
-      "is-context-entry-open"
-    );
-
-
-    activeEditorSection =
-      definition.section;
-
-
-    window.requestAnimationFrame(
-      () => {
-        editor
-          .querySelector(
-            ".section-context-entry-content"
-          )
-          ?.focus();
+      if (hasDraftChanges(draft)) {
+        activateContextDraft(draft, definition, insertPoint);
+        showToast(`${definition.title}의 작성 중인 항목을 먼저 마무리해 주세요.`);
+        return;
       }
-    );
+      if (draft === activeDraft) {
+        closeActiveEditor();
+      }
+      draft = null;
+    }
+
+    if (!draft) {
+      const wrapper = document.createElement("div");
+      wrapper.innerHTML = createEditorHtml(definition, existingEntry).trim();
+      const editor = wrapper.firstElementChild;
+      if (!editor) {
+        return;
+      }
+      draft = { editor, type: definition.type, entry: existingEntry, initialValues: null };
+      contextDrafts.set(definition.type, draft);
+    }
+
+    activateContextDraft(draft, definition, insertPoint);
   }
 
 
@@ -251076,13 +251040,13 @@ if (
       getCurrentAuthor();
 
 
-    const content =
-      normalizeContent(
-        editor.querySelector(
-          ".section-context-entry-content"
-        )?.value ||
-        ""
-      );
+    const contentInput = editor.querySelector(".section-context-entry-content");
+    const hasTime = isTimedContextSection(definition.type);
+    const rawContent = contentInput?.value || "";
+    const { time, content: body } = hasTime
+      ? splitContextEntryText(rawContent, previousEntry?.time)
+      : { time: "", content: rawContent };
+    const content = hasTime ? normalizeTimedContextBody(body) : normalizeContent(body);
 
 
     if (
@@ -251093,11 +251057,7 @@ if (
       );
 
 
-      editor
-        .querySelector(
-          ".section-context-entry-content"
-        )
-        ?.focus();
+      contentInput?.focus();
 
 
       return null;
@@ -251106,10 +251066,6 @@ if (
 
     let category =
       "인계사항";
-
-
-    let time =
-      "";
 
 
     if (
@@ -251138,14 +251094,6 @@ if (
           : "TM 발행";
 
 
-      time =
-        normalizeTime(
-          editor.querySelector(
-            ".section-context-entry-time"
-          )?.value ||
-          ""
-        );
-
     } else if (
       definition.type ===
         SECTION_TYPES.HANDOVER
@@ -251172,14 +251120,6 @@ if (
           : "인계사항";
 
 
-      time =
-        normalizeTime(
-          editor.querySelector(
-            ".section-context-entry-time"
-          )?.value ||
-          ""
-        );
-
     } else if (
       definition.type ===
         SECTION_TYPES.INSTRUCTION
@@ -251199,15 +251139,9 @@ if (
       category =
         "지시사항";
 
-      time =
-        "";
-
     } else {
       category =
         "비고";
-
-      time =
-        "";
     }
 
 
@@ -251350,6 +251284,10 @@ if (
     definition,
     editor
   ) {
+    if (activeDraft?.editor !== editor || isContextEntryLocked()) {
+      return;
+    }
+
     if (
       !Array.isArray(
         appState.editorEntries
@@ -251360,25 +251298,13 @@ if (
     }
 
 
-    const isEditing =
-      Number.isInteger(
-        editingEntryIndex
-      ) &&
-      editingEntryIndex >=
-        0 &&
-      Boolean(
-        appState.editorEntries[
-          editingEntryIndex
-        ]
-      );
-
-
-    const previousEntry =
-      isEditing
-        ? appState.editorEntries[
-            editingEntryIndex
-          ]
-        : null;
+    const editingEntryIndex = getDraftEntryIndex(activeDraft);
+    const isEditing = Boolean(activeDraft.entry);
+    if (isEditing && editingEntryIndex < 0) {
+      showToast("원래 항목을 찾을 수 없습니다. 수정을 취소한 뒤 다시 확인해 주세요.");
+      return;
+    }
+    const previousEntry = isEditing ? appState.editorEntries[editingEntryIndex] : null;
 
 
     const entry =
@@ -251412,11 +251338,7 @@ if (
     }
 
 
-    editingEntryIndex =
-      -1;
-
-    appState.editingEntryIndex =
-      -1;
+    closeActiveEditor({ restoreFocus: true });
 
 
     if (
@@ -251433,9 +251355,6 @@ if (
     ) {
       renderLogEntryTable();
     }
-
-
-    closeActiveEditor();
 
 
     showToast(
@@ -251700,11 +251619,10 @@ if (
     if (
       getCurrentRole() !==
         "파트장" &&
-      activeEditorSection?.dataset
-        ?.contextEntryType ===
+      activeDraft?.type ===
         SECTION_TYPES.INSTRUCTION
     ) {
-      closeActiveEditor();
+      closeActiveEditor({ preserveDraft: true });
     }
   }
 
@@ -251787,9 +251705,7 @@ if (
       );
 
 
-    if (
-      !editor
-    ) {
+    if (activeDraft?.editor !== editor) {
       return;
     }
 
@@ -251801,7 +251717,7 @@ if (
     ) {
       event.preventDefault();
 
-      closeActiveEditor();
+      closeActiveEditor({ restoreFocus: true });
 
       return;
     }
@@ -251815,19 +251731,16 @@ if (
       event.preventDefault();
 
 
-      const timeInput =
-        editor.querySelector(
-          ".section-context-entry-time"
-        );
-
-
-      if (
-        timeInput
-      ) {
-        timeInput.value =
-          getCurrentTimeText();
-
-        timeInput.focus();
+      const contentInput = editor.querySelector(".section-context-entry-content");
+      if (contentInput) {
+        const { content } = splitContextEntryText(contentInput.value, activeDraft.entry?.time);
+        const nextValue = `${getCurrentTimeText()} ${content}`;
+        if (contentInput.value !== nextValue) {
+          contentInput.value = nextValue;
+          contentInput.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+        contentInput.focus();
+        contentInput.setSelectionRange(nextValue.length, nextValue.length);
       }
 
 
@@ -251889,9 +251802,7 @@ if (
       );
 
 
-    if (
-      !editor
-    ) {
+    if (activeDraft?.editor !== editor || event.isComposing || event.keyCode === 229) {
       return;
     }
 
@@ -251902,7 +251813,7 @@ if (
     ) {
       event.preventDefault();
 
-      closeActiveEditor();
+      closeActiveEditor({ preserveDraft: true, restoreFocus: true });
 
       return;
     }
@@ -251914,10 +251825,7 @@ if (
       !(
         event.ctrlKey ||
         event.metaKey
-      ) ||
-      event.isComposing ||
-      event.keyCode ===
-        229
+      )
     ) {
       return;
     }
@@ -252001,8 +251909,7 @@ if (
 
         openSectionEditor(
           definition,
-          entry,
-          entryIndex
+          entry
         );
       };
   }
@@ -252067,6 +251974,32 @@ if (
     "keydown",
     handleContextEditorKeydown
   );
+
+  diaryContextEntryDrafts = {
+    hasPending: () => Boolean(findPendingDraft()),
+    clear: clearContextDrafts,
+    blockSave: blockDiarySaveForDraft
+  };
+
+  const diaryModal = elements.logEditorModal;
+  diaryModal?.addEventListener("click", event => {
+    const action = event.target instanceof Element ? event.target.closest("button") : null;
+    if (
+      action?.matches("#saveDraftButton, #leaderDraftSaveButton, #leaderApprovalCompleteButton, #requestApprovalButton") &&
+      action.dataset.memberApprovalAction !== "cancel" &&
+      blockDiarySaveForDraft()
+    ) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  }, true);
+
+  diaryModal?.addEventListener("submit", event => {
+    if (event.target === elements.logEditorForm && blockDiarySaveForDraft()) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  }, true);
 
 
   document.addEventListener(
@@ -253328,10 +253261,7 @@ if (
   Final auto-grow behavior for dynamically created
   textarea.section-context-entry-content.
 
-  Handover placeholder:
-  "Add a handover item. (Ctrl + Enter to add)"
-  is emitted in Korean through Unicode escapes so this
-  patch remains safe in Windows PowerShell 5.1.
+  Handover placeholder shows a time example and the shortcut.
 ========================================================= */
 
 (function installSectionContextEntryAutogrowV2() {
@@ -253352,7 +253282,7 @@ if (
     38;
 
   const HANDOVER_PLACEHOLDER =
-    "\uC778\uACC4\uC0AC\uD56D\uC744 \uCD94\uAC00\uD558\uC138\uC694. (Ctrl + Enter\uB97C \uB20C\uB7EC \uCD94\uAC00)";
+    "\uC608: 08:57 \uC124\uBE44 \uC810\uAC80 (Ctrl + Enter\uB85C \uCD94\uAC00)";
 
   let scheduledFrameId =
     0;

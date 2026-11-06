@@ -58,6 +58,27 @@ function fakeEditor(env, value) {
 }
 const flush = () => new Promise(resolve=>setImmediate(resolve));
 
+function installSectionComposer(env, showToast = () => {}) {
+  Object.assign(env.context, {
+    getCurrentRole: () => 'BCO1',
+    getCurrentAuthor: () => '작성자',
+    normalizeRole: value => value,
+    createEntryId: () => 'new',
+    SECTION_TYPES: { ISSUE: 'issue', HANDOVER: 'handover', INSTRUCTION: 'instruction', REMARK: 'remark' },
+    ISSUE_CATEGORIES: [{ value: 'BM 발행' }],
+    HANDOVER_CATEGORIES: [{ value: '인계사항' }],
+    showToast
+  });
+  vm.runInContext(between('function normalizeContentTimeToken(', 'function extractTimesFromLogEntryContent('), env.context);
+  const composer = between('(function installSectionContextEntryV3()', '(function installSectionContextEntryV4Compatibility()');
+  const helpers = composer.slice(
+    composer.indexOf('  function normalizeContent('),
+    composer.indexOf('  function getCurrentTimeText()')
+  );
+  const save = between('  function createNewEntry(', '  function saveContextEntry(');
+  vm.runInContext('(() => {\n' + helpers + save + '\nObject.assign(globalThis, { createNewEntry, splitContextEntryText });\n})();', env.context);
+}
+
 test('manual confirmation preserves all targets, false is authoritative, stale text becomes false',()=>{
   const {api}=environment();
   assert.deepEqual(plain(api.copyAnnotation({content,vBeltReplacement:annotation})),annotation);
@@ -137,14 +158,82 @@ test('editor re-open normalizer preserves confirmation and explicit uncheck',()=
 
 test('actual section create/save uses manual state and explicit false overwrites previous true',()=>{
   const env=environment();
-  Object.assign(env.context,{getCurrentRole:()=> 'BCO1',getCurrentAuthor:()=> '작성자',normalizeRole:value=>value,createEntryId:()=> 'new',normalizeTime:value=>value,SECTION_TYPES:{ISSUE:'issue',HANDOVER:'handover',INSTRUCTION:'instruction',REMARK:'remark'},ISSUE_CATEGORIES:[],HANDOVER_CATEGORIES:[{value:'인계사항'}],showToast:()=>{}});
-  vm.runInContext(between('  function createNewEntry(','  function saveContextEntry('),env.context);
+  installSectionComposer(env);
   const item=fakeEditor(env,content), original={id:'old',content,vBeltReplacement:annotation,importedFromRole:'BCO1',importedFromLogId:'member-log'};
   env.api.mountEditor(item.editor,original);item.checkbox.checked=false;item.checkbox.fire('change');
   const saved=env.context.createNewEntry({type:'handover'},item.editor,original);
   assert.equal(saved.id,'old');assert.equal(saved.vBeltReplacement.confirmed,false);
   assert.equal(original.vBeltReplacement.confirmed,true);
   assert.equal(saved.importedFromLogId,'member-log');
+});
+
+test('timed section extracts the work clock while preserving body text and TAG', () => {
+  const env = environment();
+  const messages = [];
+  installSectionComposer(env, message => messages.push(message));
+  const issue = { type: 'issue' };
+  const create = (text, definition = issue, previousEntry = null) => {
+    const { editor } = fakeEditor(env, text);
+    const query = editor.querySelector;
+    editor.querySelector = selector => {
+      if (selector === '.section-context-entry-issue-type') return new Control('BM 발행');
+      if (selector === '.section-context-entry-tag') return new Control('204hhl60ap611');
+      return query(selector);
+    };
+    return env.context.createNewEntry(definition, editor, previousEntry);
+  };
+
+  for (const [text, time, body] of [
+    ['0857 204HHL60AP611 점검', '08:57', '204HHL60AP611 점검'],
+    ['08:57 [참고] 점검', '08:57', '[참고] 점검'],
+    ['08:57 [104HHL60AP611] 점검', '08:57', '[104HHL60AP611] 점검'],
+    ['857, 09:15~10:00 점검', '08:57, 09:15~10:00', '점검'],
+    ['2026-11-06 점검', '', '2026-11-06 점검'],
+    ['08:700 점검', '', '08:700 점검'],
+    ['08:590 점검', '', '08:590 점검'],
+    ['081500 점검', '', '081500 점검'],
+    ['0815HHL 점검', '', '0815HHL 점검'],
+    ['0857 9999 점검', '08:57', '9999 점검']
+  ]) {
+    const entry = create(text);
+    assert.equal(entry.time, time, text);
+    assert.equal(entry.content, body, text);
+    assert.equal(entry.category, 'BM 발행', text);
+    assert.equal(entry.tag, '204HHL60AP611', text);
+  }
+  assert.equal(create('수시 설비 점검', issue, { time: '수시' }).time, '수시');
+  assert.equal(create('08:00~09:00 설비 점검', issue, { time: '08:00~09:00' }).content, '설비 점검');
+  assert.equal(create('0857 설비 점검', { type: 'remark' }).content, '0857 설비 점검');
+  assert.equal(create('08:57'), null);
+  assert.equal(create('0857'), null);
+  assert.equal(messages.length, 2);
+});
+
+test('time-only edits retain the existing V-Belt confirmation and its own completion clock', async () => {
+  const env = environment();
+  installSectionComposer(env);
+  const original = {
+    id: 'timed-replacement',
+    time: '08:00',
+    content,
+    vBeltReplacement: { ...annotation, targets: [{ ...annotation.targets[0], completedTime: '06:25' }] }
+  };
+  const item = fakeEditor(env, '08:00 ' + content);
+  env.api.mountEditor(item.editor, original, undefined, value => env.context.splitContextEntryText(value, original.time).content);
+  await flush();
+  assert.equal(item.checkbox.checked, true);
+
+  item.input.value = '0935 ' + content;
+  item.input.fire('input');
+  const saved = env.context.createNewEntry({ type: 'handover' }, item.editor, original);
+  assert.equal(saved.time, '09:35');
+  assert.equal(saved.content, content);
+  assert.deepEqual(plain(saved.vBeltReplacement), original.vBeltReplacement);
+
+  item.input.value = '09:35 ' + content + ' 후 재기동';
+  item.input.fire('input');
+  assert.equal(item.checkbox.checked, false);
+  assert.equal(env.context.createNewEntry({ type: 'handover' }, item.editor, original).vBeltReplacement.confirmed, false);
 });
 
 test('collect/save JSON preserves one annotation consistently in both entry collections',async()=>{
