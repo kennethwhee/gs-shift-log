@@ -105,7 +105,7 @@
       : provenance !== 'measured' ? 'retained' : wholeCycleVerified ? 'whole' : 'partial';
     const scopeLabel = scope === 'whole' ? '확정 기준 누적' : scope === 'manual' ? '직접 입력 누적'
       : scope === 'retained' ? '기존 저장값' : scope === 'pending' ? '조회 대기'
-      : coverage.complete === true && !review ? '등록 기준 누적' : '조회 구간 RUN';
+      : coverage.complete === true && !review ? '등록 기준 누적' : '확인 구간 누적';
     const requestedAction = source.action;
     // Only expose a mutation workflow if the adapter's existing proof and
     // permission helpers explicitly made it available. Otherwise open history.

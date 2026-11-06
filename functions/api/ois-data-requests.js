@@ -5,6 +5,8 @@ import { validatedFirstRunStart, validatedTrailingStateStart } from "../_shared/
 import { replacementAutoCycleProof, isReplacementAutoRevision } from "../_shared/blower-replacement-auto-v3.js";
 import { ROLE_RECOVERY_PREFIX, loadRolePriorityRecoveryProof, validateRoleRecoveryView, ensureRoleRecoverySchema,
   roleRecoveryQueueStatements, validRoleRecoveryReuse, roleRecoveryErrorResponse } from "../_shared/blower-role-recovery-v1.js";
+import { COVERAGE_RECOVERY_PREFIX, ensureCoverageRecoverySchema, loadCoverageRecoveryProof,
+  validateCoverageRecoveryView, coverageRecoveryQueueStatements, validCoverageRecoveryReuse } from "../_shared/blower-coverage-recovery-v1.js";
 import bedAshMinuteContract from "../../efficiency/bed-ash-minute-contract.js";
 
 "use strict";
@@ -18860,6 +18862,15 @@ async function createBlowerRuntimeProbeRequest(
     return jsonResponse({ ok: false, code: mapping.code, message: mapping.error }, 400);
   }
   const { assetTag, dataParcTag } = mapping;
+  const recoveryFlags = [body.rolePriorityRecovery, body.confirmedGapRecovery,
+    body.requireFirstRunStart].filter(value => value === true).length;
+  const coverageRecoveryMode = body.confirmedGapRecovery === true ? 'confirmed_gap'
+    : body.requireFirstRunStart === true && body.unifiedRefresh === true ? 'seal_first_run' : '';
+  if (recoveryFlags > 1 || ((body.rolePriorityRecovery === true || coverageRecoveryMode) &&
+      (body.incrementalRefresh === true || body.requireIncrementalAppend === true || body.limestoneTrackingOnly === true))) {
+    return jsonResponse({ok:false,code:'BLOWER_RUNTIME_RECOVERY_MODE_INVALID',
+      message:'서로 다른 보완 조회 방식을 함께 실행할 수 없습니다. 기존 누적값은 유지합니다.'},400);
+  }
   const limestoneTrackingOnly = body.limestoneTrackingOnly === true;
   if (limestoneTrackingOnly && (
       body.unifiedRefresh !== true || body.incrementalRefresh !== false ||
@@ -18943,12 +18954,26 @@ async function createBlowerRuntimeProbeRequest(
 
   let roleRecovery = null;
   if (body.rolePriorityRecovery === true) {
-    if (internalOptions.prepareOnly === true || internalOptions.lookupOnly === true) return jsonResponse({ok:false,
-      code:'BLOWER_ROLE_RECOVERY_EXPLICIT_REQUIRED',message:'선택 교체시각 보완은 개별 확인 작업으로 실행해 주세요.'},400);
     try {
-      roleRecovery = await loadRolePriorityRecoveryProof(database,asset,{now:internalOptions.now});
+      roleRecovery = internalOptions.recoveryProofsByTag?.get(assetTag) ||
+        await loadRolePriorityRecoveryProof(database,asset,{now:internalOptions.now});
       validateRoleRecoveryView({...body,dataParcTag},roleRecovery);
-      await ensureRoleRecoverySchema(database);
+      internalOptions.recoveryProofsByTag?.set(assetTag,roleRecovery);
+      if (internalOptions.prepareOnly !== true) await ensureRoleRecoverySchema(database);
+    } catch(error) {
+      if (error?.code && error?.status) return roleRecoveryErrorResponse(error);
+      throw error;
+    }
+  }
+
+  let coverageRecovery = null;
+  if (coverageRecoveryMode) {
+    try {
+      coverageRecovery = internalOptions.recoveryProofsByTag?.get(assetTag) ||
+        await loadCoverageRecoveryProof(database,asset,dataParcTag,coverageRecoveryMode,{now:internalOptions.now});
+      validateCoverageRecoveryView({...body,dataParcTag},coverageRecovery);
+      internalOptions.recoveryProofsByTag?.set(assetTag,coverageRecovery);
+      if (internalOptions.prepareOnly !== true) await ensureCoverageRecoverySchema(database);
     } catch(error) {
       if (error?.code && error?.status) return roleRecoveryErrorResponse(error);
       throw error;
@@ -19116,6 +19141,7 @@ async function createBlowerRuntimeProbeRequest(
   // BLOWER_INCREMENTAL_REFRESH_V1: only the top Latest action may append.
   // Never trust client-provided totals, checkpoints, or a manually entered start.
   if (roleRecovery) requestedStartText = roleRecovery.selectedCompletionAt;
+  if (coverageRecovery) requestedStartText = coverageRecovery.startAt;
   let appendBase = null;
   if (body.incrementalRefresh === true) {
     if (body.unifiedRefresh !== true) return jsonResponse({ ok: false, code: "BLOWER_INCREMENTAL_MODE_INVALID",
@@ -19323,6 +19349,7 @@ async function createBlowerRuntimeProbeRequest(
 
   const reuseKey =
     (roleRecovery ? ROLE_RECOVERY_PREFIX : '') +
+    (coverageRecovery ? COVERAGE_RECOVERY_PREFIX + coverageRecoveryMode + ':' : '') +
     (limestoneTrackingOnly ? 'limestone-run-ledger-v1:' : '') +
     (appendBase ? "append-v1:" : "") +
     (signalOnlyCycle ? "signal-only-v1:" : "") +
@@ -19338,6 +19365,7 @@ async function createBlowerRuntimeProbeRequest(
         expectedCycleStartRevision,
         expectedCycleRuntimeRevision,
         ...(roleRecovery ? [roleRecovery.snapshotSha256,roleRecovery.selectedCompletionAt] : []),
+        ...(coverageRecovery ? [coverageRecovery.snapshotSha256,coverageRecoveryMode] : []),
         ...(assetTag === BLOWER_RUNTIME_PROBE_ASSET_TAG ? [] : [dataParcTag]),
         ...(appendBase ? ["incremental-v1", appendBase.eventId, appendBase.runningSeconds, appendBase.startAt] : [])
       ])
@@ -19397,6 +19425,8 @@ async function createBlowerRuntimeProbeRequest(
   ) {
     if (roleRecovery && !await validRoleRecoveryReuse(database,activeRequest.id,roleRecovery)) return jsonResponse({ok:false,
       code:'BLOWER_ROLE_RECOVERY_INTENT_CONFLICT',message:'진행 중인 조회의 교체 근거가 달라 기존 값을 유지했습니다.'},409);
+    if (coverageRecovery && !await validCoverageRecoveryReuse(database,activeRequest.id,coverageRecovery)) return jsonResponse({ok:false,
+      code:'BLOWER_COVERAGE_RECOVERY_INTENT_CONFLICT',message:'진행 중인 보완 조회의 근거가 달라 기존 값을 유지했습니다.'},409);
     if (internalOptions.prepareOnly === true) return {
       preparedBlowerRuntimeProbe: true,
       kind: "reused_active",
@@ -19419,10 +19449,13 @@ async function createBlowerRuntimeProbeRequest(
       probeExpectedCycleStartedAt,
       probeExpectedCycleStartRevision,
       probeExpectedCycleRuntimeRevision:
-        appendBase
+        roleRecovery ? ROLE_RECOVERY_PREFIX + expectedCycleRuntimeRevision :
+        coverageRecovery ? COVERAGE_RECOVERY_PREFIX + expectedCycleRuntimeRevision : appendBase
           ? `append-v1:${expectedCycleRuntimeRevision}`
           : expectedCycleRuntimeRevision,
       appendBase,
+      roleRecovery,
+      coverageRecovery,
       item: activeRequest
     };
     return blowerRuntimeProbeCreateResponse(
@@ -19470,6 +19503,8 @@ async function createBlowerRuntimeProbeRequest(
   ) {
     if (roleRecovery && !await validRoleRecoveryReuse(database,completeRequest.id,roleRecovery)) return jsonResponse({ok:false,
       code:'BLOWER_ROLE_RECOVERY_INTENT_CONFLICT',message:'완료 조회의 교체 근거가 달라 기존 값을 유지했습니다.'},409);
+    if (coverageRecovery && !await validCoverageRecoveryReuse(database,completeRequest.id,coverageRecovery)) return jsonResponse({ok:false,
+      code:'BLOWER_COVERAGE_RECOVERY_INTENT_CONFLICT',message:'완료된 보완 조회의 근거가 달라 기존 값을 유지했습니다.'},409);
     if (
       internalOptions.prepareOnly ===
         true
@@ -19539,10 +19574,13 @@ async function createBlowerRuntimeProbeRequest(
       probeExpectedCycleStartedAt,
       probeExpectedCycleStartRevision,
       probeExpectedCycleRuntimeRevision:
-        appendBase
+        roleRecovery ? ROLE_RECOVERY_PREFIX + expectedCycleRuntimeRevision :
+        coverageRecovery ? COVERAGE_RECOVERY_PREFIX + expectedCycleRuntimeRevision : appendBase
           ? `append-v1:${expectedCycleRuntimeRevision}`
           : expectedCycleRuntimeRevision,
-      appendBase
+      appendBase,
+      roleRecovery,
+      coverageRecovery
     };
   }
 
@@ -19583,6 +19621,7 @@ async function createBlowerRuntimeProbeRequest(
   try {
     const recoveryStatements = roleRecovery
       ? roleRecoveryQueueStatements(database,roleRecovery,requestId,requestedAt)
+      : coverageRecovery ? coverageRecoveryQueueStatements(database,coverageRecovery,requestId,requestedAt)
       : {before:[],after:[]};
     await database.batch([
       ...recoveryStatements.before,
@@ -19650,7 +19689,9 @@ async function createBlowerRuntimeProbeRequest(
           probeExpectedCycleStartRevision,
           // Older history deployments will reject this synthetic revision rather
           // than mistake a delta for a full-cycle total. The Agent just echoes it.
-          roleRecovery ? ROLE_RECOVERY_PREFIX + expectedCycleRuntimeRevision : appendBase ? `append-v1:${expectedCycleRuntimeRevision}` : expectedCycleRuntimeRevision,
+          roleRecovery ? ROLE_RECOVERY_PREFIX + expectedCycleRuntimeRevision :
+            coverageRecovery ? COVERAGE_RECOVERY_PREFIX + expectedCycleRuntimeRevision :
+              appendBase ? `append-v1:${expectedCycleRuntimeRevision}` : expectedCycleRuntimeRevision,
           requestedAt,
           requestedAt
         ),
@@ -19712,6 +19753,8 @@ async function createBlowerRuntimeProbeRequest(
       ) {
         if (roleRecovery && !await validRoleRecoveryReuse(database,reusableConcurrentRequest.id,roleRecovery)) return jsonResponse({ok:false,
           code:'BLOWER_ROLE_RECOVERY_INTENT_CONFLICT',message:'동시 조회의 교체 근거가 달라 기존 값을 유지했습니다.'},409);
+        if (coverageRecovery && !await validCoverageRecoveryReuse(database,reusableConcurrentRequest.id,coverageRecovery)) return jsonResponse({ok:false,
+          code:'BLOWER_COVERAGE_RECOVERY_INTENT_CONFLICT',message:'동시 보완 조회의 근거가 달라 기존 값을 유지했습니다.'},409);
         return blowerRuntimeProbeCreateResponse(
           reusableConcurrentRequest,
           reusableConcurrentRequest.status ===
@@ -19725,6 +19768,8 @@ async function createBlowerRuntimeProbeRequest(
 
     if (roleRecovery && /CHECK constraint failed/i.test(String(error?.message || error))) return jsonResponse({ok:false,
       code:'BLOWER_ROLE_RECOVERY_CONFLICT',message:'요청 중 교체 근거 또는 기존 누적값이 변경되어 조회를 시작하지 않았습니다. 다시 확인해 주세요.'},409);
+    if (coverageRecovery && /CHECK constraint failed/i.test(String(error?.message || error))) return jsonResponse({ok:false,
+      code:'BLOWER_COVERAGE_RECOVERY_CONFLICT',message:'보완 조회 중 교체 근거나 누적값이 변경되어 조회를 시작하지 않았습니다.'},409);
     throw error;
   }
 
@@ -20116,6 +20161,18 @@ function blowerRuntimeProbeBatchMutationStatements(database, preparedItems, requ
 
   const created = mutable.filter(item => item.kind === "created");
   if (!created.length) return statements;
+  const recoveryAfter = [];
+  for (const item of created) {
+    const recovery = item.roleRecovery
+      ? roleRecoveryQueueStatements(database,item.roleRecovery,item.requestId,item.requestedAt)
+      : item.coverageRecovery
+        ? coverageRecoveryQueueStatements(database,item.coverageRecovery,item.requestId,item.requestedAt)
+        : null;
+    if (recovery) {
+      statements.unshift(...recovery.before);
+      recoveryAfter.push(...recovery.after);
+    }
+  }
   const requestRows = JSON.stringify(created.map(item => ({requestId:item.requestId,targetDate:item.targetDate,
     requestedById:item.requestedById,requestedByName:item.requestedByName,requestedAt:item.requestedAt,expiresAt:item.expiresAt})));
   statements.push(database.prepare(`INSERT INTO ois_data_requests
@@ -20155,7 +20212,19 @@ function blowerRuntimeProbeBatchMutationStatements(database, preparedItems, requ
         CAST(json_extract(value,'$.baseRunningSeconds') AS INTEGER),json_extract(value,'$.requestedAt') FROM json_each(?)`)
       .bind(appendRows));
   }
+  statements.push(...recoveryAfter);
   return statements;
+}
+
+function isUnifiedRuntimeRecoveryItem(item) {
+  const modes = [item.rolePriorityRecovery, item.confirmedGapRecovery, item.requireFirstRunStart];
+  if (modes.some(value => value !== undefined && value !== false && value !== true) ||
+      modes.filter(value => value === true).length !== 1 ||
+      item.incrementalRefresh !== false || item.requireIncrementalAppend !== false ||
+      (item.limestoneTrackingOnly !== undefined && item.limestoneTrackingOnly !== false)) return false;
+  if (item.rolePriorityRecovery === true) return item.assetTag === '103HRJ01AN601';
+  if (item.confirmedGapRecovery === true) return item.assetTag === '104ETG30AN602';
+  return ['204HHL10AN611','204HHL10AN631'].includes(item.assetTag);
 }
 
 async function createBlowerRuntimeProbeBatchRequest(context, body) {
@@ -20173,10 +20242,12 @@ async function createBlowerRuntimeProbeBatchRequest(context, body) {
   }
   const invalidIndex = requests.findIndex(item => !isPlainJsonObject(item) ||
     item.action !== "create_blower_runtime_probe" || item.unifiedRefresh !== true ||
-    (item.limestoneTrackingOnly === true
+    (isUnifiedRuntimeRecoveryItem(item) ? false : item.limestoneTrackingOnly === true
       ? (item.incrementalRefresh !== false || item.requireIncrementalAppend !== false ||
-        !['103HRJ01AN602', '203HRJ01AN601', '203HRJ01AN602'].includes(item.assetTag))
+        !['103HRJ01AN602', '203HRJ01AN601', '203HRJ01AN602'].includes(item.assetTag) ||
+        [item.rolePriorityRecovery,item.confirmedGapRecovery,item.requireFirstRunStart].some(value => value !== undefined && value !== false))
       : item.incrementalRefresh !== true ||
+        [item.rolePriorityRecovery,item.confirmedGapRecovery,item.requireFirstRunStart].some(value => value !== undefined && value !== false) ||
         (item.limestoneTrackingOnly !== undefined && item.limestoneTrackingOnly !== false)) ||
     typeof item.requireIncrementalAppend !== "boolean" || item.confirmRunSignal !== true);
   if (invalidIndex >= 0) return jsonResponse({ok:false,code:"BLOWER_RUNTIME_CREATE_BATCH_ITEM_INVALID",failedIndex:invalidIndex,
@@ -20210,6 +20281,10 @@ async function createBlowerRuntimeProbeBatchRequest(context, body) {
   // Schema/expiry writes happen once before preparation; prepareOnly itself is read-only.
   await ensureBlowerRuntimeProbeSchema(database);
   await ensureAppendSchema(database);
+  if (requests.some(item => item.rolePriorityRecovery === true)) await ensureRoleRecoverySchema(database);
+  if (requests.some(item => item.confirmedGapRecovery === true || item.requireFirstRunStart === true)) {
+    await ensureCoverageRecoverySchema(database);
+  }
   await expireOldRequests(database);
 
   const batchGroupId = crypto.randomUUID();
@@ -20217,6 +20292,7 @@ async function createBlowerRuntimeProbeBatchRequest(context, body) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const now = new Date();
     const batchPreparation = await loadBlowerRuntimeProbeBatchPreparation(database, mappings);
+    batchPreparation.recoveryProofsByTag = new Map();
     const lookupKeys = [];
     for (let index = 0; index < requests.length; index += 1) {
       const lookup = await createBlowerRuntimeProbeRequest(context, requests[index], {
@@ -20453,6 +20529,11 @@ async function createBlowerRuntimeProbeBatchRequest(context, body) {
     } catch (error) {
       if (isScheduledBatchConflict(error)) return jsonResponse({ok:false,code:"SCHEDULE_BATCH_CONFLICT",
         message:"다른 탭에서 이미 실행했거나 자동조회 설정이 변경되어 중복 요청을 등록하지 않았습니다."}, 409);
+      if (preparedItems.some(item => item.roleRecovery || item.coverageRecovery) &&
+          /CHECK constraint failed:\s*valid\s*=\s*1/i.test(String(error?.message || error))) {
+        return jsonResponse({ok:false,code:'BLOWER_RUNTIME_RECOVERY_SNAPSHOT_CONFLICT',
+          message:'보완 조회를 등록하는 동안 교체 근거나 운전 이력이 변경되어 아무 요청도 등록하지 않았습니다.'},409);
+      }
       const assetSnapshotRace = /NOT NULL constraint failed:\s*blower_runtime_probe_intents_v5\.request_id/i
         .test(String(error?.message || error));
       if (assetSnapshotRace) return jsonResponse({ok:false,code:"BLOWER_RUNTIME_CREATE_BATCH_SNAPSHOT_CONFLICT",

@@ -6,8 +6,10 @@ import { shiftKey } from './blower-role-priority-v5.js';
 /* A selected completion clock is evidence, not permission to discard a saved
  * total. This explicit recovery keeps the old cycle intact until a complete
  * RUN result, unchanged approved sources and both old revisions commit together.
- * The first repair is deliberately limited to the verified Limestone 1A legacy
- * owner. Earlier boundaries and startup-owned cycles need different proofs.
+ * The repair is limited to the verified Limestone 1A owner without a separate
+ * startup boundary. A pending cycle may already own measured RUN through the
+ * signal-only contract; recovering its basis must preserve that marker.
+ * Earlier boundaries and startup-owned cycles need different proofs.
  */
 export const ROLE_RECOVERY_PREFIX = 'role-priority-recovery-v1:';
 export const ROLE_RECOVERY_TAG = '103HRJ01AN601';
@@ -42,7 +44,7 @@ function eventsEqual(tag,rows) {
  * sources, exclusions and their exact R5 context hashes before authorizing work. */
 export function rolePriorityRecoveryProof(asset,events,proof = replacementAutoCycleProof(asset,events)) {
   if (!asset || asset.tag_number !== ROLE_RECOVERY_TAG || asset.blower_type !== 'limestone' ||
-      Number(asset.enabled) !== 1 || asset.cycle_start_state !== 'legacy' || text(asset.cycle_started_at) ||
+      Number(asset.enabled) !== 1 || !['legacy','pending'].includes(asset.cycle_start_state) || text(asset.cycle_started_at) ||
       !text(asset.cycle_start_revision) || !text(asset.cycle_runtime_revision) ||
       text(asset.cycle_runtime_revision).length + ROLE_RECOVERY_PREFIX.length > 200) return null;
   const selected = proof?.rolePrioritySelection;
@@ -74,6 +76,8 @@ export function rolePriorityRecoveryProof(asset,events,proof = replacementAutoCy
       target >= instant(base.observedAt) || receipt.updated_at !== receipt.created_at ||
       raw?.manualOverride === true || raw?.manualOverride?.changedAt || raw?.replacementEdit || raw?.requiresRunRefresh ||
       Number(asset.runtime_hours) !== Number(asset.cycle_runtime_hours)) return null;
+  if (asset.cycle_start_state === 'pending' && (raw.signalOnlyCycle !== true ||
+      raw.expectedCycleStartState !== 'legacy' || text(raw.expectedCycleStartedAt))) return null;
   return {asset,owner,certificate,base,selected,source,selectedCompletionAt:new Date(target).toISOString()};
 }
 
@@ -190,13 +194,17 @@ export async function applyRolePriorityRecovery(database,user,body,adapters={}) 
   const intent = await adapters.loadRuntimeIntent(database,requestId);
   const recovery = await loadRoleRecoveryIntent(database,requestId);
   const snapshot = parse(recovery?.snapshot_json), original = snapshot?.asset;
+  const signalOnlyPending = original?.cycle_start_state === 'pending';
+  const expectedWireStartRevision = original
+    ? (signalOnlyPending ? 'signal-only-v1:' : '') + original.cycle_start_revision : '';
   if (!recovery || recovery.version !== 1 || recovery.asset_tag !== ROLE_RECOVERY_TAG || probe.assetTag !== ROLE_RECOVERY_TAG ||
       probe.dataParcTag !== ROLE_RECOVERY_SIGNAL || !original || original.tag_number !== ROLE_RECOVERY_TAG ||
       recovery.snapshot_sha256 !== await digest(recovery.snapshot_json) || snapshot.version !== 1 ||
+      !['legacy','pending'].includes(original.cycle_start_state) ||
       recovery.selected_completion_at !== snapshot.selectedCompletionAt ||
       !adapters.matchesRuntimeIntent(intent,probe) || !String(intent.reuse_key || '').startsWith(ROLE_RECOVERY_PREFIX) ||
       probe.expectedLastReplacementAt !== original.last_replacement_at || probe.expectedCycleStartState !== 'legacy' || probe.expectedCycleStartedAt ||
-      probe.expectedCycleStartRevision !== original.cycle_start_revision ||
+      probe.expectedCycleStartRevision !== expectedWireStartRevision ||
       probe.expectedCycleRuntimeRevision !== ROLE_RECOVERY_PREFIX + original.cycle_runtime_revision ||
       !sameTime(probe.startAt,recovery.selected_completion_at) ||
       request.target_date !== `v1|${probe.assetTag}|${probe.rawStartAt}|${probe.rawEndAt}` ||
@@ -229,7 +237,7 @@ export async function applyRolePriorityRecovery(database,user,body,adapters={}) 
     const afterAsset = {...asset,...patch};
     const afterOwner = {...proof.owner,event_date:proof.selectedCompletionAt,updated_at:now};
     const effectiveProbe = {...probe,expectedLastReplacementAt:proof.selectedCompletionAt,expectedCycleStartRevision:nextStart,
-      expectedCycleRuntimeRevision:original.cycle_runtime_revision};
+      expectedCycleRuntimeRevision:original.cycle_runtime_revision,...(signalOnlyPending?{signalOnlyCycle:true}:{})};
     // This is an explicitly derived receipt for the newly adopted owner. The
     // immutable raw request result still carries the OLD comparison baseline
     // and wire revisions. Never rewrite result_json to pretend otherwise.

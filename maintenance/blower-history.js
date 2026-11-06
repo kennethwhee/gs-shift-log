@@ -1226,8 +1226,8 @@
         ? `${hours.toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간` : pendingRange ? "RUN 조회 대기" : "확인 필요",
       warning: rolePriority ? rolePriority.label : replacementClockConfirmed ? "일부 기간 RUN 누적 · 교체 시각 확인 완료 · 누락 구간 확인 필요"
         : rangeTracking ? pendingRange ? "교체 기록 자동반영 · 확인 구간 RUN 조회 대기" : "확인 구간 RUN 누적 · 교체 기록 이후 확인된 RUN · 완료 시각 미기록"
-        : registeredRuntimeRange ? "조회구간 RUN 누적 · RUN 조회기준 · 실제 교체 기준 미확정"
-        : automaticClockUnknown ? "교체 자동반영 완료 · 완료 시각 미기록 · 새 벨트 RUN 기준 확인 필요" : sourceReview ? "조회구간 RUN 누적 · 교체 기준 확인 필요" : "일부 기간 RUN 누적 · 교체 기준 확인 필요" };
+        : registeredRuntimeRange ? "확인 구간 누적 · RUN 조회기준 · 실제 교체 기준 미확정"
+        : automaticClockUnknown ? "교체 자동반영 완료 · 완료 시각 미기록 · 새 벨트 RUN 기준 확인 필요" : sourceReview ? "확인 구간 누적 · 교체 기준 확인 필요" : "일부 기간 RUN 누적 · 교체 기준 확인 필요" };
   }
 
   function commonRunCoverageNotice(coverage) {
@@ -1569,10 +1569,10 @@
           </div>
         </div>`
       : "";
-    const cyclePrimaryLabel = manualRuntime ? "수동 보정 누적" : partialCoverage ? partialCoverage.rangeTracking ? "확인 구간 RUN 누적" : partialCoverage.automaticReplacement || partialCoverage.sourceReview || partialCoverage.registeredRuntimeRange ? "조회구간 RUN 누적" : "일부 기간 RUN 누적" : disputedLimestone ? "이전 저장 누적" : isDataparcRuntimeAsset && !effectiveStartupPending ? "누적 기동시간" : effectiveStartupPending
+    const cyclePrimaryLabel = manualRuntime ? "수동 보정 누적" : partialCoverage ? partialCoverage.rangeTracking ? "확인 구간 RUN 누적" : partialCoverage.automaticReplacement || partialCoverage.sourceReview || partialCoverage.registeredRuntimeRange ? "확인 구간 누적" : "일부 기간 RUN 누적" : disputedLimestone ? "이전 저장 누적" : isDataparcRuntimeAsset && !effectiveStartupPending ? "누적 기동시간" : effectiveStartupPending
       ? "주기 상태"
       : (cycleRuntimeTracked ? "누적 운전" : (actualStarted ? "기동 경과" : "교체 경과"));
-    const cyclePrimaryMobileLabel = manualRuntime ? "수동 보정" : partialCoverage ? partialCoverage.rangeTracking ? "확인 구간 RUN" : partialCoverage.automaticReplacement || partialCoverage.sourceReview || partialCoverage.registeredRuntimeRange ? "조회구간 RUN" : "일부 기간 RUN" : disputedLimestone ? "이전 누적" : isDataparcRuntimeAsset && !effectiveStartupPending ? "누적 기동" : effectiveStartupPending
+    const cyclePrimaryMobileLabel = manualRuntime ? "수동 보정" : partialCoverage ? partialCoverage.rangeTracking ? "확인 구간 RUN" : partialCoverage.automaticReplacement || partialCoverage.sourceReview || partialCoverage.registeredRuntimeRange ? "확인 구간" : "일부 기간 RUN" : disputedLimestone ? "이전 누적" : isDataparcRuntimeAsset && !effectiveStartupPending ? "누적 기동" : effectiveStartupPending
       ? "상태"
       : (cycleRuntimeTracked ? "누적" : (actualStarted ? "기동" : "교체"));
     const measuredLabel = `${(effectiveStartupPending ? 0 : cycleElapsedHours).toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간`;
@@ -2235,7 +2235,7 @@
           </span>
         </span>
         <span class="all-overview-metrics">
-          <span><small>${manualRuntime ? '수동 보정 누적' : partialCoverage?.rangeTracking ? '확인 구간 RUN 누적' : automaticReplacement ? asset.replacementAutoCycle.requiresRunRefresh === true ? '교체 자동반영' : '조회구간 RUN 누적' : partialCoverage ? partialCoverage.automaticReplacement || partialCoverage.sourceReview || partialCoverage.registeredRuntimeRange ? '조회구간 RUN 누적' : '일부 기간 RUN 누적' : disputedLimestone ? '이전 저장 누적' : '누적 기동시간'}</small><strong>${escapeHtml(view.runtime)}</strong></span>
+          <span><small>${manualRuntime ? '수동 보정 누적' : partialCoverage?.rangeTracking ? '확인 구간 RUN 누적' : automaticReplacement ? asset.replacementAutoCycle.requiresRunRefresh === true ? '교체 자동반영' : '확인 구간 누적' : partialCoverage ? partialCoverage.automaticReplacement || partialCoverage.sourceReview || partialCoverage.registeredRuntimeRange ? '확인 구간 누적' : '일부 기간 RUN 누적' : disputedLimestone ? '이전 저장 누적' : '누적 기동시간'}</small><strong>${escapeHtml(view.runtime)}</strong></span>
           <span><small>${partialCoverage?.rolePriority ? '상위 보직 교체 기준' : partialCoverage?.replacementClockConfirmed ? '최근 V-Belt 교체' : partialCoverage?.registeredRuntimeRange ? 'RUN 조회기준' : automaticReplacement ? '교체 자동반영' : partialCoverage?.rangeTracking ? '교체일' : partialCoverage?.sourceReview ? '등록기준' : escapeHtml(cycleReferenceLabel(asset))}</small><strong>${escapeHtml(replacement)}</strong></span>
         </span>
         <span class="all-overview-query-period">
@@ -2558,7 +2558,7 @@
   function observeUnifiedRefreshApply(options, result) {
     try {
       const body = options?.body, action = body?.action;
-      if (!['dataparc_runtime_sync', 'limestone_run_track_apply'].includes(action) || result?.ok !== true ||
+      if (!['dataparc_runtime_sync', 'limestone_run_track_apply', 'apply_role_priority_runtime_recovery'].includes(action) || result?.ok !== true ||
           typeof body.requestId !== 'string' || !body.requestId ||
           (result.requestId && result.requestId !== body.requestId) ||
           (result.applied !== true && result.replayed !== true)) return;
@@ -2785,8 +2785,8 @@
       ? formatKstDateTimeDisplay(stats.latest.observedAt)
       : "조회 이력 없음";
     let detail = stats.queriedCount
-      ? `저장된 조회 결과 ${stats.queriedCount.toLocaleString("ko-KR")}대 · 다음 통합조회는 각 설비의 마지막 조회 종료시각 이후 구간만 이어서 조회합니다.`
-      : "저장된 조회 결과가 없습니다. 최초 조회가 완료되면 이후부터는 마지막 조회 종료시각 이후 구간만 이어서 조회합니다.";
+      ? `저장된 조회 결과 ${stats.queriedCount.toLocaleString("ko-KR")}대 · 마지막 성공 이후를 이어 조회하고, 근거가 확인된 기준·누락 구간은 함께 보완합니다.`
+      : "저장된 조회 결과가 없습니다. 등록 기준과 근거를 확인한 뒤 운전시간을 조회합니다.";
     if (stats.oldest && stats.latest && stats.latest.observedTime - stats.oldest.observedTime >= 60000) {
       detail += ` · 가장 오래된 조회 ${formatKstDateTimeDisplay(stats.oldest.observedAt)}`;
     }
@@ -2794,7 +2794,7 @@
       const earlier = stats.queriedCount - stats.latestCount;
       detail = `조회 이력 ${stats.queriedCount}대 · 같은 종료시각 ${stats.latestCount}대` +
         (earlier ? ` · 이전 조회 ${earlier}대 (${formatKstDateTimeDisplay(stats.oldest.observedAt)})` : " · 전체 시각 일치") +
-        " · 전체 최신화는 마지막 성공 이후를 이어서 조회합니다.";
+        " · 전체 최신화는 이어조회와 근거가 확인된 기준·누락 구간 보완을 함께 실행합니다.";
     }
     elements.overviewLatestQueryDetail.textContent = detail;
     updateOverviewRefreshProgress();
@@ -3090,7 +3090,7 @@
         <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(severityLabel(severity))}</span>
         <div><span>${partialCoverage?.rolePriority ? "상위 보직 교체 기준" : partialCoverage?.replacementClockConfirmed ? "최근 V-Belt 교체" : partialCoverage?.registeredRuntimeRange ? "RUN 조회기준" : runView?.automaticReplacement ? "교체 자동반영" : partialCoverage?.rangeTracking ? "교체일 · 완료 시각 미기록" : partialCoverage?.sourceReview ? "등록기준 · 교체 기준 확인 필요" : escapeHtml(cycleReferenceLabel(asset))}</span><strong>${escapeHtml(cycleReferenceDisplay(asset))}</strong></div>
         ${runView ? `<div><span>확인 상태</span><strong>${escapeHtml(runView.stateLabel)}</strong></div>` : asset.runtimeAccumulationMode === "measured_only" || asset.blowerType === "organic_fuel" ? "" : `<div><span>현재 운전상태</span><strong>${startupPending ? "기동 대기" : asset.cycleRuntimeState === "unknown" ? "확인 필요" : asset.isRunning ? "기동중" : "정지중"}</strong></div>`}
-        <div><span>${partialCoverage ? partialCoverage.rangeTracking ? "확인 구간 RUN 누적" : partialCoverage.automaticReplacement || partialCoverage.sourceReview || partialCoverage.registeredRuntimeRange ? "조회구간 RUN 누적" : "일부 기간 RUN 누적" : disputedLimestone ? "이전 저장 누적" : runView || asset.blowerType === "organic_fuel" ? "누적 기동시간" : "누적 운전시간"}</span><strong>${partialCoverage ? escapeHtml(partialCoverage.runtime) : disputedLimestone ? escapeHtml(allOverviewOperation(asset).runtime) : runView ? escapeHtml(runView.primary) : startupPending ? "0시간" : asset.cycleRuntimeState === "unknown" || asset.measurementRequired ? "최신화 필요" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
+        <div><span>${partialCoverage ? partialCoverage.rangeTracking ? "확인 구간 RUN 누적" : partialCoverage.automaticReplacement || partialCoverage.sourceReview || partialCoverage.registeredRuntimeRange ? "확인 구간 누적" : "일부 기간 RUN 누적" : disputedLimestone ? "이전 저장 누적" : runView || asset.blowerType === "organic_fuel" ? "누적 기동시간" : "누적 운전시간"}</span><strong>${partialCoverage ? escapeHtml(partialCoverage.runtime) : disputedLimestone ? escapeHtml(allOverviewOperation(asset).runtime) : runView ? escapeHtml(runView.primary) : startupPending ? "0시간" : asset.cycleRuntimeState === "unknown" || asset.measurementRequired ? "최신화 필요" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
       `
       : awaitingBackfill
         ? `
@@ -10670,7 +10670,8 @@
     const prior = Date.parse(asset?.lastReplacementAt || "");
     const observed = Date.parse(basis?.observedAt || "");
     if (asset?.tagNumber !== "103HRJ01AN601" || asset.blowerType !== "limestone" ||
-        asset.enabled === false || asset.enabled === 0 || asset.cycleStartState !== "legacy" ||
+        asset.enabled === false || asset.enabled === 0 || !["legacy", "pending"].includes(asset.cycleStartState) ||
+        String(asset.cycleStoredStartedAt ?? asset.cycleStartedAt ?? "").trim() ||
         automatic?.rolePriorityRecoveryEligible !== true || automatic.rolePrioritySourceRevoked === true ||
         selected?.timePrecision !== "minute" || selected.requiredRebuild !== true ||
         asset.hasUnverifiedDataParcHistory !== false || basis?.appendReady !== true ||
@@ -11859,9 +11860,11 @@
     const skipped = results.filter(x => x.status === "skipped").length;
     const waiting = results.filter(x => x.status === "waiting").length;
     const previews = results.filter(x => x.status === 'complete' && x.previewOnly === true).length;
+    const recovered = results.filter(x => x.status === 'complete' && x.recoveryApplied === true &&
+      ['role_priority','confirmed_gap','seal_first_run'].includes(x.recoveryMode)).length;
     const partialContinued = results.filter(x => x.status === 'complete' && x.partialRange === true).length;
     const unchanged = results.filter(x => x.status === "complete" && (typeof inlineRefreshKeptResult === "function" ? inlineRefreshKeptResult(x) : x.unchanged === true) && x.previewOnly !== true).length;
-    elements.unifiedRefreshSummary.textContent = `통합조회 결과 · 반영 ${complete - unchanged - previews}대${previews ? ` · RUN 확인(누적 미반영) ${previews}대` : ""}${unchanged ? ` · 유지 ${unchanged}대` : ""}${partialContinued ? ` · 기준·구간 확인 ${partialContinued}대` : ""}${waiting ? ` · 확인 대기 ${waiting}대` : ""}${skipped || partialContinued ? ` · 조회 보류 ${skipped}대` : ""}${failed ? ` · 실패 ${failed}대` : ""}`;
+    elements.unifiedRefreshSummary.textContent = `통합조회 결과 · 반영 ${complete - unchanged - previews}대${recovered ? ` · 보완 반영 ${recovered}대` : ""}${previews ? ` · RUN 확인(누적 미반영) ${previews}대` : ""}${unchanged ? ` · 유지 ${unchanged}대` : ""}${partialContinued ? ` · 기준·구간 확인 ${partialContinued}대` : ""}${waiting ? ` · 확인 대기 ${waiting}대` : ""}${skipped || partialContinued ? ` · 조회 보류 ${skipped}대` : ""}${failed ? ` · 실패 ${failed}대` : ""}`;
     // Presentation only: keep the original result array, requests, and receipts intact.
     // Surface true failures above protected skipped assets, with stable order inside groups.
     const priority = { failed: 0, waiting: 1, skipped: 2, complete: 3 };
@@ -12001,8 +12004,9 @@
           assertUnifiedRefreshWritable();
           phase = "DataPARC 일괄 조회";
           const incrementalCount = planned.tasks.filter(task => task.incremental).length;
-          const initialCount = planned.tasks.length - incrementalCount;
-          progress(`증분 ${incrementalCount}대${initialCount ? ` · 최초/재설정 ${initialCount}대` : ""} 요청 일괄 전달 · 기존 저장값 유지`);
+          const repairCount = planned.tasks.filter(task => task.kind === 'dataparc_repair').length;
+          const initialCount = planned.tasks.length - incrementalCount - repairCount;
+          progress(`이어조회 ${incrementalCount}대${repairCount ? ` · 기준·구간 보완 ${repairCount}대` : ""}${initialCount ? ` · 최초 조회 ${initialCount}대` : ""} 요청 일괄 전달 · 검증 완료 전 기존 저장값 유지`);
           try {
             const batchResults = await core.executeDataParcBatch(planned.tasks, io);
             state.unifiedRefreshResults.push(...batchResults);

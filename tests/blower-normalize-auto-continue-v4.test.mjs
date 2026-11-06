@@ -468,7 +468,7 @@ test('Silo B keeps its verified 1938-hour RUN range and query basis without disp
   for (const markup of allViews(ui, asset)) {
     assert.ok(markup.includes('1,938.0시간'));
     assert.match(markup, /RUN 조회\s*기준/);
-    assert.match(markup, /조회구간 RUN 누적|확인 구간 RUN 누적/);
+    assert.match(markup, /확인 구간 누적|확인 구간 RUN 누적/);
     assert.ok(!markup.includes('교체 자동반영'));
     assert.doesNotMatch(markup, /class="cycle-deadline-metric|class="cycle-usage-metric|role="progressbar"/);
   }

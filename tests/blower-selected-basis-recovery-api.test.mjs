@@ -15,7 +15,7 @@ const API_URL=new URL('../functions/api/ois-data-requests.js',import.meta.url);
 const source=fs.readFileSync(API_URL,'utf8').replace(/from (["'])(\.\.?\/[^"']+)\1/g,
   (_,quote,relative)=>'from '+JSON.stringify(new URL(relative,API_URL).href));
 const {__roleRecoveryQueue:queue}=await import('data:text/javascript;base64,'+Buffer.from(source+
-  '\nexport const __roleRecoveryQueue={createBlowerRuntimeProbeRequest,buildBlowerRuntimeProbeChunks};').toString('base64'));
+  '\nexport const __roleRecoveryQueue={createBlowerRuntimeProbeRequest,createBlowerRuntimeProbeBatchRequest,buildBlowerRuntimeProbeChunks};').toString('base64'));
 const TAG='103HRJ01AN601',SIGNAL='GSPOGE.ABB_DCS.103HRJ01AN601XB04';
 const OLD='2026-09-18T14:20:00+09:00',SELECTED='2026-09-18T05:24:00.000Z';
 const NOW=new Date(Math.floor(Date.now()/1000)*1000),BEFORE_END=new Date(NOW.getTime()-3600000).toISOString();
@@ -26,7 +26,7 @@ const LOW_TEXT='Limestone Blower #A V-Belt 전량 파손 -> 14:20 Belt 교체 �
 const HIGH_TEXT='Limestone Blower #A V-Belt 전량 파손되어 투입 불가 상태\n- Manual Slide Close 및 Blower 정지 후 차단기 OFF -> 밸브 및 차단기 원복\n- <BM작업> 14:24 Blower #A V-Belt 전량 교체하여 정상화 완료';
 const parse=async response=>({status:response.status,body:await response.json()});
 
-async function fixture(t,{legacy=false,depthCheck=false}={}) {
+async function fixture(t,{legacy=false,depthCheck=false,pending=false}={}) {
   const sql=new DatabaseSync(':memory:');t.after(()=>sql.close());
   let checkedGuards=0;
   const sqliteDepth=Number(sql.prepare('PRAGMA compile_options').all().find(row=>row.compile_options.startsWith('MAX_EXPR_DEPTH=')).compile_options.split('=')[1]);
@@ -54,9 +54,9 @@ async function fixture(t,{legacy=false,depthCheck=false}={}) {
       result_json TEXT,error_message TEXT NOT NULL DEFAULT '',expires_at TEXT NOT NULL,updated_at TEXT NOT NULL);`);
   sql.prepare('INSERT INTO users VALUES(?,?,?,1)').run(OWNER.employeeNo,OWNER.name,'user');
   sql.prepare('INSERT INTO shift_log_sessions VALUES(?,?,?,?)').run(createHash('sha256').update(TOKEN).digest('hex'),OWNER.employeeNo,new Date(NOW.getTime()+86400000).toISOString(),NOW.toISOString());
-  sql.prepare(`UPDATE blower_history_assets SET last_replacement_at=?,cycle_start_state='legacy',cycle_started_at=NULL,
+  sql.prepare(`UPDATE blower_history_assets SET last_replacement_at=?,cycle_start_state=?,cycle_started_at=NULL,
     cycle_start_revision='prior-start',cycle_runtime_revision='prior-runtime',cycle_runtime_hours=1000,runtime_hours=1000,
-    cycle_runtime_anchor_at=?,runtime_anchor_at=?,cycle_runtime_state='running',is_running=1 WHERE tag_number=?`).run(OLD,BEFORE_END,BEFORE_END,TAG);
+    cycle_runtime_anchor_at=?,runtime_anchor_at=?,cycle_runtime_state='running',is_running=1 WHERE tag_number=?`).run(OLD,pending?'pending':'legacy',BEFORE_END,BEFORE_END,TAG);
   const add=(table,row)=>sql.prepare(`INSERT INTO ${table}(${Object.keys(row).join(',')}) VALUES(${Object.keys(row).map(()=>'?').join(',')})`).run(...Object.values(row));
   const event=patch=>add('blower_history_events',{id:'manual-replacement',tag_number:TAG,event_type:'replacement',event_date:OLD,runtime_hours:77,
     issue_type:'',action_type:'교체',note:'Preserved original manual replacement',source_type:'manual',source_log_id:'',source_text:'',
@@ -65,7 +65,8 @@ async function fixture(t,{legacy=false,depthCheck=false}={}) {
   event({id:'dataparc_runtime:prior-query',event_type:'runtime_correction',event_date:BEFORE_END,runtime_hours:1000,source_type:'dataparc_runtime',source_log_id:'prior-query',
     source_text:JSON.stringify({schemaVersion:1,requestType:'blower_runtime_probe',requestId:'prior-query',assetTag:TAG,dataParcTag:SIGNAL,
       startAt:OLD,endAt:BEFORE_END,observedAt:BEFORE_END,expectedLastReplacementAt:OLD,expectedCycleStartState:'legacy',expectedCycleStartedAt:'',
-      expectedCycleStartRevision:'prior-start',expectedCycleRuntimeRevision:'older-runtime',startState:'running',endState:'running',runningSeconds:3600000,totalRunningHours:1000}),
+      expectedCycleStartRevision:'prior-start',expectedCycleRuntimeRevision:'older-runtime',startState:'running',endState:'running',runningSeconds:3600000,totalRunningHours:1000,
+      ...(pending?{signalOnlyCycle:true}:{})}),
     created_at:BEFORE_END,updated_at:BEFORE_END});
   const shift=(id,role,content)=>add('shift_logs',{id,work_date:'2026-09-18',shift:'DS',role,author:'Original source',status:'결재완료',
     log_json:JSON.stringify({id,date:'2026-09-18',shift:'DS',role,entries:[{id:role+'-job',time:'11:27',content}]}),updated_at:'2026-09-18T10:00:00Z'});
@@ -84,22 +85,29 @@ async function fixture(t,{legacy=false,depthCheck=false}={}) {
     assert.equal(response.status,200,JSON.stringify(response.body));if(response.body.done)break;window=response.body.window;cursor=response.body.nextCursor;}
   const asset=()=>sql.prepare('SELECT * FROM blower_history_assets WHERE tag_number=?').get(TAG);
   const events=()=>sql.prepare('SELECT * FROM blower_history_events WHERE tag_number=? ORDER BY id').all(TAG);
-  assert.ok(rolePriorityRecoveryProof(asset(),events()),'fixture has current selected minute and owned prior RUN');
+  if(!pending)assert.ok(rolePriorityRecoveryProof(asset(),events()),'fixture has current selected minute and owned prior RUN');
   const before=asset(),beforeEvents=events();
   const body=()=>{const a=asset();return {action:'create_blower_runtime_probe',assetTag:TAG,dataParcTag:SIGNAL,confirmRunSignal:true,rolePriorityRecovery:true,
     selectedCompletionAt:SELECTED,startAt:SELECTED,unifiedRefresh:true,incrementalRefresh:false,requireIncrementalAppend:false,
     expectedLastReplacementAt:a.last_replacement_at,expectedCycleStartState:a.cycle_start_state,expectedCycleStartedAt:a.cycle_started_at||'',
     expectedCycleStartRevision:a.cycle_start_revision,expectedCycleRuntimeRevision:a.cycle_runtime_revision};};
-  const create=async(payload=body(),token=TOKEN)=>parse(await queue.createBlowerRuntimeProbeRequest({env:{DB:db},
-    request:new Request('https://example.test/api/ois-data-requests',{headers:token?{Authorization:'Bearer '+token}:{}})},payload,{now:NOW}));
-  async function completed(seconds=3601800) {
-    const created=await create();assert.equal(created.status,201,JSON.stringify(created.body));const probe=created.body.item.probe;
+  const create=async(payload=body(),token=TOKEN,now=NOW)=>parse(await queue.createBlowerRuntimeProbeRequest({env:{DB:db},
+    request:new Request('https://example.test/api/ois-data-requests',{headers:token?{Authorization:'Bearer '+token}:{}})},payload,{now}));
+  const createBatch=async(requests=[body()],token=TOKEN)=>parse(await queue.createBlowerRuntimeProbeBatchRequest({env:{DB:db},
+    request:new Request('https://example.test/api/ois-data-requests',{headers:token?{Authorization:'Bearer '+token}:{}})},
+    {action:'create_blower_runtime_probe_batch',requests}));
+  function resultFor(item,seconds=3601800,now=new Date()) {
+    const probe=item.probe;
     const chunks=queue.buildBlowerRuntimeProbeChunks(probe.startAt,probe.endAt);let accounted=0;
     const duration=(Date.parse(probe.endAt)-Date.parse(probe.startAt))/1000;
     for(const [index,chunk] of chunks.entries()) {const part=index===chunks.length-1?seconds-accounted:Math.floor(seconds*(Date.parse(chunk.endAt)-Date.parse(chunk.startAt))/1000/duration);
       accounted+=part;Object.assign(chunk,{startState:'running',endState:'running',runningSeconds:part,totalRunningHours:part/3600});}
-    return {...probe,requestId:created.body.item.id,ok:true,readOnly:true,observedAt:probe.endAt,collectedAt:NOW.toISOString(),
+    return {...probe,requestId:item.id,ok:true,readOnly:true,observedAt:probe.endAt,collectedAt:now.toISOString(),
       startState:'running',endState:'running',runningSeconds:seconds,totalRunningHours:seconds/3600,completedChunkCount:chunks.length,chunks};
+  }
+  async function completed(seconds=3601800,payload=body(),now=NOW) {
+    const created=await create(payload,TOKEN,now);assert.equal(created.status,201,JSON.stringify(created.body));
+    return resultFor(created.body.item,seconds,now);
   }
   const install=(raw,status='complete')=>sql.prepare('UPDATE ois_data_requests SET status=?,result_json=?,completed_at=? WHERE id=?').run(status,JSON.stringify(raw),raw.collectedAt,raw.requestId);
   const apply=(raw,user=OWNER,now=NOW)=>history.applyRolePriorityRuntimeRecovery(db,user,{requestId:raw.requestId},{now}).then(parse);
@@ -107,7 +115,23 @@ async function fixture(t,{legacy=false,depthCheck=false}={}) {
   const preserved=()=>{assert.deepEqual(asset(),before);assert.deepEqual(events(),beforeEvents);};
   const audits=()=>sql.prepare("SELECT * FROM blower_history_asset_history WHERE action_type='role_priority_runtime_recovery'").all();
   const mutateSource=()=>sql.prepare(legacy?"UPDATE legacy_logs SET original_json=replace(original_json,'14:24','14:25') WHERE id=901":"UPDATE shift_logs SET log_json=replace(log_json,'14:24','14:25') WHERE id='z-high'").run();
-  return {sql,db,asset,events,before,beforeEvents,body,create,completed,install,apply,get,preserved,audits,mutateSource,checkedGuards:()=>checkedGuards};
+  return {sql,db,asset,events,before,beforeEvents,body,create,createBatch,resultFor,completed,install,apply,get,preserved,audits,mutateSource,checkedGuards:()=>checkedGuards};
+}
+
+function seedOrdinaryAppend(f) {
+  const tag='104ETH03AN601',signal='GSPOGE.ABB_DCS.TEST_ONLY_BINARY_104ETH03AN601';
+  f.sql.prepare(`UPDATE blower_history_assets SET last_replacement_at=?,cycle_start_state='legacy',cycle_started_at=NULL,
+    cycle_start_revision='ordinary-start',cycle_runtime_revision='ordinary-runtime',cycle_runtime_hours=10,runtime_hours=10,
+    cycle_runtime_anchor_at=?,runtime_anchor_at=?,cycle_runtime_state='running',is_running=1 WHERE tag_number=?`).run(OLD,BEFORE_END,BEFORE_END,tag);
+  const source={schemaVersion:1,requestType:'blower_runtime_probe',requestId:'ordinary-prior',assetTag:tag,dataParcTag:signal,
+    startAt:OLD,endAt:BEFORE_END,observedAt:BEFORE_END,expectedLastReplacementAt:OLD,expectedCycleStartState:'legacy',expectedCycleStartedAt:'',
+    expectedCycleStartRevision:'ordinary-start',expectedCycleRuntimeRevision:'ordinary-earlier',startState:'running',endState:'running',runningSeconds:36000,totalRunningHours:10};
+  f.sql.prepare(`INSERT INTO blower_history_events (id,tag_number,event_type,event_date,runtime_hours,issue_type,action_type,note,source_type,source_log_id,source_text,created_by_id,created_by_name,created_at,updated_at)
+    VALUES('dataparc_runtime:ordinary-prior',?,'runtime_correction',?,10,'DataPARC','DataPARC 운전중 동기화','','dataparc_runtime','ordinary-prior',?,?,?, ?,?)`)
+    .run(tag,BEFORE_END,JSON.stringify(source),OWNER.employeeNo,OWNER.name,BEFORE_END,BEFORE_END);
+  return {tag,body:{action:'create_blower_runtime_probe',assetTag:tag,dataParcTag:signal,confirmRunSignal:true,
+    unifiedRefresh:true,incrementalRefresh:true,requireIncrementalAppend:true,expectedLastReplacementAt:OLD,expectedCycleStartState:'legacy',
+    expectedCycleStartedAt:'',expectedCycleStartRevision:'ordinary-start',expectedCycleRuntimeRevision:'ordinary-runtime'}};
 }
 
 function uiProof(data) {
@@ -307,4 +331,148 @@ test('an identical winner immediately after an absent audit read is verified fro
   assert.equal(f.audits().length,1);assert.equal(f.events().filter(row=>row.source_log_id===raw.requestId).length,1);
   assert.equal(f.asset().last_replacement_at,SELECTED);assert.equal(f.asset().cycle_runtime_hours,1000.5);
   assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM blower_history_atomic_guard').get().n,0);
+});
+
+test('real pending RUN shape survives ordinary append, selected14:24 recovery and the next append without inventing a startup',async t=>{
+  // Retained Nov4 read-only DB evidence for103HRJ01AN601 has a pending cycle,
+  // no cycle_started_at, a running measured counter, and signalOnlyCycle:true
+  // on an incremental receipt. Successful RUN queries preserve that marker.
+  const f=await fixture(t,{pending:true,depthCheck:true});
+  const appendBody=()=>{const body={...f.body(),rolePriorityRecovery:false,incrementalRefresh:true,requireIncrementalAppend:true};
+    delete body.startAt;delete body.selectedCompletionAt;return body;};
+  const ordinaryAt=new Date(NOW.getTime()-120000),ordinary=await f.completed(1800,appendBody(),ordinaryAt);f.install(ordinary);
+  assert.equal(ordinary.expectedCycleStartState,'legacy');
+  assert.equal(ordinary.expectedCycleStartRevision,'signal-only-v1:prior-start');
+  const appended=await parse(await history.applyDataParcRuntimeSync(f.db,OWNER,{requestId:ordinary.requestId},{now:ordinaryAt}));
+  assert.equal(appended.status,200,JSON.stringify(appended.body));
+  assert.equal(f.asset().cycle_start_state,'pending');assert.equal(f.asset().cycle_started_at,null);
+  assert.equal(f.asset().cycle_runtime_hours,1000.5);
+  const appendedSource=JSON.parse(f.events().find(row=>row.source_log_id===ordinary.requestId).source_text);
+  assert.equal(appendedSource.signalOnlyCycle,true);assert.ok(appendedSource.incremental);
+  assert.ok(rolePriorityRecoveryProof(f.asset(),f.events()),'a proven pending measurement must retain the selected-basis recovery action');
+  for(const action of ['data','refresh_state_page']){
+    const response=await f.get(action),view=response.body.assets.find(row=>row.tagNumber===TAG);
+    assert.equal(view.cycleStartState,'pending');assert.equal(view.replacementAutoCycle.rolePriorityRecoveryEligible,true);
+    assert.equal(view.hasUnverifiedDataParcHistory,false);
+    const ui=uiProof(response.body);assert.ok(ui.rolePriorityRecoveryProof(view));
+    assert.equal(ui.allOverviewRuntimeAssessment(view).nextActionKey,'selected_basis_recovery');
+    const planned=require('../maintenance/blower-unified-refresh.js').plan([view],NOW);
+    assert.equal(planned.tasks.length,1);assert.equal(planned.skipped.length,0);
+    assert.equal(planned.tasks[0].kind,'dataparc_repair');assert.equal(planned.tasks[0].recoveryMode,'role_priority');
+    assert.equal(planned.tasks[0].startAt,SELECTED);assert.equal(planned.tasks[0].incremental,false);
+  }
+  const before=f.asset(),beforeEvents=f.events(),recoveryAt=new Date(NOW.getTime()-60000);
+  const raw=await f.completed(3601860,f.body(),recoveryAt);f.install(raw);
+  assert.equal(raw.expectedCycleStartState,'legacy');assert.equal(raw.expectedCycleStartedAt,'');
+  assert.equal(raw.expectedCycleStartRevision,'signal-only-v1:'+before.cycle_start_revision);
+  assert.deepEqual(f.asset(),before);assert.deepEqual(f.events(),beforeEvents);
+  const recovered=await f.apply(raw,OWNER,recoveryAt);assert.equal(recovered.status,200,JSON.stringify(recovered.body));
+  const after=f.asset(),source=JSON.parse(f.events().find(row=>row.source_log_id===raw.requestId).source_text);
+  assert.equal(after.last_replacement_at,SELECTED);assert.equal(after.cycle_start_state,'pending');assert.equal(after.cycle_started_at,null);
+  assert.equal(after.cycle_runtime_hours,3601860/3600);assert.equal(source.signalOnlyCycle,true);
+  assert.equal(source.expectedCycleStartRevision,after.cycle_start_revision);
+  assert.equal(source.basisRecovery.queryExpectedCycleStartRevision,raw.expectedCycleStartRevision);
+  assert.equal(f.sql.prepare('SELECT result_json FROM ois_data_requests WHERE id=?').get(raw.requestId).result_json,JSON.stringify(raw));
+  const nextAt=NOW,next=await f.completed(60,appendBody(),nextAt);f.install(next);
+  const nextApplied=await parse(await history.applyDataParcRuntimeSync(f.db,OWNER,{requestId:next.requestId},{now:nextAt}));
+  assert.equal(nextApplied.status,200,JSON.stringify(nextApplied.body));
+  assert.equal(f.asset().cycle_runtime_hours,3601920/3600);assert.equal(f.asset().cycle_start_state,'pending');assert.equal(f.asset().cycle_started_at,null);
+  const view=(await f.get()).body.assets.find(row=>row.tagNumber===TAG);
+  assert.equal(view.actualLastReplacementAt,SELECTED);assert.equal(view.runtimeCoverageEvidence.wholeCycleVerified,true,
+    JSON.stringify({basis:view.dataParcRuntimeBasis,coverage:view.runtimeCoverageEvidence,automatic:view.replacementAutoCycle,review:view.cycleSourceReview,run:view.runRuntime}));
+  assert.equal(view.dataParcRuntimeBasis.appendReady,true);assert.ok(!view.cycleSourceReview);
+  assert.notEqual(view.replacementAutoCycle.rolePriorityRecoveryEligible,true);assert.equal(f.audits().length,1);
+});
+
+test('pending markers without an unchanged owned signal-only measurement cannot authorize recovery',async t=>{
+  const f=await fixture(t,{pending:true}),receipt=f.events().find(row=>row.id==='dataparc_runtime:prior-query');
+  for(const mode of ['missing-signal-proof','false-signal-proof','claimed-startup','different-revision']){
+    const raw=JSON.parse(receipt.source_text);
+    if(mode==='missing-signal-proof')delete raw.signalOnlyCycle;
+    if(mode==='false-signal-proof')raw.signalOnlyCycle=false;
+    if(mode==='claimed-startup')raw.expectedCycleStartedAt=OLD;
+    if(mode==='different-revision')raw.expectedCycleStartRevision='different-cycle';
+    f.sql.prepare('UPDATE blower_history_events SET source_text=? WHERE id=?').run(JSON.stringify(raw),receipt.id);
+    const before=f.asset(),events=f.events();
+    assert.equal(rolePriorityRecoveryProof(before,events),null,mode);
+    const response=await f.create();assert.equal(response.status,409,mode+JSON.stringify(response.body));
+    assert.deepEqual(f.asset(),before);assert.deepEqual(f.events(),events);assert.equal(f.audits().length,0);
+  }
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM ois_data_requests').get().n,0);
+});
+
+test('a pending recovery requires its exact signal-only wire revision even when a matching ordinary-looking intent is substituted',async t=>{
+  const f=await fixture(t,{pending:true}),raw=await f.completed();
+  const altered={...raw,expectedCycleStartRevision:f.before.cycle_start_revision};f.install(altered);
+  f.sql.prepare('UPDATE blower_runtime_probe_intents_v5 SET expected_cycle_start_revision=? WHERE request_id=?').run(altered.expectedCycleStartRevision,raw.requestId);
+  const response=await f.apply(altered);assert.equal(response.status,409);assert.equal(response.body.code,'BLOWER_ROLE_RECOVERY_INTENT_CONFLICT');
+  f.preserved();assert.equal(f.audits().length,0);
+  f.sql.prepare('UPDATE blower_runtime_probe_intents_v5 SET expected_cycle_start_revision=? WHERE request_id=?').run(raw.expectedCycleStartRevision,raw.requestId);
+  f.install(raw);assert.equal((await f.apply(raw)).status,200);
+  assert.equal(f.asset().cycle_start_state,'pending');assert.equal(f.asset().cycle_started_at,null);
+});
+
+test('mixed atomic batch prepares a pending selected-basis full query and an ordinary append with separate owned intents',async t=>{
+  const f=await fixture(t,{pending:true,depthCheck:true}),ordinary=seedOrdinaryAppend(f);
+  const beforeAssets=f.sql.prepare('SELECT * FROM blower_history_assets ORDER BY tag_number').all();
+  const created=await f.createBatch([f.body(),ordinary.body]);
+  assert.equal(created.status,201,JSON.stringify(created.body));assert.equal(created.body.atomic,true);assert.equal(created.body.createdCount,2);
+  const role=created.body.results.find(row=>row.assetTag===TAG),append=created.body.results.find(row=>row.assetTag===ordinary.tag);
+  assert.ok(role?.item?.id);assert.ok(append?.item?.id);assert.match(role.item.id,/^brb1_[a-f0-9-]{36}_02_\d{2}$/);
+  assert.equal(role.item.id.split('_')[1],append.item.id.split('_')[1]);
+  assert.equal(Date.parse(role.item.probe.startAt),Date.parse(SELECTED));
+  assert.equal(role.item.probe.expectedCycleStartRevision,'signal-only-v1:'+f.before.cycle_start_revision);
+  assert.equal(role.item.probe.expectedCycleRuntimeRevision,ROLE_RECOVERY_PREFIX+f.before.cycle_runtime_revision);
+  assert.equal(Date.parse(append.item.probe.startAt),Date.parse(BEFORE_END));
+  assert.equal(append.item.probe.expectedCycleRuntimeRevision,'append-v1:ordinary-runtime');
+  const recovery=f.sql.prepare('SELECT * FROM blower_role_recovery_intents_v1 WHERE request_id=?').get(role.item.id);
+  assert.ok(recovery);assert.equal(JSON.parse(recovery.snapshot_json).asset.cycle_start_state,'pending');
+  assert.equal(recovery.selected_completion_at,SELECTED);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM blower_runtime_append_v1 WHERE request_id=?').get(role.item.id).n,0);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM blower_runtime_append_v1 WHERE request_id=?').get(append.item.id).n,1);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM blower_role_recovery_intents_v1 WHERE request_id=?').get(append.item.id).n,0);
+  assert.deepEqual(f.sql.prepare('SELECT * FROM blower_history_assets ORDER BY tag_number').all(),beforeAssets);f.preserved();
+  const reused=await f.createBatch([f.body(),ordinary.body]);assert.equal(reused.status,200,JSON.stringify(reused.body));
+  assert.equal(reused.body.createdCount,0);assert.equal(reused.body.reusedCount,2);
+  assert.deepEqual(reused.body.results.map(row=>row.item.id).sort(),created.body.results.map(row=>row.item.id).sort());
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM blower_role_recovery_intents_v1').get().n,1);
+  const raw=f.resultFor(role.item,3601800);f.install(raw);
+  const applied=await f.apply(raw,OWNER,new Date());assert.equal(applied.status,200,JSON.stringify(applied.body));
+  assert.equal(f.asset().last_replacement_at,SELECTED);assert.equal(f.asset().cycle_start_state,'pending');assert.equal(f.asset().cycle_started_at,null);
+  assert.equal(f.sql.prepare('SELECT result_json FROM ois_data_requests WHERE id=?').get(raw.requestId).result_json,JSON.stringify(raw));
+  const view=(await f.get()).body.assets.find(row=>row.tagNumber===TAG);assert.equal(view.runtimeCoverageEvidence.wholeCycleVerified,true);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM blower_history_atomic_guard').get().n,0);
+});
+
+test('regrouping pending role recovery with new append work retains its frozen proof under the new durable request ID',async t=>{
+  const f=await fixture(t,{pending:true}),first=await f.createBatch();assert.equal(first.status,201,JSON.stringify(first.body));
+  const priorId=first.body.results[0].item.id,priorIntent=f.sql.prepare('SELECT * FROM blower_role_recovery_intents_v1 WHERE request_id=?').get(priorId);
+  const ordinary=seedOrdinaryAppend(f),mixed=await f.createBatch([f.body(),ordinary.body]);
+  assert.equal(mixed.status,201,JSON.stringify(mixed.body));assert.equal(mixed.body.createdCount,2);
+  const role=mixed.body.results.find(row=>row.assetTag===TAG);assert.notEqual(role.item.id,priorId);
+  const intent=f.sql.prepare('SELECT * FROM blower_role_recovery_intents_v1 WHERE request_id=?').get(role.item.id);
+  assert.equal(intent.snapshot_json,priorIntent.snapshot_json);assert.equal(intent.snapshot_sha256,priorIntent.snapshot_sha256);
+  assert.equal(f.sql.prepare('SELECT status FROM ois_data_requests WHERE id=?').get(priorId).status,'failed');
+  assert.equal(role.item.probe.expectedCycleRuntimeRevision,ROLE_RECOVERY_PREFIX+f.before.cycle_runtime_revision);
+  assert.equal(role.item.probe.expectedCycleStartRevision,'signal-only-v1:'+f.before.cycle_start_revision);f.preserved();
+  const reused=await f.createBatch([f.body(),ordinary.body]);assert.equal(reused.status,200);assert.equal(reused.body.reusedCount,2);
+  const raw=f.resultFor(role.item);f.install(raw);assert.equal((await f.apply(raw,OWNER,new Date())).status,200);
+  assert.equal(f.audits().length,1);assert.equal(f.events().filter(row=>row.source_log_id===priorId).length,0);
+});
+
+test('an approved-source change at a mixed batch guard rolls back regrouping and every new sibling request',async t=>{
+  const f=await fixture(t,{pending:true,legacy:true,depthCheck:true}),first=await f.createBatch();
+  assert.equal(first.status,201,JSON.stringify(first.body));const ordinary=seedOrdinaryAppend(f);
+  const requests=f.sql.prepare('SELECT * FROM ois_data_requests ORDER BY id').all();
+  const intents=f.sql.prepare('SELECT * FROM blower_role_recovery_intents_v1 ORDER BY request_id').all();
+  const ordinaryIntents=f.sql.prepare('SELECT * FROM blower_runtime_probe_intents_v5 ORDER BY request_id').all();
+  const assets=f.sql.prepare('SELECT * FROM blower_history_assets ORDER BY tag_number').all();
+  let raced=false;f.db.beforeBatch=()=>{raced=true;f.mutateSource();};
+  const response=await f.createBatch([f.body(),ordinary.body]);assert.equal(raced,true);assert.equal(response.status,409,JSON.stringify(response.body));
+  assert.deepEqual(f.sql.prepare('SELECT * FROM ois_data_requests ORDER BY id').all(),requests);
+  assert.deepEqual(f.sql.prepare('SELECT * FROM blower_runtime_probe_intents_v5 ORDER BY request_id').all(),ordinaryIntents);
+  assert.deepEqual(f.sql.prepare('SELECT * FROM blower_role_recovery_intents_v1 ORDER BY request_id').all(),intents);
+  assert.deepEqual(f.sql.prepare('SELECT * FROM blower_history_assets ORDER BY tag_number').all(),assets);f.preserved();
+  assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM blower_runtime_append_v1').get().n,0);
+  assert.equal(f.audits().length,0);assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM blower_history_atomic_guard').get().n,0);
 });

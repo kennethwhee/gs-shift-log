@@ -53,8 +53,8 @@ test('all-status dashboard owns one latest-query card, one refresh action, and o
   assert.doesNotMatch(uiSource, /elements\.refreshButton\.textContent\s*=\s*`?최신화/);
 });
 
-test('dashboard explains append-only behavior and exposes observed query and apply counts', () => {
-  assert.match(uiSource, /다음 통합조회는 각 설비의 마지막 조회 종료시각 이후 구간만 이어서 조회합니다/);
+test('dashboard explains continuing measurements and supported repairs with observed query and apply counts', () => {
+  assert.match(uiSource, /마지막 성공 이후를 이어 조회하고, 근거가 확인된 기준·누락 구간은 함께 보완합니다/);
   assert.match(uiSource, /function observeUnifiedRefreshStatuses\(/);
   assert.match(uiSource, /function observeUnifiedRefreshApply\(/);
   assert.match(uiSource, /기존 저장값 유지|기존 누적값에 추가/);

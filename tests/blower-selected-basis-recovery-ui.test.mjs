@@ -140,6 +140,24 @@ test('selected minute proof opens a fixed 14:24 full-query action while retainin
   assert.equal(f.ui.state.dataparcRuntimeBusy, false);
 });
 
+test('already measured pending Limestone exposes selected recovery without inventing a startup', async () => {
+  const a = asset();
+  a.cycleStartState = 'pending';
+  const f = harness({asset:a});
+  assert.equal(f.ui.rolePriorityRecoveryProof(a)?.cycleStartState,'pending');
+  assert.equal(f.ui.allOverviewRuntimeAssessment(a).nextActionKey,'selected_basis_recovery');
+  f.open();
+  await f.submit();
+  const create = f.calls.find(call => call.body?.action === 'create_blower_runtime_probe')?.body;
+  assert.ok(create);
+  assert.equal(create.expectedCycleStartState,'pending');
+  assert.equal(create.expectedCycleStartedAt,'');
+  assert.equal(create.selectedCompletionAt,SELECTED);
+  assert.deepEqual(f.ui.state.data,f.original);
+  a.cycleStoredStartedAt = '2026-09-18T05:25:00.000Z';
+  assert.equal(f.ui.rolePriorityRecoveryProof(a),null);
+});
+
 test('the dialog explains selected-basis adoption and restores the ordinary-query warning when reopened', () => {
   const f = harness();
   f.open();

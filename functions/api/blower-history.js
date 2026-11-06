@@ -10,6 +10,7 @@ import { planBlowerRolePriority, shiftKey as replacementPriorityShiftKey } from 
 import { inspectVbeltAnnotations, annotationControlsFragment } from '../_shared/diary-vbelt-confirm-v1.js';
 import { reconcileCurrentRuntimeRecoveryV4 } from "../_shared/blower-normalize-recovery-v4.js";
 import { ROLE_RECOVERY_PREFIX, rolePriorityRecoveryProof, applyRolePriorityRecovery } from "../_shared/blower-role-recovery-v1.js";
+import { COVERAGE_RECOVERY_PREFIX, loadCoverageRecoveryIntent, validateCoverageRecoveryApply } from "../_shared/blower-coverage-recovery-v1.js";
 import { REPLACEMENT_ANALYSIS_VERSION, REPLACEMENT_NORMALIZE_ANALYSIS_VERSION, REPLACEMENT_ROLE_PRIORITY_ANALYSIS_VERSION, loadApprovedReplacementPage, storeReplacementLogReceipts, replacementSourceGuard, replacementRoleContextRows, replacementSourceHashes } from "../_shared/blower-replacement-log-source-v3.js";
 import { MANURE_INITIAL_RUN_CONFIG, initializeManureInitialRun, manureInitialRunBasis,
   manureInitialRunProjection, loadManureInitialAudit, configuredManureRunSignal,
@@ -7805,6 +7806,25 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
     return jsonResponse({ok:false,code:'BLOWER_ROLE_RECOVERY_APPLY_REQUIRED',
       message:'선택 교체시각 보완 조회는 근거와 누적값을 함께 검증하는 전용 반영 작업이 필요합니다. 기존 값을 유지합니다.'},409);
   }
+  const coverageWire = String(intent.expected_cycle_runtime_revision || '').startsWith(COVERAGE_RECOVERY_PREFIX);
+  const coverageKey = String(intent.reuse_key || '').startsWith(COVERAGE_RECOVERY_PREFIX);
+  let coverageRecoveryIntent = null;
+  if (coverageWire || coverageKey) {
+    coverageRecoveryIntent = await loadCoverageRecoveryIntent(database,requestId);
+    const mode = coverageRecoveryIntent?.recovery_mode;
+    const modeMatches = mode === 'confirmed_gap'
+      ? body.confirmedGapRecovery === true && body.requireFirstRunStart !== true
+      : mode === 'seal_first_run' && body.requireFirstRunStart === true && body.confirmedGapRecovery !== true;
+    if (!coverageWire || !coverageKey || !coverageRecoveryIntent || !modeMatches ||
+        !String(intent.reuse_key).startsWith(COVERAGE_RECOVERY_PREFIX + mode + ':')) {
+      return jsonResponse({ok:false,code:'BLOWER_COVERAGE_RECOVERY_INTENT_CONFLICT',
+        message:'보완 조회의 종류와 저장된 근거가 일치하지 않아 기존 값을 유지합니다.'},409);
+    }
+    probe = {...probe,expectedCycleRuntimeRevision:probe.expectedCycleRuntimeRevision.slice(COVERAGE_RECOVERY_PREFIX.length)};
+  } else if (body.confirmedGapRecovery === true) {
+    return jsonResponse({ok:false,code:'BLOWER_COVERAGE_RECOVERY_INTENT_REQUIRED',
+      message:'누락 구간 보완을 위해 고정한 조회 근거가 없습니다. 기존 값을 유지합니다.'},409);
+  }
   // Separate historical RUN tracking is not an official cycle measurement.
   // In particular, an old completed ledger request cannot become cumulative
   // proof merely because the operational saved-baseline policy has changed.
@@ -7978,6 +7998,23 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
       message: "이전 조회 종료 상태와 새 구간 시작 상태가 다릅니다. 이력 보기에서 RUN 재조회가 필요합니다. 기존 누적값은 유지합니다." }, 409);
   }
 
+  let coverageRecoveryGuards = [];
+  if (coverageRecoveryIntent) {
+    try {
+      const recovery = await validateCoverageRecoveryApply(database,coverageRecoveryIntent,asset,probe,body,
+        {now:runtimeOptions.now});
+      coverageRecoveryGuards = recovery.guards;
+      if (!Array.isArray(coverageRecoveryGuards) || !coverageRecoveryGuards.length) throw new Error('Missing coverage recovery guards.');
+      coverageRecoveryGuards = [...coverageRecoveryGuards,{sql:`EXISTS (SELECT 1 FROM ois_data_requests
+        WHERE id=? AND request_type=? AND status='complete' AND target_date=? AND requested_by_id=?
+          AND result_json IS ? AND completed_at IS ?)`,values:[requestRow.id,requestRow.request_type,
+        requestRow.target_date,requestRow.requested_by_id,requestRow.result_json,requestRow.completed_at]}];
+    } catch (error) {
+      if (error?.code && error?.status) return jsonResponse({ok:false,code:error.code,message:error.message},error.status);
+      throw error;
+    }
+  }
+
   const nowDate = runtimeOptions.now instanceof Date && !Number.isNaN(runtimeOptions.now.getTime())
     ? runtimeOptions.now
     : new Date();
@@ -7985,6 +8022,7 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
   const nextCycleRuntimeRevision = crypto.randomUUID();
   const eventId = dataParcRuntimeSyncEventId(requestId);
   const guardId = crypto.randomUUID();
+  const recoveryGuardId = coverageRecoveryGuards.length ? crypto.randomUUID() : '';
   const runtimeHours = probe.runtimeHours;
   const runtimeState = probe.isRunning ? "running" : "stopped";
   const runtimeAnchorAt = probe.isRunning ? probe.observedAt : null;
@@ -7994,6 +8032,9 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
 
   try {
     results = await database.batch([
+      ...(recoveryGuardId ? [database.prepare(`INSERT INTO blower_history_atomic_guard(id,valid) VALUES (?,CASE WHEN ${
+        coverageRecoveryGuards.map(check => '(' + check.sql + ')').join(' AND ')} THEN 1 ELSE 0 END)`)
+        .bind(recoveryGuardId,...coverageRecoveryGuards.flatMap(check => check.values))] : []),
       database
         .prepare(`
           UPDATE blower_history_assets
@@ -8184,7 +8225,8 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
         ),
       database
         .prepare(`DELETE FROM blower_history_atomic_guard WHERE id = ?`)
-        .bind(guardId)
+        .bind(guardId),
+      ...(recoveryGuardId ? [database.prepare('DELETE FROM blower_history_atomic_guard WHERE id=?').bind(recoveryGuardId)] : [])
     ]);
   } catch (error) {
     const retryEvents = await loadDataParcRuntimeSyncEvents(database, requestId);
@@ -8210,6 +8252,7 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
     throw error;
   }
 
+  if (recoveryGuardId) results = results.slice(1,-1);
   if (
     Number(results?.[0]?.meta?.changes || 0) !== 1 ||
     Number(results?.[1]?.meta?.changes || 0) !== 1 ||

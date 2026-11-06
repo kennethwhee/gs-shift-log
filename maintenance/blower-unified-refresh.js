@@ -197,6 +197,124 @@ DP_TAGS.add("203HRJ01AN602");
     const fresh = freshReplacementQuery(current, task.replacementRangePlannedAt);
     return sameCycle(s, current) && fresh?.replacementAutoRange === true && time(fresh.startAt) === time(task.startAt);
   }
+
+  // Automatic repairs use the same current receipt as an append, plus a
+  // narrowly scoped proof for the different full-query boundary. These facts
+  // authorize planning only; the server freezes and revalidates the intent.
+  function runtimeRecoveryPlan(a, now) {
+    const end = now instanceof Date ? now.getTime() : time(now);
+    const basis = a?.dataParcRuntimeBasis, automatic = a?.replacementAutoCycle;
+    const signal = a?.dataParcTag, stored = a?.cycleElapsedHours ?? a?.runtimeHours;
+    const pendingRole = a?.tagNumber === '103HRJ01AN601' && a.blowerType === 'limestone' &&
+      a.cycleStartState === 'pending' && automatic?.rolePriorityRecoveryEligible === true &&
+      !String(a.cycleStoredStartedAt ?? a.cycleStartedAt ?? '').trim();
+    if (!a || !DP_TAGS.has(a.tagNumber) || a.enabled === false || a.enabled === 0 ||
+        a.hasUnverifiedDataParcHistory !== false || a.measurementRequired === true ||
+        (!['legacy', 'started'].includes(a.cycleStartState) && !pendingRole) || automatic?.requiresRunRefresh === true ||
+        ![a.cycleStartRevision, a.cycleRuntimeRevision].every(value => typeof value === 'string' && value.trim()) ||
+        typeof signal !== 'string' || !/^GSPOGE\.ABB_DCS\.[A-Z0-9][A-Z0-9._-]*$/.test(signal) ||
+        signal.length > 200 || signal === SIGNAL || !Number.isFinite(end) ||
+        typeof stored !== 'number' || !Number.isFinite(stored) || stored < 0) return null;
+    const base = partialAppendBase(a, basis, signal, end);
+    if (!base || !base.requestId.trim() || Math.abs(stored - base.runtimeHours) > 0.000001 ||
+        base.runningSeconds * 1000 > time(base.observedAt) - time(base.startAt) + 2000) return null;
+    const runtime = a.runRuntime, evidence = a.runtimeCoverageEvidence;
+    if (runtime && (runtime.verified !== true || runtime.source !== 'dataparc' ||
+        time(runtime.measuredAt) !== time(base.observedAt))) return null;
+    if (evidence && (evidence.version !== 1 || evidence.source !== 'dataparc' || evidence.measurementVerified !== true ||
+        evidence.requestId !== base.requestId || typeof evidence.hours !== 'number' ||
+        !Number.isFinite(evidence.hours) || Math.abs(evidence.hours - stored) > 0.000001 ||
+        time(evidence.startAt) !== time(base.startAt) || time(evidence.observedAt) !== time(base.observedAt))) return null;
+
+    let recoveryMode = '', startAt = '';
+    if (a.tagNumber === '103HRJ01AN601' && a.blowerType === 'limestone') {
+      const selected = rolePriorityReview(a)?.selected;
+      const selectedAt = time(selected?.selectedCompletionAt), replacement = time(a.lastReplacementAt);
+      if (automatic?.rolePriorityRecoveryEligible !== true || automatic.rolePrioritySourceRevoked === true ||
+          (a.cycleStartState !== 'legacy' && !pendingRole) || selected?.timePrecision !== 'minute' || selected.requiredRebuild !== true ||
+          String(a.cycleStoredStartedAt ?? a.cycleStartedAt ?? '').trim() ||
+          signal !== `GSPOGE.ABB_DCS.${a.tagNumber}XB04` || !Number.isFinite(selectedAt) || selectedAt % 60000 !== 0 ||
+          !(replacement < selectedAt && selectedAt < time(base.observedAt)) || time(base.startAt) !== replacement) return null;
+      recoveryMode = 'role_priority'; startAt = selected.selectedCompletionAt;
+    } else if (a.tagNumber === '104ETG30AN602' && a.blowerType === 'flyash_bag') {
+      const clock = time(automatic?.confirmedReplacementAt);
+      const eventId = automatic?.confirmedClockEventId || automatic?.eventId;
+      const sourceHash = automatic?.confirmedClockSourceSnapshotSha256 || automatic?.sourceSnapshotSha256;
+      if (basis.confirmedGapRecoveryEligible !== true || basis.coverageComplete !== false || basis.cycleBasisConfirmed !== true ||
+          automatic?.schemaVersion !== 3 || automatic.timePrecision !== 'minute' || automatic.clockKnown !== true ||
+          automatic.completionClockConflict === true || a.cycleSourceReview?.cycleBasisConfirmed === false ||
+          typeof eventId !== 'string' || !eventId.trim() || !/^[a-f0-9]{64}$/.test(String(sourceHash || '')) ||
+          !Number.isFinite(clock) || clock % 60000 !== 0 || !(clock < time(base.startAt)) ||
+          clock !== time(basis.requiredStartAt) || clock !== time(a.lastReplacementAt) || clock !== time(a.actualLastReplacementAt)) return null;
+      recoveryMode = 'confirmed_gap'; startAt = automatic.confirmedReplacementAt;
+    } else if (/^204HHL10AN(?:611|631)$/.test(a.tagNumber) && a.blowerType === 'seal_pot') {
+      const origin = time('2026-05-11T00:00:00+09:00');
+      if (a.cycleStartState !== 'legacy' || time(a.lastReplacementAt) !== origin || time(basis.requiredStartAt) !== origin ||
+          time(base.startAt) < origin || signal !== `GSPOGE.ABB_DCS.${a.tagNumber}XB04` ||
+          runtime?.verified !== true || runtime.source !== 'dataparc' || basis.coverageComplete !== false ||
+          evidence?.firstRunVerified === true) return null;
+      recoveryMode = 'seal_first_run'; startAt = basis.requiredStartAt;
+    } else return null;
+    const start = time(startAt);
+    if (!Number.isFinite(start) || !(start < end) || end - start > 366 * DAY) return null;
+    return { recoveryMode, startAt, dataParcTag: signal };
+  }
+
+  function runtimeRecoverySnapshot(a) {
+    const pick = (value, keys) => value && typeof value === 'object'
+      ? Object.fromEntries(keys.filter(key => value[key] !== undefined).map(key => [key, value[key]])) : null;
+    const proof = pick(a, ['tagNumber', 'blowerType', 'enabled', 'lastReplacementAt', 'actualLastReplacementAt',
+      'cycleStartState', 'cycleStartRevision', 'cycleRuntimeRevision', 'dataParcTag', 'runtimeHours', 'cycleElapsedHours',
+      'measurementRequired', 'hasUnverifiedDataParcHistory']);
+    if (!proof) return null;
+    proof.cycleStoredStartedAt = a.cycleStoredStartedAt ?? a.cycleStartedAt ?? '';
+    proof.dataParcRuntimeBasis = pick(a.dataParcRuntimeBasis, ['requestId', 'dataParcTag', 'startAt', 'observedAt',
+      'requiredStartAt', 'runtimeHours', 'runningSeconds', 'appendReady', 'coverageComplete', 'cycleBasisConfirmed',
+      'confirmedGapRecoveryEligible', 'firstRunStartedAt']);
+    proof.runRuntime = pick(a.runRuntime, ['verified', 'source', 'measuredAt']);
+    proof.runtimeCoverageEvidence = pick(a.runtimeCoverageEvidence, ['version', 'source', 'measurementVerified',
+      'requestId', 'hours', 'startAt', 'observedAt', 'firstRunVerified']);
+    proof.cycleSourceReview = pick(a.cycleSourceReview, ['code', 'cycleBasisConfirmed', 'measuredRangeMayContinue']);
+    proof.replacementAutoCycle = pick(a.replacementAutoCycle, ['schemaVersion', 'normalizationVersion', 'requiresRunRefresh',
+      'rolePriorityRecoveryEligible', 'rolePrioritySourceRevoked', 'timePrecision', 'clockKnown', 'completionClockConflict',
+      'confirmedReplacementAt', 'confirmedClockEventId', 'eventId', 'confirmedClockSourceSnapshotSha256', 'sourceSnapshotSha256']);
+    if (proof.replacementAutoCycle) proof.replacementAutoCycle.rolePrioritySelection = pick(a.replacementAutoCycle.rolePrioritySelection,
+      ['version', 'selectedRole', 'timePrecision', 'selectedSourceLogId', 'selectedSourceKey', 'selectedSourceSnapshotSha256',
+        'selectedWorkDate', 'selectedShift', 'registeredReplacementAt', 'selectedCompletionAt', 'requiredRebuild']);
+    return proof;
+  }
+
+  function runtimeRecoveryMarker(task) {
+    return task?.kind === 'dataparc_repair' || ['recoveryMode', 'recoveryProof', 'recoveryPlannedAt', 'recoveryVersion']
+      .some(key => task && Object.prototype.hasOwnProperty.call(task, key));
+  }
+
+  function validRuntimeRecoveryTask(task) {
+    if (task?.kind !== 'dataparc_repair' || task.recoveryVersion !== 1 || task.incremental !== false ||
+        task.previewOnly === true || task.partialRange === true || task.replacementAutoFresh === true ||
+        task.replacementAutoRange === true || task.limestoneAutoRebuild === true || !task.snapshot ||
+        task.startAt !== task.queryStartAt || !sameCycle(task.snapshot, task.recoveryProof)) return false;
+    const planned = runtimeRecoveryPlan(task.recoveryProof, task.recoveryPlannedAt);
+    return !!planned && planned.recoveryMode === task.recoveryMode && planned.startAt === task.startAt &&
+      planned.dataParcTag === task.dataParcTag;
+  }
+
+  function recognizedRuntimeRecovery(task, current, acceptedId = '') {
+    if (!validRuntimeRecoveryTask(task) || !current || current.tagNumber !== task.snapshot.tagNumber ||
+        current.enabled === false || current.enabled === 0) return false;
+    const saved = current.dataParcRuntimeBasis, stored = current.cycleElapsedHours ?? current.runtimeHours;
+    // A lost apply response may be retried only by its accepted ID. Its new
+    // receipt is allowed to own a new revision/boundary; the server checks the
+    // immutable repair intent and audit before returning an idempotent result.
+    if (acceptedId && saved?.requestId === acceptedId && saved.dataParcTag === task.dataParcTag &&
+        saved.coverageComplete === true && time(saved.startAt) === time(task.startAt) &&
+        time(saved.observedAt) >= time(task.recoveryProof.dataParcRuntimeBasis.observedAt) &&
+        time(current.lastReplacementAt) === time(task.recoveryMode === 'role_priority' ? task.startAt : task.snapshot.lastReplacementAt) &&
+        typeof stored === 'number' && Number.isFinite(stored) && typeof saved.runtimeHours === 'number' &&
+        Number.isFinite(saved.runtimeHours) && Math.abs(stored - saved.runtimeHours) <= 0.000001) return true;
+    return sameCycle(task.snapshot, current) &&
+      JSON.stringify(runtimeRecoverySnapshot(current)) === JSON.stringify(task.recoveryProof);
+  }
   function fbheSealRunView(a, basis = null) {
     const replacement = a?.replacementAutoCycle;
     const priority = rolePriorityReview(a);
@@ -232,10 +350,10 @@ DP_TAGS.add("203HRJ01AN602");
         primary: Number.isFinite(hours) && hours >= 0
           ? `${hours.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간` : '확인 필요',
         message: priority ? priority.label : rangeTracking ? '확인 구간 RUN 누적 · 교체 기록 이후 확인된 RUN · 완료 시각 미기록'
-          : registeredRange ? '조회구간 RUN 누적 · RUN 조회기준 · 실제 교체 기준 미확정'
-          : sourceReview ? '조회구간 RUN 누적 · 교체 기준 확인 필요' : '일부 기간 RUN 누적 · 교체 기준 확인 필요',
+          : registeredRange ? '확인 구간 누적 · RUN 조회기준 · 실제 교체 기준 미확정'
+          : sourceReview ? '확인 구간 누적 · 교체 기준 확인 필요' : '일부 기간 RUN 누적 · 교체 기준 확인 필요',
         measuredAt: manual ? a.runRuntime.measuredAt || '' : coverage?.observedAt || '',
-        sourceLabel: manual ? '수동 보정 · 교체 기준 확인 필요' : 'DataPARC · 조회구간 RUN', basis: manual ? null : coverage,
+        sourceLabel: manual ? '수동 보정 · 교체 기준 확인 필요' : 'DataPARC · 확인 구간', basis: manual ? null : coverage,
         stateLabel: state === 'running' ? '기동중' : state === 'stopped' ? '정지중' : 'RUN 미확인' };
     }
     // Keep the established FBHE/Seal view contract and also use verified RUN
@@ -283,6 +401,13 @@ DP_TAGS.add("203HRJ01AN602");
     for (const a of assets || []) {
       if (a.enabled === false || a.enabled === 0) continue;
       const skip = reason => skipped.push({ tagNumber: a.tagNumber, displayName: a.displayName || a.tagNumber, status: 'skipped', message: reason });
+      const recovery = runtimeRecoveryPlan(a, new Date(end));
+      if (recovery) {
+        tasks.push({ kind: 'dataparc_repair', asset: a, snapshot: snapshot(a), ...recovery,
+          queryStartAt: recovery.startAt, incremental: false, recoveryVersion: 1,
+          recoveryPlannedAt: new Date(end).toISOString(), recoveryProof: runtimeRecoverySnapshot(a) });
+        continue;
+      }
       const replacementProof = a.replacementAutoCycle;
       const priority = rolePriorityReview(a);
       if (priority && a.cycleSourceReview?.measuredRangeMayContinue !== true) {
@@ -487,9 +612,14 @@ DP_TAGS.add("203HRJ01AN602");
 
   function dataParcCreateBody(task) {
     const s = task.snapshot;
+    const recovery = runtimeRecoveryMarker(task);
+    if (recovery && !validRuntimeRecoveryTask(task)) throw error('누적 보완 조회의 종류와 고정 근거를 확인할 수 없습니다.', 'BLOWER_RUNTIME_RECOVERY_INVALID');
     return {
       action: 'create_blower_runtime_probe', unifiedRefresh: true,
-      incrementalRefresh: task.previewOnly !== true && (task.limestoneAutoRebuild !== true || task.replacementAutoFresh === true),
+      incrementalRefresh: !recovery && task.previewOnly !== true && (task.limestoneAutoRebuild !== true || task.replacementAutoFresh === true),
+      ...(task.recoveryMode === 'role_priority' ? { rolePriorityRecovery: true, selectedCompletionAt: task.startAt } : {}),
+      ...(task.recoveryMode === 'confirmed_gap' ? { confirmedGapRecovery: true } : {}),
+      ...(task.recoveryMode === 'seal_first_run' ? { requireFirstRunStart: true } : {}),
       ...(task.replacementAutoRange === true ? { replacementAutoRange: true, partialTracking: true } : {}),
       ...(task.previewOnly === true ? { limestoneTrackingOnly: true } : {}),
       requireIncrementalAppend: task.incremental === true, assetTag: s.tagNumber,
@@ -544,14 +674,29 @@ DP_TAGS.add("203HRJ01AN602");
     const currentFor = task => io.currentAssetFor ? io.currentAssetFor(task.snapshot.tagNumber)
       : task.asset?.dataParcRuntimeBasis ? task.asset : undefined;
     const acceptedIdFor = task => String(resume?.createdBatch?.results?.find(row => row.assetTag === task.snapshot.tagNumber)?.item?.id || '');
+    for (const task of source) {
+      const repair = runtimeRecoveryMarker(task);
+      const accepted = resume?.createdBatch?.results?.find(row => row.assetTag === task.snapshot.tagNumber);
+      if (repair && !validRuntimeRecoveryTask(task) ||
+          resume && resume.runtimeRecoveryVersion !== undefined && resume.runtimeRecoveryVersion !== 1 ||
+          resume && repair && (resume.runtimeRecoveryVersion !== 1 || accepted?.recoveryMode !== task.recoveryMode) ||
+          resume && !repair && accepted?.recoveryMode !== undefined && accepted.recoveryMode !== null ||
+          resume?.runtimeRecoveryVersion === 1 && accepted?.recoveryMode === undefined) {
+        throw error('접수된 누적 보완 조회의 종류 또는 근거가 변경됐습니다. 일반 조회로 전환하지 않았습니다.', 'BLOWER_RUNTIME_RECOVERY_INVALID');
+      }
+    }
     const partialTags = new Set(source.filter(task => {
       const current = currentFor(task);
+      if (runtimeRecoveryMarker(task)) return !recognizedRuntimeRecovery(task, current, acceptedIdFor(task));
       return (task.partialRange === true || task.asset?.dataParcRuntimeBasis?.coverageComplete === false ||
         current?.dataParcRuntimeBasis?.coverageComplete === false || task.asset?.cycleSourceReview || current?.cycleSourceReview) &&
         !recognizedPartialAppend(task, current, acceptedIdFor(task)) && !recognizedFreshRange(task, current, acceptedIdFor(task));
     }).map(task => task.snapshot.tagNumber));
     if (!resume && partialTags.size) {
-      throw error('일부 기간 RUN 누적 · 교체 기준 확인 필요 · 기존 조회값을 유지합니다.', 'BLOWER_CYCLE_COVERAGE_INCOMPLETE');
+      const recoveryChanged = source.some(task => runtimeRecoveryMarker(task) && partialTags.has(task.snapshot.tagNumber));
+      throw error(recoveryChanged ? '누적 보완 조회의 현재 근거 또는 저장값이 변경됐습니다. 기존 값을 유지합니다.'
+        : '일부 기간 RUN 누적 · 교체 기준 확인 필요 · 기존 조회값을 유지합니다.',
+      recoveryChanged ? 'BLOWER_RUNTIME_RECOVERY_CHANGED' : 'BLOWER_CYCLE_COVERAGE_INCOMPLETE');
     }
     io.assertWritable?.();
     io.progress?.(resume ? `${source.length}대 이전 조회 결과 확인 중` : `${source.length}대 증분 조회 요청 등록 중`);
@@ -591,12 +736,14 @@ DP_TAGS.add("203HRJ01AN602");
       const tag = String(created?.assetTag || '');
       const item = created?.item;
       const requestId = created?.upToDate === true ? '' : String(item?.id || '');
+      const recovery = source.some(task => task.snapshot.tagNumber === tag && runtimeRecoveryMarker(task));
       const requestShapeValid = created?.upToDate === true || (
         item?.requestType === 'blower_runtime_probe' &&
         String(item?.probe?.assetTag || '') === tag &&
         String(item?.probe?.requestId || '') === requestId
       );
       if (!tag || !sourceTags.includes(tag) || createdByTag.has(tag) || created?.ok !== true ||
+          (recovery && created?.upToDate === true) ||
           (created?.upToDate !== true && !requestId) || !requestShapeValid ||
           (requestId && requestIds.has(requestId))) {
         throw error('Blower 일괄 요청 설비 목록이 요청과 일치하지 않습니다. 개별 요청으로 전환하지 않았습니다.', 'CREATE_BATCH_RESPONSE_MISMATCH');
@@ -615,15 +762,19 @@ DP_TAGS.add("203HRJ01AN602");
     for (const task of source) {
       if (partialTags.has(task.snapshot.tagNumber)) resultByTag.set(task.snapshot.tagNumber, {
         tagNumber: task.snapshot.tagNumber, displayName: task.asset?.displayName || task.snapshot.tagNumber,
-        status: 'skipped', message: '일부 기간 RUN 누적 · 교체 기준 확인 필요 · 이전 요청 자동 반영 보류 · 기존 값 유지'
+        status: 'skipped', message: runtimeRecoveryMarker(task)
+          ? '누적 보완 조회의 현재 근거 변경 · 이전 요청 자동 반영 보류 · 기존 값 유지'
+          : '일부 기간 RUN 누적 · 교체 기준 확인 필요 · 이전 요청 자동 반영 보류 · 기존 값 유지'
       });
     }
-    const saveCheckpoint = () => io.runtimeCheckpoint?.({ version: 1,
+    const saveCheckpoint = () => io.runtimeCheckpoint?.({ version: 1, runtimeRecoveryVersion: 1,
       tasks: source.map(task => ({ ...task, asset: { tagNumber: task.snapshot.tagNumber,
         displayName: task.asset?.displayName || task.snapshot.tagNumber } })),
       createdBatch: { ok: true, atomic: true, batchVersion: 1, requestedCount: source.length,
-        results: batchResults.map(row => row.upToDate === true ? { ok: true, assetTag: row.assetTag, upToDate: true, message: row.message } : {
-          ok: true, assetTag: row.assetTag, item: { id: row.item.id, status: row.item.status,
+        results: batchResults.map(row => row.upToDate === true ? { ok: true, assetTag: row.assetTag, upToDate: true, message: row.message,
+          recoveryMode: source.find(task => task.snapshot.tagNumber === row.assetTag)?.recoveryMode || null } : {
+          ok: true, assetTag: row.assetTag, recoveryMode: source.find(task => task.snapshot.tagNumber === row.assetTag)?.recoveryMode || null,
+          item: { id: row.item.id, status: row.item.status,
             requestType: 'blower_runtime_probe', probe: { assetTag: row.assetTag, requestId: row.item.id } }
         }) }, outcomes: [...resultByTag.values()].filter(item => ['complete', 'failed'].includes(item.status)) });
     // This checkpoint contains accepted IDs only. An uncertain create is not a receipt.
@@ -716,6 +867,11 @@ DP_TAGS.add("203HRJ01AN602");
             }
           }
         try {
+          const recovery = runtimeRecoveryMarker(task);
+          if (recovery && !recognizedRuntimeRecovery(task, currentFor(task), String(entry.item.id))) {
+            return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber, status: 'skipped',
+              recoveryMode: task.recoveryMode, message: '누적 보완 조회 중 근거 또는 저장값 변경 · 기존 값 유지' };
+          }
           if (task.replacementAutoRange === true && !recognizedFreshRange(task, currentFor(task), String(entry.item.id))) {
             return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber, status: 'skipped',
               message: '확인 구간 조회 중 저장 기준 변경 · 기존 값 유지' };
@@ -725,20 +881,45 @@ DP_TAGS.add("203HRJ01AN602");
             return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber, status: 'skipped',
               message: '이어조회 중 저장 기준 변경 · 기존 일부 기간 누적 유지' };
           }
-          const applied = await io.api({ method: 'POST', timeoutMs: 30000, body: { action: 'dataparc_runtime_sync', requestId: entry.item.id } });
+          const applied = await io.api({ method: 'POST', timeoutMs: 30000, body: {
+            action: task.recoveryMode === 'role_priority' ? 'apply_role_priority_runtime_recovery' : 'dataparc_runtime_sync',
+            requestId: entry.item.id,
+            ...(task.recoveryMode === 'confirmed_gap' ? { confirmedGapRecovery: true } : {}),
+            ...(task.recoveryMode === 'seal_first_run' ? { requireFirstRunStart: true } : {})
+          } });
+          if (recovery) {
+            io.assertWritable?.();
+            if (applied?.ok !== true || applied.requestId !== entry.item.id ||
+                String(applied.assetTag || applied.tagNumber || '') !== s.tagNumber ||
+                (applied.applied !== true && applied.replayed !== true) || applied.incremental === true ||
+                typeof applied.runtimeHours !== 'number' || !Number.isFinite(applied.runtimeHours) || applied.runtimeHours < 0 ||
+                !Number.isFinite(time(applied.observedAt)) || time(applied.observedAt) < time(task.recoveryProof.dataParcRuntimeBasis.observedAt) ||
+                (task.recoveryMode === 'role_priority'
+                  ? applied.rolePriorityRecovery !== true || time(applied.selectedCompletionAt) !== time(task.startAt)
+                  : applied.dataParcTag !== task.dataParcTag)) {
+              throw error('누적 보완 결과의 저장 응답을 확인하지 못했습니다. 같은 요청 ID로만 다시 확인합니다.', 'BLOWER_RUNTIME_RECOVERY_APPLY_UNCONFIRMED');
+            }
+          }
           appliedCount += 1;
           io.progress?.(`조회 결과 저장 중 · ${appliedCount}/${pending.length}`);
+          if (recovery) return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber,
+            status: 'complete', recoveryMode: task.recoveryMode, recoveryApplied: applied.applied === true,
+            ...(applied.replayed === true ? { unchanged: true } : {}),
+            message: applied.replayed === true ? '이미 보완된 결과 확인 · 현재 값 유지'
+              : task.recoveryMode === 'role_priority' ? '선택 교체 기준과 누적시간 보완 완료'
+              : task.recoveryMode === 'confirmed_gap' ? '앞 구간을 포함한 누적시간 보완 완료'
+              : '최초 기동과 앞 구간 확인 완료' };
           const reviewStatus = task.partialRange === true ? partialAppendResultStatus(task, partialCurrent) : null;
           return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber, status: 'complete',
             ...(task.partialRange === true ? { partialRange: true, runReviewStatus: reviewStatus } : {}),
             message: task.replacementAutoRange === true ? '확인 구간 RUN 조회 완료 · 교체 기록 이후 확인된 RUN'
               : task.replacementAutoFresh === true ? '새 교체 기준 RUN 조회 완료'
               : reviewStatus ? `RUN 이어조회 완료 · ${reviewStatus.label}`
-              : task.registeredRuntimeRange === true ? '조회구간 RUN 이어조회 완료 · RUN 조회기준 유지'
+              : task.registeredRuntimeRange === true ? '확인 구간 이어조회 완료 · RUN 조회기준 유지'
               : task.partialTracking === true ? '확인 구간 RUN 이어조회 완료 · 교체 기록 이후 확인된 RUN'
               : applied.message || '증분 운전시간 반영 완료' };
         } catch (cause) {
-          if ([401, 403].includes(Number(cause?.status))) throw cause;
+          if ([401, 403].includes(Number(cause?.status)) || cause?.code === 'WRITE_ACCESS_CHANGED') throw cause;
           const uncertain = [0, 429, 502, 503, 504].includes(Number(cause?.status || 0));
           return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber,
             requestId: entry.item.id, status: uncertain ? 'waiting' : 'failed',
@@ -1015,7 +1196,8 @@ DP_TAGS.add("203HRJ01AN602");
     return stop('처리 단위 한도 도달');
   }
 
-  return { fbheSealRunAsset, fbheSealRunView, freshReplacementQuery, replacementRangeTracking, rolePriorityReview, runReviewStatus, plan, intermittent, snapshot, sameCycle, day, waitRequests, executeDataParc, executeDataParcBatch, executeOis, oisBody,
+  return { fbheSealRunAsset, fbheSealRunView, freshReplacementQuery, replacementRangeTracking, rolePriorityReview, runReviewStatus,
+    runtimeRecoveryPlan, recognizedRuntimeRecovery, plan, intermittent, snapshot, sameCycle, day, waitRequests, executeDataParc, executeDataParcBatch, executeOis, oisBody,
     refreshLogs, refreshLogsForRuntime, readWithRetry, errorLabel,
     register(kind, fn) { if (!['fbhe','seal_pot'].includes(kind) || typeof fn !== 'function') throw new Error('Invalid OIS bridge'); bridges[kind] = fn; } };
 });

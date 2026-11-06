@@ -72,10 +72,10 @@ test('overview keeps one measured value, its queried period and observed state w
   assert.match(text, /교체 기준 확인/);
   assert.match(text, /2026-10-18 08:04 → 2026-11-04 04:24/);
   assert.doesNotMatch(card, new RegExp(SOURCE_DETAIL));
-  assert.doesNotMatch(text, /조회구간 RUN 누적 · 교체 기준 확인 필요/);
+  assert.doesNotMatch(text, /확인 구간 누적 · 교체 기준 확인 필요/);
   ui.openAssetHistory(a.tagNumber);
   assert.ok(ui.elements.historyCycleSummary.innerHTML.includes(SOURCE_DETAIL), 'the full source explanation stays available in history');
-  assert.match(ui.elements.historyCycleSummary.innerHTML, /조회구간 RUN 누적 · 교체 기준 확인 필요/);
+  assert.match(ui.elements.historyCycleSummary.innerHTML, /확인 구간 누적 · 교체 기준 확인 필요/);
   assert.deepEqual(a, before);
 });
 
@@ -247,7 +247,7 @@ test('type-specific cards show one short coverage notice and keep full explanati
     assert.match(text, /404\.3시간/);
     assert.equal((text.match(/404\.3시간/g) || []).length, 1);
     assert.doesNotMatch(text, /앞쪽 미조회 구간을 추정|전체 벨트 누적|검증된 조회구간|승인 원문 근거/);
-    assert.doesNotMatch(text, /조회구간 RUN 누적 ·|일부 기간 RUN 누적 ·/);
+    assert.doesNotMatch(text, /확인 구간 누적 ·|일부 기간 RUN 누적 ·/);
     assert.match(card, /data-asset-action="history"/);
     assert.doesNotMatch(card, /role="progressbar"|class="cycle-deadline-metric|class="cycle-usage-metric/);
     ui.openAssetHistory(a.tagNumber);

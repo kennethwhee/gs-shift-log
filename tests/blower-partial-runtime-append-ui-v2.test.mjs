@@ -332,8 +332,8 @@ for (const tag of ['104ETH03AN602', '204HHL60AP621']) test(`${tag}: source-revie
     ui.openAssetHistory(tag);
     for (const markup of [ui.renderAssetCard(reread, { cycleDays: 90 }),
       ui.renderAllOverviewCard(reread), ui.elements.historyCycleSummary.innerHTML]) {
-      assert.ok(markup.includes('조회구간 RUN 누적 · 교체 기준 확인 필요'), tag);
-      assert.match(markup, /조회구간 RUN 누적/);
+      assert.ok(markup.includes('확인 구간 누적 · 교체 기준 확인 필요'), tag);
+      assert.match(markup, /확인 구간 누적/);
       assert.match(markup, /등록\s*기준/);
       assert.doesNotMatch(markup, /(?:<em>|<small>|<span>)최근(?: V-Belt)? 교체(?:<\/em>|<\/small>|<\/span>)/);
       assert.doesNotMatch(markup, /class="cycle-deadline-metric|class="cycle-usage-metric|role="progressbar"/);
@@ -352,7 +352,7 @@ test('a manual two-hour correction takes priority over an older one-hour receipt
   ui.openAssetHistory(asset.tagNumber);
   for (const markup of [ui.renderAssetCard(asset, { cycleDays: 90 }),
     ui.renderAllOverviewCard(asset), ui.elements.historyCycleSummary.innerHTML]) {
-    assert.ok(markup.includes('조회구간 RUN 누적 · 교체 기준 확인 필요'));
+    assert.ok(markup.includes('확인 구간 누적 · 교체 기준 확인 필요'));
     assert.ok(markup.includes('2.0시간'), 'current manual value remains the primary value');
     assert.ok(!markup.includes('1.0시간'), 'the old receipt cannot overwrite a newer manual correction');
     assert.doesNotMatch(markup, /class="cycle-deadline-metric|class="cycle-usage-metric|role="progressbar"/);
@@ -407,7 +407,7 @@ test('invalid source-review hour values remain unknown while an explicit numeric
     for (const markup of [ui.renderAssetCard(asset, { cycleDays: 90 }),
       ui.renderAllOverviewCard(asset), ui.elements.historyCycleSummary.innerHTML]) {
       assert.ok(markup.includes('확인 필요'));
-      assert.ok(markup.includes('조회구간 RUN 누적 · 교체 기준 확인 필요'));
+      assert.ok(markup.includes('확인 구간 누적 · 교체 기준 확인 필요'));
       assert.ok(!markup.includes('0.0시간'), 'null, blank and booleans cannot fabricate measured zero hours');
       assert.doesNotMatch(markup, /class="cycle-deadline-metric|class="cycle-usage-metric|role="progressbar"/);
     }
@@ -427,7 +427,7 @@ test('invalid source-review hour values remain unknown while an explicit numeric
   for (const markup of [ui.renderAssetCard(zero, { cycleDays: 90 }),
     ui.renderAllOverviewCard(zero), ui.elements.historyCycleSummary.innerHTML]) {
     assert.ok(markup.includes('0.0시간'), 'an explicit valid numeric zero remains visible');
-    assert.ok(markup.includes('조회구간 RUN 누적 · 교체 기준 확인 필요'));
+    assert.ok(markup.includes('확인 구간 누적 · 교체 기준 확인 필요'));
     assert.doesNotMatch(markup, /class="cycle-deadline-metric|class="cycle-usage-metric|role="progressbar"/);
   }
 });
