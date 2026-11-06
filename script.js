@@ -250913,7 +250913,7 @@ if (
                 ? 3
                 : 4
             }"
-            placeholder="${hasTime ? "시간 0857 또는 08:57 · 예: 0857 설비 점검" : `${definition.title} 내용을 입력하세요.`}"
+            placeholder="${hasTime ? "0857 또는 08:57 뒤에 내용 입력" : `${definition.title} 내용을 입력하세요.`}"
           >${typeof escapeHtml === "function" ? escapeHtml(content) : content}</textarea>
 
         </label>
@@ -253282,7 +253282,7 @@ if (
     38;
 
   const HANDOVER_PLACEHOLDER =
-    "\uC2DC\uAC04 0857 \uB610\uB294 08:57 \u00B7 \uC608: 0857 \uC124\uBE44 \uC810\uAC80 (Ctrl + Enter\uB85C \uCD94\uAC00)";
+    "0857 \uB610\uB294 08:57 \uB4A4\uC5D0 \uB0B4\uC6A9 \uC785\uB825 (Ctrl + Enter\uB85C \uCD94\uAC00)";
 
   let scheduledFrameId =
     0;
