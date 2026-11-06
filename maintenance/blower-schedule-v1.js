@@ -86,6 +86,61 @@
     return value;
   }
 
+  // A reloaded schedule has its original server receipt, not the foreground
+  // plan. Recover the apply route from the authenticated saved intent detail;
+  // an equipment tag or a revision prefix alone cannot authorize a repair.
+  function scheduledRecoveryPlan(expected, item) {
+    const probe = item?.probe, recovery = probe?.runtimeRecovery;
+    const marker = value => typeof value === 'string' &&
+      ['role-priority-recovery-', 'coverage-recovery-', 'completion-window-recovery-'].some(prefix => value.startsWith(prefix));
+    if (!recovery && !marker(probe?.expectedCycleRuntimeRevision)) return null;
+    const routes = {
+      role_priority: { prefix: 'role-priority-recovery-v1:', tags: ['103HRJ01AN601'],
+        signal: 'GSPOGE.ABB_DCS.103HRJ01AN601XB04', action: 'apply_role_priority_runtime_recovery' },
+      confirmed_gap: { prefix: 'coverage-recovery-v1:', tags: ['104ETG30AN602'],
+        signal: 'GSPOGE.ABB_DCS.103ETG30AN602XJ04', action: 'dataparc_runtime_sync', confirmedGapRecovery: true },
+      seal_first_run: { prefix: 'coverage-recovery-v1:', tags: ['204HHL10AN611', '204HHL10AN631'],
+        action: 'dataparc_runtime_sync', requireFirstRunStart: true },
+      completion_window_zero: { prefix: 'completion-window-recovery-v1:', tags: ['204HHL60AP631'],
+        signal: 'GSPOGE.ABB_DCS.204HHL60AP631XB04', action: 'apply_completion_window_runtime_recovery' }
+    };
+    const route = routes[recovery?.mode], start = time(probe?.startAt), end = time(probe?.endAt);
+    if (!route || recovery?.version !== 1 || item.id !== expected.id || item.status !== 'complete' ||
+        item.requestType !== 'blower_runtime_probe' || probe?.requestId !== expected.id || probe?.assetTag !== expected.assetTag ||
+        probe.schemaVersion !== 1 || probe.requestType !== 'blower_runtime_probe' || probe.readOnly !== true ||
+        probe.limestoneTrackingOnly === true || !route.tags.includes(expected.assetTag) ||
+        probe.dataParcTag !== (route.signal || `GSPOGE.ABB_DCS.${expected.assetTag}XB04`) ||
+        typeof probe.expectedCycleRuntimeRevision !== 'string' ||
+        !probe.expectedCycleRuntimeRevision.startsWith(route.prefix) || probe.expectedCycleRuntimeRevision.length <= route.prefix.length ||
+        ['requestId', 'assetTag', 'dataParcTag', 'startAt', 'endAt'].some(key => recovery[key] !== probe[key]) ||
+        !Number.isFinite(start) || !Number.isFinite(end) || start >= end || end - start > 366 * 86400000 ||
+        item.targetDate !== `v1|${expected.assetTag}|${probe.startAt}|${probe.endAt}`) {
+      throw fail('SCHEDULE_RECOVERY_INTENT_INVALID', '보완 조회의 저장된 종류·설비·기간이 일치하지 않습니다. 기존 요청과 누적값을 유지합니다.');
+    }
+    return { mode: recovery.mode, startAt: probe.startAt, endAt: probe.endAt, dataParcTag: probe.dataParcTag,
+      body: { action: route.action, requestId: expected.id,
+        ...(route.confirmedGapRecovery ? { confirmedGapRecovery: true } : {}),
+        ...(route.requireFirstRunStart ? { requireFirstRunStart: true } : {}) } };
+  }
+
+  function verifyRecoveryApplied(applied, expected) {
+    const repair = expected.recovery;
+    const validPeriod = repair.mode === 'completion_window_zero'
+      ? applied?.completionWindowRecovery === true && applied.certificateOnly === true &&
+        time(applied.verifiedWindowStartAt) === time(repair.startAt) && time(applied.verifiedWindowEndAt) === time(repair.endAt) &&
+        Number.isFinite(time(applied.observedAt)) && time(applied.observedAt) >= time(repair.endAt)
+      : time(applied?.observedAt) === time(repair.endAt);
+    if (applied?.ok !== true || applied.requestId !== expected.id ||
+        String(applied.assetTag || applied.tagNumber || '') !== expected.assetTag ||
+        (applied.applied !== true && applied.replayed !== true) || applied.incremental === true ||
+        !finite(applied.runtimeHours) || applied.runtimeHours < 0 || !validPeriod ||
+        (repair.mode === 'role_priority'
+          ? applied.rolePriorityRecovery !== true || time(applied.selectedCompletionAt) !== time(repair.startAt)
+          : applied.dataParcTag !== repair.dataParcTag)) {
+      throw fail('SCHEDULE_RECOVERY_APPLY_UNCONFIRMED', '보완 결과 저장을 확인하지 못했습니다. 같은 요청으로 다시 확인합니다.', 503);
+    }
+  }
+
   function createController(options) {
     const o = options || {}, core = o.core, storage = o.storage, locks = o.locks;
     if (!core || typeof o.api !== 'function' || typeof o.identity !== 'function' || !storage) {
@@ -474,7 +529,8 @@
               actual.status !== 'complete' || actual.probe?.requestId !== expected.id || actual.probe?.assetTag !== expected.assetTag) {
             throw fail('SCHEDULE_REQUEST_MISMATCH', '자동조회 결과의 설비가 등록 기록과 일치하지 않습니다.');
           }
-          verified.push({ ...expected, limestoneTrackingOnly: actual.probe?.limestoneTrackingOnly === true });
+          verified.push({ ...expected, limestoneTrackingOnly: actual.probe?.limestoneTrackingOnly === true,
+            recovery: scheduledRecoveryPlan(expected, actual) });
         }
       };
       await Promise.all(Array.from({ length: Math.min(4, validated.items.length) }, () => worker().catch(error => { fatal ||= error; })));
@@ -485,13 +541,19 @@
         while (!fatal && cursor < verified.length) {
           const expected = verified[cursor++];
           try {
-            const applied = await request(ctx, { method: 'POST', body: {
+            const applied = await request(ctx, { method: 'POST', body: expected.recovery?.body || {
               action: expected.limestoneTrackingOnly === true ? 'limestone_run_track_apply' : 'dataparc_runtime_sync',
               requestId: expected.id } });
-            if (applied?.ok !== true) throw fail('SCHEDULE_APPLY_INVALID', '자동조회 결과 저장을 확인할 수 없습니다.');
+            if (expected.recovery) verifyRecoveryApplied(applied, expected);
+            else if (applied?.ok !== true) throw fail('SCHEDULE_APPLY_INVALID', '자동조회 결과 저장을 확인할 수 없습니다.');
             completedCount += 1;
           } catch (cause) {
             if (cause.code === 'WRITE_ACCESS_CHANGED' || [401, 403].includes(Number(cause.status))) { fatal ||= cause; return; }
+            // An interrupted response may follow a committed repair. Keep the
+            // durable original receipt so the dedicated action can verify its
+            // audit/idempotent result; never finish it as a generic failure.
+            if (expected.recovery && (cause.code === 'SCHEDULE_RECOVERY_APPLY_UNCONFIRMED' ||
+                [0, 429, 502, 503, 504].includes(Number(cause.status || 0)))) { fatal ||= cause; return; }
             failedCount += 1;
           }
         }

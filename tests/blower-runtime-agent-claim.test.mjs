@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
+import { scheduledRuntimeRecoveryMetadata } from "../functions/_shared/blower-scheduled-recovery-v1.js";
 
 
 const [queueSource, agentSource] = await Promise.all([
@@ -81,7 +82,7 @@ function plain(value) {
 
 
 function buildQueueProbe(row) {
-  const context = vm.createContext({ String, Number });
+  const context = vm.createContext({ String, Number, scheduledRuntimeRecoveryMetadata });
   vm.runInContext(`
     const BLOWER_RUNTIME_PROBE_SCHEMA_VERSION = 1;
     const BLOWER_RUNTIME_PROBE_REQUEST_TYPE = "blower_runtime_probe";

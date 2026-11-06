@@ -1,0 +1,109 @@
+/* The resolution guide is presentation only. Card operating-state colors stay
+   in blower-readable-compact-v1.css, including the pale-red stopped state. */
+.blower-resolution-center {
+  grid-column: 1 / -1;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #d7e2ea;
+  border-radius: 8px;
+  background: #fff;
+}
+.blower-resolution-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 39px;
+  padding: 8px 11px;
+  border: 0;
+  background: #f5f8fb;
+  color: #25465f;
+  text-align: left;
+  cursor: pointer;
+}
+.blower-resolution-toggle > strong { flex: 0 0 auto; font-size: 12px; }
+.blower-resolution-toggle b { margin-left: 4px; color: #9a620e; font-variant-numeric: tabular-nums; }
+.blower-resolution-toggle > span { min-width: 0; color: #65788a; font-size: 11px; line-height: 1.4; }
+.blower-resolution-toggle > em { flex: 0 0 auto; margin-left: auto; font-size: 11px; font-style: normal; color: #2d638d; }
+.blower-resolution-toggle:hover { background: #edf4fa; }
+.blower-resolution-toggle:focus-visible,
+.blower-resolution-center button:focus-visible,
+.blower-resolution-guide button:focus-visible { outline: 2px solid #3789c8; outline-offset: -2px; }
+.blower-resolution-items { padding: 10px 11px; }
+.blower-resolution-items[hidden] { display: none; }
+.blower-resolution-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.blower-resolution-toolbar > p { margin: 0; font-size: 11px; line-height: 1.5; color: #4b6479; }
+.blower-resolution-toolbar small { display: block; color: #6c7e8d; }
+.blower-resolution-toolbar > button { flex: 0 0 auto; min-height: 32px; font-size: 11px; }
+.blower-resolution-access { margin: 5px 0 9px; color: #65788a; font-size: 11px; line-height: 1.5; }
+.blower-resolution-list { margin: 9px 0 0; padding: 0; list-style: none; }
+.blower-resolution-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.1fr) minmax(190px, 1.4fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid #e6ecf1;
+}
+.blower-resolution-row > div { min-width: 0; }
+.blower-resolution-row > div > strong { display: block; color: #243e53; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+.blower-resolution-row > div > small { display: block; margin-top: 2px; color: #738696; font-size: 10px; }
+.blower-resolution-row > p { min-width: 0; margin: 0; color: #415d72; font-size: 11px; line-height: 1.5; }
+.blower-resolution-row > p > span { display: block; margin-bottom: 2px; color: #976118; font-size: 10px; font-weight: 700; }
+.blower-resolution-row[data-resolution-kind="automatic"] > p > span { color: #2e7793; }
+.blower-resolution-row > button { min-height: 31px; font-size: 11px; white-space: nowrap; }
+.blower-resolution-complete,
+.blower-resolution-missing { margin: 10px 0 0; font-size: 12px; line-height: 1.5; color: #526e82; }
+.blower-resolution-center button:disabled,
+.blower-resolution-guide button:disabled { cursor: not-allowed; opacity: .55; }
+/* Keep the unavailable next step visible with its explanation; the live
+   permission guard still prevents it from starting a query. */
+body.public-monitoring .blower-resolution-center [data-mobile-write]:disabled,
+body.public-monitoring .blower-resolution-guide [data-mobile-write]:disabled { display: inline-flex !important; }
+
+.history-cycle-summary > .blower-resolution-guide {
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid #dce4ea;
+  border-radius: 7px;
+  background: #fff;
+}
+.blower-resolution-guide > header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.blower-resolution-guide > header > strong { font-size: 11px; color: #526d82; }
+.blower-resolution-guide > header > span { font-size: 10px; font-weight: 700; color: #976118; }
+.blower-resolution-guide[data-resolution-kind="automatic"] > header > span { color: #2e7793; }
+.blower-resolution-guide > h4 { margin: 8px 0 4px; color: #223f55; font-size: 14px; line-height: 1.4; }
+.blower-resolution-guide p { margin: 5px 0; color: #4b6478; font-size: 12px; line-height: 1.6; }
+.blower-resolution-guide > .blower-resolution-source { margin: 9px 0; padding: 8px 10px; border-radius: 5px; background: #f4f7fa; }
+.blower-resolution-guide > .blower-resolution-source > span { color: #667f93; font-size: 10px; }
+.blower-resolution-guide > .blower-resolution-source > strong { margin-top: 3px; color: #33546e; font-size: 11px; font-weight: 700; }
+.blower-resolution-source > p { margin: 5px 0 0; white-space: pre-line; overflow-wrap: anywhere; }
+.blower-resolution-source-quote { margin-top: 6px; }
+.blower-resolution-source-quote > summary { color: #3c6786; font-size: 11px; cursor: pointer; }
+.blower-resolution-source-quote > p { white-space: pre-line; overflow-wrap: anywhere; }
+.blower-resolution-guide > ol { margin: 10px 0; padding-left: 20px; color: #405f76; font-size: 12px; line-height: 1.65; }
+.blower-resolution-guide > ol > li + li { margin-top: 5px; }
+.blower-resolution-guide .blower-resolution-query { color: #516f87; font-size: 11px; }
+.blower-resolution-query > strong { margin-left: 5px; font-variant-numeric: tabular-nums; }
+.blower-resolution-guide .blower-resolution-next { margin-top: 8px; color: #6c7180; font-size: 11px; }
+.blower-resolution-guide > footer { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.blower-resolution-guide > footer > button { flex: 0 0 auto; min-height: 33px; font-size: 12px; }
+.blower-resolution-guide > footer > small { min-width: 0; color: #687e8f; font-size: 11px; line-height: 1.5; }
+.history-cycle-summary > .completion-window-proof { background: #f1f8f4; border: 1px solid #d1e6d9; border-radius: 6px; }
+
+@media (max-width: 700px), (max-width: 1024px) and (hover: none) and (pointer: coarse) {
+  .blower-resolution-toggle { flex-wrap: wrap; column-gap: 8px; row-gap: 3px; padding: 8px; }
+  .blower-resolution-toggle > span { flex: 1 1 160px; font-size: 10px; }
+  .blower-resolution-toggle > em { font-size: 10px; }
+  .blower-resolution-items { padding: 8px; }
+  .blower-resolution-toolbar { flex-wrap: wrap; gap: 7px; }
+  .blower-resolution-row { grid-template-columns: minmax(0, 1fr) auto; gap: 5px 8px; }
+  .blower-resolution-row > p { grid-column: 1; }
+  .blower-resolution-row > button { grid-column: 2; grid-row: 1 / 3; }
+  .history-cycle-summary > .blower-resolution-guide { padding: 9px; }
+  .blower-resolution-guide > footer { flex-wrap: wrap; gap: 6px; }
+  .blower-resolution-guide > footer > small { flex-basis: 100%; }
+  .blower-resolution-center [data-mobile-write]:disabled,
+  .blower-resolution-guide [data-mobile-write]:disabled { display: inline-flex !important; }
+}

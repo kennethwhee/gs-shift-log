@@ -84,9 +84,42 @@ DP_TAGS.add("203HRJ01AN602");
         time(selected.selectedCompletionAt) === time(selected.registeredReplacementAt)) return null;
     return { key: 'role-priority-run-rebuild', label: '상위 보직 기준 선택 · RUN 재조회 필요', selected };
   }
+  // A zero uncertainty window proves the duration without inventing a clock.
+  // Link the server certificate to the exact current measurement and source;
+  // an old certificate, equal hours or a bare success flag cannot clear review.
+  function verifiedCompletionWindow(a) {
+    const p = a?.completionWindowProof, evidence = a?.runtimeCoverageEvidence;
+    const basis = a?.dataParcRuntimeBasis, runtime = a?.runRuntime, automatic = a?.replacementAutoCycle;
+    const hours = a?.cycleElapsedHours ?? a?.runtimeHours;
+    if (a?.tagNumber !== '204HHL60AP631' || a.blowerType !== 'fbhe' || a.enabled === false || a.enabled === 0 ||
+        a.dataParcTag !== 'GSPOGE.ABB_DCS.204HHL60AP631XB04' || a.measurementRequired === true || a.cycleSourceReview ||
+        p?.version !== 1 || p.kind !== 'completion_window_zero' || p.durationVerified !== true || p.completionClockKnown !== false ||
+        p.certificateOnly !== true || p.dataParcTag !== a.dataParcTag || p.cycleStartRevision !== a.cycleStartRevision ||
+        ![p.certificateEventId,p.requestId,p.runtimeRequestId,p.runtimeRevision,p.baseEventId,p.sourceLogId].every(value=>typeof value==='string'&&value.trim()) ||
+        !/^[a-f0-9]{64}$/.test(String(p.sourceSnapshotSha256 || '')) || p.runtimeRevision !== a.cycleRuntimeRevision ||
+        time(p.windowStartAt) !== time('2026-09-16T09:23:00+09:00') ||
+        time(p.windowEndAt) !== time('2026-09-17T00:00:00+09:00') ||
+        time(a.lastReplacementAt) !== time('2026-09-16T00:00:00+09:00') || a.actualLastReplacementAt ||
+        automatic?.clockKnown !== false || automatic.completionClockConflict === true || automatic.rolePrioritySourceRevoked === true ||
+        automatic.sourceLogId !== p.sourceLogId || automatic.sourceSnapshotSha256 !== p.sourceSnapshotSha256 ||
+        evidence?.version !== 1 || evidence.source !== 'dataparc' || evidence.measurementVerified !== true ||
+        evidence.durationEquivalent !== true || evidence.durationVerified !== true || evidence.coverageComplete !== true ||
+        evidence.completionClockKnown !== false || evidence.completionWindowCertificateId !== p.certificateEventId ||
+        evidence.missingLeadingSeconds !== 0 || runtime?.verified !== true || runtime.source !== 'dataparc' ||
+        typeof hours !== 'number' || !Number.isFinite(hours) || hours < 0 || typeof basis?.runtimeHours !== 'number' ||
+        typeof evidence.hours !== 'number' || !Number.isFinite(basis.runtimeHours) || !Number.isFinite(evidence.hours) ||
+        Math.abs(hours-basis.runtimeHours)>0.000001 || Math.abs(hours-evidence.hours)>0.000001 ||
+        basis.dataParcTag !== a.dataParcTag || basis.requestId !== p.runtimeRequestId || evidence.requestId !== p.runtimeRequestId ||
+        time(basis.startAt) !== time('2026-09-16T09:30:00+09:00') ||
+        time(evidence.startAt) !== time(basis.startAt) || time(basis.observedAt) < time(p.windowEndAt) ||
+        time(evidence.observedAt) !== time(basis.observedAt) || time(runtime.measuredAt) !== time(basis.observedAt) ||
+        time(a.cycleRuntimeAnchorAt) !== time(basis.observedAt)) return null;
+    return p;
+  }
   // Presentation metadata only. These reasons never authorize a query or a
   // stored-value change; the unchanged receipt/cycle guards below own those.
   function runReviewStatus(a, basis = a?.dataParcRuntimeBasis) {
+    if (verifiedCompletionWindow(a)) return null;
     const priority = rolePriorityReview(a);
     if (priority) return { key: priority.key, label: priority.label };
     const automatic = a?.replacementAutoCycle;
@@ -108,6 +141,7 @@ DP_TAGS.add("203HRJ01AN602");
   }
 
   function partialAppendResultStatus(task, current) {
+    if (verifiedCompletionWindow(current)) return null;
     // Current server projection also supports resuming an older checkpoint
     // whose compact saved asset predates this display-only metadata.
     const currentReason = current ? runReviewStatus(current) : null;
@@ -208,9 +242,12 @@ DP_TAGS.add("203HRJ01AN602");
     const pendingRole = a?.tagNumber === '103HRJ01AN601' && a.blowerType === 'limestone' &&
       a.cycleStartState === 'pending' && automatic?.rolePriorityRecoveryEligible === true &&
       !String(a.cycleStoredStartedAt ?? a.cycleStartedAt ?? '').trim();
+    const pendingWindow = a?.tagNumber === '204HHL60AP631' && a.blowerType === 'fbhe' &&
+      a.cycleStartState === 'pending' && a.completionWindowRecovery?.eligible === true &&
+      !String(a.cycleStoredStartedAt ?? a.cycleStartedAt ?? '').trim();
     if (!a || !DP_TAGS.has(a.tagNumber) || a.enabled === false || a.enabled === 0 ||
         a.hasUnverifiedDataParcHistory !== false || a.measurementRequired === true ||
-        (!['legacy', 'started'].includes(a.cycleStartState) && !pendingRole) || automatic?.requiresRunRefresh === true ||
+        (!['legacy', 'started'].includes(a.cycleStartState) && !pendingRole && !pendingWindow) || automatic?.requiresRunRefresh === true ||
         ![a.cycleStartRevision, a.cycleRuntimeRevision].every(value => typeof value === 'string' && value.trim()) ||
         typeof signal !== 'string' || !/^GSPOGE\.ABB_DCS\.[A-Z0-9][A-Z0-9._-]*$/.test(signal) ||
         signal.length > 200 || signal === SIGNAL || !Number.isFinite(end) ||
@@ -226,7 +263,7 @@ DP_TAGS.add("203HRJ01AN602");
         !Number.isFinite(evidence.hours) || Math.abs(evidence.hours - stored) > 0.000001 ||
         time(evidence.startAt) !== time(base.startAt) || time(evidence.observedAt) !== time(base.observedAt))) return null;
 
-    let recoveryMode = '', startAt = '';
+    let recoveryMode = '', startAt = '', endAt = '';
     if (a.tagNumber === '103HRJ01AN601' && a.blowerType === 'limestone') {
       const selected = rolePriorityReview(a)?.selected;
       const selectedAt = time(selected?.selectedCompletionAt), replacement = time(a.lastReplacementAt);
@@ -254,10 +291,23 @@ DP_TAGS.add("203HRJ01AN602");
           runtime?.verified !== true || runtime.source !== 'dataparc' || basis.coverageComplete !== false ||
           evidence?.firstRunVerified === true) return null;
       recoveryMode = 'seal_first_run'; startAt = basis.requiredStartAt;
+    } else if (pendingWindow) {
+      const candidate = a.completionWindowRecovery;
+      if (verifiedCompletionWindow(a) || candidate.version !== 1 || candidate.dataParcTag !== signal ||
+          signal !== 'GSPOGE.ABB_DCS.204HHL60AP631XB04' ||
+          time(a.lastReplacementAt) !== time('2026-09-16T00:00:00+09:00') ||
+          time(candidate.startAt) !== time('2026-09-16T09:23:00+09:00') ||
+          time(candidate.windowStartAt) !== time(candidate.startAt) ||
+          time(candidate.endAt) !== time('2026-09-17T00:00:00+09:00') ||
+          time(candidate.windowEndAt) !== time(candidate.endAt) ||
+          time(base.startAt) !== time('2026-09-16T09:30:00+09:00') ||
+          time(base.observedAt) < time(candidate.endAt) || automatic?.clockKnown !== false ||
+          automatic.completionClockConflict === true) return null;
+      recoveryMode = 'completion_window_zero'; startAt = candidate.startAt; endAt = candidate.endAt;
     } else return null;
     const start = time(startAt);
     if (!Number.isFinite(start) || !(start < end) || end - start > 366 * DAY) return null;
-    return { recoveryMode, startAt, dataParcTag: signal };
+    return { recoveryMode, startAt, ...(endAt ? {endAt} : {}), dataParcTag: signal };
   }
 
   function runtimeRecoverySnapshot(a) {
@@ -278,6 +328,8 @@ DP_TAGS.add("203HRJ01AN602");
     proof.replacementAutoCycle = pick(a.replacementAutoCycle, ['schemaVersion', 'normalizationVersion', 'requiresRunRefresh',
       'rolePriorityRecoveryEligible', 'rolePrioritySourceRevoked', 'timePrecision', 'clockKnown', 'completionClockConflict',
       'confirmedReplacementAt', 'confirmedClockEventId', 'eventId', 'confirmedClockSourceSnapshotSha256', 'sourceSnapshotSha256']);
+    if (a.completionWindowRecovery) proof.completionWindowRecovery = pick(a.completionWindowRecovery,
+      ['version','eligible','startAt','endAt','windowStartAt','windowEndAt','dataParcTag']);
     if (proof.replacementAutoCycle) proof.replacementAutoCycle.rolePrioritySelection = pick(a.replacementAutoCycle.rolePrioritySelection,
       ['version', 'selectedRole', 'timePrecision', 'selectedSourceLogId', 'selectedSourceKey', 'selectedSourceSnapshotSha256',
         'selectedWorkDate', 'selectedShift', 'registeredReplacementAt', 'selectedCompletionAt', 'requiredRebuild']);
@@ -296,13 +348,16 @@ DP_TAGS.add("203HRJ01AN602");
         task.startAt !== task.queryStartAt || !sameCycle(task.snapshot, task.recoveryProof)) return false;
     const planned = runtimeRecoveryPlan(task.recoveryProof, task.recoveryPlannedAt);
     return !!planned && planned.recoveryMode === task.recoveryMode && planned.startAt === task.startAt &&
-      planned.dataParcTag === task.dataParcTag;
+      planned.dataParcTag === task.dataParcTag && (planned.endAt || '') === (task.endAt || '');
   }
 
   function recognizedRuntimeRecovery(task, current, acceptedId = '') {
     if (!validRuntimeRecoveryTask(task) || !current || current.tagNumber !== task.snapshot.tagNumber ||
         current.enabled === false || current.enabled === 0) return false;
     const saved = current.dataParcRuntimeBasis, stored = current.cycleElapsedHours ?? current.runtimeHours;
+    const durationProof = task.recoveryMode === 'completion_window_zero' ? verifiedCompletionWindow(current) : null;
+    if (acceptedId && durationProof?.requestId === acceptedId &&
+        time(saved.observedAt) >= time(task.recoveryProof.dataParcRuntimeBasis.observedAt)) return true;
     // A lost apply response may be retried only by its accepted ID. Its new
     // receipt is allowed to own a new revision/boundary; the server checks the
     // immutable repair intent and audit before returning an idempotent result.
@@ -316,6 +371,15 @@ DP_TAGS.add("203HRJ01AN602");
       JSON.stringify(runtimeRecoverySnapshot(current)) === JSON.stringify(task.recoveryProof);
   }
   function fbheSealRunView(a, basis = null) {
+    const equivalent = verifiedCompletionWindow(a);
+    if (equivalent) {
+      const hours = a.cycleElapsedHours ?? a.runtimeHours, state = a.runRuntime.state;
+      return {verified:true,manual:false,pending:false,state,hours,durationEquivalent:true,
+        primary:`${hours.toLocaleString('ko-KR',{minimumFractionDigits:1,maximumFractionDigits:1})}시간`,
+        message:'교체 작업 구간의 정지를 검증한 누적시간 · 완료시각 미기록',
+        measuredAt:a.dataParcRuntimeBasis.observedAt,sourceLabel:'DataPARC · 정지 구간 검증',
+        basis:a.dataParcRuntimeBasis,stateLabel:state==='running'?'기동중':'정지중'};
+    }
     const replacement = a?.replacementAutoCycle;
     const priority = rolePriorityReview(a);
     const rangeTracking = replacementRangeTracking(a);
@@ -620,6 +684,7 @@ DP_TAGS.add("203HRJ01AN602");
       ...(task.recoveryMode === 'role_priority' ? { rolePriorityRecovery: true, selectedCompletionAt: task.startAt } : {}),
       ...(task.recoveryMode === 'confirmed_gap' ? { confirmedGapRecovery: true } : {}),
       ...(task.recoveryMode === 'seal_first_run' ? { requireFirstRunStart: true } : {}),
+      ...(task.recoveryMode === 'completion_window_zero' ? { completionWindowRecovery: true, endAt:task.endAt } : {}),
       ...(task.replacementAutoRange === true ? { replacementAutoRange: true, partialTracking: true } : {}),
       ...(task.previewOnly === true ? { limestoneTrackingOnly: true } : {}),
       requireIncrementalAppend: task.incremental === true, assetTag: s.tagNumber,
@@ -882,7 +947,8 @@ DP_TAGS.add("203HRJ01AN602");
               message: '이어조회 중 저장 기준 변경 · 기존 일부 기간 누적 유지' };
           }
           const applied = await io.api({ method: 'POST', timeoutMs: 30000, body: {
-            action: task.recoveryMode === 'role_priority' ? 'apply_role_priority_runtime_recovery' : 'dataparc_runtime_sync',
+            action: task.recoveryMode === 'role_priority' ? 'apply_role_priority_runtime_recovery'
+              : task.recoveryMode === 'completion_window_zero' ? 'apply_completion_window_runtime_recovery' : 'dataparc_runtime_sync',
             requestId: entry.item.id,
             ...(task.recoveryMode === 'confirmed_gap' ? { confirmedGapRecovery: true } : {}),
             ...(task.recoveryMode === 'seal_first_run' ? { requireFirstRunStart: true } : {})
@@ -896,7 +962,12 @@ DP_TAGS.add("203HRJ01AN602");
                 !Number.isFinite(time(applied.observedAt)) || time(applied.observedAt) < time(task.recoveryProof.dataParcRuntimeBasis.observedAt) ||
                 (task.recoveryMode === 'role_priority'
                   ? applied.rolePriorityRecovery !== true || time(applied.selectedCompletionAt) !== time(task.startAt)
-                  : applied.dataParcTag !== task.dataParcTag)) {
+                  : task.recoveryMode === 'completion_window_zero'
+                    ? applied.completionWindowRecovery !== true || applied.certificateOnly !== true ||
+                      time(applied.verifiedWindowStartAt) !== time(task.startAt) || time(applied.verifiedWindowEndAt) !== time(task.endAt) ||
+                      applied.dataParcTag !== task.dataParcTag || Math.abs(applied.runtimeHours-task.recoveryProof.dataParcRuntimeBasis.runtimeHours)>0.000001 ||
+                      time(applied.observedAt)!==time(task.recoveryProof.dataParcRuntimeBasis.observedAt)
+                    : applied.dataParcTag !== task.dataParcTag)) {
               throw error('누적 보완 결과의 저장 응답을 확인하지 못했습니다. 같은 요청 ID로만 다시 확인합니다.', 'BLOWER_RUNTIME_RECOVERY_APPLY_UNCONFIRMED');
             }
           }
@@ -908,6 +979,7 @@ DP_TAGS.add("203HRJ01AN602");
             message: applied.replayed === true ? '이미 보완된 결과 확인 · 현재 값 유지'
               : task.recoveryMode === 'role_priority' ? '선택 교체 기준과 누적시간 보완 완료'
               : task.recoveryMode === 'confirmed_gap' ? '앞 구간을 포함한 누적시간 보완 완료'
+              : task.recoveryMode === 'completion_window_zero' ? '교체 작업 구간 정지 검증 완료 · 누적값 유지 · 완료시각 미기록'
               : '최초 기동과 앞 구간 확인 완료' };
           const reviewStatus = task.partialRange === true ? partialAppendResultStatus(task, partialCurrent) : null;
           return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber, status: 'complete',
@@ -1196,7 +1268,7 @@ DP_TAGS.add("203HRJ01AN602");
     return stop('처리 단위 한도 도달');
   }
 
-  return { fbheSealRunAsset, fbheSealRunView, freshReplacementQuery, replacementRangeTracking, rolePriorityReview, runReviewStatus,
+  return { fbheSealRunAsset, fbheSealRunView, freshReplacementQuery, replacementRangeTracking, rolePriorityReview, runReviewStatus, verifiedCompletionWindow,
     runtimeRecoveryPlan, recognizedRuntimeRecovery, plan, intermittent, snapshot, sameCycle, day, waitRequests, executeDataParc, executeDataParcBatch, executeOis, oisBody,
     refreshLogs, refreshLogsForRuntime, readWithRetry, errorLabel,
     register(kind, fn) { if (!['fbhe','seal_pot'].includes(kind) || typeof fn !== 'function') throw new Error('Invalid OIS bridge'); bridges[kind] = fn; } };

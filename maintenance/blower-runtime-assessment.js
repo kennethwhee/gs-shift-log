@@ -60,7 +60,7 @@
 
   /**
    * Input is a plain adapter of already-validated facts, not an asset/receipt.
-   * { tagNumber, enabled, hours, provenance, pending, wholeCycleVerified,
+   * { tagNumber, enabled, hours, provenance, pending, wholeCycleVerified, durationEquivalent,
    *   coverage: { complete, startAt, observedAt, requiredStartAt, missingLeadingSeconds },
    *   review: null | { key, label }, action: null | { key, label, available },
    *   operation: { state, intermittent, observedAt }, referenceObservedAt }
@@ -101,9 +101,11 @@
 
     const wholeCycleVerified = hours !== null && provenance === 'measured' &&
       source.wholeCycleVerified === true && coverage.complete === true && validRange && !leadingGap && !review;
+    const durationEquivalent = hours !== null && provenance === 'measured' && source.durationEquivalent === true &&
+      coverage.complete === true && validRange && !leadingGap && !review;
     const scope = hours === null ? 'pending' : provenance === 'manual' ? 'manual'
-      : provenance !== 'measured' ? 'retained' : wholeCycleVerified ? 'whole' : 'partial';
-    const scopeLabel = scope === 'whole' ? '확정 기준 누적' : scope === 'manual' ? '직접 입력 누적'
+      : provenance !== 'measured' ? 'retained' : wholeCycleVerified ? 'whole' : durationEquivalent ? 'cycle-equivalent' : 'partial';
+    const scopeLabel = scope === 'cycle-equivalent' ? '교체 후 누적' : scope === 'whole' ? '확정 기준 누적' : scope === 'manual' ? '직접 입력 누적'
       : scope === 'retained' ? '기존 저장값' : scope === 'pending' ? '조회 대기'
       : coverage.complete === true && !review ? '등록 기준 누적' : '확인 구간 누적';
     const requestedAction = source.action;
@@ -114,7 +116,7 @@
     const operation = source.operation || {};
     return {
       tagNumber: text(source.tagNumber), enabled: source.enabled !== false && source.enabled !== 0,
-      hours, provenance, scope, scopeLabel, wholeCycleVerified,
+      hours, provenance, scope, scopeLabel, wholeCycleVerified, durationEquivalent,
       requiresReview: Boolean(review), reviewGroup: review?.group || null,
       reasonKey: review?.key || null, reasonLabel: review?.label || '',
       nextActionKey: actionKey,
@@ -140,6 +142,7 @@
       if (!item || item.enabled === false || item.enabled === 0) continue;
       summary.total += 1;
       if (['whole', 'partial', 'manual', 'retained', 'pending'].includes(item.scope)) summary[item.scope] += 1;
+      if (item.scope === 'cycle-equivalent') summary.whole += 1;
       if (item.requiresReview === true) {
         summary.requiresReview += 1;
         const group = item.reviewGroup === 'basis' ? 'basisReview'

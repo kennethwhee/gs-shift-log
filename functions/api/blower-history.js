@@ -10,6 +10,7 @@ import { planBlowerRolePriority, shiftKey as replacementPriorityShiftKey } from 
 import { inspectVbeltAnnotations, annotationControlsFragment } from '../_shared/diary-vbelt-confirm-v1.js';
 import { reconcileCurrentRuntimeRecoveryV4 } from "../_shared/blower-normalize-recovery-v4.js";
 import { ROLE_RECOVERY_PREFIX, rolePriorityRecoveryProof, applyRolePriorityRecovery } from "../_shared/blower-role-recovery-v1.js";
+import { COMPLETION_WINDOW_PREFIX, COMPLETION_WINDOW_TAG, completionWindowRecoveryCandidate, loadCompletionWindowProjection, applyCompletionWindowRecovery } from "../_shared/blower-completion-window-v1.js";
 import { COVERAGE_RECOVERY_PREFIX, loadCoverageRecoveryIntent, validateCoverageRecoveryApply } from "../_shared/blower-coverage-recovery-v1.js";
 import { REPLACEMENT_ANALYSIS_VERSION, REPLACEMENT_NORMALIZE_ANALYSIS_VERSION, REPLACEMENT_ROLE_PRIORITY_ANALYSIS_VERSION, loadApprovedReplacementPage, storeReplacementLogReceipts, replacementSourceGuard, replacementRoleContextRows, replacementSourceHashes } from "../_shared/blower-replacement-log-source-v3.js";
 import { MANURE_INITIAL_RUN_CONFIG, initializeManureInitialRun, manureInitialRunBasis,
@@ -1971,8 +1972,15 @@ async function loadAssetStates(database, settings, options = {}) {
   const initialRunAudit = assets.some(asset => asset.tag_number === MANURE_INITIAL_RUN_CONFIG.tagNumber)
     ? await loadManureInitialAudit(database) : null;
 
+  // The historical zero-window certificate has its own current source and
+  // append-chain proof. A successful read never changes a stored RUN guard.
+  const completionWindowAsset = assets.find(asset => asset.tag_number === COMPLETION_WINDOW_TAG);
+  const completionWindowProjection = completionWindowAsset
+    ? await loadCompletionWindowProjection(database,completionWindowAsset,runtimeByTag.get(COMPLETION_WINDOW_TAG) || [],{now}) : null;
+
   return assets.map(asset => {
     const runtimeRows = runtimeByTag.get(asset.tag_number) || [];
+    const completionWindowProof = asset.tag_number === COMPLETION_WINDOW_TAG ? completionWindowProjection : null;
     const replacementAt = asset.last_replacement_at ? new Date(asset.last_replacement_at) : null;
     const latestProblemRow = problemRows.find(row => {
       if (row.tag_number !== asset.tag_number) return false;
@@ -2059,7 +2067,7 @@ async function loadAssetStates(database, settings, options = {}) {
     const rolePriorityRevokedReview = replacementAutoCycle?.rolePrioritySourceRevoked === true
       ? {code:'ROLE_PRIORITY_SOURCE_REVOKED',cycleBasisConfirmed:false,measuredRangeMayContinue:Boolean(runtimeBasis),
         message:'상위 보직 근거가 변경되어 완료시각 재확인 필요 · 기존 RUN 조회구간 보존'} : null;
-    const cycleSourceReview = rolePriorityRevokedReview || rolePriorityReview || confirmedRangeReview || normalizationReview || reviewedCycleSourceWarning(asset, runtimeRows) ||
+    const cycleSourceReview = completionWindowProof ? null : rolePriorityRevokedReview || rolePriorityReview || confirmedRangeReview || normalizationReview || reviewedCycleSourceWarning(asset, runtimeRows) ||
       (replacementAutoCycle && !replacementAutoCycle.clockKnown && !replacementAutoCycle.registeredBaseline
         ? { code: "REPLACEMENT_COMPLETION_TIME_MISSING", cycleBasisConfirmed: false,
           measuredRangeMayContinue: false,
@@ -2075,6 +2083,17 @@ async function loadAssetStates(database, settings, options = {}) {
     const initialBasis = manureInitialRunProjection(asset, runtimeRows, initialRunAudit);
     const runtimeCoverageEvidence = buildRuntimeCoverageEvidence({ asset, rows: runtimeRows, measuredBasis,
       runRuntime, manualMeasurement, replacementAutoCycle, cycleSourceReview, initialBasis });
+    if (completionWindowProof && runtimeCoverageEvidence.measurementVerified === true &&
+        runtimeCoverageEvidence.source === 'dataparc' && runtimeCoverageEvidence.requestId === completionWindowProof.runtimeRequestId) {
+      // This certifies the integral, not an exact physical completion minute.
+      // Keep dataParcRuntimeBasis unchanged for existing append/query guards.
+      Object.assign(runtimeCoverageEvidence,{durationEquivalent:true,durationVerified:true,
+        completionClockKnown:false,completionWindowCertificateId:completionWindowProof.certificateEventId,
+        coverageComplete:true,missingLeadingSeconds:0,requiredStartAt:runtimeCoverageEvidence.startAt,
+        cycleBasisConfirmed:false,wholeCycleVerified:false});
+    }
+    const completionWindowRecovery = completionWindowProof ? null
+      : completionWindowRecoveryCandidate(asset,runtimeRows,replacementAutoCycle);
     return { ...buildAssetState(
       asset,
       settings[asset.blower_type],
@@ -2087,12 +2106,14 @@ async function loadAssetStates(database, settings, options = {}) {
       limestoneSignalCandidate: LIMESTONE_RUN_SIGNAL_CANDIDATES[asset.tag_number] || "",
       dataParcRuntimeBasis: runtimeBasis,
       runtimeCoverageEvidence,
+      ...(completionWindowProof ? {completionWindowProof,actualLastReplacementAt:'',cycleBasisKind:'completion_window_zero'} : {}),
+      ...(completionWindowRecovery ? {completionWindowRecovery} : {}),
       ...(replacementAutoCycle ? { replacementAutoCycle } : {}),
       ...(cycleSourceReview ? { cycleSourceReview, actualLastReplacementAt: cycleSourceReview.cycleBasisConfirmed === true ? confirmedReplacementAt : "",
         cycleBasisKind: cycleSourceReview.cycleBasisConfirmed === true ? "replacement"
           : replacementAutoCycle?.registeredRuntimeRange ? "verified_runtime_range" : "replacement_source_review" } : {}),
       ...(runRuntime ? { runRuntime } : {}),
-      ...(runtimeBasis?.coverageComplete === false || cycleSourceReview
+      ...((runtimeBasis?.coverageComplete === false && !completionWindowProof) || cycleSourceReview
         ? { remainingHours: null, progressPct: null, severity: "runtime_unknown" } : {}),
       ...(replacementAutoCycle?.requiresRunRefresh ? {
         runtimeHours: null, cycleElapsedHours: null, remainingHours: null, progressPct: null,
@@ -7685,6 +7706,12 @@ async function applyRolePriorityRuntimeRecovery(database,user,body,options={}) {
     runtimeActionType:dataParcRuntimeSyncActionType,runtimeNote:dataParcRuntimeSyncNote});
 }
 
+async function applyCompletionWindowRuntimeRecovery(database,user,body,options={}) {
+  return applyCompletionWindowRecovery(database,user,body,{...options,
+    normalizeProbe:normalizeDataParcRuntimeProbeResult,loadRuntimeIntent:loadDataParcRuntimeSyncIntent,
+    matchesRuntimeIntent:isMatchingDataParcRuntimeSyncIntent});
+}
+
 async function applyDataParcRuntimeSync(database, user, body, options) {
   const runtimeOptions = options && typeof options === "object"
     ? options
@@ -7805,6 +7832,11 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
       String(intent.expected_cycle_runtime_revision || '').startsWith(ROLE_RECOVERY_PREFIX)) {
     return jsonResponse({ok:false,code:'BLOWER_ROLE_RECOVERY_APPLY_REQUIRED',
       message:'선택 교체시각 보완 조회는 근거와 누적값을 함께 검증하는 전용 반영 작업이 필요합니다. 기존 값을 유지합니다.'},409);
+  }
+  if (String(intent.reuse_key || '').startsWith(COMPLETION_WINDOW_PREFIX) ||
+      String(intent.expected_cycle_runtime_revision || '').startsWith(COMPLETION_WINDOW_PREFIX)) {
+    return jsonResponse({ok:false,code:'BLOWER_COMPLETION_WINDOW_APPLY_REQUIRED',
+      message:'교체 작업 구간 조회는 정지 구간 검증 전용 작업으로 반영해야 합니다. 기존 누적값은 유지합니다.'},409);
   }
   const coverageWire = String(intent.expected_cycle_runtime_revision || '').startsWith(COVERAGE_RECOVERY_PREFIX);
   const coverageKey = String(intent.reuse_key || '').startsWith(COVERAGE_RECOVERY_PREFIX);
@@ -15725,6 +15757,10 @@ async function handlePost(context, user, body) {
     return applyRolePriorityRuntimeRecovery(database,user,body);
   }
 
+  if (action === 'apply_completion_window_runtime_recovery') {
+    return applyCompletionWindowRuntimeRecovery(database,user,body);
+  }
+
   if (action === "ois_runtime_refresh_apply") {
     return applyOisRuntimeRefresh(database, user, body);
   }
@@ -15906,7 +15942,7 @@ export const __blowerHistoryTest = {
   latestSuccessfulDataParcTag,
   ensureHistoryRecoveryV12Schema,
   normalizeDataParcRuntimeProbeResult,
-  applyDataParcRuntimeSync, applyRolePriorityRuntimeRecovery, readLimestoneRunTracking, applyLimestoneRunTrack, limestoneRunDisputed,
+  applyDataParcRuntimeSync, applyRolePriorityRuntimeRecovery, applyCompletionWindowRuntimeRecovery, readLimestoneRunTracking, applyLimestoneRunTrack, limestoneRunDisputed,
   limestoneBasisConfirmed, confirmLimestoneBasis,
   limestoneAutoApply, limestoneBasisReviewRequired,
   v12ApplyConfirmedEvents,

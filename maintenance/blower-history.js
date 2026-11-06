@@ -49,12 +49,14 @@
   }
 
   function cycleReferenceLabel(asset, short = false) {
+    if (window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset)) return "교체일";
     if (window.BlowerUnifiedRefresh?.rolePriorityReview?.(asset)) return "상위 보직 교체 기준";
     if (asset?.replacementAutoCycle?.normalizationVersion === 4 && asset.replacementAutoCycle.registeredRuntimeRange === true) return "RUN 조회기준";
     return isInitialStartupBasis(asset) ? "최초 기동" : short ? "최근 교체" : "최근 V-Belt 교체";
   }
 
   function cycleReferenceDisplay(asset) {
+    if (window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset)) return formatDate(asset.lastReplacementAt);
     const priority = window.BlowerUnifiedRefresh?.rolePriorityReview?.(asset);
     if (priority) return priority.selected.timePrecision === "minute"
       ? formatKstDateTimeDisplay(priority.selected.selectedCompletionAt)
@@ -80,6 +82,7 @@
     statusFilter: "all",
     overviewFilter: "all",
     overviewFilterType: "",
+    overviewResolutionOpen: false,
     historyAssetTag: "",
     subview: "overview",
     busy: false,
@@ -1191,6 +1194,7 @@
 
   // The retained number is measured within this receipt, not a certified whole-cycle total.
   function commonRunCoverage(asset) {
+    if (window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset)) return null;
     const automatic = asset?.replacementAutoCycle;
     const rolePriority = window.BlowerUnifiedRefresh?.rolePriorityReview?.(asset) || null;
     const rangeTracking = window.BlowerUnifiedRefresh?.replacementRangeTracking?.(asset) === true;
@@ -1217,6 +1221,7 @@
       typeof selectedHours === "boolean" ? NaN : Number(selectedHours);
     const runState = pendingRange ? "unknown" : [asset.runRuntime?.state, asset.cycleRuntimeState].find(value => ["running", "stopped"].includes(value)) || "unknown";
     return { basis: stale ? null : basis, sourceReview, rangeTracking, registeredRuntimeRange, replacementClockConfirmed, rolePriority,
+      automaticRecovery: window.BlowerUnifiedRefresh?.runtimeRecoveryPlan?.(asset, state.data?.generatedAt || currentServerDate().toISOString()) || null,
       completionClockConflict: automatic?.completionClockConflict === true,
       rangeStartAt: rangeTracking ? automatic.rangeStartAt : "",
       automaticReplacement: automaticClockUnknown && !rangeTracking && !registeredRuntimeRange && !rolePriority,
@@ -1232,6 +1237,16 @@
 
   function commonRunCoverageNotice(coverage) {
     if (!coverage) return "";
+    if (coverage.automaticRecovery) {
+      const recovery = coverage.automaticRecovery;
+      const action = recovery.recoveryMode === "role_priority" ? "선택한 교체 완료시각부터 다시 계산합니다."
+        : recovery.recoveryMode === "confirmed_gap" ? "확정된 교체 완료시각부터 앞쪽 누락 구간을 함께 조회합니다."
+          : recovery.recoveryMode === "seal_first_run" ? "등록 기준 이후의 앞 구간과 실제 최초 기동을 확인합니다."
+            : "교체 완료 가능 구간 내내 정지했는지 검증합니다. 실제 완료시각은 미기록으로 유지합니다.";
+      return `<div class="run-history-note" data-run-coverage="partial"${coverage.rolePriority ? ' data-role-priority-selection="true"' : ""}>
+        <strong>${escapeHtml(coverage.warning)}</strong><small>보완 조회 시작 ${escapeHtml(formatKstDateTimeDisplay(recovery.startAt))}</small>
+        <small>${escapeHtml(action)} 전체 최신화에서 근거와 결과를 검증해 보완합니다. 성공한 결과가 저장되기 전까지 기존 조회값을 유지합니다.</small></div>`;
+    }
     if (coverage.rolePriority) {
       const { selected, label } = coverage.rolePriority;
       const completion = selected.timePrecision === "minute" ? formatKstDateTimeDisplay(selected.selectedCompletionAt)
@@ -2065,6 +2080,7 @@
       tagNumber: asset.tagNumber, enabled: asset.enabled, hours,
       provenance: manual ? "manual" : measured ? "measured" : hours !== null ? "retained" : "unknown",
       pending, wholeCycleVerified: linkedEvidence && evidence.wholeCycleVerified === true,
+      durationEquivalent: linkedEvidence && Boolean(window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset)),
       coverage: manual ? { complete: null, startAt: null, observedAt: null, requiredStartAt: null, missingLeadingSeconds: null } : {
         complete: linkedEvidence ? evidence.coverageComplete : measuredBasis?.coverageComplete,
         startAt: measuredBasis?.startAt, observedAt: measuredBasis?.observedAt,
@@ -2104,7 +2120,8 @@
     const operation = assessment.operation;
     const operationState = operation.intermittent ? "intermittent" : operation.state;
     const operationLabel = operation.state === "running" ? "기동중" : operation.state === "stopped" ? "정지중" : "상태 미확인";
-    const referenceLabel = isInitialStartupBasis(asset) ? "최초 기동" : partialCoverage?.registeredRuntimeRange ? "조회 기준" : "교체 기준";
+    const completionWindow = window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset);
+    const referenceLabel = completionWindow ? "교체일" : isInitialStartupBasis(asset) ? "최초 기동" : partialCoverage?.registeredRuntimeRange ? "조회 기준" : "교체 기준";
     const referenceValue = replacement.split(" · ")[0];
     const manual = assessment.scope === "manual";
     const startText = manual ? formatKstDateTimeDisplay(overviewManualTimestamp(asset))
@@ -2114,7 +2131,7 @@
     const behind = assessment.freshness.state === "behind";
     const shortMaintenance = maintenance ? maintenance.replace(/^.*?업무일지 · /, "") : "";
     const shortTransition = transition ? `${operation.state === "stopped" ? "최근 정지" : "최근 연속 기동"} ${transition.period.split(" → ")[0]}` : "";
-    const note = assessment.reasonLabel || shortMaintenance || shortTransition || "";
+    const note = assessment.reasonLabel || (completionWindow ? "완료시각 미기록 · 정지 구간 검증" : shortMaintenance || shortTransition || "");
     const separateRunAt = overviewSeparateRunObservedAt(assessment);
     const previewAt = !manual && preview ? preview.previewObservedAt : "";
     const separateRunNote = previewAt
@@ -2177,6 +2194,99 @@
       button?.scrollIntoView?.({ block: "nearest" });
       button?.focus?.();
     }
+  }
+
+  function blowerResolutionGuide(asset, assessment = allOverviewRuntimeAssessment(asset)) {
+    const guide = window.BlowerResolutionGuide;
+    if (!guide?.describe || !asset || !assessment) return null;
+    const now = state.data?.generatedAt || currentServerDate().toISOString();
+    const recovery = window.BlowerUnifiedRefresh?.runtimeRecoveryPlan?.(asset, now) || null;
+    return guide.describe(asset, assessment, { recovery, events: getRawAssetEvents(asset.tagNumber) });
+  }
+
+  function blowerResolutionAccess() {
+    if (!hasAuthenticatedWriteAccess()) return { writable: false, message: "조회 전용 화면입니다. 회사 PC에서 로그인한 뒤 전체 최신화를 실행해 주세요." };
+    if (isMobileMonitoringView()) return { writable: false, message: "모바일은 조회 전용입니다. 회사 PC에서 보완 조회를 실행해 주세요." };
+    if (state.busy || state.unifiedRefreshBusy || state.dataparcRuntimeBusy || state.backfillRunning || state.auditRunning)
+      return { writable: false, message: "현재 작업이 끝나면 보완 조회를 실행할 수 있습니다." };
+    return { writable: true, message: "기존 전체 최신화에서 보완 대상과 나머지 설비를 함께 확인합니다." };
+  }
+
+  async function runBlowerResolutionRefresh(tagNumber = "") {
+    if (!blowerResolutionAccess().writable) return false;
+    const assets = tagNumber ? [findAsset(tagNumber)] : state.data?.assets || [];
+    // Re-read the current canonical assessment and current plan at click time.
+    // Opening the guide or changing the filter never creates a RUN request.
+    const actionable = assets.some(asset => {
+      if (!asset) return false;
+      const guide = blowerResolutionGuide(asset);
+      return guide && ["automatic", "measurement"].includes(guide.kind);
+    });
+    if (!actionable) return false;
+    if (elements.historyDialog?.open) elements.historyDialog.close();
+    await refreshAllBlowers();
+    return true;
+  }
+
+  function renderBlowerResolutionCenter(assets, assessments, missingSlots = []) {
+    if (!window.BlowerResolutionGuide?.summarize) return "";
+    const guides = assets.map(asset => blowerResolutionGuide(asset, assessments.get(asset.tagNumber))).filter(Boolean);
+    const summary = window.BlowerResolutionGuide.summarize(guides, missingSlots.length);
+    const access = blowerResolutionAccess();
+    const counts = [["자동 보완", summary.automatic], ["근거 확인", summary.source], ["조회 필요", summary.measurement]]
+      .filter(([, count]) => count > 0).map(([label, count]) => `${label} ${count}대`).join(" · ");
+    const rows = guides.map(guide => `<li class="blower-resolution-row" data-resolution-kind="${escapeHtml(guide.kind)}">
+      <div><strong>${escapeHtml(guide.name)}</strong><small>${escapeHtml(guide.tagNumber)}</small></div>
+      <p><span>${escapeHtml(guide.kindLabel)}</span>${escapeHtml(guide.title)}</p>
+      <button type="button" class="button" data-resolution-action="open" data-tag="${escapeHtml(guide.tagNumber)}"
+        aria-label="${escapeHtml(`${guide.name} 확인 방법`)}">확인 방법<span aria-hidden="true"> →</span></button>
+    </li>`).join("");
+    const generated = Number.isFinite(Date.parse(state.data?.generatedAt || ""))
+      ? `${formatKstDateTimeDisplay(state.data.generatedAt)}에 불러온 저장값 기준` : "현재 불러온 저장값 기준";
+    return `<section class="blower-resolution-center" aria-label="확인 항목 해결 안내">
+      <button type="button" class="blower-resolution-toggle" data-resolution-action="toggle"
+        aria-expanded="${state.overviewResolutionOpen ? "true" : "false"}" aria-controls="blowerResolutionItems">
+        <strong>확인 항목 <b>${summary.total}대</b></strong><span>${escapeHtml(counts || "확인할 항목 없음")}</span>
+        <em>${state.overviewResolutionOpen ? "접기" : "확인 방법 보기"}</em>
+      </button>
+      <div id="blowerResolutionItems" class="blower-resolution-items"${state.overviewResolutionOpen ? "" : " hidden"}>
+        <div class="blower-resolution-toolbar"><p>${escapeHtml(generated)}<small>보완 성공 후 저장된 결과를 다시 읽어 확인 대수를 갱신합니다.</small></p>
+          ${summary.automatic ? `<button type="button" class="button primary" data-mobile-write data-resolution-action="refresh"${access.writable ? "" : " disabled"}>전체 최신화로 보완</button>` : ""}</div>
+        ${summary.automatic ? `<p class="blower-resolution-access">${escapeHtml(access.message)}</p>` : ""}
+        ${rows ? `<ul class="blower-resolution-list">${rows}</ul>` : ""}
+        ${missingSlots.length ? `<p class="blower-resolution-missing">TAG 연결이 필요한 ${missingSlots.length}대는 설비 등록 정보를 확인해 주세요.</p>` : ""}
+        ${summary.total === 0 ? '<p class="blower-resolution-complete">현재 저장된 값에 남아 있는 확인 항목이 없습니다.</p>' : ""}
+      </div>
+    </section>`;
+  }
+
+  function renderBlowerResolutionHistoryGuide(guide) {
+    if (!guide) return "";
+    const access = blowerResolutionAccess(), source = guide.source;
+    const context = [source.workDate, source.shift, source.role].filter(Boolean).join(" · ");
+    const action = ["automatic", "measurement"].includes(guide.kind);
+    const longSource = source.excerpt.length > 240 || source.excerpt.split(/\r?\n/).length > 3;
+    const quote = !source.excerpt ? '<p>상세 이력과 원래 업무일지에서 작업 내용을 확인해 주세요.</p>'
+      : longSource ? `<details class="blower-resolution-source-quote"><summary>긴 원문 발췌 보기</summary><p>${escapeHtml(source.excerpt)}</p></details>`
+        : `<p>${escapeHtml(source.excerpt)}</p>`;
+    return `<section class="blower-resolution-guide" data-resolution-kind="${escapeHtml(guide.kind)}" aria-label="이 설비의 확인 방법">
+      <header><strong>해결할 항목</strong><span>${escapeHtml(guide.kindLabel)}</span></header>
+      <h4>${escapeHtml(guide.title)}</h4><p>${escapeHtml(guide.detail)}</p>
+      <div class="blower-resolution-source"><span>${escapeHtml(source.label)}</span>${context ? `<strong>${escapeHtml(context)}</strong>` : ""}
+        ${quote}</div>
+      ${guide.queryStartAt ? `<p class="blower-resolution-query">검증 조회 시작 <strong>${escapeHtml(formatKstDateTimeDisplay(guide.queryStartAt))}</strong></p>` : ""}
+      ${guide.steps.length ? `<ol>${guide.steps.map(step => `<li>${escapeHtml(step)}</li>`).join("")}</ol>` : ""}
+      <p class="blower-resolution-next">${escapeHtml(guide.nextStep)}</p>
+      ${action ? `<footer><button type="button" class="button primary" data-mobile-write data-history-action="resolution_refresh"${access.writable ? "" : " disabled"}>${guide.kind === "automatic" ? "전체 최신화로 보완" : "전체 최신화"}</button><small>${escapeHtml(access.message)}</small></footer>` : ""}
+    </section>`;
+  }
+
+  function renderCompletionWindowProof(asset) {
+    const proof = window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset);
+    if (!proof) return "";
+    return `<div class="run-history-note completion-window-proof" data-completion-window-proof="true"><strong>교체 후 누적시간 검증 완료</strong>
+      <small>정지 확인 구간 ${escapeHtml(formatKstDateTimeDisplay(proof.windowStartAt))} → ${escapeHtml(formatKstDateTimeDisplay(proof.windowEndAt))}</small>
+      <span>이 구간 내내 정지한 것을 확인해 교체 후 누적시간을 검증했습니다. 실제 교체 완료시각은 미기록입니다.</span></div>`;
   }
 
   function renderAllOverviewCard(asset, runtimeAssessment = null) {
@@ -2373,7 +2483,8 @@
           </div>
         </section>`;
     }).join("");
-    return `<div class="all-overview-dashboard${assessmentEnabled ? " has-runtime-assessment" : ""}">${summary}${groups || '<div class="empty-state compact">선택한 상태의 Blower가 없습니다.</div>'}</div>`;
+    const resolutionCenter = assessmentEnabled ? renderBlowerResolutionCenter(assets, assessments, missingSlots) : "";
+    return `<div class="all-overview-dashboard${assessmentEnabled ? " has-runtime-assessment" : ""}">${summary}${resolutionCenter}${groups || '<div class="empty-state compact">선택한 상태의 Blower가 없습니다.</div>'}</div>`;
   }
 
   function allOverviewQueryStats() {
@@ -3068,6 +3179,7 @@
     const partialCoverage = commonRunCoverage(asset);
     const overviewView = allOverviewOperation(asset);
     const runtimeAssessment = allOverviewRuntimeAssessment(asset, overviewView);
+    const resolutionGuide = blowerResolutionGuide(asset, runtimeAssessment);
     const savedCoverageStatus = compactRunCoverageStatus(partialCoverage);
     const differentCoverageAssessment = Boolean(runtimeAssessment && partialCoverage &&
       (!runtimeAssessment.requiresReview || runtimeAssessment.reasonKey !== savedCoverageStatus?.key));
@@ -3117,14 +3229,21 @@
       const policyAlert = ["warning", "critical", "overdue"].includes(severity);
       elements.historyCycleSummary.innerHTML = `
         <span class="status-pill ${runtimeAssessment.requiresReview ? "runtime_unknown" : policyAlert ? escapeHtml(severity) : "unset"}" data-runtime-assessment="${escapeHtml(runtimeAssessment.scope)}">${escapeHtml(runtimeAssessment.reasonLabel || (policyAlert ? severityLabel(severity) : runtimeAssessment.scopeLabel))}</span>
-        <div><span>${isInitialStartupBasis(asset) ? "최초 기동" : partialCoverage?.registeredRuntimeRange ? "조회 기준" : "교체 기준"}</span><strong>${escapeHtml(cycleReferenceDisplay(asset))}</strong></div>
+        <div><span>${window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset) ? "교체일 · 완료시각 미기록" : isInitialStartupBasis(asset) ? "최초 기동" : partialCoverage?.registeredRuntimeRange ? "조회 기준" : "교체 기준"}</span><strong>${escapeHtml(cycleReferenceDisplay(asset))}</strong></div>
         <div><span>누적 범위</span><strong>${escapeHtml(runtimeAssessment.scopeLabel)}</strong></div>
         <div><span>누적 운전시간</span><strong>${escapeHtml(runtimeText)}</strong></div>
         <div class="run-history-note" data-runtime-assessment-period="true"><strong>${manualAt ? "보정 시각" : "데이터 조회 기간"}</strong><small>${escapeHtml(period)}</small><span>${escapeHtml(operationText)}</span>${runtimeAssessment.freshness.state === "behind" ? '<span>다른 설비의 최신 조회와 반영 시각이 다릅니다.</span>' : ""}</div>`;
     }
+    const legacyHours = asset.runRuntime?.legacyStoredHours;
+    const runSourceMessage = differentCoverageAssessment ? runtimeAssessment.reasonLabel || "현재 누적의 측정 근거입니다."
+      : partialCoverage?.replacementClockConfirmed ? partialCoverage.warning : runView?.message;
+    const runSourceNote = runView && asset.lastReplacementAt
+      ? `<div class="run-history-note"><strong>${escapeHtml(runView.sourceLabel)}</strong>${runView.automaticReplacement ? `<small>${escapeHtml(replacementAutoDateText(asset))}</small>` : runView.basis ? `<small>${escapeHtml(formatKstDateTimeDisplay(runView.basis.startAt))} → ${escapeHtml(formatKstDateTimeDisplay(runView.basis.observedAt))}</small>` : runView.manual ? `<small>${escapeHtml(formatKstDateTimeDisplay(runView.measuredAt))} 기준</small>` : ""}<span>${escapeHtml(runSourceMessage)}</span>${!runView.verified && !runView.pending && !runView.partial && Number.isFinite(legacyHours) ? `<small>기존 저장값 ${Number(legacyHours).toLocaleString("ko-KR", { maximumFractionDigits: 1 })}시간은 RUN 확인값이 아닙니다. 원본 이력과 변경 기록은 보존됩니다.</small>` : ""}</div>` : "";
+    elements.historyCycleSummary.innerHTML += renderCompletionWindowProof(asset);
+    elements.historyCycleSummary.innerHTML += renderBlowerResolutionHistoryGuide(resolutionGuide);
     if (partialCoverage) {
-      const notice = commonRunCoverageNotice(partialCoverage);
-      elements.historyCycleSummary.innerHTML += differentCoverageAssessment
+      const notice = commonRunCoverageNotice(partialCoverage) + (resolutionGuide ? runSourceNote : "");
+      elements.historyCycleSummary.innerHTML += differentCoverageAssessment || resolutionGuide
         ? `<details class="runtime-source-details"><summary>기존 저장 구간 정보</summary><small>저장된 조회 기준과 검토 정보를 보존합니다. 현재 누적 범위는 상단의 측정 근거를 기준으로 표시합니다.</small>${notice}</details>`
         : notice;
     }
@@ -3134,16 +3253,16 @@
     const firstRunPeriod = sealPotFirstRunPeriod(asset, firstRunBasis);
     if (firstRunPeriod) {
       elements.historyCycleSummary.innerHTML += `<div class="run-history-note"><strong>확인된 기동부터 RUN 누적</strong><small>${escapeHtml(firstRunPeriod)}</small><small>검증 조회 기간 ${escapeHtml(allOverviewBasisText(firstRunBasis))}</small></div>`;
-    } else if (firstRunBasis && hasAuthenticatedWriteAccess() && !isMobileMonitoringView()) {
+    } else if (firstRunBasis && !resolutionGuide && hasAuthenticatedWriteAccess() && !isMobileMonitoringView()) {
       elements.historyCycleSummary.innerHTML += `<div class="run-history-note"><strong>실제 기동 기준 확인</strong><small>5월 11일 00:00부터 RUN 신호를 다시 읽습니다. 앞 구간이 정지이고 첫 기동이 확인되면 새 기준으로 저장합니다.</small><button type="button" class="button" data-mobile-write data-history-action="seal_pot_first_run" ${state.busy || state.unifiedRefreshBusy || state.dataparcRuntimeBusy ? "disabled" : ""}>실제 기동 기준 확인</button></div>`;
     }
     if (transition) elements.historyCycleSummary.innerHTML += `<div class="run-history-note" data-run-transition="true"><strong>${escapeHtml(transition.label)}</strong><small>${escapeHtml(transition.period)}</small></div>`;
     if (maintenance) elements.historyCycleSummary.innerHTML += `<div class="run-history-note" data-stop-maintenance="true"><strong>${escapeHtml(maintenance)}</strong></div>`;
     const selectedBasisRecovery = rolePriorityRecoveryProof(asset);
-    if (selectedBasisRecovery && hasAuthenticatedWriteAccess() && !isMobileMonitoringView()) {
+    if (selectedBasisRecovery && !resolutionGuide && hasAuthenticatedWriteAccess() && !isMobileMonitoringView()) {
       elements.historyCycleSummary.innerHTML += `<div class="run-history-note" data-selected-basis-recovery="true"><strong>선택한 교체시각으로 다시 계산 가능</strong><small>${escapeHtml(formatKstDateTimeDisplay(selectedBasisRecovery.startAt))}부터 RUN을 다시 측정합니다. 근거와 결과가 검증되면 교체 기준과 누적시간을 함께 갱신합니다.</small><button type="button" class="button" data-mobile-write data-history-action="selected_basis_recovery" ${state.busy || state.unifiedRefreshBusy || state.dataparcRuntimeBusy || state.backfillRunning ? "disabled" : ""}>선택 기준으로 다시 계산</button></div>`;
     }
-    if (confirmedGapRecoveryProof(asset) && hasAuthenticatedWriteAccess() && !isMobileMonitoringView()) {
+    if (!resolutionGuide && confirmedGapRecoveryProof(asset) && hasAuthenticatedWriteAccess() && !isMobileMonitoringView()) {
       elements.historyCycleSummary.innerHTML += `<div class="run-history-note" data-confirmed-gap-recovery="true"><strong>확정된 교체시각부터 보완 조회 가능</strong><small>교체시각부터 현재까지 RUN을 다시 측정합니다. 성공하면 새 측정값으로 갱신하며 기존 조회 이력은 남습니다.</small><button type="button" class="button" data-mobile-write data-history-action="confirmed_gap_recovery" ${state.busy || state.unifiedRefreshBusy || state.dataparcRuntimeBusy ? "disabled" : ""}>누적 구간 보완 조회</button></div>`;
     }
     if (trackedRun) {
@@ -3155,12 +3274,7 @@
         <small>기존 V-Belt 누적은 최신 검증 RUN 누적과 서로 다른 기간·기준의 기록입니다. 실제 교체시각과 미조회 구간을 확인하기 전까지 합산하거나 전체 누적시간으로 확정하지 않습니다. 주기 사용률과 교체 알림에도 합산값을 사용하지 않습니다.</small>
       </div>`;
     }
-    if (runView && asset.lastReplacementAt) {
-      const legacy = asset.runRuntime?.legacyStoredHours;
-      const message = differentCoverageAssessment ? runtimeAssessment.reasonLabel || "현재 누적의 측정 근거입니다."
-        : partialCoverage?.replacementClockConfirmed ? partialCoverage.warning : runView.message;
-      elements.historyCycleSummary.innerHTML += `<div class="run-history-note"><strong>${escapeHtml(runView.sourceLabel)}</strong>${runView.automaticReplacement ? `<small>${escapeHtml(replacementAutoDateText(asset))}</small>` : runView.basis ? `<small>${escapeHtml(formatKstDateTimeDisplay(runView.basis.startAt))} → ${escapeHtml(formatKstDateTimeDisplay(runView.basis.observedAt))}</small>` : runView.manual ? `<small>${escapeHtml(formatKstDateTimeDisplay(runView.measuredAt))} 기준</small>` : ""}<span>${escapeHtml(message)}</span>${!runView.verified && !runView.pending && !runView.partial && Number.isFinite(legacy) ? `<small>기존 저장값 ${Number(legacy).toLocaleString("ko-KR", { maximumFractionDigits: 1 })}시간은 RUN 확인값이 아닙니다. 원본 이력과 변경 기록은 보존됩니다.</small>` : ""}</div>`;
-    }
+    if (!(resolutionGuide && partialCoverage)) elements.historyCycleSummary.innerHTML += runSourceNote;
     if (elements.limestoneBasisButton) {
       const allowed = hasAuthenticatedWriteAccess() && !isMobileMonitoringView() &&
         asset.blowerType === 'limestone' && LIMESTONE_DISPUTED_RUN_TAGS.has(asset.tagNumber);
@@ -12186,6 +12300,16 @@
     });
 
     elements.assetGroups.addEventListener("click", event => {
+      const resolutionAction = event.target.closest("[data-resolution-action]");
+      if (resolutionAction) {
+        const action = resolutionAction.dataset.resolutionAction;
+        if (action === "toggle") {
+          state.overviewResolutionOpen = !state.overviewResolutionOpen;
+          renderAssets();
+        } else if (action === "open") openAssetHistory(resolutionAction.dataset.tag);
+        else if (action === "refresh") void runBlowerResolutionRefresh();
+        return;
+      }
       const overviewFilter = event.target.closest("[data-overview-filter]");
       if (overviewFilter?.dataset.overviewFilter) {
         const filter = overviewFilter.dataset.overviewFilter;
@@ -12229,6 +12353,10 @@
       if (!button || !state.historyAssetTag) return;
       const action = button.dataset.historyAction;
       const tagNumber = state.historyAssetTag;
+      if (action === "resolution_refresh") {
+        void runBlowerResolutionRefresh(tagNumber);
+        return;
+      }
       if (action === "seal_pot_first_run") {
         const basis = sealPotFirstRunBasis(findAsset(tagNumber));
         if (!basis || !hasAuthenticatedWriteAccess() || stopMobileMutation(event) ||
