@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="ko" data-shift-log-page="solid-fuel">
 <head>
   <meta charset="utf-8">
@@ -117,6 +117,7 @@
   </style>
   <link rel="stylesheet" href="/maintenance/solid-fuel-record-one-screen-v1.css?v=20260927-record-one-screen-v1">
   <link rel="stylesheet" href="/maintenance/solid-fuel-mobile-compact-v1.css?v=20261030-v4">
+  <link rel="stylesheet" href="/maintenance/solid-fuel-trouble-checkbox-v1.css?v=20261107-trouble-checkbox-v1">
 </head>
 <body>
   <main class="page">
@@ -207,7 +208,7 @@
       </article>
 
       <article>
-        <span>Trouble</span>
+        <span>이슈</span>
         <strong id="troubleKpi">0</strong>
         <small>건</small>
       </article>
@@ -254,7 +255,7 @@
       </button>
 
       <button class="tab" type="button" data-tab="trouble">
-        Trouble 내역
+        이슈내역
         <span id="troubleTabCount">0</span>
       </button>
     </nav>
@@ -262,10 +263,10 @@
     <section class="sheet tab-panel" id="troublePanel" data-tab-panel="trouble" hidden>
       <header class="sheet-head">
         <div>
-          <strong>Trouble 발생 내역</strong>
+          <strong>이슈내역</strong>
           <span id="statusText">조회 대기</span>
         </div>
-        <small>기존 Excel Trouble 21건 · 사진 4건 유지</small>
+        <small>Trouble과 하역 비고를 함께 확인합니다.</small>
       </header>
 
       <div class="table-wrap">
@@ -276,15 +277,15 @@
               <th class="date">날짜</th>
               <th class="company">업체</th>
               <th class="vehicle">차량</th>
-              <th class="equipment">발생 설비 / Trouble</th>
+              <th class="equipment">이슈내역</th>
               <th class="photo">사진</th>
-              <th class="note">조치 / 비고</th>
+              <th class="note">비고 / 조치내용</th>
               <th class="actions">관리</th>
             </tr>
           </thead>
 
           <tbody id="troubleBody">
-            <tr><td colspan="8" class="empty">Trouble 내역을 불러오는 중입니다.</td></tr>
+            <tr><td colspan="8" class="empty">이슈내역을 불러오는 중입니다.</td></tr>
           </tbody>
         </table>
       </div>
@@ -327,7 +328,7 @@
   </main>
 
   <!-- =====================================================
-    신규 등록: 하나의 창에서 분류
+    신규 등록: 일반 하역과 Trouble 체크를 하나의 창에서 입력
   ====================================================== -->
   <div class="modal" id="recordModal" hidden>
     <section class="modal-card record-editor-card" role="dialog" aria-modal="true" aria-labelledby="recordEditorTitle">
@@ -340,33 +341,19 @@
       </header>
 
       <form id="recordForm" class="editor">
-        <fieldset class="record-kind">
-          <legend>분류</legend>
-
-          <label class="record-kind__option">
-            <input type="radio" name="recordKind" value="unloading" checked>
-            <span>
-              <strong>일반 하역</strong>
-              <small>하역시간 기록만 저장</small>
-            </span>
-          </label>
-
-          <label class="record-kind__option is-trouble">
-            <input type="radio" name="recordKind" value="trouble">
-            <span>
-              <strong>Trouble</strong>
-              <small>하역시간 + Trouble 내역을 한 번에 저장</small>
-            </span>
-          </label>
-        </fieldset>
-
         <p class="record-optional-guide">
           신규 입고기록은 <strong>연료 구분과 입고량</strong>을 입력합니다. 기존 하역 정보의 나머지 항목은 확인된 내용만 입력해도 됩니다.
         </p>
 
         <section class="editor-section">
           <header>
-            <strong>차량 · 하역 정보</strong>
+            <div class="record-section-heading">
+              <strong>차량 · 하역 정보</strong>
+              <label class="record-trouble-check">
+                <input id="recordTrouble" type="checkbox" aria-controls="recordTroubleFields" aria-expanded="false">
+                <span>Trouble</span>
+              </label>
+            </div>
             <small>연료 구분 · 입고량 필수 · 나머지는 확인된 내용만 입력</small>
           </header>
 
@@ -430,34 +417,38 @@
             </label>
           </div>
 
-          <label>
+          <label class="record-note-field">
             <span>비고 / 조치내용</span>
-            <textarea id="recordNote" rows="4" maxlength="3000" placeholder="이동하역, 막힘, 조치내용, 특이사항 등을 입력"></textarea>
+            <textarea id="recordNote" rows="4" maxlength="3000" aria-describedby="recordNoteHint" placeholder="이동하역, 막힘, 조치내용, 특이사항 등을 입력"></textarea>
+            <small id="recordNoteHint" class="record-note-hint">비고가 있는 기록은 이슈내역에도 표시됩니다.</small>
           </label>
         </section>
 
         <section class="editor-section trouble-fields" id="recordTroubleFields" hidden>
           <header>
-            <strong>Trouble 상세</strong>
-            <small>Trouble 분류일 때만 저장됩니다.</small>
+            <strong>이슈내역</strong>
+            <small>하역 기록과 함께 저장됩니다.</small>
           </header>
 
           <label>
-            <span>발생 설비 / Trouble 내용</span>
+            <span>이슈내역</span>
             <textarea id="recordEquipment" rows="3" maxlength="500" placeholder="예: Storage Silo #A 하역라인 곡관부 막힘"></textarea>
           </label>
 
-          <label>
-            <span>샘플 사진 <small>최대 4장 · 장당 10MB</small></span>
-            <input id="recordFiles" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple>
-          </label>
+          <div class="record-photo-field">
+            <label>
+              <span>샘플 사진 <small>최대 4장 · 장당 10MB</small></span>
+              <input id="recordFiles" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple>
+            </label>
+            <button class="btn ghost" id="recordFilesClear" type="button" hidden>사진 선택 취소</button>
+          </div>
         </section>
 
         <p id="recordEditorStatus" class="editor-status" hidden></p>
 
         <footer class="modal-foot">
           <button class="btn ghost" id="recordCancel" type="button">취소</button>
-          <button class="btn primary" id="recordSave" type="submit">저장</button>
+          <button class="btn primary" id="recordSave" type="submit">하역 기록 저장</button>
         </footer>
       </form>
     </section>
@@ -467,7 +458,7 @@
   <div class="modal" id="troubleModal" hidden>
     <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="troubleEditorTitle">
       <header class="modal-head">
-        <div><span>TROUBLE EDIT</span><h2 id="troubleEditorTitle">Trouble 수정</h2></div>
+        <div><span>TROUBLE EDIT</span><h2 id="troubleEditorTitle">이슈내역 수정</h2></div>
         <button class="icon-btn" id="troubleClose" type="button">×</button>
       </header>
 
@@ -481,7 +472,7 @@
           <label><span>차량번호</span><input id="troubleVehicle" maxlength="40"></label>
         </div>
 
-        <label><span>발생 설비 / Trouble</span><textarea id="troubleEquipment" rows="3" maxlength="500"></textarea></label>
+        <label><span>이슈내역</span><textarea id="troubleEquipment" rows="3" maxlength="500"></textarea></label>
         <label><span>비고 / 조치내용</span><textarea id="troubleNote" rows="5" maxlength="3000"></textarea></label>
         <label><span>샘플 사진 <small>신규 사진 최대 4장 · 장당 10MB</small></span><input id="troubleFiles" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple></label>
 
@@ -638,8 +629,8 @@
   </div>
 
   <script src="/maintenance/shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
-  <script src="/maintenance/solid-fuel-trouble.js?v=20261029-unload-default-v1&amp;mobileWrite=20261030-v1" defer></script>
-  <script src="/maintenance/solid-fuel-native-redesign-v21.js?v=20260925-solid-fuel-stable-v1" defer></script>
+  <script src="/maintenance/solid-fuel-trouble.js?v=20261107-trouble-checkbox-v1&amp;mobileWrite=20261030-v1" defer></script>
+  <script src="/maintenance/solid-fuel-native-redesign-v21.js?v=20261107-trouble-checkbox-v1" defer></script>
   <script src="/maintenance/solid-fuel-mobile-compact-v1.js?v=20261030-v4" defer></script>
 </body>
 </html>

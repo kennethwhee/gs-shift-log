@@ -1,0 +1,158 @@
+/* SOLID_FUEL_TROUBLE_CHECKBOX_V1: one unloading form and a native Trouble toggle. */
+
+#recordModal .editor-section > header:has(.record-section-heading) {
+  align-items: center !important;
+  flex-wrap: wrap;
+  gap: 6px 12px !important;
+}
+
+#recordModal .record-section-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  min-width: 0;
+}
+
+#recordModal .record-section-heading + small {
+  margin-left: auto;
+  white-space: normal !important;
+  text-align: right;
+}
+
+#recordModal .editor label.record-trouble-check {
+  position: static;
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center;
+  gap: 6px !important;
+  width: auto;
+  min-height: 30px;
+  margin: 0;
+  padding: 4px 9px;
+  border: 1px solid #d3deea;
+  border-radius: 7px;
+  background: #fff;
+  cursor: pointer;
+}
+
+#recordModal .editor label.record-trouble-check:has(input:checked) {
+  border-color: #d5a05b;
+  background: #fff5e5;
+}
+
+#recordModal .editor label.record-trouble-check:has(input:disabled) {
+  opacity: .65;
+  cursor: default;
+}
+
+/* Override the existing text-input rules, including compact desktop styles. */
+#recordModal #recordTrouble {
+  position: static !important;
+  display: inline-block !important;
+  flex: 0 0 18px;
+  width: 18px !important;
+  min-width: 18px !important;
+  max-width: 18px !important;
+  height: 18px !important;
+  min-height: 18px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  appearance: auto !important;
+  -webkit-appearance: auto !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  accent-color: #ad6c19;
+  box-shadow: none;
+  cursor: inherit;
+}
+
+#recordModal #recordTrouble:focus-visible {
+  outline: 2px solid #2f6fab;
+  outline-offset: 3px;
+}
+
+#recordModal .editor .record-trouble-check > span {
+  margin: 0 !important;
+  color: #805a2b !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  line-height: 1.2 !important;
+}
+
+#recordModal .editor #recordNoteHint {
+  display: block;
+  margin: 3px 0 0 !important;
+  color: #6f8296;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.35;
+  white-space: normal;
+}
+
+#troublePanel .sf-issue-line {
+  display: block;
+  min-width: 0;
+}
+
+#troublePanel .sf-issue-line + .sf-issue-line {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #e6edf4;
+}
+
+#troublePanel .sf-issue-label {
+  display: block;
+  margin-bottom: 2px;
+  color: #6a7d91;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+#troublePanel .sf-issue-text {
+  display: block;
+  color: #294861;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+#troublePanel .sf-issue-source {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  margin-bottom: 4px;
+  padding: 2px 6px;
+  border: 1px solid #d7e3ee;
+  border-radius: 5px;
+  background: #f1f6fb;
+  color: #526b83;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: normal;
+}
+
+@media (max-width: 760px) {
+  #recordModal .editor label.record-trouble-check {
+    min-height: 44px;
+    padding: 8px 12px;
+  }
+
+  #recordModal .record-section-heading + small {
+    flex-basis: 100%;
+    margin-left: 0;
+    text-align: left;
+  }
+
+  #recordModal .editor #recordNoteHint {
+    font-size: 11px;
+    line-height: 1.45;
+  }
+}
+
+#recordModal .record-photo-field { min-width: 0; display: grid; gap: 4px; }
+#recordModal #recordFilesClear { justify-self: end; min-height: 28px; padding: 3px 8px; font-size: 11px; }
+#recordModal #recordFilesClear[hidden] { display: none !important; }

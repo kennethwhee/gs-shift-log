@@ -171,37 +171,12 @@
   }
 
   function decorateKpi() {
-    const labels = [
-      "하역",
-      "평균 하역",
-      "Trouble",
-      "이상·막힘",
-      "최장 하역"
-    ];
+    // Stable IDs keep the layout independent of the visible issue label.
+    const group = document.querySelector(".summary-strip");
+    const nodes = ["unloadKpi", "averageKpi", "troubleKpi", "abnormalKpi", "maxKpi"]
+      .map(id => document.getElementById(id)?.closest("article")?.querySelector(":scope > span"));
 
-    const nodes = labels.map(label =>
-      exact(
-        document,
-        label,
-        "span,strong,b,div"
-      )
-    );
-
-    if (nodes.some(node => !node)) return;
-
-    const group = climb(
-      nodes[0],
-      node => {
-        const text = norm(node.textContent);
-
-        return labels.every(
-          label => text.includes(label)
-        );
-      },
-      8
-    );
-
-    if (!group) return;
+    if (!group || nodes.some(node => !node)) return;
 
     const cards = [];
 
@@ -324,17 +299,8 @@
   }
 
   function decorateTabs() {
-    const unload = starts(
-      document,
-      "하역 기록",
-      "button"
-    );
-
-    const trouble = starts(
-      document,
-      "Trouble 내역",
-      "button"
-    );
+    const unload = document.querySelector('nav.tabs [data-tab="unload"]');
+    const trouble = document.querySelector('nav.tabs [data-tab="trouble"]');
 
     if (!unload || !trouble) return;
 

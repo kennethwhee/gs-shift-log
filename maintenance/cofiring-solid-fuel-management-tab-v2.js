@@ -9,7 +9,7 @@
   const BUTTON_ID = "cfvSolidFuelManagementTab";
   const PANEL_ID = "cfvSolidFuelManagementPanel";
   const FRAME_ID = "cfvSolidFuelManagementFrame";
-  const ROUTE = "/maintenance/solid-fuel-trouble?embed=cofiring&v=20260925-stable-v1";
+  const ROUTE = "/maintenance/solid-fuel-trouble?embed=cofiring&v=20261107-trouble-checkbox-v1";
   const HIDDEN_CLASS = "cfv-sfm-hidden-by-v2r2";
   /* COFIRING_SOLID_FUEL_STABLE_LAYOUT_V1 */
   const frameStates = new WeakMap();
@@ -147,16 +147,13 @@
     frame.src = ROUTE;
   }
 
-  function findEmbeddedTab(doc, label) {
-    return Array.from(doc.querySelectorAll("button,[role='tab'],a")).find((node) => {
-      const text = textOf(node);
-      return text === label || text.startsWith(`${label} `);
-    }) || null;
+  function findEmbeddedTab(doc, tab) {
+    return doc.querySelector(`nav.tabs [data-tab="${tab}"]`);
   }
 
   function normalizeEmbeddedTabOrder(doc) {
-    const unloadingTab = findEmbeddedTab(doc, "하역 기록");
-    const troubleTab = findEmbeddedTab(doc, "Trouble 내역");
+    const unloadingTab = findEmbeddedTab(doc, "unload");
+    const troubleTab = findEmbeddedTab(doc, "trouble");
 
     if (
       unloadingTab &&

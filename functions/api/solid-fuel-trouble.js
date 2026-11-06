@@ -514,7 +514,112 @@ function troubleObj(r,map){
     updatedAt:text(r.updated_at)
   };
 }
+async function troubleRowsWithPhotos(db,rows){
+  if(!rows.length)return [];
+  const result=await db.prepare(`SELECT * FROM solid_fuel_trouble_photos
+    WHERE upload_state='ready' AND trouble_id IN (SELECT value FROM json_each(?))
+    ORDER BY created_at,id`).bind(JSON.stringify(rows.map(row=>text(row.id)))).all();
+  const photos=new Map();
+  for(const row of Array.isArray(result?.results)?result.results:[]){
+    const id=text(row.trouble_id),group=photos.get(id)||[];
+    group.push(photoObj(row));photos.set(id,group);
+  }
+  return rows.map(row=>troubleObj(row,photos));
+}
 function unloadObj(r){ const known=Number(r.duration_known??1)===1,receiptRaw=r.receipt_tons,receiptValue=receiptRaw===null||receiptRaw===undefined||receiptRaw===""?null:Number(receiptRaw); return {id:text(r.id),sourceKey:text(r.source_key),unloadingDate:text(r.unloading_date),arrivalTime:text(r.arrival_time),departureTime:text(r.departure_time),durationKnown:known,durationMinutes:known?Number(r.duration_minutes||0):null,fuelType:text(r.fuel_type),receiptTons:Number.isFinite(receiptValue)?receiptValue:null,companyName:text(r.company_name),vehicleNo:text(r.vehicle_no),siloRoute:text(r.silo_route),note:text(r.note),version:Number(r.version||1),abnormal:abnormalText(r.note),createdAt:text(r.created_at),updatedAt:text(r.updated_at)}; }
+
+
+/* SOLID_FUEL_UNIFIED_ISSUES_V1: display projection only; never backfill old rows. */
+function meaningfulIssueNote(value){
+  return /[^\s\u200b\-–—−]/u.test(String(value??""));
+}
+function combinedUnloadingNote(item){
+  const equipment=text(item?.equipment),note=text(item?.note);
+  return limited(`${equipment?`[Trouble] ${equipment}`:"[Trouble]"}${note?`\n${note}`:""}`,3000);
+}
+function legacyCombinedKey(item,unloading=false){
+  // Old combined writes used the exact same timestamp and copied the complete
+  // Trouble text into the unloading note. Ambiguous matches stay separate.
+  if(text(item?.sourceKey)||!text(item?.createdAt))return "";
+  const note=unloading?text(item?.note):combinedUnloadingNote(item);
+  if(!note.startsWith("[Trouble]"))return "";
+  return JSON.stringify([
+    text(unloading?item?.unloadingDate:item?.occurrenceDate),
+    text(item?.companyName),text(item?.vehicleNo),text(item?.createdAt),note
+  ]);
+}
+function distinctUnloadingNote(unloading,trouble){
+  let note=text(unloading?.note);
+  const expected=combinedUnloadingNote(trouble);
+  if(note===expected||note===text(trouble?.note))return "";
+  // Remove only the exact equipment prefix; a user-authored different first
+  // line is preserved, even when it begins with the word Trouble.
+  const prefix=text(trouble?.equipment)?`[Trouble] ${text(trouble.equipment)}`:"[Trouble]";
+  if(note===prefix)note="";
+  else if(note.startsWith(`${prefix}\n`))note=note.slice(prefix.length+1).trim();
+  return meaningfulIssueNote(note)&&note!==text(trouble?.note)?note:"";
+}
+function buildIssueItems(items,unloadingLogs,url){
+  const unloadById=new Map(unloadingLogs.map(item=>[text(item.id),item]));
+  const legacyTroubles=new Map(),legacyUnloads=new Map();
+  const add=(map,key,item)=>{if(key){const group=map.get(key)||[];group.push(item);map.set(key,group);}};
+  items.forEach(item=>add(legacyTroubles,legacyCombinedKey(item),item));
+  unloadingLogs.forEach(item=>add(legacyUnloads,legacyCombinedKey(item,true),item));
+  const includedUnloads=new Set();
+  const projected=items.map(item=>{
+    const sourceKey=text(item.sourceKey),explicitId=sourceKey.startsWith("unloading:")?sourceKey.slice("unloading:".length):"";
+    let unloading=explicitId?unloadById.get(explicitId):null;
+    if(!explicitId){
+      const key=legacyCombinedKey(item),troubles=legacyTroubles.get(key)||[],unloads=legacyUnloads.get(key)||[];
+      if(troubles.length===1&&unloads.length===1)unloading=unloads[0];
+    }
+    if(unloading)includedUnloads.add(text(unloading.id));
+    const unloadingNote=unloading?distinctUnloadingNote(unloading,item):"";
+    return {...item,sourceEntity:"trouble",sourceRecord:item,...(unloadingNote?{unloadingNote}: {})};
+  });
+  for(const unloading of unloadingLogs){
+    if(includedUnloads.has(text(unloading.id))||!meaningfulIssueNote(unloading.note))continue;
+    projected.push({
+      id:unloading.id,sourceEntity:"unloading",occurrenceDate:unloading.unloadingDate,
+      companyName:unloading.companyName,vehicleNo:unloading.vehicleNo,equipment:"",
+      note:unloading.note,photos:[],version:unloading.version,sourceRecord:unloading,
+      createdAt:unloading.createdAt,updatedAt:unloading.updatedAt
+    });
+  }
+  const direction=text(url.searchParams.get("sort")).toLowerCase()==="asc"?1:-1;
+  return projected.sort((a,b)=>direction*(
+    text(a.occurrenceDate).localeCompare(text(b.occurrenceDate))||
+    text(a.createdAt).localeCompare(text(b.createdAt))||
+    `${a.sourceEntity}:${a.id}`.localeCompare(`${b.sourceEntity}:${b.id}`)
+  ));
+}
+async function issueItemsWithCounterparts(db,items,unloadingLogs,url){
+  // A group matches when either source passes the query. Resolve explicit links
+  // independently so a search never drops the other source's note or photographs.
+  const unloadIds=new Set(unloadingLogs.map(item=>text(item.id)));
+  const sourceKeys=new Set(items.map(item=>text(item.sourceKey)));
+  const missingUnloadIds=items.map(item=>text(item.sourceKey))
+    .filter(key=>key.startsWith("unloading:"))
+    .map(key=>key.slice("unloading:".length))
+    .filter(id=>id&&!unloadIds.has(id));
+  const missingTroubleKeys=unloadingLogs.map(item=>`unloading:${text(item.id)}`)
+    .filter(key=>!sourceKeys.has(key));
+  const [troubleResult,unloadResult]=await Promise.all([
+    missingTroubleKeys.length?db.prepare(`SELECT * FROM solid_fuel_trouble_records
+      WHERE deleted_at IS NULL AND source_key IN (SELECT value FROM json_each(?))`)
+      .bind(JSON.stringify(missingTroubleKeys)).all():Promise.resolve({results:[]}),
+    missingUnloadIds.length?db.prepare(`SELECT * FROM solid_fuel_unloading_logs
+      WHERE deleted_at IS NULL AND id IN (SELECT value FROM json_each(?))`)
+      .bind(JSON.stringify(missingUnloadIds)).all():Promise.resolve({results:[]})
+  ]);
+  const extraTroubles=await troubleRowsWithPhotos(db,Array.isArray(troubleResult?.results)?troubleResult.results:[]);
+  const extraUnloads=(Array.isArray(unloadResult?.results)?unloadResult.results:[]).map(unloadObj);
+  return buildIssueItems([...items,...extraTroubles],[...unloadingLogs,...extraUnloads],url);
+}
+function publicIssueObj(item){
+  return {...publicTroubleObj(item),sourceEntity:item.sourceEntity,
+    ...(item.unloadingNote?{unloadingNote:text(item.unloadingNote)}:{})};
+}
 
 function publicTroubleObj(item){
   return {
@@ -583,6 +688,20 @@ async function listUnloadings(db,url){
   const stmt=db.prepare(q),res=f.binds.length?await stmt.bind(...f.binds).all():await stmt.all();
   return (Array.isArray(res?.results)?res.results:[]).map(unloadObj);
 }
+
+async function listIssueUnloadings(db,url){
+  // Filter note-bearing records before the cap. Ordinary recent rows must not
+  // push an older remark out of the issues view's independent result window.
+  let q=`SELECT * FROM solid_fuel_unloading_logs WHERE deleted_at IS NULL
+    AND TRIM(COALESCE(note,''),char(9)||char(10)||char(13)||'  ​-–—−')<>''`;
+  const f=applyCommonFilters(url,"unloading_date","company_name","vehicle_no",["company_name","vehicle_no","silo_route","note"]);
+  if(f.clauses.length)q+=` AND ${f.clauses.join(" AND ")}`;
+  const dir=text(url.searchParams.get("sort")).toLowerCase()==="asc"?"ASC":"DESC";
+  q+=` ORDER BY unloading_date ${dir},created_at ${dir},id ${dir} LIMIT 2000`;
+  const stmt=db.prepare(q),res=f.binds.length?await stmt.bind(...f.binds).all():await stmt.all();
+  return (Array.isArray(res?.results)?res.results:[]).map(unloadObj).filter(item=>meaningfulIssueNote(item.note));
+}
+
 async function receiptSummary(db,date){
   const row=await db.prepare(`
     SELECT
@@ -1082,6 +1201,14 @@ export async function onRequestGet(context){
       if(a.user) await initialize(context.env.DB);
       return servePhoto(context,photoId,{publicAccess:!a.user});
     }
+    if(url.searchParams.has("recordId")){
+      if(!a.user)return json({ok:false,message:"로그인이 필요합니다."},401);
+      await initialize(context.env.DB);
+      const record=await findTrouble(context.env.DB,text(url.searchParams.get("recordId")));
+      if(!record)return json({ok:false,message:"이슈 기록을 찾을 수 없습니다."},404);
+      const [item]=await troubleRowsWithPhotos(context.env.DB,[record]);
+      return json({ok:true,item});
+    }
     if(a.user) await initialize(context.env.DB);
     let photoRepair=null,photoConsistency=null;
     if(a.user){
@@ -1101,17 +1228,20 @@ export async function onRequestGet(context){
         photoRepair={status:"failed",scannedCount:0,recoveredCount:0};
       }
     }
-    const [items,unloadingLogs,companyList,companyDir,filterCompanyList]=await Promise.all([
+    const [items,unloadingLogs,companyList,companyDir,filterCompanyList,issueUnloadings]=await Promise.all([
       listTroubles(context.env.DB,url),
       listUnloadings(context.env.DB,url),
       activeCompanies(context.env.DB),
       a.user?companyDirectory(context.env.DB):Promise.resolve(null),
-      filterCompanies(context.env.DB)
+      filterCompanies(context.env.DB),
+      listIssueUnloadings(context.env.DB,url)
     ]);
+    const issueItems=await issueItemsWithCounterparts(context.env.DB,items,issueUnloadings,url);
     if(!a.user){
       return json({
         ok:true,
         items:items.map(publicTroubleObj),
+        issueItems:issueItems.map(publicIssueObj),
         unloadingLogs:unloadingLogs.map(publicUnloadObj),
         companies:companyList,
         filterCompanies:filterCompanyList,
@@ -1122,6 +1252,7 @@ export async function onRequestGet(context){
     return json({
       ok:true,
       items,
+      issueItems,
       unloadingLogs,
       companies:companyList,
       companyDirectory:companyDir,
@@ -1289,8 +1420,8 @@ export async function onRequestPost(context){
       const troubleStatement=context.env.DB.prepare(`INSERT INTO solid_fuel_trouble_records(
         id,source_key,occurrence_date,company_name,vehicle_no,equipment,note,legacy_photo_path,version,
         created_by_id,created_by_name,updated_by_id,updated_by_name,created_at,updated_at
-      ) VALUES(?,NULL,?,?,?,?,?,'',1,?,?,?,?,?,?)`)
-      .bind(troubleId,date,company,vehicle,equipment,note,user.employeeNo,user.name,user.employeeNo,user.name,now,now);
+      ) VALUES(?,?,?,?,?,?,?,'',1,?,?,?,?,?,?)`)
+      .bind(troubleId,`unloading:${unloadingId}`,date,company,vehicle,equipment,note,user.employeeNo,user.name,user.employeeNo,user.name,now,now);
 
       await context.env.DB.batch([
         unloadingStatement,

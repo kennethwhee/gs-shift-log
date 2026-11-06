@@ -1,11 +1,11 @@
-﻿"use strict";
+"use strict";
 /* SOLID-FUEL-TROUBLE-V3.1.3 · simple time entry + current Silo choices + legacy route preservation */
 /* SOLID_FUEL_RECEIPT_LINK_V1 */
 (function(){
   const API="/api/solid-fuel-trouble",AUTH="gsShiftLog.currentUser";
   // GS_EFFICIENCY_MOBILE_MENU_V1: screen width does not remove authenticated server permissions.
   const SILO_OPTIONS=[["","선택 안 함"],["#A","Storage #A"],["#B","Storage #B"],["Day","Day Silo"]];
-  const state={troubles:[],unloads:[],companies:[],filterCompanies:[],companyDirectory:[],user:null,permissions:{canCreate:false,canEdit:false,canDelete:false,canUploadPhoto:false,canManageUnloading:false,canManageCompanies:false},loading:false,saving:false,mode:"month",tab:"unload",photoScale:1};
+  const state={troubles:[],unloads:[],issues:[],companies:[],filterCompanies:[],companyDirectory:[],user:null,permissions:{canCreate:false,canEdit:false,canDelete:false,canUploadPhoto:false,canManageUnloading:false,canManageCompanies:false},loading:false,saving:false,mode:"month",tab:"unload",photoScale:1};
   const contactsState={rows:[],companies:[],loading:false,saving:false,loaded:false,failed:false,canManage:false,editingId:"",version:0,conflict:false,opener:null};
   const $=id=>document.getElementById(id);
   const e={
@@ -15,7 +15,7 @@
     companyStats:$("companyStats"),siloStats:$("siloStats"),analyticsStatus:$("analyticsStatus"),
     tabs:document.querySelector(".tabs"),troublePanel:$("troublePanel"),unloadPanel:$("unloadPanel"),troubleTabCount:$("troubleTabCount"),unloadTabCount:$("unloadTabCount"),
     status:$("statusText"),unloadStatus:$("unloadStatusText"),troubleBody:$("troubleBody"),unloadBody:$("unloadBody"),
-    rModal:$("recordModal"),rClose:$("recordClose"),rCancel:$("recordCancel"),rForm:$("recordForm"),rDate:$("recordDate"),rFuelType:$("recordFuelType"),rReceiptTons:$("recordReceiptTons"),rCompany:$("recordCompany"),rVehicle:$("recordVehicle"),rArrival:$("recordArrival"),rDeparture:$("recordDeparture"),rDuration:$("recordDurationPreview"),rSilo:$("recordSilo"),rNote:$("recordNote"),rTroubleFields:$("recordTroubleFields"),rEquipment:$("recordEquipment"),rFiles:$("recordFiles"),rStatus:$("recordEditorStatus"),rSave:$("recordSave"),
+    rTrouble:$("recordTrouble"),rModal:$("recordModal"),rClose:$("recordClose"),rCancel:$("recordCancel"),rForm:$("recordForm"),rDate:$("recordDate"),rFuelType:$("recordFuelType"),rReceiptTons:$("recordReceiptTons"),rCompany:$("recordCompany"),rVehicle:$("recordVehicle"),rArrival:$("recordArrival"),rDeparture:$("recordDeparture"),rDuration:$("recordDurationPreview"),rSilo:$("recordSilo"),rNote:$("recordNote"),rTroubleFields:$("recordTroubleFields"),rEquipment:$("recordEquipment"),rFiles:$("recordFiles"),rFilesClear:$("recordFilesClear"),rStatus:$("recordEditorStatus"),rSave:$("recordSave"),
     tModal:$("troubleModal"),tTitle:$("troubleEditorTitle"),tClose:$("troubleClose"),tCancel:$("troubleCancel"),tForm:$("troubleForm"),tId:$("troubleId"),tVersion:$("troubleVersion"),tDate:$("troubleDate"),tCompany:$("troubleCompany"),tVehicle:$("troubleVehicle"),tEquipment:$("troubleEquipment"),tNote:$("troubleNote"),tFiles:$("troubleFiles"),existing:$("existingPhotos"),tStatus:$("troubleEditorStatus"),tSave:$("troubleSave"),
     uModal:$("unloadModal"),uTitle:$("unloadEditorTitle"),uClose:$("unloadClose"),uCancel:$("unloadCancel"),uForm:$("unloadForm"),uId:$("unloadId"),uVersion:$("unloadVersion"),uDate:$("unloadDate"),uFuelType:$("unloadFuelType"),uReceiptTons:$("unloadReceiptTons"),uArrival:$("unloadArrival"),uDeparture:$("unloadDeparture"),uDuration:$("unloadDurationPreview"),uCompany:$("unloadCompany"),uVehicle:$("unloadVehicle"),uSilo:$("unloadSilo"),uNote:$("unloadNote"),uStatus:$("unloadEditorStatus"),uSave:$("unloadSave"),
     companyModal:$("companyModal"),companyClose:$("companyClose"),companyCancel:$("companyCancel"),companyAddForm:$("companyAddForm"),companyNameInput:$("companyNameInput"),companyAddButton:$("companyAddButton"),companyManagerList:$("companyManagerList"),companyManagerStatus:$("companyManagerStatus"),
@@ -57,8 +57,15 @@
   }
   function durationValue(x){if(x?.durationKnown===false||x?.durationMinutes===null||x?.durationMinutes===undefined||x?.durationMinutes==="")return null;const n=Number(x.durationMinutes);return Number.isFinite(n)?n:null}
   function abnormal(x){return Boolean(x?.abnormal)||/Trouble|막힘|문제발생|문제 발생|불량|덩어리/i.test(String(x?.note||""))}
-  function troubleById(id){return state.troubles.find(x=>x.id===id)||null}
-  function unloadById(id){return state.unloads.find(x=>x.id===id)||null}
+  function troubleById(id){return state.troubles.find(x=>x.id===id)||state.issues.find(x=>x.sourceEntity==="trouble"&&x.id===id)?.sourceRecord||null}
+  function unloadById(id){return state.unloads.find(x=>x.id===id)||state.issues.find(x=>x.sourceEntity==="unloading"&&x.id===id)?.sourceRecord||null}
+  async function readTroubleById(id){
+    if(!id)return null;
+    const known=troubleById(id);
+    if(known)return known;
+    const response=await api(`${API}?recordId=${encodeURIComponent(id)}`,{headers:headers()});
+    return response.item||null
+  }
   // SOLID_FUEL_RECEIPT_LINK_V1
   function fuelTypeLabel(value){return value==="organic"?"유기성":value==="manure"?"축분":"-"}
   function receiptTonsValue(value){const raw=String(value??"").trim();if(!raw)return {valid:true,value:null};if(!/^\d+(?:\.\d{1,6})?$/.test(raw))return {valid:false,value:null};const n=Number(raw);return Number.isFinite(n)&&n>0&&n<=1000000?{valid:true,value:n}:{valid:false,value:null}}
@@ -129,6 +136,7 @@
     if(e.createRecord)e.createRecord.disabled=b||!canCreateRecord();
     if(e.companyManage)e.companyManage.disabled=b||!canManageCompanies();
     if(e.rSave)e.rSave.disabled=b||!canCreateRecord();
+    if(e.rFilesClear)e.rFilesClear.disabled=b||!canUploadPhoto();
     if(e.tSave)e.tSave.disabled=b||!canEditTrouble();
     if(e.uSave)e.uSave.disabled=b||!canEditUnloading();
     if(e.companyAddButton)e.companyAddButton.disabled=b||!canManageCompanies()
@@ -212,9 +220,9 @@
 
   function summary(){
     const d=state.unloads.map(durationValue).filter(Number.isFinite),avg=d.length?Math.round(d.reduce((a,b)=>a+b,0)/d.length):null,max=d.length?Math.max(...d):null,ab=state.unloads.filter(abnormal).length;
-    setText(e.troubleKpi,state.troubles.length);setText(e.unloadKpi,state.unloads.length);setText(e.abnormalKpi,ab);
+    setText(e.troubleKpi,state.issues.length);setText(e.unloadKpi,state.unloads.length);setText(e.abnormalKpi,ab);
     setText(e.averageKpi,avg==null?"-":durationShort(avg));setText(e.averageUnit,avg==null?"":"평균");setText(e.maxKpi,max==null?"-":durationShort(max));setText(e.maxUnit,max==null?"":"최장");
-    setText(e.troubleTabCount,state.troubles.length);setText(e.unloadTabCount,state.unloads.length)
+    setText(e.troubleTabCount,state.issues.length);setText(e.unloadTabCount,state.unloads.length)
   }
   function groupStats(){
     const company=new Map(),silo=new Map();
@@ -294,29 +302,59 @@
     if(canDeleteRecord())actions.push(`<button class="btn danger" type="button" data-action="delete-unload" data-id="${esc(x.id)}">삭제</button>`);
     return actions.length?`<div class="row-actions">${actions.join("")}</div>`:""
   }
+  /* SOLID_FUEL_ISSUE_VIEW_V1: source records retain their own edit permissions and IDs. */
+  function issueTextParts(item){
+    const clean=value=>String(value??"").replace(/\r\n?/g,"\n").trim();
+    const equipment=clean(item.equipment),note=clean(item.note),unloadingNote=clean(item.unloadingNote);
+    const detail=equipment||note||unloadingNote||"상세 미입력";
+    const notes=[],seen=new Set([detail]);
+    for(const [label,value] of [["비고 / 조치내용",note],["하역 비고",unloadingNote]]){
+      if(value&&!seen.has(value)){notes.push({label,text:value});seen.add(value)}
+    }
+    return {detail,notes}
+  }
+  function issueActionsHtml(item){
+    if(item.sourceEntity!=="unloading")return troubleActionsHtml(item);
+    // An issue view never turns a remark removal into deletion of the entire receipt.
+    return canEditUnloading()?`<div class="row-actions"><button class="btn ghost" type="button" data-action="edit-unload" data-id="${esc(item.id)}" title="원본 하역 기록 수정">수정</button></div>`:""
+  }
   function troubleTable(){
-    e.troubleBody.replaceChildren();if(!state.troubles.length){e.troubleBody.innerHTML=`<tr><td colspan="8" class="empty">조회 조건에 해당하는 Trouble 내역이 없습니다.</td></tr>`;return}
-    state.troubles.forEach((x,i)=>{const tr=document.createElement("tr");tr.innerHTML=`<td class="no">${i+1}</td><td class="date">${esc(String(x.occurrenceDate||"").replace(/-/g,"."))}</td><td class="company">${esc(x.companyName||"-")}</td><td class="vehicle">${esc(x.vehicleNo||"-")}</td><td class="equipment">${esc(x.equipment||"-")}</td><td class="photo">${photoHtml(x)}</td><td class="note">${esc(x.note||"-")}</td><td class="actions">${troubleActionsHtml(x)}</td>`;e.troubleBody.append(tr)})
+    e.troubleBody.replaceChildren();
+    if(!state.issues.length){e.troubleBody.innerHTML=`<tr><td colspan="8" class="empty">조회 조건에 해당하는 이슈내역이 없습니다.</td></tr>`;return}
+    state.issues.forEach((x,i)=>{
+      const tr=document.createElement("tr"),parts=issueTextParts(x);
+      const notes=parts.notes.map(part=>`<div class="sf-issue-line"><span class="sf-issue-label">${esc(part.label)}</span><span class="sf-issue-text">${esc(part.text)}</span></div>`).join("")||"-";
+      tr.dataset.issueSource=x.sourceEntity||"trouble";
+      tr.innerHTML=`<td class="no">${i+1}</td><td class="date">${esc(String(x.occurrenceDate||"").replace(/-/g,".")||"-")}</td><td class="company">${esc(x.companyName||"-")}</td><td class="vehicle">${esc(x.vehicleNo||"-")}</td><td class="equipment">${x.sourceEntity==="unloading"?'<span class="sf-issue-source">하역 비고</span>':""}<span class="sf-issue-text">${esc(parts.detail)}</span></td><td class="photo">${photoHtml(x)}</td><td class="note">${notes}</td><td class="actions">${issueActionsHtml(x)}</td>`;
+      e.troubleBody.append(tr)
+    })
   }
   function unloadTable(){
     e.unloadBody.replaceChildren();if(!state.unloads.length){e.unloadBody.innerHTML=`<tr><td colspan="12" class="empty">조회 조건에 해당하는 하역시간 내역이 없습니다.</td></tr>`;return}
     state.unloads.forEach((x,i)=>{const tr=document.createElement("tr"),m=durationValue(x),cls=Number.isFinite(m)?(m>=180?"is-very-long":m>=120?"is-long":""):"";if(abnormal(x))tr.classList.add("abnormal-row");tr.innerHTML=`<td class="no">${i+1}</td><td class="date">${esc(String(x.unloadingDate||"").replace(/-/g,".")||"-")}</td><td class="clock">${esc(x.arrivalTime||"-")}</td><td class="clock">${esc(x.departureTime||"-")}</td><td class="duration"><span class="duration-badge ${cls}">${esc(durationShort(m))}</span></td><td class="fuel-type"><span class="fuel-pill ${x.fuelType?"is-"+esc(x.fuelType):""}">${esc(fuelTypeLabel(x.fuelType))}</span></td><td class="receipt-ton">${x.receiptTons==null?"-":esc(Number(x.receiptTons).toLocaleString("ko-KR",{maximumFractionDigits:6}))+" t"}</td><td class="company">${esc(x.companyName||"-")}</td><td class="vehicle">${esc(x.vehicleNo||"-")}</td><td class="silo"><span class="silo-pill">${esc(x.siloRoute||"-")}</span></td><td class="unload-note">${esc(x.note||"-")}</td><td class="actions">${unloadActionsHtml(x)}</td>`;e.unloadBody.append(tr)})
   }
-  function render(){syncAccessMode();companyLists();summary();groupStats();troubleTable();unloadTable();setText(e.status,`${state.troubles.length}건 조회 완료`);setText(e.unloadStatus,`${state.unloads.length}건 조회 완료`);renderCompanyManager();setBusy()}
+  function render(){syncAccessMode();companyLists();summary();groupStats();troubleTable();unloadTable();setText(e.status,`${state.issues.length}건 조회 완료`);setText(e.unloadStatus,`${state.unloads.length}건 조회 완료`);renderCompanyManager();setBusy()}
 
-  async function load(){if(state.loading)return;state.loading=true;setBusy();setText(e.status,"조회 중...");setText(e.unloadStatus,"조회 중...");try{const r=await api(buildUrl(),{headers:headers()});state.troubles=Array.isArray(r.items)?r.items:[];state.unloads=Array.isArray(r.unloadingLogs)?r.unloadingLogs:[];state.companies=Array.isArray(r.companies)?r.companies:[];state.filterCompanies=Array.isArray(r.filterCompanies)?r.filterCompanies:state.companies;state.companyDirectory=Array.isArray(r.companyDirectory)?r.companyDirectory:state.companies.map(name=>({name,isActive:true}));state.user=r.user&&typeof r.user==="object"?r.user:null;state.permissions=normalizePermissions(r.permissions);render()}catch(err){console.error(err);state.troubles=[];state.unloads=[];state.user=null;state.permissions=normalizePermissions(null);render();setText(e.status,"조회 실패");setText(e.unloadStatus,"조회 실패");e.troubleBody.innerHTML=`<tr><td colspan="8" class="empty">${esc(err.message||"조회 실패")}</td></tr>`;e.unloadBody.innerHTML=`<tr><td colspan="12" class="empty">${esc(err.message||"조회 실패")}</td></tr>`}finally{state.loading=false;setBusy();document.documentElement.dataset.solidFuelLoaded="1";document.dispatchEvent(new Event("solid-fuel:loaded"))}}
+  async function load(){if(state.loading)return;state.loading=true;setBusy();setText(e.status,"조회 중...");setText(e.unloadStatus,"조회 중...");try{const r=await api(buildUrl(),{headers:headers()});state.troubles=Array.isArray(r.items)?r.items:[];state.unloads=Array.isArray(r.unloadingLogs)?r.unloadingLogs:[];state.issues=Array.isArray(r.issueItems)?r.issueItems:state.troubles.map(x=>({...x,sourceEntity:"trouble",sourceRecord:x}));state.companies=Array.isArray(r.companies)?r.companies:[];state.filterCompanies=Array.isArray(r.filterCompanies)?r.filterCompanies:state.companies;state.companyDirectory=Array.isArray(r.companyDirectory)?r.companyDirectory:state.companies.map(name=>({name,isActive:true}));state.user=r.user&&typeof r.user==="object"?r.user:null;state.permissions=normalizePermissions(r.permissions);render()}catch(err){console.error(err);state.troubles=[];state.unloads=[];state.issues=[];state.user=null;state.permissions=normalizePermissions(null);render();setText(e.status,"조회 실패");setText(e.unloadStatus,"조회 실패");e.troubleBody.innerHTML=`<tr><td colspan="8" class="empty">${esc(err.message||"조회 실패")}</td></tr>`;e.unloadBody.innerHTML=`<tr><td colspan="12" class="empty">${esc(err.message||"조회 실패")}</td></tr>`}finally{state.loading=false;setBusy();document.documentElement.dataset.solidFuelLoaded="1";document.dispatchEvent(new Event("solid-fuel:loaded"))}}
   function switchTab(tab){state.tab=tab;document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("is-active",b.dataset.tab===tab));document.querySelectorAll("[data-tab-panel]").forEach(p=>{const active=p.dataset.tabPanel===tab;p.classList.toggle("is-active",active);p.hidden=!active})}
 
 
   function recordKind(){
-    return document.querySelector('input[name="recordKind"]:checked')?.value||"unloading"
+    return e.rTrouble?.checked?"trouble":"unloading"
+  }
+  function hasTroubleDraft(){
+    return Boolean(e.rEquipment.value.trim()||e.rFiles.files.length)
   }
   function syncRecordKind(){
-    const trouble=recordKind()==="trouble";
-    e.rTroubleFields.hidden=!trouble;
+    const trouble=recordKind()==="trouble",active=document.activeElement;
+    // Keep a filled draft visible after unchecking so it can be edited or cleared.
+    e.rTroubleFields.hidden=!trouble&&!hasTroubleDraft();
+    e.rTrouble?.setAttribute("aria-expanded",String(!e.rTroubleFields.hidden));
     e.rEquipment.required=false;
-    e.rFiles.disabled=!trouble||!canUploadPhoto();
-    setText(e.rSave,trouble?"Trouble 기록 저장":"하역 기록 저장")
+    e.rFiles.disabled=!canUploadPhoto();
+    if(e.rFilesClear)e.rFilesClear.hidden=!e.rFiles.files.length||!canUploadPhoto();
+    if(active&&((e.rTroubleFields.hidden&&e.rTroubleFields.contains(active))||(active===e.rFilesClear&&e.rFilesClear.hidden)))e.rTrouble?.focus();
+    setText(e.rSave,"하역 기록 저장")
   }
   function updateRecordDuration(){
     const m=durationBetween(e.rArrival.value,e.rDeparture.value);
@@ -327,8 +365,7 @@
     e.rForm.reset();
     populateSiloSelect(e.rSilo);
     clearTimeInvalid(e.rArrival,e.rStatus);clearTimeInvalid(e.rDeparture,e.rStatus);
-    const defaultKind=document.querySelector('input[name="recordKind"][value="unloading"]');
-    if(defaultKind)defaultKind.checked=true;
+    if(e.rTrouble)e.rTrouble.checked=false;
     e.rDate.value=today();
     e.rFuelType.value="";
     e.rReceiptTons.value="";
@@ -351,7 +388,18 @@
   async function saveRecord(ev){
     ev.preventDefault();
     if(state.saving||!canCreateRecord())return;
-    const kind=recordKind();
+    const kind=recordKind(),files=[...e.rFiles.files],fileSelection=e.rFiles.files;
+    if(kind!=="trouble"&&hasTroubleDraft()){
+      syncRecordKind();
+      setEditorStatus(e.rStatus,"작성한 이슈내역 또는 사진이 있습니다. Trouble을 체크하거나 해당 내용을 비운 뒤 저장해 주세요.");
+      e.rTrouble?.focus();
+      return
+    }
+    if(kind==="trouble"&&canUploadPhoto()){
+      if(files.length>4){setEditorStatus(e.rStatus,"샘플 사진은 최대 4장까지 선택해 주세요.");return}
+      const invalid=files.find(file=>!Number(file.size)||file.size>10*1024*1024||! /\.(?:jpe?g|png|webp|heic|heif)$/i.test(file.name));
+      if(invalid){setEditorStatus(e.rStatus,"샘플 사진의 형식과 용량을 확인해 주세요. 사진은 장당 10MB까지 저장할 수 있습니다.");return}
+    }
     const times=validatedEditorTimes(e.rArrival,e.rDeparture,e.rStatus);
     if(!times)return updateRecordDuration();
     const receipt=validateReceiptPair(e.rFuelType,e.rReceiptTons,e.rStatus,{required:true});
@@ -372,33 +420,55 @@
       payload.occurrenceDate=common.unloadingDate;
       payload.equipment=e.rEquipment.value.trim()
     }
+    let saved=null;
     state.saving=true;setBusy();
-    setEditorStatus(e.rStatus,kind==="trouble"?"하역시간과 Trouble을 함께 저장하는 중입니다.":"하역 기록을 저장하는 중입니다.");
+    setEditorStatus(e.rStatus,"하역 기록을 저장하는 중입니다.");
     try{
-      const r=await api(API,{method:"POST",headers:headers({"Content-Type":"application/json"}),body:JSON.stringify(payload)});
-      if(kind==="trouble"&&canUploadPhoto()&&e.rFiles.files.length){
-        const troubleId=r.troubleId||r.recordId||r.id;
-        if(!troubleId)throw new Error("Trouble 사진 연결 ID를 확인하지 못했습니다.");
-        setEditorStatus(e.rStatus,"기록 저장 완료 · 샘플 사진 업로드 중...");
-        await upload(troubleId,e.rFiles.files)
-      }
+      saved=await api(API,{method:"POST",headers:headers({"Content-Type":"application/json"}),body:JSON.stringify(payload)});
       notifyReceiptChanged(common.unloadingDate);
+      if(kind==="trouble"&&canUploadPhoto()&&files.length){
+        const troubleId=saved.troubleId||saved.recordId||saved.id;
+        if(!troubleId)throw new Error("이슈 사진 연결 ID를 확인하지 못했습니다.");
+        setEditorStatus(e.rStatus,"기록 저장 완료 · 샘플 사진 업로드 중...");
+        await upload(troubleId,files)
+      }
       closeRecord();
-      switchTab(kind==="trouble"?"trouble":"unload");
+      switchTab("unload");
       await load()
     }catch(err){
       console.error("통합 기록 저장 실패:",err);
-      setEditorStatus(e.rStatus,err.message||"저장 실패")
+      if(saved){
+        // A photo failure must not leave the new-record form able to POST the receipt again.
+        const troubleId=saved.troubleId||saved.recordId||saved.id;
+        closeRecord();
+        switchTab("trouble");
+        await load();
+        let record=troubleById(troubleId);
+        if(!record){
+          try{
+            record=await readTroubleById(troubleId)
+          }catch(_){/* Keep the successful receipt saved even when recovery cannot be read. */}
+        }
+        if(record&&canEditTrouble()){
+          openTrouble(record);
+          try{e.tFiles.files=fileSelection}catch(_){/* The user may reselect photos in the existing editor. */}
+          setEditorStatus(e.tStatus,`하역 기록은 저장됐습니다. 사진 업로드를 다시 시도해 주세요. ${err.message||""}`)
+        }else{
+          alert("하역 기록은 저장됐지만 사진 업로드에 실패했습니다. 저장된 이슈내역에서 수정하여 사진을 다시 첨부해 주세요.")
+        }
+      }else{
+        setEditorStatus(e.rStatus,err.message||"저장 실패")
+      }
     }finally{
       state.saving=false;setBusy()
     }
   }
 
   function existingPhotos(x){const p=Array.isArray(x?.photos)?x.photos:[];e.existing.replaceChildren();e.existing.hidden=!p.length;p.forEach(v=>{const d=document.createElement("div");d.className="existing-photo";const deleteControl=!v.legacy&&canUploadPhoto()?`<button class="photo-delete" type="button" data-action="delete-photo" data-photo-id="${esc(v.id)}">삭제</button>`:`<span>${v.legacy?"원본":""}</span>`;d.innerHTML=`<button class="thumb" style="width:100%;height:90px;border:0;border-radius:0" type="button" data-action="photo" data-url="${esc(v.url)}"><img src="${esc(v.url)}" alt="샘플 사진"></button><div class="existing-meta"><span>${esc(v.name||"샘플 사진")}</span>${deleteControl}</div>`;e.existing.append(d)})}
-  function openTrouble(x=null){if(!canEditTrouble())return;e.tTitle.textContent="Trouble 수정";e.tId.value=x?.id||"";e.tVersion.value=x?.version||"";e.tDate.value=x?.occurrenceDate||today();companyLists();ensureOption(e.tCompany,x?.companyName||"");e.tCompany.value=x?.companyName||"";e.tVehicle.value=x?.vehicleNo||"";e.tEquipment.value=x?.equipment||"";e.tNote.value=x?.note||"";e.tFiles.value="";e.tFiles.disabled=!canUploadPhoto();existingPhotos(x);setEditorStatus(e.tStatus,"",false);e.tModal.hidden=false;document.body.style.overflow="hidden";setTimeout(()=>e.tDate.focus(),0)}
+  function openTrouble(x=null){if(!canEditTrouble())return;e.tTitle.textContent="이슈내역 수정";e.tId.value=x?.id||"";e.tVersion.value=x?.version||"";e.tDate.value=x?.occurrenceDate||today();companyLists();ensureOption(e.tCompany,x?.companyName||"");e.tCompany.value=x?.companyName||"";e.tVehicle.value=x?.vehicleNo||"";e.tEquipment.value=x?.equipment||"";e.tNote.value=x?.note||"";e.tFiles.value="";e.tFiles.disabled=!canUploadPhoto();existingPhotos(x);setEditorStatus(e.tStatus,"",false);e.tModal.hidden=false;document.body.style.overflow="hidden";setTimeout(()=>e.tDate.focus(),0)}
   function closeTrouble(){e.tModal.hidden=true;if(e.photoModal.hidden&&e.uModal.hidden&&e.rModal.hidden&&e.companyModal.hidden&&e.cModal.hidden)document.body.style.overflow="";setEditorStatus(e.tStatus,"",false)}
   async function upload(id,files){if(!canUploadPhoto())return;const a=[...(files||[])];if(!a.length)return;const f=new FormData();f.set("recordId",id);a.forEach(x=>f.append("files",x));await api(API,{method:"POST",headers:headers(),body:f})}
-  async function saveTrouble(ev){ev.preventDefault();if(state.saving||!canEditTrouble())return;const id=e.tId.value.trim(),editing=!!id,p={entity:"trouble",occurrenceDate:e.tDate.value,companyName:e.tCompany.value.trim(),vehicleNo:e.tVehicle.value.trim(),equipment:e.tEquipment.value.trim(),note:e.tNote.value.trim()};if(editing){p.id=id;p.version=Number(e.tVersion.value||0)}state.saving=true;setBusy();setEditorStatus(e.tStatus,editing?"수정 내용을 저장하는 중입니다.":"Trouble 기록을 저장하는 중입니다.");try{const r=await api(API,{method:editing?"PUT":"POST",headers:headers({"Content-Type":"application/json"}),body:JSON.stringify(p)});const saved=editing?id:(r.recordId||r.id);if(canUploadPhoto()&&e.tFiles.files.length){setEditorStatus(e.tStatus,"기록 저장 완료 · 샘플 사진 업로드 중...");await upload(saved,e.tFiles.files)}closeTrouble();await load()}catch(err){setEditorStatus(e.tStatus,err.message||"저장 실패");if(err.status===409)await load()}finally{state.saving=false;setBusy()}}
+  async function saveTrouble(ev){ev.preventDefault();if(state.saving||!canEditTrouble())return;const id=e.tId.value.trim(),editing=!!id,p={entity:"trouble",occurrenceDate:e.tDate.value,companyName:e.tCompany.value.trim(),vehicleNo:e.tVehicle.value.trim(),equipment:e.tEquipment.value.trim(),note:e.tNote.value.trim()};if(editing){p.id=id;p.version=Number(e.tVersion.value||0)}state.saving=true;setBusy();setEditorStatus(e.tStatus,editing?"수정 내용을 저장하는 중입니다.":"Trouble 기록을 저장하는 중입니다.");try{const r=await api(API,{method:editing?"PUT":"POST",headers:headers({"Content-Type":"application/json"}),body:JSON.stringify(p)});const saved=editing?id:(r.recordId||r.id);if(r.version)e.tVersion.value=String(r.version);if(canUploadPhoto()&&e.tFiles.files.length){setEditorStatus(e.tStatus,"기록 저장 완료 · 샘플 사진 업로드 중...");await upload(saved,e.tFiles.files)}closeTrouble();await load()}catch(err){setEditorStatus(e.tStatus,err.message||"저장 실패");if(err.status===409)await load()}finally{state.saving=false;setBusy()}}
 
   function updateUnloadDuration(){const m=durationBetween(e.uArrival.value,e.uDeparture.value);e.uDuration.value=m==null?"미입력":durationText(m)}
   function openUnload(x=null){
@@ -686,8 +756,8 @@
     })
   }
 
-  async function delRecord(entity,x){if(!x||!canDeleteRecord())return;if(!confirm(`${entity==="unloading"?"하역시간":"Trouble"} 기록을 삭제할까요?`))return;try{const u=new URL(API,location.origin);u.searchParams.set("id",x.id);u.searchParams.set("entity",entity);await api(u,{method:"DELETE",headers:headers()});if(entity==="unloading")notifyReceiptChanged(x.unloadingDate);await load()}catch(err){alert(err.message||"삭제 실패")}}
-  async function delPhoto(id){if(!id||!canUploadPhoto()||!confirm("이 샘플 사진을 삭제할까요?"))return;try{const u=new URL(API,location.origin);u.searchParams.set("photoId",id);await api(u,{method:"DELETE",headers:headers()});const rid=e.tId.value.trim();await load();const x=troubleById(rid);if(x){e.tVersion.value=x.version;existingPhotos(x)}}catch(err){setEditorStatus(e.tStatus,err.message||"사진 삭제 실패")}}
+  async function delRecord(entity,x){if(!x||!canDeleteRecord())return;if(!confirm(entity==="unloading"?"하역시간 기록을 삭제할까요?":"이 Trouble 기록을 삭제할까요?\n하역 기록에 남아 있는 비고는 이슈내역에 계속 표시됩니다."))return;try{const u=new URL(API,location.origin);u.searchParams.set("id",x.id);u.searchParams.set("entity",entity);await api(u,{method:"DELETE",headers:headers()});if(entity==="unloading")notifyReceiptChanged(x.unloadingDate);await load()}catch(err){alert(err.message||"삭제 실패")}}
+  async function delPhoto(id){if(!id||!canUploadPhoto()||!confirm("이 샘플 사진을 삭제할까요?"))return;try{const u=new URL(API,location.origin);u.searchParams.set("photoId",id);await api(u,{method:"DELETE",headers:headers()});const rid=e.tId.value.trim();await load();const x=await readTroubleById(rid);if(x){e.tVersion.value=x.version;existingPhotos(x)}}catch(err){setEditorStatus(e.tStatus,err.message||"사진 삭제 실패")}}
 
   function applyZoom(scale){const s=Math.min(4,Math.max(.25,Number(scale)||1));state.photoScale=s;e.zoomRange.value=String(Math.round(s*100));setText(e.zoomText,`${Math.round(s*100)}%`);if(e.photo.naturalWidth)e.photo.style.width=`${Math.max(1,Math.round(e.photo.naturalWidth*s))}px`}
   function fitPhoto(){if(!e.photo.naturalWidth||!e.photoStage.clientWidth)return;const sx=(e.photoStage.clientWidth-36)/e.photo.naturalWidth,sy=(e.photoStage.clientHeight-36)/e.photo.naturalHeight;applyZoom(Math.min(sx,sy))}
@@ -721,7 +791,10 @@
       if(b)switchTab(b.dataset.tab)
     });
 
-    document.querySelectorAll('input[name="recordKind"]').forEach(x=>x.addEventListener("change",syncRecordKind));
+    e.rTrouble?.addEventListener("change",syncRecordKind);
+    e.rEquipment.addEventListener("input",syncRecordKind);
+    e.rFiles.addEventListener("change",syncRecordKind);
+    e.rFilesClear?.addEventListener("click",()=>{e.rFiles.value="";syncRecordKind()});
     [e.rArrival,e.rDeparture].forEach(x=>bindSimpleTimeInput(x,e.rStatus,updateRecordDuration));
     e.rForm.addEventListener("submit",saveRecord);
     e.rClose.addEventListener("click",closeRecord);
@@ -732,6 +805,7 @@
       const t=ev.target.closest("[data-action]");if(!t)return;
       const a=t.dataset.action;
       if(a==="photo")return showPhoto(t.dataset.url);
+      if(a==="edit-unload")return openUnload(unloadById(t.dataset.id));
       const x=troubleById(t.dataset.id);
       if(a==="edit-trouble")openTrouble(x);
       if(a==="delete-trouble")delRecord("trouble",x)
@@ -855,8 +929,7 @@
   function findTabBar(){
     const navs = [...document.querySelectorAll("nav.tabs")];
     return navs.find(nav=>{
-      const t = text(nav);
-      return t.includes("\uD558\uC5ED") && t.toLowerCase().includes("trouble");
+      return nav.querySelector('[data-tab="unload"]') && nav.querySelector('[data-tab="trouble"]');
     }) || null;
   }
 

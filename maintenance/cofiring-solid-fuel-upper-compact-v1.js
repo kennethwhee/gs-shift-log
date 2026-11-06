@@ -241,15 +241,8 @@
       addClass(filter, "cfv-sfm-filter-panel-v1");
     }
 
-    const average = findExact(doc, "평균 하역");
-    if (average) {
-      const kpi = smallestAncestor(
-        average,
-        ["하역", "평균 하역", "Trouble", "이상·막힘", "최장 하역"],
-        7
-      );
-      addClass(kpi, "cfv-sfm-kpi-panel-v1");
-    }
+    const kpi = doc.getElementById("troubleKpi")?.closest(".summary-strip");
+    addClass(kpi, "cfv-sfm-kpi-panel-v1");
 
     const referenceTitle = findIncludes(doc, "하역시간 참고 데이터");
     if (referenceTitle) {
@@ -261,13 +254,9 @@
       addClass(reference, "cfv-sfm-reference-panel-v1");
     }
 
-    const unloadTab = findExact(doc, "하역 기록");
-    if (unloadTab) {
-      const tabs = smallestAncestor(
-        unloadTab,
-        ["하역 기록", "Trouble 내역"],
-        5
-      );
+    const unloadTab = doc.querySelector('nav.tabs [data-tab="unload"]');
+    const tabs = unloadTab?.closest("nav.tabs");
+    if (tabs?.querySelector('[data-tab="trouble"]')) {
       addClass(tabs, "cfv-sfm-record-tabs-v1");
     }
 
