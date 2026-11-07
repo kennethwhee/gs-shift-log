@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="blower-r6-review.css?v=20261107-r6-v1">
   <link rel="stylesheet" href="blower-r7-evidence.css?v=20261107-r7-v1">
   <link rel="stylesheet" href="blower-r8-timeline.css?v=20261107-r8-v1">
+  <link rel="stylesheet" href="blower-r9-signal-v1.css?v=20261107-r9-v1">
   <link rel="stylesheet" href="blower-unified-refresh.css?v=20261022-query-resource-v3-20261102-inline-v3n-20261102-label-v3o-20261102-right-v3p">
   <script src="blower-refresh-timing.js?v=20260915-fast-timing-v12-20261102-inline-v3n" defer></script>
   <script src="blower-unified-refresh.js?v=20261031-limestone-ledger-v3g-20261102-auto-v3m-20261102-inline-v3n-20261102-schedule-v3q&runtimeRepair=20261107-r4&blowerNormalize=20261104-v4-r6-20261102-schedule-v3q" defer></script>
@@ -21,6 +22,7 @@
   <script src="blower-r6-review.js?v=20261107-r6-v1" defer></script>
   <script src="blower-r7-evidence.js?v=20261107-r7-v1" defer></script>
   <script src="blower-r8-timeline.js?v=20261107-r8-v1" defer></script>
+  <script src="blower-r9-signal-v1.js?v=20261107-r9-v1" defer></script>
   <script src="blower-history.js?v=20261031-limestone-ledger-v3g-checkpoint-v3k-ui-20261102-auto-v3m-20261102-inline-v3n-20261102-label-v3o-20261102-row-v3r-20261103-bag-v3s&blowerNormalize=20261104-v4-r6-20261102-schedule-v3q&runTransition=20261106-v2&runtimeAssessment=20261106-v2&runtimeRepair=20261107-r4" defer></script>
   <script src="/maintenance/seal-pot-ois-shadow.js?v=20260909-unified-refresh-v1" defer></script>
   <link rel="stylesheet" href="/maintenance/blower-schedule-v1.css?v=20261029-settings-v2">
@@ -217,6 +219,22 @@
             </details>
           </section>
 
+          <!-- R9 bounded event-time examination; the existing Blower cards and counters remain authoritative. -->
+          <section class="blower-r9-panel" id="blowerR9Panel" hidden>
+            <details>
+              <summary>R9 · 27대 기동·정지 신호 시간 이력 (읽기 전용)</summary>
+              <p class="blower-r9-help">과거 하루의 DataPARC RUN 시작·종료 구간과 운전시간을 확인합니다. 시간창 처음·끝은 절체시각으로 확정하지 않습니다. 오일 교체는 누적 초기화 대상이 아니며, 현재 누적시간은 변경하지 않습니다.</p>
+              <div class="blower-r9-actions">
+                <label>설비<select id="blowerR9Asset" aria-label="R9 Blower 설비"></select></label>
+                <label>조회일(과거)<input type="date" id="blowerR9Date" aria-label="R9 조회 날짜"></label>
+                <button type="button" id="blowerR9Start">운전구간 조회</button>
+                <button type="button" id="blowerR9Check">결과 확인</button>
+              </div>
+              <p id="blowerR9Status" role="status">조회할 설비를 확인하고 있습니다.</p>
+              <div id="blowerR9Result"></div>
+              <p class="blower-r9-help">정비 완료·계획정비 승인 및 품질 검증 이전에는 V-belt 새 주기 계산 또는 저장값 초기화를 실행하지 않습니다.</p>
+            </details>
+          </section>
           <!-- R8 time-slice evidence only; this tool never edits saved cycles. -->
           <section class="blower-r8-panel" id="blowerR8Panel" hidden>
             <details>

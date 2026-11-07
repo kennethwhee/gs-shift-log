@@ -1,0 +1,14 @@
+/* R9 bounded evidence widget. Keep main 27 asset cards unchanged. */
+.blower-r9-panel{margin:10px 0;border:1px solid var(--border,#d9dce0);border-radius:10px;padding:12px;background:#fafbfc}
+.blower-r9-panel summary{cursor:pointer;font-weight:700}
+.blower-r9-help{font-size:12px;color:#64748b;margin:8px 0}
+.blower-r9-actions{display:flex;flex-wrap:wrap;align-items:end;gap:8px;margin:10px 0}
+.blower-r9-actions label{display:flex;flex-direction:column;gap:3px;min-width:200px;font-size:12px}
+.blower-r9-actions select,.blower-r9-actions input{min-height:35px;max-width:350px;border:1px solid #d3dae3;border-radius:7px;padding:5px;background:white;color:#0f172a}
+.blower-r9-actions button{padding:8px 14px;border-radius:7px;border:1px solid #cbd5e1;background:#fff;color:#0f172a;cursor:pointer;font-weight:600}
+.blower-r9-actions button:disabled{opacity:.5;cursor:default}
+.blower-r9-total{font-size:14px;font-weight:700;margin:10px 0}
+.blower-r9-table{border-collapse:collapse;width:100%;font-size:12px}
+.blower-r9-table td,.blower-r9-table th{border-bottom:1px solid #e2e8f0;padding:8px 6px;text-align:left}
+.blower-r9-table th{background:#f1f5f9}
+#blowerR9Status{font-size:12px;color:#475569;margin:8px 0}

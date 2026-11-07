@@ -1,4 +1,5 @@
 import { r8TimelineEntry } from './blower-r8-timeline.js';
+import { r9Window } from './blower-r9-signal-v1.js';
 /* R7 exact read-only measurement windows. No V-belt completion clock is inferred.
  * The first window may support zero-duration equivalence ONLY after independent
  * accepted-work-order review; the second window measures pre-registered RUN
@@ -24,7 +25,7 @@ const validNumber = value => typeof value === 'number' && Number.isFinite(value)
 const fail = (code,message) => Object.assign(new Error(message),{code,status:409});
 function currentAssetValue(asset,field) {return asset?.[field] ?? null;}
 export function r7EvidencePlan(mode,asset,user,now=new Date()) {
-  const entry = R7_WINDOWS[mode] || r8TimelineEntry(mode);
+  const entry = R7_WINDOWS[mode] || r8TimelineEntry(mode) || r9Window(mode,asset,now);
   if(!entry)throw fail('R7_UNSUPPORTED_MODE','R7 검증 종류가 올바르지 않습니다.');
   if(user?.role!=='super_admin' && !(user?.role==null && user?.isSuperAdmin===true))throw Object.assign(new Error('R7 과거 RUN 검증은 최고관리자만 실행할 수 있습니다.'),{code:'R7_FORBIDDEN',status:403});
   // Exact catalog identity and saved revisions are mandatory for both R7 modes.

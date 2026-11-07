@@ -81,6 +81,7 @@ const REQUEST_PROCESSING_TIMEOUT_MINUTES =
 ========================================================= */
 
 import { R7_EVIDENCE_PREFIX, r7EvidencePlan, validateR7RequestBody } from '../_shared/blower-r7-evidence.js';
+import { r9VerifiedSavedSignal } from '../_shared/blower-r9-signal-v1.js';
 
 const BLOWER_RUNTIME_PROBE_REQUEST_TYPE =
   "blower_runtime_probe";
@@ -18220,6 +18221,36 @@ function normalizeBlowerRuntimeProbeResult(
     }
 
 
+    // R9-only: additional verified fnValTime periods. No regular refresh is changed.
+    const r9Readonly = normalizeText(probe.expectedCycleRuntimeRevision)
+      .startsWith('r7-evidence-only-v1:r9_signal_v1:');
+    let verifiedPeriods = null;
+    if (r9Readonly) {
+      const periods = rawChunk.runPeriods;
+      const time = value => typeof value==='string' && /(?:Z|[+-]\d{2}:\d{2})$/.test(value)
+        ? Date.parse(value) : NaN;
+      if (!Array.isArray(periods) || periods.length>198 ||
+          rawChunk.eventSource!=='dataparc_fnValTime_intervals_v1')
+        return blowerRuntimeProbeValidationError('R9 DataPARC RUN 상세구간이 누락됐습니다. Agent를 확인해 주세요.');
+      const firstTime=parsedChunkStart.timestamp,lastTime=parsedChunkEnd.timestamp;
+      let previousTime=firstTime,detailMs=0;
+      verifiedPeriods=[];
+      for(const period of periods){
+        const from=time(period?.startAt),to=time(period?.endAt);
+        if(!Number.isFinite(from)||!Number.isFinite(to)||from<previousTime||from<firstTime||to>lastTime||to<=from||
+          period.startKind!==(from===firstTime?'window_boundary':'start_signal')||
+          period.endKind!==(to===lastTime?'window_boundary':'stop_signal'))
+          return blowerRuntimeProbeValidationError('R9 DataPARC 기동·정지 경계 또는 순서가 잘못됐습니다.');
+        verifiedPeriods.push({startAt:period.startAt,endAt:period.endAt,
+          startKind:period.startKind,endKind:period.endKind});
+        detailMs+=to-from;previousTime=to;
+      }
+      if(Math.abs(detailMs/1000-runningSeconds)>2 ||
+        (startState==='running')!==(verifiedPeriods.length>0 && time(verifiedPeriods[0].startAt)===firstTime) ||
+        (endState==='running')!==(verifiedPeriods.length>0 && time(verifiedPeriods.at(-1).endAt)===lastTime))
+        return blowerRuntimeProbeValidationError('R9 DataPARC RUN 시간 합계와 양끝 상태가 다릅니다.');
+    }
+
     normalizedChunks.push({
       index:
         chunkIndex +
@@ -18239,7 +18270,9 @@ function normalizeBlowerRuntimeProbeResult(
       runningSeconds:
         Math.round(
           runningSeconds
-        )
+        ),
+      ...(verifiedPeriods === null ? {} : {runPeriods:verifiedPeriods,
+        eventSource:'dataparc_fnValTime_intervals_v1'})
     });
 
 
@@ -19040,6 +19073,24 @@ async function createBlowerRuntimeProbeRequest(
       return jsonResponse({ok:false,code:error.code || 'R7_EVIDENCE_INVALID',message:error.message || 'R7 근거 조회를 시작할 수 없습니다.'},error.status || 409);
     }
   }
+  // R9 evidence must use the signal proven by a genuine, unmodified,
+  // previously saved DataPARC runtime receipt. A TAG-derived candidate alone
+  // is not sufficient to authorize a historical historian request.
+  if (r7Evidence?.r9History === true) {
+    const seen = await database.prepare(`
+      SELECT id, tag_number, event_type, source_type, source_log_id,
+             source_text, created_at, updated_at
+      FROM blower_history_events
+      WHERE tag_number = ? AND event_type = 'runtime_correction'
+        AND source_type = 'dataparc_runtime'
+      ORDER BY event_date DESC, created_at DESC LIMIT 50
+    `).bind(assetTag).all();
+    const savedSignal = r9VerifiedSavedSignal(seen?.results || [], assetTag, r7Evidence.signal);
+    if (savedSignal.ok !== true) return jsonResponse({ok:false,
+      code:'R9_SAVED_SIGNAL_UNVERIFIED',
+      message:'R9 신호가 최신 정상 DataPARC 운전시간 이력의 실제 신호와 일치하지 않습니다. 기존값을 유지합니다.'},409);
+  }
+
   let replacementAutoProof = null;
   if (isReplacementAutoRevision(asset)) {
     const proofs = internalOptions.replacementAutoProofsByTag instanceof Map
@@ -19591,7 +19642,7 @@ async function createBlowerRuntimeProbeRequest(
       probeExpectedCycleStartedAt,
       probeExpectedCycleStartRevision,
       probeExpectedCycleRuntimeRevision:
-        r7Evidence ? R7_EVIDENCE_PREFIX + expectedCycleRuntimeRevision :
+        r7Evidence ? R7_EVIDENCE_PREFIX + (r7Evidence.r9History ? 'r9_signal_v1:' : '') + expectedCycleRuntimeRevision :
         roleRecovery ? ROLE_RECOVERY_PREFIX + expectedCycleRuntimeRevision :
         completionRecovery ? COMPLETION_WINDOW_PREFIX + expectedCycleRuntimeRevision :
         boundaryRecovery ? BOUNDARY_RECOVERY_PREFIX + expectedCycleRuntimeRevision :
@@ -19725,7 +19776,7 @@ async function createBlowerRuntimeProbeRequest(
       probeExpectedCycleStartedAt,
       probeExpectedCycleStartRevision,
       probeExpectedCycleRuntimeRevision:
-        r7Evidence ? R7_EVIDENCE_PREFIX + expectedCycleRuntimeRevision :
+        r7Evidence ? R7_EVIDENCE_PREFIX + (r7Evidence.r9History ? 'r9_signal_v1:' : '') + expectedCycleRuntimeRevision :
         roleRecovery ? ROLE_RECOVERY_PREFIX + expectedCycleRuntimeRevision :
         completionRecovery ? COMPLETION_WINDOW_PREFIX + expectedCycleRuntimeRevision :
         boundaryRecovery ? BOUNDARY_RECOVERY_PREFIX + expectedCycleRuntimeRevision :
@@ -19847,12 +19898,12 @@ async function createBlowerRuntimeProbeRequest(
           probeExpectedCycleStartRevision,
           // Older history deployments will reject this synthetic revision rather
           // than mistake a delta for a full-cycle total. The Agent just echoes it.
-          r7Evidence ? R7_EVIDENCE_PREFIX + expectedCycleRuntimeRevision :
+          r7Evidence ? R7_EVIDENCE_PREFIX + (r7Evidence.r9History ? 'r9_signal_v1:' : '') + expectedCycleRuntimeRevision :
         roleRecovery ? ROLE_RECOVERY_PREFIX + expectedCycleRuntimeRevision :
             completionRecovery ? COMPLETION_WINDOW_PREFIX + expectedCycleRuntimeRevision :
         boundaryRecovery ? BOUNDARY_RECOVERY_PREFIX + expectedCycleRuntimeRevision :
             coverageRecovery ? COVERAGE_RECOVERY_PREFIX + expectedCycleRuntimeRevision :
-              r7Evidence ? R7_EVIDENCE_PREFIX + expectedCycleRuntimeRevision : appendBase ? `append-v1:${expectedCycleRuntimeRevision}` : expectedCycleRuntimeRevision,
+              r7Evidence ? R7_EVIDENCE_PREFIX + (r7Evidence.r9History ? 'r9_signal_v1:' : '') + expectedCycleRuntimeRevision : appendBase ? `append-v1:${expectedCycleRuntimeRevision}` : expectedCycleRuntimeRevision,
           requestedAt,
           requestedAt
         ),
