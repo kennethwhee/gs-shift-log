@@ -25,7 +25,7 @@ function currentAssetValue(asset,field) {return asset?.[field] ?? null;}
 export function r7EvidencePlan(mode,asset,user,now=new Date()) {
   const entry = R7_WINDOWS[mode];
   if(!entry)throw fail('R7_UNSUPPORTED_MODE','R7 검증 종류가 올바르지 않습니다.');
-  if(user?.isSuperAdmin!==true)throw Object.assign(new Error('R7 과거 RUN 검증은 최고관리자만 실행할 수 있습니다.'),{code:'R7_FORBIDDEN',status:403});
+  if(user?.role!=='super_admin' && !(user?.role==null && user?.isSuperAdmin===true))throw Object.assign(new Error('R7 과거 RUN 검증은 최고관리자만 실행할 수 있습니다.'),{code:'R7_FORBIDDEN',status:403});
   if(!asset || asset.tag_number!==entry.tag || asset.blower_type!==entry.type || String(asset.unit_no)!==entry.unit ||
     Number(asset.enabled)!==1 || kstDay(asset.last_replacement_at)!==entry.replacementDate ||
     !text(asset.cycle_runtime_revision) || !text(asset.cycle_start_revision))
