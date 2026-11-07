@@ -28,6 +28,7 @@ function selected(){const tag=text(el('blowerR9Asset')?.value),day=text(el('blow
 function key(x){return 'gs-blower-r9:'+actor()+':'+x.mode;}
 function loadId(x){try{return text(root.sessionStorage.getItem(key(x)))}catch{return ''}}
 function saveId(x,id){try{root.sessionStorage.setItem(key(x),id)}catch{}}
+function clearFailedId(x,id){try{if(loadId(x)===id)root.sessionStorage.removeItem(key(x))}catch{}}
 function empty(){if(el('blowerR9Result'))el('blowerR9Result').textContent='';}
 function showResult(v,info){const zone=el('blowerR9Result');if(!zone)return;zone.textContent='';
  const title=root.document.createElement('p');title.className='blower-r9-total';title.textContent=info.asset.displayName+' · '+info.day+' · RUN '+v.runSeconds+'초 ('+(v.runSeconds/3600).toFixed(3)+'시간)';zone.appendChild(title);
@@ -66,7 +67,16 @@ function verifyResponse(info,raw,id){const item=raw?.item;const probe=item?.prob
  return {periods,runSeconds:c.runningSeconds};
 }
 async function begin(){if(busy)return;setBusy(true);empty();try{const info=selected(),old=loadId(info);
- if(old){active={...info,id:old};status('기존 R9 요청 '+old+' · 「결과 확인」을 눌러주세요. 중복 요청하지 않았습니다.');return;}
+ if(old){
+  // Only an explicitly confirmed failed R9 request may be retried, and only
+  // after a new user click. Preserve pending/processing/complete IDs.
+  const prior=await request(API+'?id='+encodeURIComponent(old)+'&_='+Date.now());
+  if(prior?.item?.id!==old)throw Error('이전 R9 요청 ID가 일치하지 않습니다.');
+  if(prior.item.status!=='failed'){
+    active={...info,id:old};status('기존 R9 요청 '+old+' · 「결과 확인」을 눌러주세요. 중복 요청하지 않았습니다.');return;
+  }
+  clearFailedId(info,old);
+ }
  const a=info.asset;const body={action:'create_blower_runtime_probe',r7EvidenceMode:info.mode,
   unifiedRefresh:true,incrementalRefresh:false,requireIncrementalAppend:false,
   assetTag:info.tag,dataParcTag:info.signal,confirmRunSignal:true,startAt:info.day+'T00:00:00+09:00',
@@ -81,7 +91,7 @@ async function check(){if(busy)return;setBusy(true);try{const info=selected(),id
  if(!id){status('조회 요청을 먼저 접수해 주세요.');return;}
  const response=await request(API+'?id='+encodeURIComponent(id)+'&_='+Date.now()),item=response.item;
  if(item?.id!==id)throw Error('조회 ID가 일치하지 않습니다.');
- if(item.status==='failed'){status('조회 실패 · '+text(item.errorMessage||'Agent 응답 오류').slice(0,210));return;}
+ if(item.status==='failed'){clearFailedId(info,id);active=null;status('조회 실패 · '+text(item.errorMessage||'Agent 응답 오류').slice(0,175)+' · Agent 재시작 상태 확인 후 「운전구간 조회」로 수동 재시도 가능');return;}
  if(item.status!=='complete'){status('조회 중 · '+text(item.status)+' · 기존 요청을 확인하고 있습니다.');return;}
  const outcome=verifyResponse(info,response,id);
  if(!outcome){status('R9 상세 데이터 검증 실패 또는 회사 PC Agent에 R9 기능이 반영되지 않았습니다. 누적시간은 유지됩니다.');return;}
