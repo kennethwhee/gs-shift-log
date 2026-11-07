@@ -1,0 +1,14 @@
+.blower-r8-panel{margin:12px 0;padding:13px 15px;border:1px solid #c8d9e9;border-radius:11px;background:#f8fbff;color:#1c344e}
+.blower-r8-panel summary{cursor:pointer;font-size:13px;font-weight:750}
+.blower-r8-panel .blower-r8-intro{margin:9px 0;font-size:12px;line-height:1.6;color:#46617b}
+.blower-r8-panel .blower-r8-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.blower-r8-panel .blower-r8-grid article{padding:12px;background:white;border:1px solid #dbe5f0;border-radius:8px;min-width:0}
+.blower-r8-panel button{border:1px solid #bbcee1;border-radius:6px;padding:6px 10px;background:#f1f6fd;color:#174975;font-weight:650;cursor:pointer}
+.blower-r8-panel button:hover:not(:disabled){background:#dcecff}.blower-r8-panel button:disabled{opacity:.55;cursor:not-allowed}
+.blower-r8-panel .blower-r8-actions{display:flex;gap:7px;flex-wrap:wrap;margin:9px 0}
+.blower-r8-panel .blower-r8-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid #e5edf5;padding:7px 0;font-size:11px}
+.blower-r8-panel .blower-r8-range{font-variant-numeric:tabular-nums;color:#405e79;font-weight:600}
+.blower-r8-panel .blower-r8-value{font-weight:720;color:#102e4b}
+.blower-r8-panel .blower-r8-guard{width:100%;color:#b34f20;font-size:11px}
+.blower-r8-panel .blower-r8-help{font-size:11px;color:#526e84;line-height:1.55}
+@media(max-width:900px){.blower-r8-panel .blower-r8-grid{grid-template-columns:1fr}}

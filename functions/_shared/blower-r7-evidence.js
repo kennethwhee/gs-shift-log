@@ -1,3 +1,4 @@
+import { r8TimelineEntry } from './blower-r8-timeline.js';
 /* R7 exact read-only measurement windows. No V-belt completion clock is inferred.
  * The first window may support zero-duration equivalence ONLY after independent
  * accepted-work-order review; the second window measures pre-registered RUN
@@ -23,7 +24,7 @@ const validNumber = value => typeof value === 'number' && Number.isFinite(value)
 const fail = (code,message) => Object.assign(new Error(message),{code,status:409});
 function currentAssetValue(asset,field) {return asset?.[field] ?? null;}
 export function r7EvidencePlan(mode,asset,user,now=new Date()) {
-  const entry = R7_WINDOWS[mode];
+  const entry = R7_WINDOWS[mode] || r8TimelineEntry(mode);
   if(!entry)throw fail('R7_UNSUPPORTED_MODE','R7 검증 종류가 올바르지 않습니다.');
   if(user?.role!=='super_admin' && !(user?.role==null && user?.isSuperAdmin===true))throw Object.assign(new Error('R7 과거 RUN 검증은 최고관리자만 실행할 수 있습니다.'),{code:'R7_FORBIDDEN',status:403});
   // Exact catalog identity and saved revisions are mandatory for both R7 modes.
@@ -37,7 +38,7 @@ export function r7EvidencePlan(mode,asset,user,now=new Date()) {
     throw fail('R7_ASSET_DISABLED','R7 대상 설비가 활성 상태가 아닙니다. 기존값을 유지합니다.');
   if(!text(asset.last_replacement_at))
     throw fail('R7_REPLACEMENT_BASIS_MISSING','등록된 교체·조회 기준이 없어 과거 조회를 진행할 수 없습니다.');
-  if(mode==='fbhe1b_zero' && kstDay(asset.last_replacement_at)!==entry.replacementDate)
+  if((mode==='fbhe1b_zero' || entry.r8Root?.startsWith('fbhe_')) && kstDay(asset.last_replacement_at)!==entry.replacementDate)
     throw fail('R7_FHBE_DATE_CHANGED','FBHE 1B의 교체일이 예상과 다릅니다. 기존값을 유지합니다.');
   if(!text(asset.cycle_runtime_revision) || !text(asset.cycle_start_revision))
     throw fail('R7_CYCLE_REVISION_MISSING','R7 대상의 저장 운전·기동 버전이 확인되지 않습니다. 기존값을 유지합니다.');
@@ -64,7 +65,7 @@ export function validateR7RequestBody(body,plan,asset) {
   return true;
 }
 export function evaluateR7MeasuredResult(kind,item) {
-  const plan=R7_WINDOWS[kind],probe=item?.probe,raw=item?.result;
+  const plan=R7_WINDOWS[kind] || r8TimelineEntry(kind),probe=item?.probe,raw=item?.result;
   const mismatch=message=>({ok:false,kind,code:'R7_PROOF_INCOMPLETE',message});
   if(!plan || item?.status!=='complete'||item?.requestType!=='blower_runtime_probe'||
     typeof item.id!=='string'||!item.id||!probe||!raw || probe.assetTag!==plan.tag||probe.dataParcTag!==plan.signal||
@@ -98,6 +99,7 @@ export function evaluateR7MeasuredResult(kind,item) {
   const zero=seconds===0 && raw.startState==='stopped' && raw.endState==='stopped';
   return {ok:true,kind,tag:plan.tag,requestId:item.id,startAt:raw.startAt,endAt:raw.endAt,
     runningSeconds:seconds,runningHours:seconds/3600,zero,
+    startState:raw.startState,endState:raw.endState,
     status:kind==='fbhe1b_zero' ? zero?'zero_candidate':'run_observed' : 'leading_window_measured',
     message:kind==='fbhe1b_zero' ? zero
       ? '0초 RUN 측정 후보 · 작업 완료 근거 및 측정 품질을 검토한 후에만 확정 가능합니다.'

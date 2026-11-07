@@ -19409,7 +19409,7 @@ async function createBlowerRuntimeProbeRequest(
 
 
   const minimumStartTimestamp =
-    r7Evidence?.mode === 'limestone2a_leading' ? parsedStartAt?.timestamp :
+    (r7Evidence?.mode === 'limestone2a_leading' || r7Evidence?.r8Historical === true) ? parsedStartAt?.timestamp :
     fbheSealBinaryRun && parsedCycleStartedAt
       ? Math.floor(parsedCycleStartedAt.timestamp / 1000) * 1000
       : (parsedLastReplacementAt?.timestamp ?? Number.POSITIVE_INFINITY);
