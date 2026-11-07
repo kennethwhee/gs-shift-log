@@ -46,11 +46,41 @@ test('FBHE 1B changes to saved RUN are not silently reset',()=>{const a=asset('f
 test('Limestone pre-baseline window is pinned exactly to Sep 19',()=>{const a=asset('limestone2a_leading');
  const p=r7EvidencePlan('limestone2a_leading',a,su,now);
  assert.equal(p.startAt,'2026-09-19T00:00:00+09:00');assert.equal(p.endAt,'2026-09-20T00:00:00+09:00');
- assert.throws(()=>r7EvidencePlan('limestone2a_leading',{...a,last_replacement_at:'2026-09-19T00:00:00+09:00'},su,now));});
+ assert.equal(r7EvidencePlan('limestone2a_leading',{...a,last_replacement_at:'2026-09-19T00:00:00+09:00'},su,now).readOnly,true);});
 test('R7 can never silently mark negative or missing samples as proven zero',()=>{const v=item('fbhe1b_zero',0);
  v.result.chunks=[];assert.equal(evaluateR7MeasuredResult('fbhe1b_zero',v).ok,false);
  v.result.chunks=[{...item('fbhe1b_zero',0).result.chunks[0],runningSeconds:-1}];
  assert.equal(evaluateR7MeasuredResult('fbhe1b_zero',v).ok,false);
+});
+
+
+test('limestone2a historical RUN read allows registered date drift but never weakens tag or write safeguards',()=>{
+ for(const basis of ['2026-05-12T00:00:00+09:00','2026-09-19T00:00:00+09:00','2026-09-20T00:00:00+09:00']){
+  const a={...asset('limestone2a_leading'),last_replacement_at:basis};
+  const p=r7EvidencePlan('limestone2a_leading',a,su,now);
+  assert.equal(p.startAt,'2026-09-19T00:00:00+09:00');
+  assert.equal(p.endAt,'2026-09-20T00:00:00+09:00');
+  assert.equal(p.readOnly,true);
+  const body={r7EvidenceMode:p.mode,assetTag:p.tag,dataParcTag:p.signal,
+   confirmRunSignal:true,unifiedRefresh:true,incrementalRefresh:false,
+   requireIncrementalAppend:false,startAt:p.startAt,
+   expectedLastReplacementAt:basis,expectedCycleStartState:a.cycle_start_state,
+   expectedCycleStartedAt:a.cycle_started_at,
+   expectedCycleStartRevision:a.cycle_start_revision,
+   expectedCycleRuntimeRevision:a.cycle_runtime_revision};
+  assert.equal(validateR7RequestBody(body,p,a),true);
+  if(basis!=='2026-09-20T00:00:00+09:00')
+   assert.throws(()=>validateR7RequestBody({...body,expectedLastReplacementAt:'2026-09-20T00:00:00+09:00'},p,a),{code:'R7_REQUEST_CONFLICT'});
+  assert.throws(()=>validateR7RequestBody({...body,incrementalRefresh:true},p,a),{code:'R7_REQUEST_CONFLICT'});
+ }
+ const a=asset('limestone2a_leading');
+ assert.throws(()=>r7EvidencePlan('limestone2a_leading',{...a,blower_type:'fbhe'},su,now),{code:'R7_ASSET_STATE_CHANGED'});
+ assert.throws(()=>r7EvidencePlan('limestone2a_leading',{...a,enabled:0},su,now),{code:'R7_ASSET_DISABLED'});
+ assert.throws(()=>r7EvidencePlan('limestone2a_leading',{...a,cycle_start_revision:''},su,now),{code:'R7_CYCLE_REVISION_MISSING'});
+ assert.throws(()=>r7EvidencePlan('limestone2a_leading',{...a,last_replacement_at:''},su,now),{code:'R7_REPLACEMENT_BASIS_MISSING'});
+ assert.throws(()=>r7EvidencePlan('limestone2a_leading',a,{role:'operator'},now),{code:'R7_FORBIDDEN'});
+ const f=asset('fbhe1b_zero');
+ assert.throws(()=>r7EvidencePlan('fbhe1b_zero',{...f,last_replacement_at:'2026-10-09T00:00:00+09:00'},su,now),{code:'R7_FHBE_DATE_CHANGED'});
 });
 
 test('R7 recognizes date-only work evidence without fabricating a completion minute',()=>{
@@ -58,5 +88,5 @@ test('R7 recognizes date-only work evidence without fabricating a completion min
  assert.equal(r7EvidencePlan('fbhe1b_zero',a,su,now).replacementDate,'2026-10-08');
  const b=asset('limestone2a_leading'); b.last_replacement_at='2026-09-20';
  assert.equal(r7EvidencePlan('limestone2a_leading',b,su,now).replacementDate,'2026-09-20');
- assert.throws(()=>r7EvidencePlan('limestone2a_leading',{...b,last_replacement_at:'2026-09-19'},su,now));
+ assert.equal(r7EvidencePlan('limestone2a_leading',{...b,last_replacement_at:'2026-09-19'},su,now).readOnly,true);
 });

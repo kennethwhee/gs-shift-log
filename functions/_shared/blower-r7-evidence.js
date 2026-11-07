@@ -26,10 +26,21 @@ export function r7EvidencePlan(mode,asset,user,now=new Date()) {
   const entry = R7_WINDOWS[mode];
   if(!entry)throw fail('R7_UNSUPPORTED_MODE','R7 검증 종류가 올바르지 않습니다.');
   if(user?.role!=='super_admin' && !(user?.role==null && user?.isSuperAdmin===true))throw Object.assign(new Error('R7 과거 RUN 검증은 최고관리자만 실행할 수 있습니다.'),{code:'R7_FORBIDDEN',status:403});
-  if(!asset || asset.tag_number!==entry.tag || asset.blower_type!==entry.type || String(asset.unit_no)!==entry.unit ||
-    Number(asset.enabled)!==1 || kstDay(asset.last_replacement_at)!==entry.replacementDate ||
-    !text(asset.cycle_runtime_revision) || !text(asset.cycle_start_revision))
-    throw fail('R7_ASSET_STATE_CHANGED','등록된 교체 기준·호기·설비 정보가 예상과 다릅니다. 기존값을 유지합니다.');
+  // Exact catalog identity and saved revisions are mandatory for both R7 modes.
+  // Historical Limestone reading is not a replacement-date assertion: an
+  // independently registered cycle date may differ from the Sep 19 evidence
+  // window. We pin the CURRENT date/revisions in validateR7RequestBody and
+  // never mutate runtime or belt history from this read-only probe.
+  if(!asset || asset.tag_number!==entry.tag || asset.blower_type!==entry.type || String(asset.unit_no)!==entry.unit)
+    throw fail('R7_ASSET_STATE_CHANGED','등록된 설비 TAG·호기·종류가 R7 대상과 다릅니다. 기존값을 유지합니다.');
+  if(Number(asset.enabled)!==1)
+    throw fail('R7_ASSET_DISABLED','R7 대상 설비가 활성 상태가 아닙니다. 기존값을 유지합니다.');
+  if(!text(asset.last_replacement_at))
+    throw fail('R7_REPLACEMENT_BASIS_MISSING','등록된 교체·조회 기준이 없어 과거 조회를 진행할 수 없습니다.');
+  if(mode==='fbhe1b_zero' && kstDay(asset.last_replacement_at)!==entry.replacementDate)
+    throw fail('R7_FHBE_DATE_CHANGED','FBHE 1B의 교체일이 예상과 다릅니다. 기존값을 유지합니다.');
+  if(!text(asset.cycle_runtime_revision) || !text(asset.cycle_start_revision))
+    throw fail('R7_CYCLE_REVISION_MISSING','R7 대상의 저장 운전·기동 버전이 확인되지 않습니다. 기존값을 유지합니다.');
   if(!(now instanceof Date) || !Number.isFinite(now.getTime()) || now.getTime() <= clock(entry.endAt||entry.startAt))
     throw fail('R7_INVALID_NOW','조회 종료시간을 확인할 수 없습니다.');
   if(mode==='fbhe1b_zero') {
