@@ -25308,3 +25308,6 @@ async function completeDailyOperationData(context, body, authentication, existin
   if (!update.meta?.changes) return jsonResponse({ok:false,code:"DAILY_OPERATION_CLAIM_CHANGED",message:"일일운전 조회 소유권 또는 처리기간이 변경되었습니다."},409);
   return jsonResponse({ok:true,item:await findRequestById(context.env.DB,existing.id)});
 }
+
+/* R6: use the existing Agent contract and server-only raw normalization. */
+export {buildBlowerRuntimeProbeChunks, convertBlowerRuntimeProbeIntentRow, normalizeBlowerRuntimeProbeResult};

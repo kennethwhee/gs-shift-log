@@ -10,11 +10,13 @@
   <link rel="stylesheet" href="blower-history-mobile-dialog-close-v1.css?v=20260903-v1">
   <link rel="stylesheet" href="/maintenance/seal-pot-ois-shadow.css?v=20260901-v2">
   <script src="shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
+  <link rel="stylesheet" href="blower-r6-review.css?v=20261107-r6-v1">
   <link rel="stylesheet" href="blower-unified-refresh.css?v=20261022-query-resource-v3-20261102-inline-v3n-20261102-label-v3o-20261102-right-v3p">
   <script src="blower-refresh-timing.js?v=20260915-fast-timing-v12-20261102-inline-v3n" defer></script>
   <script src="blower-unified-refresh.js?v=20261031-limestone-ledger-v3g-20261102-auto-v3m-20261102-inline-v3n-20261102-schedule-v3q&runtimeRepair=20261107-r4&blowerNormalize=20261104-v4-r6-20261102-schedule-v3q" defer></script>
   <script src="blower-runtime-assessment.js?v=20261106-v2&runtimeRepair=20261107-r4" defer></script>
   <script src="blower-resolution-guide.js?v=20261107-r4" defer></script>
+  <script src="blower-r6-review.js?v=20261107-r6-v1" defer></script>
   <script src="blower-history.js?v=20261031-limestone-ledger-v3g-checkpoint-v3k-ui-20261102-auto-v3m-20261102-inline-v3n-20261102-label-v3o-20261102-row-v3r-20261103-bag-v3s&blowerNormalize=20261104-v4-r6-20261102-schedule-v3q&runTransition=20261106-v2&runtimeAssessment=20261106-v2&runtimeRepair=20261107-r4" defer></script>
   <script src="/maintenance/seal-pot-ois-shadow.js?v=20260909-unified-refresh-v1" defer></script>
   <link rel="stylesheet" href="/maintenance/blower-schedule-v1.css?v=20261029-settings-v2">
@@ -168,6 +170,28 @@
               <details id="unifiedRefreshDiagnostics" hidden><summary>조회 상세</summary><p id="unifiedRefreshDiagnosticText"></p></details>
               <details id="unifiedRefreshDetails" hidden><summary id="unifiedRefreshSummary">설비별 조회 결과</summary><div id="unifiedRefreshList"></div></details>
             </section>
+          </section>
+
+          <!-- R6 is opt-in. Merely opening the page never enqueues DataPARC. -->
+          <section class="blower-r6-panel" id="blowerR6Panel" aria-label="유기성 2호기 B 누적시간 검증" hidden>
+            <details id="blowerR6Details">
+              <summary>유기성 2호기 B · 검증형 누적 재기준화 (R6)</summary>
+              <p class="blower-r6-intro">기존 누적시간은 유지하면서 독립된 전체 조회 2회와 경계 분할 조회 2회를 비교합니다. 검증 성공 후에도 최고관리자의 명시적 승인이 있어야 변경됩니다.</p>
+              <p class="blower-r6-status" id="blowerR6Status" role="status" aria-live="polite">검증 상태 확인 중</p>
+              <div class="blower-r6-stages" id="blowerR6Stages"></div>
+              <div class="blower-r6-actions">
+                <button type="button" class="button secondary" id="blowerR6Start">R6 검증 시작</button>
+                <button type="button" class="button secondary" id="blowerR6Continue" hidden>R6 조회 이어서 확인</button>
+                <button type="button" class="button secondary" id="blowerR6Cancel" hidden>R6 검증 취소</button>
+              </div>
+              <section class="blower-r6-proposal" id="blowerR6Proposal" hidden>
+                <p id="blowerR6Comparison"></p>
+                <p>네 번의 조회 결과가 일치해도 교체 완료시각을 추정하지 않습니다. 기존 Agent의 결과에는 개별 샘플 GOOD 품질 표식이 없으므로 분할구간·상태·초 단위 합계 검증과 관리자 확인을 적용합니다.</p>
+                <label>대상 TAG 직접 입력 <input id="blowerR6Confirmation" autocomplete="off" placeholder="204SDF01AN002" maxlength="20"></label>
+                <label>정정 사유·확인 근거 <textarea id="blowerR6Note" rows="2" maxlength="500" placeholder="변경 전·후 누적시간과 확인 근거를 작성하세요"></textarea></label>
+                <button type="button" class="button primary" id="blowerR6Approve">검증된 누적시간 승인·기록</button>
+              </section>
+            </details>
           </section>
 
           <section class="status-toolbar" aria-label="설비 상태 필터">

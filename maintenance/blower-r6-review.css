@@ -1,0 +1,13 @@
+.blower-r6-panel{margin:12px 0 15px;padding:11px 14px;border:1px solid #cbd9e7;border-radius:10px;background:#f7fafc;color:#25344d}
+.blower-r6-panel summary{font-size:13px;font-weight:800;cursor:pointer}
+.blower-r6-intro,.blower-r6-status,.blower-r6-proposal p{font-size:12px;line-height:1.6;margin:9px 0}
+.blower-r6-status{font-weight:700}
+.blower-r6-actions{display:flex;gap:8px;flex-wrap:wrap;margin:9px 0}
+.blower-r6-actions button,.blower-r6-proposal button{font-size:12px}
+.blower-r6-stages{display:flex;gap:5px;flex-wrap:wrap;font-size:11px;color:#53627a}
+.blower-r6-stages span{border:1px solid #dde4ed;border-radius:6px;padding:3px 6px;background:white}
+.blower-r6-proposal{border-top:1px solid #d9e4ef;margin-top:12px;padding-top:8px}
+.blower-r6-proposal label{display:block;max-width:580px;font-size:12px;font-weight:700;margin:9px 0}
+.blower-r6-proposal input,.blower-r6-proposal textarea{width:100%;display:block;margin-top:5px;box-sizing:border-box;border:1px solid #bccbdd;background:white;border-radius:6px;padding:7px;color:#25344d;font:inherit}
+.blower-r6-proposal button{margin-top:5px}
+@media(max-width:700px){.blower-r6-panel{display:none!important}}

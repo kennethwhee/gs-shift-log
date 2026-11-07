@@ -7876,6 +7876,12 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
     return jsonResponse({ok:false,code:'BLOWER_COVERAGE_RECOVERY_INTENT_REQUIRED',
       message:'누락 구간 보완을 위해 고정한 조회 근거가 없습니다. 기존 값을 유지합니다.'},409);
   }
+  // R6 evidence-only requests must NEVER be applied as ordinary full RUN syncs.
+  if (String(intent.reuse_key || '').startsWith('r6-rebaseline-v1:') ||
+      String(intent.expected_cycle_runtime_revision || '').startsWith('r6-rebaseline-v1:')) {
+    return jsonResponse({ok:false,code:'BLOWER_R6_MANUAL_APPROVAL_REQUIRED',
+      message:'R6 독립 검증 조회는 전용 승인·감사 절차를 거쳐야 합니다. 기존 누적값을 유지합니다.'},409);
+  }
   const boundaryWire = String(intent.expected_cycle_runtime_revision || '').startsWith(BOUNDARY_RECOVERY_PREFIX);
   const boundaryKey = String(intent.reuse_key || '').startsWith(BOUNDARY_RECOVERY_PREFIX);
   let boundaryRecoveryIntent = null;
@@ -16019,3 +16025,6 @@ export const __blowerHistoryTest = {
   manualFbheVibrationStateAt,
   buildFbheVibrationAssetShadow
 };
+
+/* R6: audited proof endpoints reuse the exact authenticated session parser. */
+export { getAuthenticatedUser };
