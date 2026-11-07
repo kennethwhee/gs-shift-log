@@ -65,6 +65,18 @@ test('R9 rejects fabricated, overlapping, unordered, boundary, or incomplete per
  const badRevision=receipt(periods);badRevision.expectedCycleRuntimeRevision='r7-evidence-only-v1:old';
  assert.equal(verifyR9Periods(badRevision,'r9-test-request-id',tag,day).ok,false);
 });
+test('R9 presentation validates 199 measured RUN segments but blocks the 200th row',()=>{
+ const start=Date.parse('2026-09-19T00:00:00+09:00');
+ const p=Array.from({length:199},(_,i)=>({
+   startAt:new Date(start+(i*240+60)*1000).toISOString(),
+   endAt:new Date(start+(i*240+120)*1000).toISOString(),
+   startKind:'start_signal',endKind:'stop_signal'
+ }));
+ const ok=verifyR9Periods(receipt(p,199*60),'r9-test-request-id',tag,day);
+ assert.equal(ok.ok,true);assert.equal(ok.periods.length,199);
+ assert.equal(verifyR9Periods(receipt([...p,p[0]],199*60),'r9-test-request-id',tag,day).ok,false);
+});
+
 test('R9 recognizes genuine continuing RUN at the date window boundary',()=>{
  const start='2026-09-19T00:00:00+09:00',stop='2026-09-19T01:00:00+09:00';
  const r=receipt([{startAt:start,endAt:stop,startKind:'window_boundary',endKind:'stop_signal'}],3600);

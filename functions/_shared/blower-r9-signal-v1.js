@@ -96,7 +96,7 @@ export function verifyR9Periods(result,requestId,assetTag,day){
       chunk.startState!==result.startState||chunk.endState!==result.endState||
       !Number.isSafeInteger(chunk.runningSeconds)||chunk.runningSeconds<0||
       chunk.runningSeconds>86402||result.runningSeconds!==chunk.runningSeconds||
-      !Array.isArray(chunk.runPeriods)||chunk.runPeriods.length>198||
+      !Array.isArray(chunk.runPeriods)||chunk.runPeriods.length>=200||
       chunk.eventSource!=='dataparc_fnValTime_intervals_v1')return error('Agent의 R9 운전구간 상세 검증이 누락되거나 다릅니다.');
   let previous=start,runMs=0;const periods=[];
   for(const p of chunk.runPeriods){

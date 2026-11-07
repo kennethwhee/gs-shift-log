@@ -18229,9 +18229,15 @@ function normalizeBlowerRuntimeProbeResult(
       const periods = rawChunk.runPeriods;
       const time = value => typeof value==='string' && /(?:Z|[+-]\d{2}:\d{2})$/.test(value)
         ? Date.parse(value) : NaN;
-      if (!Array.isArray(periods) || periods.length>198 ||
-          rawChunk.eventSource!=='dataparc_fnValTime_intervals_v1')
-        return blowerRuntimeProbeValidationError('R9 DataPARC RUN 상세구간이 누락됐습니다. Agent를 확인해 주세요.');
+      // Agent's native Excel collector accepts 0..199 valid interval rows.
+      // The 200th row is the truncation guard. Do not silently reject row 199.
+      // Distinguish missing detail, capacity, and provenance without exposing raw data.
+      if (!Array.isArray(periods))
+        return blowerRuntimeProbeValidationError('R9_DETAIL_MISSING: Agent 결과에 RUN 상세구간 배열이 없습니다.');
+      if (periods.length >= 200)
+        return blowerRuntimeProbeValidationError('R9_DETAIL_LIMIT: RUN 상세구간이 200건 제한에 도달했습니다.');
+      if (rawChunk.eventSource !== 'dataparc_fnValTime_intervals_v1')
+        return blowerRuntimeProbeValidationError('R9_DETAIL_SOURCE: RUN 상세구간 출처 표식이 일치하지 않습니다.');
       const firstTime=parsedChunkStart.timestamp,lastTime=parsedChunkEnd.timestamp;
       let previousTime=firstTime,detailMs=0;
       verifiedPeriods=[];

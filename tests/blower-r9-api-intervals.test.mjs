@@ -37,6 +37,32 @@ test('server rejects R9 periods with forged source, overlaps, gaps or 10s discre
  ];
  for(const damage of invalid){const copy=original();damage(copy);assert.ok(check(copy).error,'must block forged original interval');}
 });
+test('R9 diagnostic distinguishes missing, full and wrong-source intervals without altering runtime',()=>{
+ const missing=original();delete missing.chunks[0].runPeriods;
+ assert.match(check(missing).error,/R9_DETAIL_MISSING/);
+ const wrong=original();wrong.chunks[0].eventSource='unverified_source';
+ assert.match(check(wrong).error,/R9_DETAIL_SOURCE/);
+ const tooMany=original();tooMany.chunks[0].runPeriods=Array.from({length:200},()=>p1);
+ assert.match(check(tooMany).error,/R9_DETAIL_LIMIT/);
+});
+
+test('R9 server accepts exactly 199 verified fnValTime segments, rejects the truncation row 200',()=>{
+ const startMs=Date.parse(start);
+ const periods=Array.from({length:199},(_,i)=>{
+  const from=new Date(startMs+(i*240+60)*1000).toISOString();
+  const to=new Date(startMs+(i*240+120)*1000).toISOString();
+  return {startAt:from,endAt:to,startKind:'start_signal',endKind:'stop_signal'};
+ });
+ const data=original();data.chunks[0].runPeriods=periods;
+ data.runningSeconds=data.chunks[0].runningSeconds=199*60;
+ data.totalRunningHours=data.chunks[0].totalRunningHours=199/60;
+ const accepted=check(data);
+ assert.equal(accepted.error,undefined);
+ assert.equal(accepted.result.chunks[0].runPeriods.length,199);
+ data.chunks[0].runPeriods=[...periods,periods[0]];
+ assert.match(check(data).error,/R9_DETAIL_LIMIT/);
+});
+
 test('server never promotes ordinary runtime without R9 marker to event receipt',()=>{
  const legacy=original();legacy.expectedCycleRuntimeRevision='runtime-rev';delete legacy.chunks[0].runPeriods;delete legacy.chunks[0].eventSource;
  const norm=normalizeBlowerRuntimeProbeResult(legacy,{...probe,expectedCycleRuntimeRevision:'runtime-rev'},id,new Date('2026-09-20T00:05:00+09:00'));

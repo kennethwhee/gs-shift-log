@@ -53,7 +53,7 @@ function verifyResponse(info,raw,id){const item=raw?.item;const probe=item?.prob
  if(c?.index!==1||stamp(c.startAt)!==start||stamp(c.endAt)!==end||c.startState!==result.startState||c.endState!==result.endState||
   !['running','stopped'].includes(c.startState)||!['running','stopped'].includes(c.endState)||
   !Number.isSafeInteger(c.runningSeconds)||c.runningSeconds<0||c.runningSeconds>86402||result.runningSeconds!==c.runningSeconds||
-  c.eventSource!=='dataparc_fnValTime_intervals_v1'||!Array.isArray(c.runPeriods)||c.runPeriods.length>198)return null;
+  c.eventSource!=='dataparc_fnValTime_intervals_v1'||!Array.isArray(c.runPeriods)||c.runPeriods.length>=200)return null;
  let last=start,sum=0;const periods=[];
  for(const p of c.runPeriods){const from=stamp(p?.startAt),to=stamp(p?.endAt);
   if(!Number.isFinite(from)||!Number.isFinite(to)||from<last||to<=from||to>end||
@@ -91,7 +91,7 @@ async function check(){if(busy)return;setBusy(true);try{const info=selected(),id
  if(!id){status('조회 요청을 먼저 접수해 주세요.');return;}
  const response=await request(API+'?id='+encodeURIComponent(id)+'&_='+Date.now()),item=response.item;
  if(item?.id!==id)throw Error('조회 ID가 일치하지 않습니다.');
- if(item.status==='failed'){clearFailedId(info,id);active=null;status('조회 실패 · '+text(item.errorMessage||'Agent 응답 오류').slice(0,175)+' · Agent 재시작 상태 확인 후 「운전구간 조회」로 수동 재시도 가능');return;}
+ if(item.status==='failed'){clearFailedId(info,id);active=null;status('조회 실패 · '+text(item.errorMessage||'Agent 응답 오류').slice(0,175)+' · 원인 코드를 확인한 뒤 「운전구간 조회」로 수동 재시도 가능');return;}
  if(item.status!=='complete'){status('조회 중 · '+text(item.status)+' · 기존 요청을 확인하고 있습니다.');return;}
  const outcome=verifyResponse(info,response,id);
  if(!outcome){status('R9 상세 데이터 검증 실패 또는 회사 PC Agent에 R9 기능이 반영되지 않았습니다. 누적시간은 유지됩니다.');return;}
