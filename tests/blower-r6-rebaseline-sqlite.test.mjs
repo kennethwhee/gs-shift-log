@@ -5,7 +5,7 @@ import {__blowerHistoryTest as history} from '../functions/api/blower-history.js
 import {__oisDataRequestsTest as ois} from '../functions/api/ois-data-requests.js';
 import {ensureAppendSchema,verifiedAppendBase} from '../functions/_shared/blower-incremental.js';
 import {ensureBoundaryRecoverySchema,loadBoundaryRecoveryProof,boundaryRecoveryQueueStatements,BOUNDARY_RECOVERY_PREFIX} from '../functions/_shared/blower-boundary-recovery-v1.js';
-import {r6Status,r6Begin,r6Advance,r6Apply,r6Cancel} from '../functions/_shared/blower-r6-rebaseline.js';
+import {r6Status,r6Begin,r6Advance,r6Apply,r6AcceptApprox,r6Cancel} from '../functions/_shared/blower-r6-rebaseline.js';
 
 const TAG='204SDF01AN002',SIGNAL=`GSPOGE.ABB_DCS.${TAG}XB04`,START='2026-07-24T19:00:00+09:00',
   REPLACEMENT='2026-07-24T00:00:00+09:00',CUTOFF='2026-11-07T00:01:15+09:00',
@@ -264,4 +264,101 @@ test('R6 V5 rejects R5 full-result ownership changes without revealing identitie
     await assert.rejects(r6Begin(f.db,OWNER),e=>e.code==='R6_FULL_SOURCE_INVALID'&&/연결키 1건/.test(e.message));
     assert.deepEqual(f.asset(),before);
   }finally{globalThis.Date=NativeDate}
+});
+
+
+test('R6 bounded-approx acceptance: a FAILED independent read remains failed, explicit superadmin choice writes one audited R5 whole source',async t=>{
+  const OriginalDate=Date;let clock=time('2026-11-07T01:00:00Z');
+  globalThis.Date=class extends OriginalDate{constructor(...args){super(...(args.length?args:[clock]))}static now(){return clock}};
+  try{
+    const f=await init(t),original=f.asset(),before=f.events(),id=(await r6Begin(f.db,OWNER)).case.id;
+    const queued=await r6Advance(f.db,OWNER,id);
+    const failedId=queued.stage.find(r=>r.role==='fullA').requestId;
+    f.sqlite.prepare("UPDATE ois_data_requests SET status='failed',error_message='Dataparc transient',completed_at=? WHERE id=?")
+      .run('2026-11-07T01:01:00Z',failedId);
+    const state=await r6Status(f.db,OWNER,id);
+    assert.equal(state.stage.find(r=>r.role==='fullA').status,'failed','failed job must remain failed');
+    assert.equal(state.approxCandidate?.differenceSeconds,DIFF);
+    assert.equal(state.approxCandidate?.maxDifferenceSeconds,120);
+    assert.deepEqual(f.asset(),original);assert.deepEqual(f.events(),before);
+    await assert.rejects(r6AcceptApprox(f.db,{...OWNER,isSuperAdmin:false},id,TAG,'근사치 승인'),e=>e.code==='R6_APPROVAL_FORBIDDEN');
+    await assert.rejects(r6AcceptApprox(f.db,OWNER,id,TAG,'짧음'),e=>e.code==='R6_APPROVAL_INCOMPLETE');
+    assert.deepEqual(f.asset(),original);
+    const applied=await r6AcceptApprox(f.db,OWNER,id,TAG,'사용자 승인 109초 근사치 수용 및 R5 전체 조회 채택');
+    assert.equal(applied.case.status,'applied_approx');
+    assert.equal(applied.stage.find(r=>r.role==='fullA').status,'failed');
+    assert.equal(f.asset().cycle_runtime_hours,TOTAL/3600);
+    assert.equal(f.events().length,before.length+1);
+    const newest=f.events().find(r=>r.source_log_id==='r5-full');
+    assert.ok(newest);
+    const proof=JSON.parse(newest.source_text);
+    assert.equal(proof.r6ApproximateAcceptance?.differenceSeconds,DIFF);
+    assert.equal(proof.r6ApproximateAcceptance?.notFourReadCertified,true);
+    assert.equal(proof.r6ApproximateAcceptance?.rejectedIndependentReadId,failedId);
+    assert.equal(verifiedAppendBase(f.asset(),f.events(),SIGNAL).runningSeconds,TOTAL);
+    const appliedAgain=await r6AcceptApprox(f.db,OWNER,id,TAG,'사용자 승인 109초 근사치 수용 및 R5 전체 조회 채택');
+    assert.equal(appliedAgain.case.status,'applied_approx');
+    assert.equal(f.events().length,before.length+1);
+  }finally{globalThis.Date=OriginalDate}
+});
+
+test('R6 approximate path fails closed for 121s difference and edited R5 receipt',async t=>{
+  const OriginalDate=Date;let clock=time('2026-11-07T01:00:00Z');
+  globalThis.Date=class extends OriginalDate{constructor(...args){super(...(args.length?args:[clock]))}static now(){return clock}};
+  try{
+    const f=await init(t),original=f.asset(),id=(await r6Begin(f.db,OWNER)).case.id;
+    const q=await r6Advance(f.db,OWNER,id);
+    f.sqlite.prepare("UPDATE ois_data_requests SET status='failed' WHERE id=?")
+      .run(q.stage[0].requestId);
+    f.sqlite.prepare('UPDATE blower_r6_rebaseline_cases_v1 SET conflicting_full_seconds=conflicting_full_seconds+12 WHERE id=?')
+      .run(id);
+    const status=await r6Status(f.db,OWNER,id);
+    assert.equal(status.approxCandidate,undefined);
+    await assert.rejects(r6AcceptApprox(f.db,OWNER,id,TAG,'허용 범위를 벗어난 경우 정정 금지'),e=>e.code==='R6_APPROX_NOT_ELIGIBLE');
+    assert.deepEqual(f.asset(),original);
+  }finally{globalThis.Date=OriginalDate}
+});
+
+test('R6 approximate mode must not trigger if no independent request actually failed',async t=>{
+  const OriginalDate=Date;let clock=time('2026-11-07T01:00:00Z');
+  globalThis.Date=class extends OriginalDate{constructor(...args){super(...(args.length?args:[clock]))}static now(){return clock}};
+  try{
+    const f=await init(t),original=f.asset(),id=(await r6Begin(f.db,OWNER)).case.id;
+    const pending=await r6Advance(f.db,OWNER,id);
+    assert.equal(pending.stage[0].status,'pending');
+    assert.equal((await r6Status(f.db,OWNER,id)).approxCandidate,undefined);
+    await assert.rejects(r6AcceptApprox(f.db,OWNER,id,TAG,'검증 실패 이전 근사치 승인 거부'),e=>e.code==='R6_APPROX_NOT_ELIGIBLE');
+    assert.deepEqual(f.asset(),original);
+  }finally{globalThis.Date=OriginalDate}
+});
+
+test('R6 approximate route rejects raw quality flags, incomplete source and concurrent asset changes',async t=>{
+  const OriginalDate=Date;let clock=time('2026-11-07T01:00:00Z');
+  globalThis.Date=class extends OriginalDate{constructor(...args){super(...(args.length?args:[clock]))}static now(){return clock}};
+  try{
+    const f=await init(t),before=f.asset(),id=(await r6Begin(f.db,OWNER)).case.id;
+    const q=await r6Advance(f.db,OWNER,id);
+    f.sqlite.prepare("UPDATE ois_data_requests SET status='failed' WHERE id=?").run(q.stage[0].requestId);
+    const full=JSON.parse(f.sqlite.prepare('SELECT result_json FROM ois_data_requests WHERE id=?').get('r5-full').result_json);
+    full.estimated=true;
+    f.sqlite.prepare('UPDATE ois_data_requests SET result_json=? WHERE id=?').run(JSON.stringify(full),'r5-full');
+    assert.equal((await r6Status(f.db,OWNER,id)).approxCandidate,undefined);
+    await assert.rejects(r6AcceptApprox(f.db,OWNER,id,TAG,'명시적 추정 정보가 있는 조회는 거절'),e=>e.code==='R6_APPROX_NOT_ELIGIBLE');
+    assert.deepEqual(f.asset(),before);
+  }finally{globalThis.Date=OriginalDate}
+});
+
+test('R6 approximate is revoked when original runtime revision changes before approval',async t=>{
+  const OriginalDate=Date;let clock=time('2026-11-07T01:00:00Z');
+  globalThis.Date=class extends OriginalDate{constructor(...args){super(...(args.length?args:[clock]))}static now(){return clock}};
+  try{
+    const f=await init(t),id=(await r6Begin(f.db,OWNER)).case.id;
+    const q=await r6Advance(f.db,OWNER,id);
+    f.sqlite.prepare("UPDATE ois_data_requests SET status='failed' WHERE id=?").run(q.stage[0].requestId);
+    assert.equal((await r6Status(f.db,OWNER,id)).approxCandidate?.differenceSeconds,DIFF);
+    f.sqlite.prepare('UPDATE blower_history_assets SET cycle_runtime_revision=? WHERE tag_number=?').run('changed-after-candidate',TAG);
+    await assert.rejects(r6AcceptApprox(f.db,OWNER,id,TAG,'기준 변경 후 근사 승인 불가'),e=>!!e.code);
+    assert.notEqual(f.asset().cycle_runtime_hours,TOTAL/3600);
+    assert.equal(f.events().length,1);
+  }finally{globalThis.Date=OriginalDate}
 });

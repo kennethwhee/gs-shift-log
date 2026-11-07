@@ -13,6 +13,8 @@ import {buildBlowerRuntimeProbeChunks,convertBlowerRuntimeProbeIntentRow,
 
 const CASE_TABLE='blower_r6_rebaseline_cases_v1', READ_TABLE='blower_r6_rebaseline_reads_v1';
 const WIRE_PREFIX='r6-rebaseline-v1:', ROLES=['fullA','fullB','prefix','suffix'];
+// Narrow operator-authorized fallback: the original R5 full proof only, never an independent four-read claim.
+const R6_APPROX_MAX_SECONDS=120;
 const text=v=>String(v??'').trim(), iso=v=>typeof v==='string'&&/(?:Z|[+-]\d\d:\d\d)$/.test(v)?Date.parse(v):NaN;
 const same=(a,b)=>Number.isFinite(iso(a))&&iso(a)===iso(b);
 const parse=v=>{try{return JSON.parse(v)}catch{return null}};
@@ -262,6 +264,46 @@ async function evaluateCase(db,row,items){
   return {proposal,reads};
 }
 
+// R6 approximate acceptance is NOT four-independent-read certification. It is a
+// separate, explicit administrator-reviewed resolution of a prior *completed*
+// R5 whole-range probe with a bounded discrepancy. All original source rows
+// are snapshotted again at approval. Never translate a failed R6 read to success.
+const explicitBadQuality=raw=>raw?.fromCachedResult===true||raw?.fromManualOverride===true||
+  raw?.estimated===true||['missingSeconds','badQualitySeconds','estimatedSeconds'].some(k=>
+    raw?.[k]!==undefined&&raw[k]!==0)||
+  (Array.isArray(raw?.chunks)&&raw.chunks.some(ch=>ch.fromCachedResult===true||ch.estimated===true||
+    ['missingSeconds','badQualitySeconds','estimatedSeconds'].some(k=>ch[k]!==undefined&&ch[k]!==0)));
+
+async function approximateEvidence(db,row,user,items){
+  if(row.status!=='collecting'||user?.isSuperAdmin!==true)return null;
+  if(!items.get('fullA')||items.get('fullA').request.status!=='failed'||
+     [...items.values()].some(x=>x.row.role!=='fullA'))return null;
+  const expected=row.original_seconds+row.failed_delta_seconds;
+  const difference=row.conflicting_full_seconds-expected;
+  if(!Number.isSafeInteger(expected)||expected<=0||!Number.isSafeInteger(difference)||
+     difference<=0||difference>R6_APPROX_MAX_SECONDS||
+     difference*10000>row.conflicting_full_seconds)return null;
+  const sources=await loadProofForCase(db,row,user);
+  const {proof,fullRequest,fullIntent}=sources;
+  const appendRequest=await db.prepare('SELECT * FROM ois_data_requests WHERE id=?')
+    .bind(row.failure_request_id).first();
+  if(!appendRequest||appendRequest.status!=='complete'||
+     explicitBadQuality(parse(appendRequest.result_json))||explicitBadQuality(parse(fullRequest.result_json))||
+     fullRequest.requested_by_id!==parse(row.baseline_snapshot)?.actorId)return null;
+  const normalized=normalizeBlowerRuntimeProbeResult(parse(fullRequest.result_json),
+    convertBlowerRuntimeProbeIntentRow(fullIntent),fullRequest.id,new Date());
+  if(normalized.error||!normalized.result||normalized.result.runningSeconds!==row.conflicting_full_seconds||
+    !same(normalized.result.startAt,row.start_at)||!same(normalized.result.endAt,row.end_at)||
+    normalized.result.observedAt!==normalized.result.endAt||
+    !['running','stopped'].includes(normalized.result.endState)||
+    !Number.isSafeInteger(proof.base.runningSeconds)||
+    !Number.isSafeInteger(proof.failedProbe.runningSeconds))return null;
+  return {differenceSeconds:difference,maxDifferenceSeconds:R6_APPROX_MAX_SECONDS,
+    previousHours:row.original_seconds/3600,remeasuredHours:row.conflicting_full_seconds/3600,
+    expectedHours:expected/3600,limitPercent:0.01,
+    mode:'approximate_r5_acceptance_not_four_read_certification',sources,full:normalized.result,appendRequest};
+}
+
 async function ensureStatus(db,row,user){
   const items=await loadReads(db,row);
   const result={ok:true,case:caseData(row),stage:ROLES.map(role=>({role,
@@ -272,6 +314,14 @@ async function ensureStatus(db,row,user){
       await loadProofForCase(db,row,user);
       result.proposal=(await evaluateCase(db,row,items))?.proposal||null;
     }
+  }
+  if(row.status==='collecting'&&user?.isSuperAdmin===true && items.get('fullA')?.request.status==='failed'){
+    try{const approx=await approximateEvidence(db,row,user,items);
+      if(approx)result.approxCandidate={differenceSeconds:approx.differenceSeconds,
+        maxDifferenceSeconds:approx.maxDifferenceSeconds,previousHours:approx.previousHours,
+        remeasuredHours:approx.remeasuredHours,expectedHours:approx.expectedHours,limitPercent:approx.limitPercent,
+        mode:approx.mode};}
+    catch{result.approxCandidate=null;}
   }
   return result;
 }
@@ -422,6 +472,75 @@ export async function r6Apply(db,user,sessionId,confirmation,note){
     db.prepare('DELETE FROM blower_history_atomic_guard WHERE id=?').bind(postId)]);
   return ensureStatus(db,await lookupCase(db,row.id,user),user);
 }
+
+
+export async function r6AcceptApprox(db,user,sessionId,confirmation,note){
+  if(user?.isSuperAdmin!==true)throw error('R6_APPROVAL_FORBIDDEN','R6 누적 재기준화 승인은 최고관리자만 가능합니다.',403);
+  if(confirmation!==BOUNDARY_RECOVERY_TAG||text(note).length<10||text(note).length>500)
+    throw error('R6_APPROVAL_INCOMPLETE','대상 TAG와 정정 사유 10~500자를 입력해 주세요.',400);
+  const row=await lookupCase(db,text(sessionId),user);
+  if(!row)throw error('R6_NOT_FOUND','R6 검증 요청을 찾을 수 없습니다.',404);
+  if(row.status==='applied_approx')return ensureStatus(db,row,user);
+  if(row.status!=='collecting')throw error('R6_APPROX_NOT_ELIGIBLE','검증을 완료할 수 있는 기존 조회 기록이 없습니다.');
+  const items=await loadReads(db,row);
+  const approx=await approximateEvidence(db,row,user,items);
+  if(!approx)throw error('R6_APPROX_NOT_ELIGIBLE',
+    'R5 정상 전체 조회와 저장된 누적값의 차이가 120초 이내라는 근거가 없습니다. 기존 누적시간을 유지합니다.');
+  const {proof,fullRequest,fullIntent,boundary}=approx.sources;
+  const result=approx.full,asset=proof.asset;
+  const id='dataparc_runtime:'+fullRequest.id,nextRev=crypto.randomUUID(),now=nowIso();
+  const hours=result.runningSeconds/3600,runState=result.endState;
+  const sourceText=JSON.stringify({schemaVersion:1,requestType:'blower_runtime_probe',requestId:fullRequest.id,
+    assetTag:row.tag,dataParcTag:BOUNDARY_RECOVERY_SIGNAL,startAt:row.start_at,endAt:row.end_at,
+    observedAt:row.end_at,expectedLastReplacementAt:asset.last_replacement_at,
+    expectedCycleStartState:asset.cycle_start_state,expectedCycleStartedAt:text(asset.cycle_started_at),
+    expectedCycleStartRevision:text(asset.cycle_start_revision),expectedCycleRuntimeRevision:asset.cycle_runtime_revision,
+    startState:result.startState,endState:runState,totalRunningHours:hours,runningSeconds:result.runningSeconds,
+    chunkCount:result.chunkCount,collectedAt:result.collectedAt,
+    r6ApproximateAcceptance:{version:1,notFourReadCertified:true,caseId:row.id,
+      baselineSha256:row.baseline_sha,previousSeconds:row.original_seconds,
+      failedAppendSeconds:row.failed_delta_seconds,wholeRangeSeconds:result.runningSeconds,
+      differenceSeconds:approx.differenceSeconds,maxDifferenceSeconds:R6_APPROX_MAX_SECONDS,
+      percentLimit:approx.limitPercent,proofRequestIds:[row.failure_request_id,fullRequest.id],
+      proofRawSha256:{failedAppend:await sha(approx.appendRequest.result_json),whole:await sha(fullRequest.result_json)},
+      rejectedIndependentReadId:items.get('fullA').request.id,
+      approvedBy:actor(user),approvedAt:now,approvalNote:text(note)}});
+  const display=`R6 근사 확인(독립 4회 미완료) · 이전 ${(row.original_seconds/3600).toFixed(3)}h → R5 전체 실측 ${(hours).toFixed(3)}h · 차이 ${approx.differenceSeconds}초/허용 120초 · ${text(note)}`;
+  const event={id,tag_number:row.tag,event_type:'runtime_correction',event_date:row.end_at,
+    runtime_hours:hours,issue_type:'DataPARC',action_type:'R6 근사 확인 누적 반영',note:display.slice(0,2000),
+    source_type:'dataparc_runtime',source_log_id:fullRequest.id,source_text:sourceText,
+    created_by_id:actor(user),created_by_name:text(user.name),created_at:now,updated_at:now};
+  const checks=[...proof.guards,exists(CASE_TABLE,row),exists('ois_data_requests',fullRequest),
+    exists('blower_runtime_probe_intents_v5',fullIntent),exists('blower_boundary_recovery_intents_v1',boundary),
+    ...[...items.values()].flatMap(item=>[exists(READ_TABLE,item.row),exists('ois_data_requests',item.request),exists('blower_runtime_probe_intents_v5',item.intent)]),
+    {sql:'NOT EXISTS (SELECT 1 FROM blower_history_events WHERE id=? OR (source_type=? AND source_log_id=?))',values:[id,'dataparc_runtime',fullRequest.id]}];
+  const guardId=crypto.randomUUID(),postId=crypto.randomUUID();
+  const post={sql:`EXISTS (SELECT 1 FROM blower_history_assets WHERE tag_number=? AND cycle_runtime_revision=? AND
+      cycle_runtime_anchor_at=? AND cycle_runtime_state=? AND ABS(cycle_runtime_hours-?)<0.000001 AND
+      ABS(runtime_hours-?)<0.000001 AND last_modified_by_id=? AND updated_at=?) AND
+      EXISTS (SELECT 1 FROM blower_history_events WHERE id=? AND tag_number=? AND source_text=? AND
+      source_type='dataparc_runtime' AND source_log_id=?) AND
+      EXISTS (SELECT 1 FROM ${CASE_TABLE} WHERE id=? AND status='applied_approx' AND event_id=?)`,
+    values:[row.tag,nextRev,row.end_at,runState,hours,hours,actor(user),now,id,row.tag,sourceText,fullRequest.id,row.id,id]};
+  await db.batch([guard(db,guardId,checks),
+    db.prepare(`UPDATE blower_history_assets SET runtime_hours=?,runtime_anchor_at=?,is_running=?,
+      cycle_runtime_hours=?,cycle_runtime_anchor_at=?,cycle_runtime_state=?,cycle_runtime_revision=?,
+      last_modified_by_id=?,last_modified_by_name=?,updated_at=? WHERE tag_number=? AND enabled=1 AND
+      cycle_runtime_revision=? AND cycle_runtime_anchor_at=? AND ABS(cycle_runtime_hours-?)<0.000001`)
+      .bind(hours,runState==='running'?row.end_at:null,runState==='running'?1:0,hours,row.end_at,runState,nextRev,
+        actor(user),text(user.name),now,row.tag,asset.cycle_runtime_revision,asset.cycle_runtime_anchor_at,Number(asset.cycle_runtime_hours)),
+    db.prepare(`INSERT INTO blower_history_events (${Object.keys(event).map(col).join(',')})
+      SELECT ${Object.keys(event).map(()=>'?').join(',')} WHERE EXISTS(SELECT 1 FROM blower_history_assets WHERE tag_number=? AND cycle_runtime_revision=?)`)
+      .bind(...Object.values(event),row.tag,nextRev),
+    db.prepare(`UPDATE ${CASE_TABLE} SET status='applied_approx',updated_at=?,approved_by=?,approved_name=?,
+      approved_at=?,approval_note=?,event_id=? WHERE id=? AND status='collecting'`)
+      .bind(now,actor(user),text(user.name),now,text(note),id,row.id),
+    guard(db,postId,[post]),
+    db.prepare('DELETE FROM blower_history_atomic_guard WHERE id=?').bind(guardId),
+    db.prepare('DELETE FROM blower_history_atomic_guard WHERE id=?').bind(postId)]);
+  return ensureStatus(db,await lookupCase(db,row.id,user),user);
+}
+
 
 export async function r6Cancel(db,user,sessionId){
   const row=await lookupCase(db,text(sessionId),user);

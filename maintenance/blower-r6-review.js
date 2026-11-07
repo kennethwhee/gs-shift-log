@@ -30,6 +30,7 @@
     const c=s?.case,p=s?.proposal;
     el('blowerR6Status').textContent=!c?'검증을 실행하지 않았습니다. 기존 누적값은 유지됩니다.' :
       c.status==='applied'?'승인 후 누적시간과 감사이력이 함께 저장됐습니다. 전체 최신화를 실행해 주세요.' :
+      c.status==='applied_approx'?'근사 확인 승인 완료 · 4회 독립 조회는 완료되지 않았습니다. 기록을 보존했으며 전체 최신화를 실행해 주세요.' :
       c.status==='ready'?'독립 조회 4회 검증 완료 · 관리자 승인 대기' :
       c.status==='no_change'?'독립 조회 결과가 기존 누적값과 일치해 정정이 필요 없습니다.' :
       c.status==='cancelled'?'사용자가 검증을 취소했습니다. 누적값은 변경되지 않았습니다.' :
@@ -37,12 +38,16 @@
     el('blowerR6Stages').replaceChildren(...(s?.stage||[]).map(v=>{
       const span=root.document.createElement('span');span.textContent=labels[v.role]+': '+(states[v.status]||v.status);return span;
     }));
+    const approximate=!!s?.approxCandidate && c?.status==='collecting';
     const active=!!c&&['collecting','ready'].includes(c.status);
     el('blowerR6Start').hidden=active;
     el('blowerR6Continue').hidden=!c||c.status!=='collecting';
     el('blowerR6Cancel').hidden=!active;
-    el('blowerR6Proposal').hidden=c?.status!=='ready'||p?.status!=='requires_authorized_review';
-    if(p?.status==='requires_authorized_review'){
+    el('blowerR6Proposal').hidden=!(c?.status==='ready'&&p?.status==='requires_authorized_review')&&!approximate;
+    el('blowerR6Approve').textContent=approximate?'120초 이내 근사 확인 승인·기록':'검증된 누적시간 승인·기록';
+    if(approximate){const q=s.approxCandidate;
+      el('blowerR6Comparison').textContent=`R5 기존 ${(q.previousHours).toFixed(3)}h / 기존+신규 ${(q.expectedHours).toFixed(3)}h / 정상 전체 재조회 ${(q.remeasuredHours).toFixed(3)}h / 차이 +${q.differenceSeconds}초 (한도 ${q.maxDifferenceSeconds}초 · 전체의 ${q.limitPercent}% 이내). 독립 조회 A 실패를 성공으로 간주하지 않음 · 관리자 승인 전 저장 없음`;
+    }else if(p?.status==='requires_authorized_review'){
       el('blowerR6Comparison').textContent=`변경 전 ${(p.previousSeconds/3600).toFixed(3)}h / 재검증 ${(p.proposedSeconds/3600).toFixed(3)}h / 전체 차이 ${p.totalDifferenceSeconds}초 / 경계 이전 ${p.historicalDifferenceSeconds}초 / 이후 ${p.suffixDifferenceSeconds}초 · 승인 전 저장 없음`;
     }
   }
@@ -90,11 +95,17 @@
       continuing=false;click(()=>req('POST',{action:'cancel',id:current.case.id}));
     });
     el('blowerR6Approve').addEventListener('click',()=>{
-      if(!current?.case||current.case.status!=='ready')return;
+      const approx=!!current?.approxCandidate && current?.case?.status==='collecting';
+      if(!approx&&(!current?.case||current.case.status!=='ready'))return;
       const confirmation=el('blowerR6Confirmation').value.trim(),note=el('blowerR6Note').value.trim();
       if(confirmation!==TAG||note.length<10){el('blowerR6Status').textContent='대상 TAG 정확히 입력하고 정정 사유를 10자 이상 작성해 주세요.';return;}
-      if(!root.confirm('검증된 전체 RUN으로 누적시간을 정정하고 변경 전·후를 이력에 저장할까요?'))return;
-      click(()=>req('POST',{action:'approve',id:current.case.id,confirmation,note}));
+      if(approx){
+        if(!root.confirm('주의: 독립 조회 4회가 완료되지 않았습니다. R5의 정상 전체 재조회와 이전 저장 누적의 차이가 120초 이내임을 근사치로 승인하고, 검증된 R5 전체 누적으로 기준을 옮기며 감사이력을 남길까요?'))return;
+        click(()=>req('POST',{action:'accept_approx',id:current.case.id,confirmation,note}));
+      }else{
+        if(!root.confirm('검증된 전체 RUN으로 누적시간을 정정하고 변경 전·후를 이력에 저장할까요?'))return;
+        click(()=>req('POST',{action:'approve',id:current.case.id,confirmation,note}));
+      }
     });
     click(()=>req('GET'));
   }
