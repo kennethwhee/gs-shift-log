@@ -1,0 +1,10 @@
+.blower-r7-panel{margin:12px 0 14px;border:1px solid #bed4e8;border-radius:10px;background:#f7fbff;color:#20334a;padding:12px 14px}
+.blower-r7-panel[hidden]{display:none!important}
+.blower-r7-panel summary{font-weight:800;cursor:pointer;font-size:13px}
+.blower-r7-panel p{font-size:12px;line-height:1.6;margin:7px 0}
+.blower-r7-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:10px}
+.blower-r7-grid article{padding:12px;border:1px solid #dce6f1;border-radius:8px;background:#fff;min-width:0}
+.blower-r7-grid button{font:inherit;font-size:12px;font-weight:700;border:1px solid #b5c7df;border-radius:6px;background:#f1f6ff;color:#184b83;padding:7px 10px;margin:2px 5px 3px 0;cursor:pointer}
+.blower-r7-grid button:disabled{opacity:.5;cursor:not-allowed}
+.blower-r7-note{color:#6a4930}
+@media(max-width:700px){.blower-r7-grid{grid-template-columns:1fr}}

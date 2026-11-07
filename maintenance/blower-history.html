@@ -11,12 +11,14 @@
   <link rel="stylesheet" href="/maintenance/seal-pot-ois-shadow.css?v=20260901-v2">
   <script src="shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
   <link rel="stylesheet" href="blower-r6-review.css?v=20261107-r6-v1">
+  <link rel="stylesheet" href="blower-r7-evidence.css?v=20261107-r7-v1">
   <link rel="stylesheet" href="blower-unified-refresh.css?v=20261022-query-resource-v3-20261102-inline-v3n-20261102-label-v3o-20261102-right-v3p">
   <script src="blower-refresh-timing.js?v=20260915-fast-timing-v12-20261102-inline-v3n" defer></script>
   <script src="blower-unified-refresh.js?v=20261031-limestone-ledger-v3g-20261102-auto-v3m-20261102-inline-v3n-20261102-schedule-v3q&runtimeRepair=20261107-r4&blowerNormalize=20261104-v4-r6-20261102-schedule-v3q" defer></script>
   <script src="blower-runtime-assessment.js?v=20261106-v2&runtimeRepair=20261107-r4" defer></script>
   <script src="blower-resolution-guide.js?v=20261107-r4" defer></script>
   <script src="blower-r6-review.js?v=20261107-r6-v1" defer></script>
+  <script src="blower-r7-evidence.js?v=20261107-r7-v1" defer></script>
   <script src="blower-history.js?v=20261031-limestone-ledger-v3g-checkpoint-v3k-ui-20261102-auto-v3m-20261102-inline-v3n-20261102-label-v3o-20261102-row-v3r-20261103-bag-v3s&blowerNormalize=20261104-v4-r6-20261102-schedule-v3q&runTransition=20261106-v2&runtimeAssessment=20261106-v2&runtimeRepair=20261107-r4" defer></script>
   <script src="/maintenance/seal-pot-ois-shadow.js?v=20260909-unified-refresh-v1" defer></script>
   <link rel="stylesheet" href="/maintenance/blower-schedule-v1.css?v=20261029-settings-v2">
@@ -191,6 +193,25 @@
                 <label>정정 사유·확인 근거 <textarea id="blowerR6Note" rows="2" maxlength="500" placeholder="변경 전·후 누적시간과 확인 근거를 작성하세요"></textarea></label>
                 <button type="button" class="button primary" id="blowerR6Approve">검증된 누적시간 승인·기록</button>
               </section>
+            </details>
+          </section>
+
+          <!-- R7 verifies two unresolved belt cycles without altering saved hours. -->
+          <section class="blower-r7-panel" id="blowerR7Panel" hidden>
+            <details>
+              <summary>잔여 7대 · R7 근거 검증 (FBHE 1B · Limestone 2A)</summary>
+              <p>확정된 교체 완료시각을 만들지 않습니다. DataPARC 읽기 전용 조회를 수동으로 요청하며, 조회 성공만으로 경고를 해제하지 않습니다.</p>
+              <div class="blower-r7-grid">
+                <article><strong>FBHE 1호기 B</strong><p>10월 8일 13:04 이후 RUN이 0초인지 확인</p>
+                  <button type="button" id="blowerR7FbheStart">0초 검증 조회</button>
+                  <button type="button" id="blowerR7FbheCheck">결과 확인</button>
+                  <p id="blowerR7FbheStatus" role="status">아직 조회하지 않았습니다.</p></article>
+                <article><strong>Limestone 2호기 A</strong><p>9월 19일 00:00~20일 00:00 RUN 별도 확인</p>
+                  <button type="button" id="blowerR7LimestoneStart">앞 구간 조회</button>
+                  <button type="button" id="blowerR7LimestoneCheck">결과 확인</button>
+                  <p id="blowerR7LimestoneStatus" role="status">아직 조회하지 않았습니다.</p></article>
+              </div>
+              <p class="blower-r7-note">조회 결과는 근거 검토용입니다. 운전시간·교체시각·확인 항목은 자동 변경되지 않습니다. 결과에 누락/품질 정보가 없다면 확정 전 추가 확인이 필요합니다.</p>
             </details>
           </section>
 

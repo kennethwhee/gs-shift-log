@@ -7844,6 +7844,11 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
       message: "DataPARC 요청에 확정한 설비·운전 TAG·기간·Cycle 기준과 조회 결과가 일치하지 않습니다. 새로 조회해 주세요."
     }, 409);
   }
+  if (String(intent.reuse_key || '').startsWith('r7-evidence-only-v1:') ||
+      String(intent.expected_cycle_runtime_revision || '').startsWith('r7-evidence-only-v1:')) {
+    return jsonResponse({ok:false,code:'BLOWER_R7_READONLY_PROOF',
+      message:'R7 검증용 과거 RUN 조회 결과는 누적시간에 직접 반영할 수 없습니다. 승인된 근거 검토가 필요합니다.'},409);
+  }
   if (String(intent.reuse_key || '').startsWith(ROLE_RECOVERY_PREFIX) ||
       String(intent.expected_cycle_runtime_revision || '').startsWith(ROLE_RECOVERY_PREFIX)) {
     return jsonResponse({ok:false,code:'BLOWER_ROLE_RECOVERY_APPLY_REQUIRED',

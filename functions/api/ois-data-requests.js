@@ -80,6 +80,8 @@ const REQUEST_PROCESSING_TIMEOUT_MINUTES =
     in consecutive chunks of at most 31 days.
 ========================================================= */
 
+import { R7_EVIDENCE_PREFIX, r7EvidencePlan, validateR7RequestBody } from '../_shared/blower-r7-evidence.js';
+
 const BLOWER_RUNTIME_PROBE_REQUEST_TYPE =
   "blower_runtime_probe";
 
@@ -18942,6 +18944,7 @@ async function createBlowerRuntimeProbeRequest(
     return jsonResponse({ ok: false, code: mapping.code, message: mapping.error }, 400);
   }
   const { assetTag, dataParcTag } = mapping;
+  const r7EvidenceMode = typeof body.r7EvidenceMode === 'string' ? body.r7EvidenceMode : '';
   const recoveryFlags = [body.rolePriorityRecovery, body.confirmedGapRecovery,
     body.requireFirstRunStart, body.completionWindowRecovery,body.registeredRangeRecovery,body.appendBoundaryRecovery].filter(value => value === true).length;
   const coverageRecoveryMode = body.confirmedGapRecovery === true ? 'confirmed_gap'
@@ -18951,6 +18954,10 @@ async function createBlowerRuntimeProbeRequest(
       (body.incrementalRefresh === true || body.requireIncrementalAppend === true || body.limestoneTrackingOnly === true))) {
     return jsonResponse({ok:false,code:'BLOWER_RUNTIME_RECOVERY_MODE_INVALID',
       message:'서로 다른 보완 조회 방식을 함께 실행할 수 없습니다. 기존 누적값은 유지합니다.'},400);
+  }
+  if (r7EvidenceMode && (recoveryFlags || body.limestoneTrackingOnly === true ||
+      body.incrementalRefresh !== false || body.requireIncrementalAppend !== false || body.unifiedRefresh !== true)) {
+    return jsonResponse({ok:false,code:'R7_READONLY_MODE_CONFLICT',message:'R7 검증은 다른 조회 및 저장 방식과 함께 사용할 수 없습니다.'},400);
   }
   const limestoneTrackingOnly = body.limestoneTrackingOnly === true;
   if (limestoneTrackingOnly && (
@@ -19023,6 +19030,16 @@ async function createBlowerRuntimeProbeRequest(
     );
   }
 
+  // Strict read-only evidence windows; never claim a replacement completion minute.
+  let r7Evidence = null;
+  if (r7EvidenceMode) {
+    try {
+      r7Evidence = r7EvidencePlan(r7EvidenceMode, asset, authentication.user, internalOptions.now || new Date());
+      validateR7RequestBody(body, r7Evidence, asset);
+    } catch (error) {
+      return jsonResponse({ok:false,code:error.code || 'R7_EVIDENCE_INVALID',message:error.message || 'R7 근거 조회를 시작할 수 없습니다.'},error.status || 409);
+    }
+  }
   let replacementAutoProof = null;
   if (isReplacementAutoRevision(asset)) {
     const proofs = internalOptions.replacementAutoProofsByTag instanceof Map
@@ -19030,7 +19047,8 @@ async function createBlowerRuntimeProbeRequest(
       : await loadBlowerReplacementAutoProofs(database, [asset]);
     replacementAutoProof = proofs.get(assetTag);
     const failure = blowerReplacementAutoProbeFailure(asset, replacementAutoProof);
-    if (failure) return failure;
+    // R7 is a separately labelled historic measurement, NEVER a replacement-cycle write.
+    if (failure && !r7Evidence) return failure;
   }
 
   let roleRecovery = null;
@@ -19228,7 +19246,7 @@ async function createBlowerRuntimeProbeRequest(
 
   const endAt =
     formatKstRfc3339(
-      completionRecovery ? new Date(completionRecovery.windowEndAt) : now
+      r7Evidence?.endAt ? new Date(r7Evidence.endAt) : completionRecovery ? new Date(completionRecovery.windowEndAt) : now
     );
 
 
@@ -19250,6 +19268,7 @@ async function createBlowerRuntimeProbeRequest(
 
   // BLOWER_INCREMENTAL_REFRESH_V1: only the top Latest action may append.
   // Never trust client-provided totals, checkpoints, or a manually entered start.
+  if (r7Evidence) requestedStartText = r7Evidence.startAt;
   if (roleRecovery) requestedStartText = roleRecovery.selectedCompletionAt;
   if (coverageRecovery) requestedStartText = coverageRecovery.startAt;
   if (completionRecovery) requestedStartText = completionRecovery.startAt;
@@ -19296,7 +19315,7 @@ async function createBlowerRuntimeProbeRequest(
   // A V4 date-only replacement certifies a later, measured range. It does not
   // assert a replacement clock or authorize replaying an already seeded range.
   const replacementDayRange = blowerReplacementDayRangeProof(asset, replacementAutoProof);
-  if (replacementDayRange && !completionRecovery) {
+  if (replacementDayRange && !completionRecovery && !r7Evidence) {
     if (appendBase) {
       const baseStart = parseStrictRfc3339(normalizeText(appendBase.startAt));
       if (!baseStart || baseStart.timestamp !== replacementDayRange.timestamp ||
@@ -19390,6 +19409,7 @@ async function createBlowerRuntimeProbeRequest(
 
 
   const minimumStartTimestamp =
+    r7Evidence?.mode === 'limestone2a_leading' ? parsedStartAt?.timestamp :
     fbheSealBinaryRun && parsedCycleStartedAt
       ? Math.floor(parsedCycleStartedAt.timestamp / 1000) * 1000
       : (parsedLastReplacementAt?.timestamp ?? Number.POSITIVE_INFINITY);
@@ -19460,6 +19480,7 @@ async function createBlowerRuntimeProbeRequest(
 
 
   const reuseKey =
+    (r7Evidence ? R7_EVIDENCE_PREFIX + r7Evidence.mode + ':' : '') +
     (roleRecovery ? ROLE_RECOVERY_PREFIX : '') +
     (coverageRecovery ? COVERAGE_RECOVERY_PREFIX + coverageRecoveryMode + ':' : '') +
     (completionRecovery ? COMPLETION_WINDOW_PREFIX : '') +
@@ -19478,6 +19499,7 @@ async function createBlowerRuntimeProbeRequest(
         expectedCycleStartedAt,
         expectedCycleStartRevision,
         expectedCycleRuntimeRevision,
+        ...(r7Evidence ? [r7Evidence.mode,endAt,'read-only'] : []),
         ...(roleRecovery ? [roleRecovery.snapshotSha256,roleRecovery.selectedCompletionAt] : []),
         ...(coverageRecovery ? [coverageRecovery.snapshotSha256,coverageRecoveryMode] : []),
         ...(completionRecovery ? [completionRecovery.snapshotSha256,completionRecovery.windowEndAt] : []),
@@ -19569,6 +19591,7 @@ async function createBlowerRuntimeProbeRequest(
       probeExpectedCycleStartedAt,
       probeExpectedCycleStartRevision,
       probeExpectedCycleRuntimeRevision:
+        r7Evidence ? R7_EVIDENCE_PREFIX + expectedCycleRuntimeRevision :
         roleRecovery ? ROLE_RECOVERY_PREFIX + expectedCycleRuntimeRevision :
         completionRecovery ? COMPLETION_WINDOW_PREFIX + expectedCycleRuntimeRevision :
         boundaryRecovery ? BOUNDARY_RECOVERY_PREFIX + expectedCycleRuntimeRevision :
@@ -19702,6 +19725,7 @@ async function createBlowerRuntimeProbeRequest(
       probeExpectedCycleStartedAt,
       probeExpectedCycleStartRevision,
       probeExpectedCycleRuntimeRevision:
+        r7Evidence ? R7_EVIDENCE_PREFIX + expectedCycleRuntimeRevision :
         roleRecovery ? ROLE_RECOVERY_PREFIX + expectedCycleRuntimeRevision :
         completionRecovery ? COMPLETION_WINDOW_PREFIX + expectedCycleRuntimeRevision :
         boundaryRecovery ? BOUNDARY_RECOVERY_PREFIX + expectedCycleRuntimeRevision :
@@ -19823,11 +19847,12 @@ async function createBlowerRuntimeProbeRequest(
           probeExpectedCycleStartRevision,
           // Older history deployments will reject this synthetic revision rather
           // than mistake a delta for a full-cycle total. The Agent just echoes it.
-          roleRecovery ? ROLE_RECOVERY_PREFIX + expectedCycleRuntimeRevision :
+          r7Evidence ? R7_EVIDENCE_PREFIX + expectedCycleRuntimeRevision :
+        roleRecovery ? ROLE_RECOVERY_PREFIX + expectedCycleRuntimeRevision :
             completionRecovery ? COMPLETION_WINDOW_PREFIX + expectedCycleRuntimeRevision :
         boundaryRecovery ? BOUNDARY_RECOVERY_PREFIX + expectedCycleRuntimeRevision :
             coverageRecovery ? COVERAGE_RECOVERY_PREFIX + expectedCycleRuntimeRevision :
-              appendBase ? `append-v1:${expectedCycleRuntimeRevision}` : expectedCycleRuntimeRevision,
+              r7Evidence ? R7_EVIDENCE_PREFIX + expectedCycleRuntimeRevision : appendBase ? `append-v1:${expectedCycleRuntimeRevision}` : expectedCycleRuntimeRevision,
           requestedAt,
           requestedAt
         ),
