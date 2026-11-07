@@ -8,7 +8,7 @@ import {__blowerHistoryTest as history} from '../functions/api/blower-history.js
 import {onRequestGet as requestsGet} from '../functions/api/ois-data-requests.js';
 import {loadApprovedReplacementPage,replacementSourceGuard,storeReplacementLogReceipts,loadCurrentReplacementRoleContext,replacementSourceHashes} from '../functions/_shared/blower-replacement-log-source-v3.js';
 import {reconcileApprovedReplacementLog,replacementAutoCycleProof} from '../functions/_shared/blower-replacement-auto-v3.js';
-import {COMPLETION_WINDOW_PREFIX,COMPLETION_WINDOW_TAG as TAG,COMPLETION_WINDOW_SIGNAL as SIGNAL,COMPLETION_WINDOW_START as START,COMPLETION_WINDOW_END as END,completionWindowRecoveryCandidate,loadCompletionWindowRecoveryProof} from '../functions/_shared/blower-completion-window-v1.js';
+import {COMPLETION_WINDOW_PREFIX,COMPLETION_WINDOW_TAG as TAG,COMPLETION_WINDOW_SIGNAL as SIGNAL,COMPLETION_WINDOW_START as START,COMPLETION_WINDOW_END as END,completionWindowRecoveryCandidate,loadCompletionWindowRecoveryProof,loadCompletionWindowRecoveryReview,persistCompletionWindowRecoveryReview} from '../functions/_shared/blower-completion-window-v1.js';
 import {agent,agentClaim,agentComplete,historyPost,callApi} from './helpers/blower-incremental-fixture.mjs';
 
 const core=createRequire(import.meta.url)('../maintenance/blower-unified-refresh.js');
@@ -34,7 +34,7 @@ export async function completionFixture(t,{depthCheck=false,sourceRows=null}={})
       async run(){return {meta:{changes:Number(sql.prepare(query).run(...this.values).changes)}};},
       async first(){const row=sql.prepare(query).get(...this.values)||null;await db.afterRead?.(query,row);return row;},
       async all(){const rows=sql.prepare(query).all(...this.values);await db.afterRead?.(query,rows);return {results:rows};}};
-  },async batch(items){if(db.beforeBatch && items.some(item=>item.query.includes('blower_completion_window_intents_v1') || item.values.includes('completion_window_runtime_recovery'))){const fn=db.beforeBatch;db.beforeBatch=null;await fn();}
+  },async batch(items){if(db.beforeBatch && items.some(item=>item.query.includes('blower_completion_window_intents_v1') || item.query.includes('blower_completion_window_outcomes_v1') || item.values.includes('completion_window_runtime_recovery'))){const fn=db.beforeBatch;db.beforeBatch=null;await fn();}
     const prior=batchTail;let release;batchTail=new Promise(resolve=>{release=resolve});await prior;
     sql.exec('BEGIN IMMEDIATE');try{const result=[];for(const item of items)result.push(await item.run());sql.exec('COMMIT');return result;}catch(error){sql.exec('ROLLBACK');throw error;}finally{release();}}};
   await history.ensureSchema(db);await history.ensureIncrementalLogSchema(db);
@@ -107,6 +107,105 @@ export async function completionFixture(t,{depthCheck=false,sourceRows=null}={})
 }
 
 async function projected(f,action='data'){const result=await f.get(action);assert.equal(result.status,200,JSON.stringify(result.body));return result.body.assets.find(row=>row.tagNumber===TAG);}
+
+test('completed R3 nonzero window is read-only review, persists under D1 limits, and survives an ordinary append',async t=>{
+  const f=await completionFixture(t,{depthCheck:true});
+  const raw=await f.completed(1);f.install(raw);
+  const writeCount=()=>f.sql.prepare('SELECT total_changes() n').get().n;
+  const beforeReads=writeCount();
+  const review=await loadCompletionWindowRecoveryReview(f.db,f.asset(),f.events(),{now:NOW});
+  assert.equal(review?.reasonCode,'RUN_OBSERVED');assert.equal(review.runningSeconds,1);assert.equal(review.automaticRetry,false);
+  assert.equal(writeCount(),beforeReads,'reviewing an old completed request performs no database writes');f.preserved();
+  for(const action of ['data','refresh_state_page']){
+    const a=await projected(f,action);assert.equal(a.completionWindowRecoveryReview?.requestId,raw.requestId);
+    assert.equal(a.completionWindowRecovery?.eligible,false);assert.equal(a.completionWindowProof,undefined);
+    assert.ok(a.cycleSourceReview);assert.equal(core.plan([a],NOW).tasks[0].kind,'dataparc');
+  }
+  const retry=await f.create();assert.equal(retry.status,409,JSON.stringify(retry.body));
+  assert.equal(retry.body.code,'BLOWER_COMPLETION_WINDOW_SOURCE_REQUIRED');
+  const payload={...f.body(),completionWindowRecovery:false,incrementalRefresh:true,requireIncrementalAppend:true};delete payload.startAt;delete payload.endAt;
+  const append=await f.create(payload,TOKEN,NOW);assert.equal(append.status,201,JSON.stringify(append.body));
+  const appended=f.resultFor(append.body.item,3600,NOW,'running');f.install(appended);
+  const result=await parse(await history.applyDataParcRuntimeSync(f.db,OWNER,{requestId:appended.requestId},{now:NOW}));
+  assert.equal(result.status,200,JSON.stringify(result.body));
+  const stored=f.sql.prepare('SELECT * FROM blower_completion_window_outcomes_v1 WHERE request_id=?').get(raw.requestId);assert.ok(stored);
+  const after=await projected(f);assert.equal(after.completionWindowRecovery?.eligible,false);
+  assert.equal(after.completionWindowRecoveryReview?.runtimeRevision,f.asset().cycle_runtime_revision);
+  assert.equal(after.completionWindowRecoveryReview?.runtimeRequestId,appended.requestId);
+  assert.equal(after.completionWindowRecoveryReview?.proofFingerprint,review.proofFingerprint);
+  assert.equal(f.asset().cycle_runtime_hours,f.before.cycle_runtime_hours+1);
+  assert.equal(after.completionWindowProof,undefined);assert.ok(after.cycleSourceReview);
+  f.sql.prepare('DELETE FROM ois_data_requests WHERE id=?').run(raw.requestId);
+  assert.equal((await projected(f)).completionWindowRecoveryReview?.requestId,raw.requestId,'durable evidence survives raw request retention');
+  assert.ok(f.checkedGuards()>=2);assert.equal(f.audits().length,0);
+});
+
+test('fresh nonzero apply records a negative result and never changes a saved runtime or event',async t=>{
+  const f=await completionFixture(t,{depthCheck:true}),raw=await f.completed(7);f.install(raw);
+  const result=await f.apply(raw);assert.equal(result.status,409,JSON.stringify(result.body));
+  assert.equal(result.body.code,'BLOWER_COMPLETION_WINDOW_NOT_ZERO');assert.equal(result.body.completionWindowRecoveryReview?.reasonCode,'RUN_OBSERVED');
+  assert.equal(f.sql.prepare('SELECT count(*) n FROM blower_completion_window_outcomes_v1').get().n,1);
+  f.preserved();assert.equal(f.audits().length,0);
+  const stored=f.sql.prepare('SELECT * FROM blower_completion_window_outcomes_v1').get();
+  await persistCompletionWindowRecoveryReview(f.db,f.asset(),undefined,{now:NOW});
+  assert.deepEqual(f.sql.prepare('SELECT * FROM blower_completion_window_outcomes_v1').get(),stored);
+});
+
+test('zero seconds with an unproven stopped boundary is distinct from observed RUN',async t=>{
+  const f=await completionFixture(t),raw=await f.completed();raw.startState='running';raw.chunks[0].startState='running';f.install(raw);
+  const result=await f.apply(raw);assert.equal(result.status,409,JSON.stringify(result.body));
+  const review=result.body.completionWindowRecoveryReview;assert.equal(review?.reasonCode,'CONTINUOUS_STOP_UNPROVEN');assert.equal(review.runningSeconds,0);
+  assert.equal((await projected(f)).completionWindowRecovery?.eligible,false);f.preserved();assert.equal(f.audits().length,0);
+});
+
+test('old completed zero data cannot create either a negative outcome or a fresh success certificate',async t=>{
+  const f=await completionFixture(t),raw=await f.completed();f.install(raw);const later=new Date(NOW.getTime()+86400000);
+  assert.equal(await loadCompletionWindowRecoveryReview(f.db,f.asset(),f.events(),{now:later}),null);
+  assert.equal(await persistCompletionWindowRecoveryReview(f.db,f.asset(),undefined,{now:later}),null);
+  const result=await f.apply(raw,OWNER,later);assert.equal(result.status,409,JSON.stringify(result.body));
+  assert.equal(result.body.code,'BLOWER_COMPLETION_WINDOW_COLLECTION_STALE');
+  assert.equal(f.sql.prepare('SELECT count(*) n FROM blower_completion_window_outcomes_v1').get().n,0);f.preserved();
+});
+
+for(const mode of ['schema','incomplete','chunk-sum','unknown-state','wrong-window','request-intent','future-collection','network-error'])test('uncertain '+mode+' result cannot suppress automatic recovery as negative evidence',async t=>{
+  const f=await completionFixture(t),raw=await f.completed(1);let status='complete';
+  if(mode==='schema')raw.schemaVersion=2;
+  if(mode==='incomplete')raw.completedChunkCount=0;
+  if(mode==='chunk-sum')raw.chunks[0].runningSeconds=0;
+  if(mode==='unknown-state')raw.startState=raw.chunks[0].startState='unknown';
+  if(mode==='wrong-window')raw.startAt=raw.chunks[0].startAt=RANGE;
+  if(mode==='request-intent')f.sql.prepare("UPDATE blower_runtime_probe_intents_v5 SET expected_cycle_runtime_revision='foreign' WHERE request_id=?").run(raw.requestId);
+  if(mode==='future-collection')raw.collectedAt=new Date(NOW.getTime()+6*60000).toISOString();
+  if(mode==='network-error'){raw.ok=false;status='error';}
+  f.install(raw,status);
+  assert.equal(await loadCompletionWindowRecoveryReview(f.db,f.asset(),f.events(),{now:NOW}),null);
+  assert.equal(await persistCompletionWindowRecoveryReview(f.db,f.asset(),undefined,{now:NOW}),null);
+  assert.equal(f.sql.prepare('SELECT count(*) n FROM blower_completion_window_outcomes_v1').get().n,0);f.preserved();
+});
+
+for(const mode of ['edited','unapproved','excluded','annotated'])test('source '+mode+' invalidates a durable negative observation without clearing the original review',async t=>{
+  const f=await completionFixture(t),raw=await f.completed(1);f.install(raw);
+  const review=await persistCompletionWindowRecoveryReview(f.db,f.asset(),undefined,{now:NOW});assert.ok(review);
+  f.sql.prepare('DELETE FROM ois_data_requests WHERE id=?').run(raw.requestId);sourceChange(f,mode);
+  const current=await projected(f);assert.equal(current.completionWindowRecoveryReview,undefined);assert.equal(current.completionWindowProof,undefined);
+  assert.ok(current.cycleSourceReview);f.preserved();
+});
+
+for(const race of ['source','raw'])test('negative outcome commit rejects atomic '+race+' changes and leaves the counter intact',async t=>{
+  const f=await completionFixture(t,{depthCheck:true}),raw=await f.completed(1);f.install(raw);
+  f.db.beforeBatch=race==='source'?f.mutateSource:()=>f.sql.prepare("UPDATE ois_data_requests SET result_json='{}' WHERE id=?").run(raw.requestId);
+  await assert.rejects(persistCompletionWindowRecoveryReview(f.db,f.asset(),undefined,{now:NOW}),error=>error.code==='BLOWER_COMPLETION_WINDOW_CONFLICT');
+  assert.equal(f.sql.prepare('SELECT count(*) n FROM blower_completion_window_outcomes_v1').get().n,0);
+  assert.equal(f.sql.prepare('SELECT count(*) n FROM blower_history_atomic_guard').get().n,0);f.preserved();
+});
+
+test('tampered durable negative evidence is rejected when the original raw request has expired',async t=>{
+  const f=await completionFixture(t),raw=await f.completed(1);f.install(raw);
+  assert.ok(await persistCompletionWindowRecoveryReview(f.db,f.asset(),undefined,{now:NOW}));
+  f.sql.prepare('DELETE FROM ois_data_requests WHERE id=?').run(raw.requestId);
+  f.sql.prepare("UPDATE blower_completion_window_outcomes_v1 SET outcome_json=json_set(outcome_json,'$.reasonCode','CONTINUOUS_STOP_UNPROVEN') WHERE request_id=?").run(raw.requestId);
+  assert.equal(await loadCompletionWindowRecoveryReview(f.db,f.asset(),f.events(),{now:NOW}),null);f.preserved();
+});
 
 test('historical zero request is source-pinned, exposes typed mode in authenticated API, and cannot use generic runtime sync',async t=>{
   const f=await completionFixture(t);const before=await projected(f);assert.ok(before.completionWindowRecovery?.eligible);assert.ok(before.cycleSourceReview);

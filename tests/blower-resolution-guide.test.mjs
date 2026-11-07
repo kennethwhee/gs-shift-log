@@ -62,6 +62,29 @@ function certified() {
   return a;
 }
 
+function negativeWindow(reasonCode = 'CONTINUOUS_STOP_UNPROVEN') {
+  const a = candidate();
+  a.completionWindowRecovery.eligible = false;
+  a.replacementAutoCycle.replacementEventId = 'original-replacement';
+  a.replacementAutoCycle.eventId = 'later-reconciliation';
+  a.completionWindowRecoveryReview = { version: 1, mode: 'completion_window_zero', status: 'source_required',
+    automaticRetry: false, reasonCode, requestId: 'unsuccessful-window', windowStartAt: WINDOW_START,
+    windowEndAt: WINDOW_END, runningSeconds: reasonCode === 'RUN_OBSERVED' ? 600 : 0,
+    startState: 'stopped', endState: 'unknown', collectedAt: NOW, completedAt: NOW,
+    dataParcTag: a.dataParcTag, cycleStartRevision: a.cycleStartRevision, runtimeRevision: a.cycleRuntimeRevision,
+    runtimeRequestId: a.dataParcRuntimeBasis.requestId, baseEventId: 'older-runtime-tail',
+    replacementEventId: a.replacementAutoCycle.replacementEventId, sourceLogId: a.replacementAutoCycle.sourceLogId,
+    sourceSnapshotSha256: HASH, proofFingerprint: 'b'.repeat(64) };
+  return a;
+}
+
+function queryResult(a, extras = {}) {
+  return { tagNumber: a.tagNumber, status: 'failed', requestId: 'failed-request', dataParcTag: a.dataParcTag,
+    cycleSnapshot: core.snapshot(a), errorCode: 'DATAPARC_APPEND_BOUNDARY_CHANGED', failureStage: 'apply',
+    startAt: a.dataParcRuntimeBasis.observedAt, endAt: NOW, completedAt: NOW,
+    message: 'Previous boundary and new boundary differ. Existing value retained.', ...extras };
+}
+
 function review(a, extras = {}) {
   return { tagNumber: a.tagNumber, enabled: true, requiresReview: true, reviewGroup: 'basis',
     reasonKey: 'replacement-basis-review', reasonLabel: '교체 기준 확인',
@@ -92,7 +115,9 @@ function harness(assets, options = {}) {
   assert.equal(historySource.split(marker).length, 2);
   vm.runInContext(historySource.replace(marker, `globalThis.ui={state,elements,cacheElements,bindEvents,renderAssets,
     allOverviewRuntimeAssessment,renderAllOverviewCard,openAssetHistory,blowerResolutionGuide,blowerResolutionAccess,
-    runBlowerResolutionRefresh,renderBlowerResolutionCenter,renderBlowerResolutionHistoryGuide,renderCompletionWindowProof};
+    blowerResolutionActionAccess,runBlowerResolutionRefresh,renderBlowerResolutionCenter,renderBlowerResolutionHistoryGuide,
+    renderCompletionWindowProof,renderUnifiedRefreshProgress,renderInlineRefreshStatus,observeUnifiedRefreshApply,
+    inlineRefreshApplied,renderOverviewRefreshPanel,matchesOverviewFilter,openOverviewAssessmentAction,sendApiRequest};
     globalThis.stubRefresh=record=>{refreshAllBlowers=async()=>record('refresh');};\n` + marker), context);
   const ui = context.ui; ui.cacheElements();
   ui.state.data = { assets, types: [['fbhe', 'FBHE Blower'], ['organic_fuel', '유기성 고형연료 Blower'],
@@ -177,16 +202,19 @@ test('source metadata is unwrapped only as text and malformed JSON never becomes
 });
 
 test('summary is computed from actual unique review rows including missing measurement slots', () => {
-  assert.deepEqual(guide.summarize([{ tagNumber: 'a', kind: 'automatic' }, { tagNumber: 'b', kind: 'source' },
-    { tagNumber: 'a', kind: 'source' }, { tagNumber: 'c', kind: 'measurement' }, { tagNumber: 'x', kind: 'fake' }, null], 2),
-  { total: 5, automatic: 1, source: 1, measurement: 3 });
-  assert.deepEqual(guide.summarize([], -1), { total: 0, automatic: 0, source: 0, measurement: 0 });
+  const empty = { total: 0, automatic: 0, source: 0, measurement: 0, query: 0, freshness: 0,
+    requiresReview: 0, latest: 0, failed: 0, waiting: 0, behind: 0, overlap: 0 };
+  assert.deepEqual(guide.summarize([{ tagNumber: 'a', kind: 'automatic', requiresReview: true },
+    { tagNumber: 'b', kind: 'source', requiresReview: true }, { tagNumber: 'a', kind: 'source' },
+    { tagNumber: 'c', kind: 'measurement', requiresReview: true }, { tagNumber: 'x', kind: 'fake' }, null], 2),
+  { ...empty, total: 5, automatic: 1, source: 1, measurement: 3, requiresReview: 5 });
+  assert.deepEqual(guide.summarize([], -1), empty);
 });
 
 test('the center is collapsed by default; toggling and opening evidence are read-only actions', () => {
   const a = candidate(), f = harness([a]); f.ui.bindEvents(); f.ui.renderAssets();
   let html = f.ui.elements.assetGroups.innerHTML;
-  assert.match(html, /확인 항목 <b>1대/); assert.match(html, /자동 보완 1대/);
+  assert.match(html, /확인할 설비 <b>1대/); assert.match(html, /보완 검증 가능 1대/);
   assert.match(html, /id="blowerResolutionItems" class="blower-resolution-items" hidden/);
   assert.match(html, /data-resolution-action="refresh" disabled/); assert.match(html, /조회 전용 화면/);
   click(f.ui.elements.assetGroups, '[data-resolution-action]', { resolutionAction: 'toggle' });
@@ -238,7 +266,7 @@ test('cards, history and center clear only a verified linked duration certificat
   assert.match(card, /교체 후 누적/); assert.match(card, /<small>교체일<\/small><strong>2026-09-16<\/strong>/);
   assert.match(card, /완료시각 미기록 · 정지 구간 검증/); assert.match(card, /734\.0시간/);
   assert.doesNotMatch(card, /조회 구간 RUN|측정 구간 누적/);
-  assert.match(f.ui.elements.assetGroups.innerHTML, /확인 항목 <b>0대/);
+  assert.match(f.ui.elements.assetGroups.innerHTML, /확인할 설비 <b>0대/);
   assert.match(f.ui.elements.historyCycleSummary.innerHTML, /data-completion-window-proof="true"/);
   assert.match(f.ui.elements.historyCycleSummary.innerHTML, /2026-09-16 09:23 → 2026-09-17 00:00/);
   assert.match(f.ui.elements.historyCycleSummary.innerHTML, /실제 교체 완료시각은 미기록/);
@@ -287,4 +315,207 @@ test('long source quotations remain available in a closed disclosure so the next
   assert.ok(html.includes(excerpt.trim())); assert.match(html, /V-belt 교체 완료 확인/);
   assert.equal((html.match(/<summary>기존 저장 구간 정보<\/summary>/g) || []).length, 1);
   assert.deepEqual(f.calls, []);
+});
+
+test('only the newest typed result for the exact current cycle and signal becomes a live query issue', () => {
+  const a = asset(), failed = queryResult(a), before = structuredClone(failed);
+  assert.equal(guide.currentQueryResult(a, [failed]).errorCode, 'DATAPARC_APPEND_BOUNDARY_CHANGED');
+  for (const change of [r => { delete r.cycleSnapshot; }, r => { delete r.dataParcTag; },
+    r => { r.dataParcTag = 'GSPOGE.ABB_DCS.OTHER'; }, r => { r.cycleSnapshot.cycleRuntimeRevision = 'older'; },
+    r => { r.cycleSnapshot.cycleStartRevision = 'older'; }, r => { r.cycleSnapshot.cycleStartedAt = NOW; },
+    r => { r.cycleSnapshot.lastReplacementAt = NOW; }, r => { r.startAt = '2026-11-06'; },
+    r => { r.endAt = r.startAt; }]) {
+    const invalid = structuredClone(failed); change(invalid);
+    assert.equal(guide.currentQueryResult(a, [invalid]), null);
+  }
+  assert.equal(guide.currentQueryResult(a, [failed, { ...failed, status: 'complete' }]), null);
+  assert.deepEqual(failed, before);
+});
+
+test('a time difference alone is neutral; an actual boundary failure adds a separate query issue without inventing a basis error', () => {
+  const a = asset('204SDF01AN002', 'organic_fuel'); a.cycleElapsedHours = a.runtimeHours = 1152.5630555555556;
+  const assessment = review(a, { requiresReview: false, reasonLabel: '', freshness: { state: 'behind' } });
+  const old = guide.describe(a, assessment);
+  assert.equal(old.kind, 'freshness'); assert.equal(old.requiresReview, false);
+  assert.match(old.detail, /시각 차이만으로 조회 실패나 누적 기준 오류/);
+  const result = guide.describe(a, assessment, { results: [queryResult(a)] });
+  assert.equal(result.kind, 'query'); assert.equal(result.action, 'refresh'); assert.equal(result.requiresReview, false);
+  assert.match(result.title, /조회 구간 연결 확인/); assert.doesNotMatch(result.nextStep, /완료시각|V-Belt/);
+  assert.equal(a.cycleElapsedHours, 1152.5630555555556);
+});
+
+test('eight basis reviews and three old failed results with two shared assets are nine unique guides', () => {
+  const assets = Array.from({ length: 9 }, (_, i) => asset(`104TAG${i}`, i === 8 ? 'organic_fuel' : 'fbhe'));
+  const failed = [assets[0], assets[1], assets[8]].map(a => queryResult(a));
+  const assessments = new Map(assets.map((a, i) => [a.tagNumber, review(a, {
+    requiresReview: i < 8, reasonLabel: i < 8 ? '교체 기준 확인' : '',
+    freshness: { state: [0, 1, 8].includes(i) ? 'behind' : 'aligned' }
+  })]));
+  const rows = assets.map(a => guide.describe(a, assessments.get(a.tagNumber), { results: failed }));
+  const summary = guide.summarize(rows);
+  assert.equal(summary.total, 9); assert.equal(summary.requiresReview, 8);
+  assert.equal(summary.latest, 3); assert.equal(summary.failed, 3); assert.equal(summary.overlap, 2);
+  const f = harness(assets); f.ui.state.unifiedRefreshResults = failed;
+  const html = f.ui.renderBlowerResolutionCenter(assets, assessments);
+  assert.match(html, /확인할 설비 <b>9대/); assert.match(html, /누적 근거 확인 8대 · 최신 반영 확인 3대/);
+  assert.match(html, /겹치는 2대는 한 번만/); assert.match(html, /최근 조회 미반영 3대/);
+  assert.doesNotMatch(html, /11대/);
+});
+
+test('a failed method is not advertised as automatic again while a changed registered-range method remains explicit', () => {
+  const a = candidate(), plan = core.runtimeRecoveryPlan(a, NOW);
+  const zeroFailure = queryResult(a, { errorCode: 'BLOWER_COMPLETION_WINDOW_NOT_ZERO', recoveryMode: 'completion_window_zero' });
+  const old = guide.describe(a, review(a), { recovery: plan, results: [zeroFailure] });
+  assert.equal(old.kind, 'query'); assert.equal(old.action, 'review');
+  assert.doesNotMatch(old.detail, /운전 기록이 있어/);
+  const seal = asset('204HHL10AN631', 'seal_pot');
+  const firstRunFailure = queryResult(seal, { errorCode: 'DATAPARC_FIRST_RUN_UNVERIFIED', recoveryMode: 'seal_first_run' });
+  const changed = guide.describe(seal, review(seal), { results: [firstRunFailure], recovery: {
+    recoveryMode: 'seal_registered_range', startAt: RANGE_START, dataParcTag: seal.dataParcTag
+  } });
+  assert.equal(changed.kind, 'automatic'); assert.equal(changed.action, 'refresh');
+  assert.match(changed.detail, /실제 최초 기동시각을 확인한 것으로 처리하지 않습니다/);
+  assert.equal(changed.queryResult.errorCode, 'DATAPARC_FIRST_RUN_UNVERIFIED');
+  const fullFailure = guide.describe(seal, review(seal), { results: [queryResult(seal, { recoveryMode: 'append_boundary_full' })] });
+  assert.equal(fullFailure.action, 'review'); assert.match(fullFailure.title, /연결 구간 보완 미반영/);
+});
+
+test('bound negative completion-window evidence retains the source review and permits only ordinary latest refresh guidance', () => {
+  for (const reasonCode of ['CONTINUOUS_STOP_UNPROVEN', 'RUN_OBSERVED']) {
+    const a = negativeWindow(reasonCode), before = structuredClone(a);
+    assert.equal(guide.verifiedCompletionWindowReview(a), a.completionWindowRecoveryReview);
+    const described = guide.describe(a, review(a), { recovery: null });
+    assert.equal(described.kind, 'source'); assert.equal(described.requiresReview, true);
+    assert.equal(described.recoveryMode, ''); assert.equal(described.action, 'refresh');
+    assert.match(described.nextStep, /같은 과거 정지 구간은 자동 재조회하지 않습니다/);
+    assert.equal(/운전 기록이 있어/.test(described.detail), reasonCode === 'RUN_OBSERVED');
+    const f = harness([a], { write: true });
+    const html = f.ui.renderBlowerResolutionHistoryGuide(described);
+    assert.match(html, /data-completion-window-review="true"/);
+    assert.equal(/확인된 RUN 600초/.test(html), reasonCode === 'RUN_OBSERVED');
+    assert.match(html, /V-belt 교체 완료 확인/); assert.equal(a.actualLastReplacementAt, '');
+    assert.deepEqual(a, before);
+  }
+});
+
+test('negative evidence is discarded on changed owner, source, signal, receipt or malformed numbers', () => {
+  for (const change of [a => { a.completionWindowRecovery.eligible = true; },
+    a => { a.completionWindowProof = {}; }, a => { a.completionWindowRecoveryReview.dataParcTag = 'other'; },
+    a => { a.completionWindowRecoveryReview.replacementEventId = a.replacementAutoCycle.eventId; },
+    a => { a.completionWindowRecoveryReview.runtimeRevision = 'old'; },
+    a => { a.completionWindowRecoveryReview.runtimeRequestId = 'old'; },
+    a => { a.completionWindowRecoveryReview.cycleStartRevision = 'old'; },
+    a => { a.replacementAutoCycle.sourceSnapshotSha256 = 'c'.repeat(64); },
+    a => { a.actualLastReplacementAt = WINDOW_START; }, a => { a.dataParcRuntimeBasis.runtimeHours = NaN; },
+    a => { a.runtimeCoverageEvidence.hours = Infinity; }, a => { a.completionWindowRecoveryReview.runningSeconds = 0.5; },
+    a => { a.completionWindowRecoveryReview.reasonCode = 'RUN_OBSERVED'; }]) {
+    const a = negativeWindow(); change(a); assert.equal(guide.verifiedCompletionWindowReview(a), null);
+  }
+  // A valid later append retains the original failed-window event but links
+  // the review to the current visible tail, as projected by the server.
+  const advanced = negativeWindow(); advanced.cycleRuntimeRevision = 'new-runtime';
+  advanced.dataParcRuntimeBasis.requestId = advanced.runtimeCoverageEvidence.requestId = 'new-tail';
+  advanced.dataParcRuntimeBasis.observedAt = advanced.runtimeCoverageEvidence.observedAt =
+    advanced.cycleRuntimeAnchorAt = advanced.runRuntime.measuredAt = NOW;
+  advanced.completionWindowRecoveryReview.runtimeRevision = 'new-runtime';
+  advanced.completionWindowRecoveryReview.runtimeRequestId = 'new-tail';
+  assert.ok(guide.verifiedCompletionWindowReview(advanced));
+});
+
+test('waiting guidance resumes only an exact accepted request and never enables a fresh duplicate request', async () => {
+  const a = candidate(), f = harness([a], { write: true });
+  f.ui.state.unifiedRefreshResults = [queryResult(a, { status: 'waiting', errorCode: 'REQUEST_TIMEOUT' })];
+  let described = f.ui.blowerResolutionGuide(a);
+  assert.equal(described.action, 'resume'); assert.equal(described.kind, 'query');
+  assert.equal(await f.ui.runBlowerResolutionRefresh(a.tagNumber), false);
+  f.ui.state.unifiedRuntimeResume = { createdBatch: { results: [{ assetTag: a.tagNumber, item: { id: 'foreign-id' } }] } };
+  assert.equal(await f.ui.runBlowerResolutionRefresh(a.tagNumber), false);
+  f.ui.state.unifiedRuntimeResume.createdBatch.results[0].item.id = 'failed-request';
+  assert.match(f.ui.renderBlowerResolutionHistoryGuide(described), /조회 결과 다시 확인/);
+  assert.equal(await f.ui.runBlowerResolutionRefresh(a.tagNumber), true);
+  assert.deepEqual(f.calls, [['refresh']]);
+});
+
+test('a saved organic runtime keeps its scope, stopped color and hours while actual failed query details remain readable', () => {
+  const a = asset('204SDF01AN002', 'organic_fuel'), start = '2026-07-24T10:00:00.000Z';
+  a.lastReplacementAt = a.actualLastReplacementAt = '2026-07-24T00:00:00+09:00';
+  a.cycleStartState = 'started'; a.cycleStartedAt = a.cycleStoredStartedAt = start;
+  a.cycleElapsedHours = a.runtimeHours = 1152.5630555555556;
+  a.operationState = a.cycleRuntimeState = 'stopped'; a.isRunning = false;
+  delete a.runRuntime; delete a.replacementAutoCycle; delete a.cycleSourceReview;
+  Object.assign(a.dataParcRuntimeBasis, { startAt: start, requiredStartAt: start, coverageComplete: true,
+    missingLeadingSeconds: 0, runtimeHours: a.runtimeHours, runningSeconds: 4149227 });
+  Object.assign(a.runtimeCoverageEvidence, { startAt: start, requiredStartAt: start, coverageComplete: true,
+    missingLeadingSeconds: 0, hours: a.runtimeHours });
+  const f = harness([a]), baseline = f.ui.allOverviewRuntimeAssessment(a);
+  f.ui.state.unifiedRefreshResults = [queryResult(a, { message: '<script>unsafe()</script>' })];
+  const assessed = f.ui.allOverviewRuntimeAssessment(a), card = f.ui.renderAllOverviewCard(a);
+  assert.equal(assessed.requiresReview, false); assert.equal(assessed.scope, baseline.scope); assert.equal(assessed.hours, baseline.hours);
+  assert.match(card, /1,152\.6시간/); assert.match(card, /is-stopped/); assert.match(card, /data-runtime-review="false"/);
+  assert.match(card, /data-query-result="failed"/); assert.match(card, /조회 결과 보기/);
+  assert.equal(f.ui.matchesOverviewFilter(a, assessed, 'query'), true);
+  assert.equal(f.ui.matchesOverviewFilter(a, assessed, 'review'), false);
+  f.ui.openOverviewAssessmentAction(a.tagNumber);
+  const html = f.ui.elements.historyCycleSummary.innerHTML;
+  assert.match(html, /2026-11-07 00:01/); assert.match(html, /2026-11-07 10:30/);
+  assert.match(html, /DATAPARC_APPEND_BOUNDARY_CHANGED/); assert.match(html, /&lt;script&gt;unsafe/);
+  assert.doesNotMatch(html, /<script>|V-belt 교체 완료 확인/);
+  assert.match(fs.readFileSync(new URL('../maintenance/blower-readable-compact-v1.css', import.meta.url), 'utf8'), /#fff1f1/);
+  assert.deepEqual(f.calls, []);
+});
+
+test('all recovery modes count and a completion-window certificate never advances the runtime reflection count or saved time', () => {
+  const a = certified(), f = harness([a]);
+  const modes = ['role_priority', 'confirmed_gap', 'seal_first_run', 'seal_registered_range', 'completion_window_zero', 'append_boundary_full'];
+  const results = modes.map((recoveryMode, i) => ({ tagNumber: `T${i}`, status: 'complete', recoveryMode,
+    recoveryApplied: true, message: '검증 완료' }));
+  f.ui.state.unifiedRefreshResults = results; f.ui.state.unifiedRefreshProgressTarget = 6;
+  f.ui.state.unifiedRefreshInlineOutcome = 'complete'; f.ui.renderUnifiedRefreshProgress('완료');
+  assert.match(f.ui.elements.unifiedRefreshSummary.textContent, /반영 5대 · 보완 반영 6대 · 근거 검증 1대\(누적값·반영 시각 유지\)/);
+  f.ui.observeUnifiedRefreshApply({ body: { action: 'apply_completion_window_runtime_recovery', requestId: 'cert' } },
+    { ok: true, requestId: 'cert', tagNumber: a.tagNumber, applied: true, certificateOnly: true });
+  assert.equal(f.ui.inlineRefreshApplied(), 0); f.ui.renderInlineRefreshStatus();
+  assert.match(f.ui.elements.overviewRefreshCount.textContent, /반영 5대/);
+  assert.match(f.ui.elements.overviewRefreshCount.textContent, /근거 검증 1대 · 반영 시각 유지/);
+  f.ui.renderOverviewRefreshPanel(); assert.equal(f.ui.elements.overviewLatestQueryAt.textContent, '2026-11-07 00:01');
+  results[4].unchanged = true; f.ui.renderUnifiedRefreshProgress('동일 증거 확인');
+  assert.match(f.ui.elements.unifiedRefreshSummary.textContent, /반영 5대/);
+  assert.doesNotMatch(f.ui.elements.unifiedRefreshSummary.textContent, /유지 1대/);
+});
+
+test('the summary keeps all current basis reviews even when their latest query failed and details preserve typed reasons safely', () => {
+  const a = candidate(), f = harness([a]);
+  const failed = queryResult(a, { errorCode: 'BLOWER_COMPLETION_WINDOW_NOT_ZERO', recoveryMode: 'completion_window_zero',
+    message: '<img src=x onerror=boom>' });
+  f.ui.state.unifiedRefreshResults = [failed]; const before = structuredClone(failed);
+  f.ui.renderUnifiedRefreshProgress('부분 완료');
+  assert.match(f.ui.elements.unifiedRefreshSummary.textContent, /기준·구간 확인 1대/);
+  assert.match(f.ui.elements.unifiedRefreshSummary.textContent, /실패 1대/);
+  assert.match(f.ui.elements.unifiedRefreshList.innerHTML, /정지 구간 입증 안 됨/);
+  assert.match(f.ui.elements.unifiedRefreshList.innerHTML, /저장 전 검증/);
+  assert.match(f.ui.elements.unifiedRefreshList.innerHTML, /&lt;img src=x/);
+  assert.doesNotMatch(f.ui.elements.unifiedRefreshList.innerHTML, /<img/);
+  assert.deepEqual(failed, before);
+});
+
+test('the API adapter forwards only a bounded boundary recovery envelope for the same failed request', async () => {
+  const a = asset('204SDF01AN002', 'organic_fuel'), f = harness([a], { write: true });
+  const boundary = { version: 1, eligible: true, requestId: 'attempt', assetTag: a.tagNumber,
+    dataParcTag: a.dataParcTag, startAt: RANGE_START, endAt: NOW, arbitraryAuthority: true };
+  const read = async (payload) => {
+    f.context.fetch = async () => ({ ok: false, status: 409, headers: { get() { return null; } }, text: async () => JSON.stringify(payload) });
+    try { await f.ui.sendApiRequest({ method: 'POST', timeoutMs: 0, body: { action: 'dataparc_runtime_sync', requestId: 'attempt' } }); }
+    catch (error) { return error; }
+    assert.fail('fixture must fail');
+  };
+  const payload = { ok: false, code: 'DATAPARC_APPEND_BOUNDARY_CHANGED', message: 'Boundary differs', boundaryRecovery: boundary };
+  const good = await read(payload);
+  assert.equal(good.code, payload.code); assert.equal(good.boundaryRecovery.requestId, 'attempt');
+  assert.equal(good.boundaryRecovery.arbitraryAuthority, undefined); assert.ok(Object.isFrozen(good.boundaryRecovery));
+  for (const change of [p => { p.code = 'UNRELATED_ERROR'; }, p => { p.boundaryRecovery.requestId = 'foreign'; },
+    p => { p.boundaryRecovery.eligible = false; }, p => { p.boundaryRecovery.version = 2; },
+    p => { p.boundaryRecovery.dataParcTag = 'bad signal'; }, p => { p.boundaryRecovery.startAt = '2026-09-16'; },
+    p => { p.boundaryRecovery.endAt = p.boundaryRecovery.startAt; }, p => { p.boundaryRecovery.startAt = '2020-01-01T00:00:00Z'; }]) {
+    const bad = structuredClone(payload); change(bad); assert.equal((await read(bad)).boundaryRecovery, undefined);
+  }
 });

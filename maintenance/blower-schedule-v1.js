@@ -92,7 +92,7 @@
   function scheduledRecoveryPlan(expected, item) {
     const probe = item?.probe, recovery = probe?.runtimeRecovery;
     const marker = value => typeof value === 'string' &&
-      ['role-priority-recovery-', 'coverage-recovery-', 'completion-window-recovery-'].some(prefix => value.startsWith(prefix));
+      ['role-priority-recovery-', 'coverage-recovery-', 'completion-window-recovery-', 'append-boundary-recovery-'].some(prefix => value.startsWith(prefix));
     if (!recovery && !marker(probe?.expectedCycleRuntimeRevision)) return null;
     const routes = {
       role_priority: { prefix: 'role-priority-recovery-v1:', tags: ['103HRJ01AN601'],
@@ -101,8 +101,12 @@
         signal: 'GSPOGE.ABB_DCS.103ETG30AN602XJ04', action: 'dataparc_runtime_sync', confirmedGapRecovery: true },
       seal_first_run: { prefix: 'coverage-recovery-v1:', tags: ['204HHL10AN611', '204HHL10AN631'],
         action: 'dataparc_runtime_sync', requireFirstRunStart: true },
+      seal_registered_range: { prefix: 'coverage-recovery-v1:', tags: ['204HHL10AN631'],
+        action: 'dataparc_runtime_sync', registeredRangeRecovery: true },
       completion_window_zero: { prefix: 'completion-window-recovery-v1:', tags: ['204HHL60AP631'],
-        signal: 'GSPOGE.ABB_DCS.204HHL60AP631XB04', action: 'apply_completion_window_runtime_recovery' }
+        signal: 'GSPOGE.ABB_DCS.204HHL60AP631XB04', action: 'apply_completion_window_runtime_recovery' },
+      append_boundary_full: { prefix: 'append-boundary-recovery-v1:', tags: ['204SDF01AN002'],
+        signal: 'GSPOGE.ABB_DCS.204SDF01AN002XB04', action: 'dataparc_runtime_sync', appendBoundaryRecovery: true }
     };
     const route = routes[recovery?.mode], start = time(probe?.startAt), end = time(probe?.endAt);
     if (!route || recovery?.version !== 1 || item.id !== expected.id || item.status !== 'complete' ||
@@ -120,6 +124,8 @@
     return { mode: recovery.mode, startAt: probe.startAt, endAt: probe.endAt, dataParcTag: probe.dataParcTag,
       body: { action: route.action, requestId: expected.id,
         ...(route.confirmedGapRecovery ? { confirmedGapRecovery: true } : {}),
+        ...(route.registeredRangeRecovery ? { registeredRangeRecovery: true } : {}),
+        ...(route.appendBoundaryRecovery ? { appendBoundaryRecovery: true } : {}),
         ...(route.requireFirstRunStart ? { requireFirstRunStart: true } : {}) } };
   }
 
@@ -134,6 +140,7 @@
         String(applied.assetTag || applied.tagNumber || '') !== expected.assetTag ||
         (applied.applied !== true && applied.replayed !== true) || applied.incremental === true ||
         !finite(applied.runtimeHours) || applied.runtimeHours < 0 || !validPeriod ||
+        (repair.mode === 'append_boundary_full' && applied.appendBoundaryRecovery !== true) ||
         (repair.mode === 'role_priority'
           ? applied.rolePriorityRecovery !== true || time(applied.selectedCompletionAt) !== time(repair.startAt)
           : applied.dataParcTag !== repair.dataParcTag)) {
@@ -410,6 +417,10 @@
     function ioFor(ctx, item, tracking) {
       return {
         clock: monotonicNow, sleep,
+        // A schedule owns exactly one durable batch receipt. A later fallback
+        // batch would replace its request IDs without a server receipt handoff.
+        // Manual Latest may recover the fresh boundary; schedules retain it.
+        allowBoundaryRecovery: false,
         assertWritable: () => ctx.assert(),
         progress: text => { ctx.assert(); emit('running', text); },
         api: async config => {

@@ -7,14 +7,20 @@ import { shiftKey } from './blower-role-priority-v5.js';
  * measured tail and complete new result commit together. This helper supplies
  * guards only: it never changes a belt date, source, counter or raw request.
  * Bag 1B has an independently confirmed completion clock. Seal 2A/2C retain
- * their registered May11 origin and require validated first-RUN evidence;
- * that measurement must not be presented as a physical belt-completion clock.
+ * their registered May11 origin. The original first-RUN mode still requires
+ * validated transition evidence. Seal 2C also has a separately requested
+ * registered-range mode: a complete integral does not require a transition or
+ * establish a physical belt-completion/first-start clock.
  */
 export const COVERAGE_RECOVERY_PREFIX = 'coverage-recovery-v1:';
 const TABLE = 'blower_coverage_recovery_intents_v1';
+// The deployed v1 table has a CHECK containing only the original two modes.
+// Keep it intact; CREATE IF NOT EXISTS cannot extend that constraint.
+const REGISTERED_TABLE = 'blower_registered_range_recovery_intents_v1';
 const SEAL_ORIGIN = Date.parse('2026-05-11T00:00:00+09:00');
 const MAX_SNAPSHOT_BYTES = 750000;
-const MODES = new Set(['confirmed_gap', 'seal_first_run']);
+const MODES = new Set(['confirmed_gap', 'seal_first_run', 'seal_registered_range']);
+const tableForMode = mode => mode === 'seal_registered_range' ? REGISTERED_TABLE : TABLE;
 const SIGNALS = {
   '104ETG30AN602': 'GSPOGE.ABB_DCS.103ETG30AN602XJ04',
   '204HHL10AN611': 'GSPOGE.ABB_DCS.204HHL10AN611XB04',
@@ -47,10 +53,12 @@ function eventsEqual(tag, rows) {
 }
 
 function modeFlags(body, mode) {
-  if (!body || (mode === 'confirmed_gap' ? body.confirmedGapRecovery !== true || body.requireFirstRunStart === true
-    : body.requireFirstRunStart !== true || body.confirmedGapRecovery === true) ||
-      body.incrementalRefresh === true || body.requireIncrementalAppend === true ||
-      body.limestoneTrackingOnly === true || body.rolePriorityRecovery === true) {
+  const flags = {confirmedGapRecovery:mode === 'confirmed_gap', requireFirstRunStart:mode === 'seal_first_run',
+    registeredRangeRecovery:mode === 'seal_registered_range'};
+  if (!body || !MODES.has(mode) || Object.entries(flags).some(([key,required]) => required
+    ? body[key] !== true : body[key] !== undefined && body[key] !== false) ||
+      [body.incrementalRefresh,body.requireIncrementalAppend,body.limestoneTrackingOnly,body.rolePriorityRecovery,
+        body.completionWindowRecovery,body.appendBoundaryRecovery].some(value=>value !== undefined && value !== false)) {
     throw failure('BLOWER_COVERAGE_RECOVERY_MODE_INVALID','RUN 보완 조회의 종류와 전체 조회 조건이 일치하지 않습니다.',400);
   }
 }
@@ -129,7 +137,9 @@ async function confirmedBagSource(database, asset, events, owner, options) {
 export async function loadCoverageRecoveryProof(database, asset, dataParcTag, mode, options = {}) {
   const now = options.now === undefined ? new Date() : options.now;
   if (!(now instanceof Date) || !Number.isFinite(now.getTime()) || !MODES.has(mode) || !asset || Number(asset.enabled) !== 1 ||
-      (mode === 'confirmed_gap' ? asset.tag_number !== '104ETG30AN602' : !['204HHL10AN611','204HHL10AN631'].includes(asset.tag_number)) ||
+      (mode === 'confirmed_gap' ? asset.tag_number !== '104ETG30AN602'
+        : mode === 'seal_registered_range' ? asset.tag_number !== '204HHL10AN631'
+          : !['204HHL10AN611','204HHL10AN631'].includes(asset.tag_number)) ||
       dataParcTag !== SIGNALS[asset.tag_number] || !Number.isFinite(instant(asset.last_replacement_at)) ||
       !text(asset.cycle_start_revision) || !text(asset.cycle_runtime_revision) ||
       text(asset.cycle_runtime_revision).length + COVERAGE_RECOVERY_PREFIX.length > 200 ||
@@ -178,11 +188,21 @@ export async function ensureCoverageRecoverySchema(database) {
     data_parc_tag TEXT NOT NULL,recovery_mode TEXT NOT NULL CHECK(recovery_mode IN ('confirmed_gap','seal_first_run')),
     start_at TEXT NOT NULL,snapshot_sha256 TEXT NOT NULL,snapshot_json TEXT NOT NULL,created_at TEXT NOT NULL
   )`).run();
+  await database.prepare(`CREATE TABLE IF NOT EXISTS ${REGISTERED_TABLE} (
+    request_id TEXT PRIMARY KEY NOT NULL,version INTEGER NOT NULL CHECK(version=1),asset_tag TEXT NOT NULL,
+    data_parc_tag TEXT NOT NULL,recovery_mode TEXT NOT NULL CHECK(recovery_mode='seal_registered_range'),
+    start_at TEXT NOT NULL,snapshot_sha256 TEXT NOT NULL,snapshot_json TEXT NOT NULL,created_at TEXT NOT NULL
+  )`).run();
 }
 
 export async function loadCoverageRecoveryIntent(database, requestId) {
-  try { return await database.prepare(`SELECT * FROM ${TABLE} WHERE request_id=?`).bind(requestId).first(); }
-  catch (error) { if (/no such table:.*blower_coverage_recovery_intents_v1/i.test(String(error?.message || error))) return null; throw error; }
+  const matches = [];
+  for (const table of [TABLE,REGISTERED_TABLE]) {
+    try { const row = await database.prepare(`SELECT * FROM ${table} WHERE request_id=?`).bind(requestId).first(); if(row) matches.push(row); }
+    catch (error) { if (!/no such table:.*blower_(?:coverage|registered_range)_recovery_intents_v1/i.test(String(error?.message || error))) throw error; }
+  }
+  // A damaged duplicate across mode tables cannot silently pick an authority.
+  return matches.length === 1 ? matches[0] : null;
 }
 
 export function coverageRecoveryQueueStatements(database, proof, requestId, createdAt) {
@@ -190,7 +210,7 @@ export function coverageRecoveryQueueStatements(database, proof, requestId, crea
   const id = crypto.randomUUID();
   const row = {request_id:requestId,version:1,asset_tag:proof.asset.tag_number,data_parc_tag:proof.dataParcTag,
     recovery_mode:proof.mode,start_at:proof.startAt,snapshot_sha256:proof.snapshotSha256,snapshot_json:proof.snapshotJson,created_at:createdAt};
-  return {before:[guard(database,id,proof.guards)],after:[insert(database,TABLE,row),database.prepare('DELETE FROM blower_history_atomic_guard WHERE id=?').bind(id)]};
+  return {before:[guard(database,id,proof.guards)],after:[insert(database,tableForMode(proof.mode),row),database.prepare('DELETE FROM blower_history_atomic_guard WHERE id=?').bind(id)]};
 }
 
 export async function validCoverageRecoveryReuse(database, requestId, proof) {
@@ -239,5 +259,5 @@ export async function validateCoverageRecoveryApply(database, intentRow, asset, 
         proof.base.state === 'running' && instant(proof.base.observedAt) < first)
       throw failure('BLOWER_COVERAGE_RECOVERY_FIRST_RUN_REQUIRED','등록 기준부터 확인된 첫 RUN 근거가 없어 기존 값을 유지합니다.');
   }
-  return {guards:[...proof.guards,exists(TABLE,intentRow)]};
+  return {guards:[...proof.guards,exists(tableForMode(proof.mode),intentRow)]};
 }

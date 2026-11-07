@@ -161,7 +161,7 @@ test('one 27-device plan schedules exactly four proven repairs and 23 ordinary a
   const repair = plan.tasks.filter(task => task.kind === 'dataparc_repair');
   assert.deepEqual(repair.map(task => [task.snapshot.tagNumber, task.recoveryMode]).sort(), [
     ['103HRJ01AN601', 'role_priority'], ['104ETG30AN602', 'confirmed_gap'],
-    ['204HHL10AN611', 'seal_first_run'], ['204HHL10AN631', 'seal_first_run']]);
+    ['204HHL10AN611', 'seal_first_run'], ['204HHL10AN631', 'seal_registered_range']]);
   assert.ok(repair.every(task => task.incremental === false && task.queryStartAt === task.startAt));
   assert.ok(plan.tasks.filter(task => task.kind === 'dataparc').every(task => task.incremental === true));
   assert.equal(repair.find(task => task.recoveryMode === 'role_priority').snapshot.cycleStartState, 'pending');
@@ -243,12 +243,13 @@ test('one mixed batch preserves every frozen owner and dispatches each repair th
     if (task.kind === 'dataparc_repair') {
       assert.equal(create.incrementalRefresh, false); assert.equal(create.requireIncrementalAppend, false);
       assert.equal(create.startAt, task.startAt);
-      assert.equal([create.rolePriorityRecovery, create.confirmedGapRecovery, create.requireFirstRunStart].filter(Boolean).length, 1);
+      assert.equal([create.rolePriorityRecovery, create.confirmedGapRecovery, create.requireFirstRunStart, create.registeredRangeRecovery].filter(Boolean).length, 1);
       if (task.recoveryMode === 'role_priority') {
         assert.equal(create.rolePriorityRecovery, true); assert.equal(create.selectedCompletionAt, task.startAt);
         assert.deepEqual(apply, { action: 'apply_role_priority_runtime_recovery', requestId: `accepted-${s.tagNumber}` });
       } else {
-        const flag = task.recoveryMode === 'confirmed_gap' ? 'confirmedGapRecovery' : 'requireFirstRunStart';
+        const flag = task.recoveryMode === 'confirmed_gap' ? 'confirmedGapRecovery'
+          : task.recoveryMode === 'seal_registered_range' ? 'registeredRangeRecovery' : 'requireFirstRunStart';
         assert.equal(create[flag], true);
         assert.deepEqual(apply, { action: 'dataparc_runtime_sync', requestId: `accepted-${s.tagNumber}`, [flag]: true });
       }
@@ -280,7 +281,7 @@ for (const [status, limit] of [['pending', 45000], ['processing', 120000]]) {
     assert.equal(f.creates().length, 1); assert.equal(f.applies().length, 0);
     assert.equal(f.checkpoint.runtimeRecoveryVersion, 1);
     assert.ok(f.checkpoint.tasks.every(task => task.kind === 'dataparc_repair' && task.recoveryVersion === 1));
-    assert.deepEqual(f.checkpoint.createdBatch.results.map(row => row.recoveryMode), ['role_priority', 'confirmed_gap', 'seal_first_run', 'seal_first_run']);
+    assert.deepEqual(f.checkpoint.createdBatch.results.map(row => row.recoveryMode), ['role_priority', 'confirmed_gap', 'seal_first_run', 'seal_registered_range']);
     f.resume(); f.config.statusFor = () => 'complete';
     const second = await f.run();
     assert.ok(second.every(item => item.status === 'complete' && item.recoveryApplied === true));
@@ -372,7 +373,7 @@ test('uncertain create and explicit server rejection never retry or fall back to
   assert.ok(out.every(item => item.status === 'failed' && item.recoveryApplied !== true));
   assert.equal(rejected.creates().length, 1); assert.equal(rejected.applies().length, 4);
   assert.ok(rejected.applies().filter(call => call.body.action === 'dataparc_runtime_sync')
-    .every(call => call.body.confirmedGapRecovery === true || call.body.requireFirstRunStart === true));
+    .every(call => call.body.confirmedGapRecovery === true || call.body.requireFirstRunStart === true || call.body.registeredRangeRecovery === true));
 });
 
 test('repair create must return an accepted full-query ID, never an up-to-date shortcut', async () => {
@@ -490,7 +491,8 @@ test('the real Latest controller creates all 27 requests once, applies four repa
   const requests = f.creates()[0].body.requests;
   assert.equal(requests.filter(body => body.rolePriorityRecovery === true).length, 1);
   assert.equal(requests.filter(body => body.confirmedGapRecovery === true).length, 1);
-  assert.equal(requests.filter(body => body.requireFirstRunStart === true).length, 2);
+  assert.equal(requests.filter(body => body.requireFirstRunStart === true).length, 1);
+  assert.equal(requests.filter(body => body.registeredRangeRecovery === true).length, 1);
   assert.equal(requests.filter(body => body.incrementalRefresh === true).length, 23);
   assert.ok(requests.every(body => body.expectedCycleRuntimeRevision !== 'old-display-runtime'));
   assert.equal(f.applies().length, 27);

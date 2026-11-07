@@ -16,6 +16,10 @@ const MODES = {
     prefix: 'coverage-recovery-v1:', start: '2026-09-25T05:40:00.000Z' },
   seal_first_run: { tag: '204HHL10AN611', signal: 'GSPOGE.ABB_DCS.204HHL10AN611XB04',
     prefix: 'coverage-recovery-v1:', start: '2026-05-10T15:00:00.000Z' },
+  seal_registered_range: { tag: '204HHL10AN631', signal: 'GSPOGE.ABB_DCS.204HHL10AN631XB04',
+    prefix: 'coverage-recovery-v1:', start: '2026-05-10T15:00:00.000Z' },
+  append_boundary_full: { tag: '204SDF01AN002', signal: 'GSPOGE.ABB_DCS.204SDF01AN002XB04',
+    prefix: 'append-boundary-recovery-v1:', start: '2026-07-24T10:00:00.000Z', owner: '2026-07-23T15:00:00.000Z' },
   completion_window_zero: { tag: '204HHL60AP631', signal: 'GSPOGE.ABB_DCS.204HHL60AP631XB04',
     prefix: 'completion-window-recovery-v1:', start: '2026-09-16T00:23:00.000Z',
     owner: '2026-09-15T15:00:00.000Z', end: '2026-09-16T15:00:00.000Z' }
@@ -30,8 +34,8 @@ function savedIntent(mode, patch = {}) {
   const signalOnly = ['role_priority', 'completion_window_zero'].includes(mode);
   return { request_id: 'accepted-' + m.tag, schema_version: 1, asset_tag: m.tag, dataparc_tag: m.signal,
     window_start: m.start, window_end: m.end || NOW, expected_last_replacement_at: m.owner || m.start,
-    expected_cycle_start_state: mode === 'confirmed_gap' ? 'started' : 'legacy',
-    expected_cycle_started_at: mode === 'confirmed_gap' ? '2026-10-17T23:04:00.000Z' : '',
+    expected_cycle_start_state: ['confirmed_gap','append_boundary_full'].includes(mode) ? 'started' : 'legacy',
+    expected_cycle_started_at: mode === 'confirmed_gap' ? '2026-10-17T23:04:00.000Z' : mode === 'append_boundary_full' ? m.start : '',
     expected_cycle_start_revision: (signalOnly ? 'signal-only-v1:' : '') + 'saved-start-revision',
     expected_cycle_runtime_revision: m.prefix + 'saved-runtime-revision',
     reuse_key: m.prefix + (m.prefix === 'coverage-recovery-v1:' ? mode + ':' : '') +
@@ -145,6 +149,7 @@ function fixture(options = {}) {
       assert.equal(slot.batchReceipt, null, 'an accepted schedule may create only once');
       const results = body.requests.map(request => {
         const mode = request.rolePriorityRecovery === true ? 'role_priority' : request.confirmedGapRecovery === true ? 'confirmed_gap'
+          : request.registeredRangeRecovery === true ? 'seal_registered_range' : request.appendBoundaryRecovery === true ? 'append_boundary_full'
           : request.requireFirstRunStart === true ? 'seal_first_run' : request.completionWindowRecovery === true ? 'completion_window_zero' : '';
         const pending = request.expectedCycleStartState === 'pending';
         const row = { ...(mode ? savedIntent(mode) : {}), request_id: 'accepted-' + request.assetTag, schema_version: 1,
@@ -179,6 +184,8 @@ function fixture(options = {}) {
       assert.equal(body.action, requiredAction, 'repair cannot downgrade to ordinary sync');
       assert.equal(body.confirmedGapRecovery === true, mode === 'confirmed_gap');
       assert.equal(body.requireFirstRunStart === true, mode === 'seal_first_run');
+      assert.equal(body.registeredRangeRecovery === true, mode === 'seal_registered_range');
+      assert.equal(body.appendBoundaryRecovery === true, mode === 'append_boundary_full');
       if (f.rejectApply) throw fault(f.rejectApply);
       const replayed = f.applied.has(body.requestId); f.applied.add(body.requestId);
       if (f.failureOnce) { f.failureOnce = false; throw fault('acknowledgement_lost', 503); }
@@ -186,13 +193,14 @@ function fixture(options = {}) {
       const result = { ok: true, applied: !replayed, replayed, requestId: body.requestId, assetTag: probe.assetTag,
         dataParcTag: probe.dataParcTag, runtimeHours: 100, observedAt: probe.endAt,
         ...(mode === 'role_priority' ? { rolePriorityRecovery: true, selectedCompletionAt: probe.startAt } : {}),
+        ...(mode === 'append_boundary_full' ? { appendBoundaryRecovery: true } : {}),
         ...(mode === 'completion_window_zero' ? { completionWindowRecovery: true, certificateOnly: true,
           observedAt: PREVIOUS, verifiedWindowStartAt: probe.startAt, verifiedWindowEndAt: probe.endAt } : {}) };
       f.mutateApply?.(result); return result;
     }
     throw new Error('Unexpected API: ' + config.url);
   };
-  f.reload = () => { f.controller = scheduler.createController({ core, storage: f.storage, api: f.api,
+  f.reload = () => { f.controller = scheduler.createController({ core: f.core || core, storage: f.storage, api: f.api,
     identity: () => f.identity, clock: f.now, monotonicNow: () => f.mono, sleep: async ms => f.advance(ms),
     randomKey: () => (++f.counter).toString(16).padStart(64, '0'), onState: value => f.states.push(value),
     locks: { async request(_name, _options, callback) { return callback({ name: scheduler.LOCK_NAME }); } } }); };
@@ -241,24 +249,28 @@ test('27-device scheduled processing timeout recovers four repairs and 23 append
   assert.equal(requests.length, 27);
   assert.equal(requests.filter(r => r.rolePriorityRecovery).length, 1);
   assert.equal(requests.filter(r => r.confirmedGapRecovery).length, 1);
-  assert.equal(requests.filter(r => r.requireFirstRunStart).length, 2);
+  assert.equal(requests.filter(r => r.requireFirstRunStart).length, 1);
+  assert.equal(requests.filter(r => r.registeredRangeRecovery).length, 1);
   assert.equal(requests.find(r => r.rolePriorityRecovery).expectedCycleStartState, 'pending');
   assert.ok(f.mono >= 130000, 'actual shared foreground deadline falls through to durable schedule recovery');
   assert.equal(f.applied.size, 27); assert.equal(f.applies().length, 27);
   assert.equal(f.actions('apply_role_priority_runtime_recovery').length, 1);
   assert.equal(f.applies().filter(call => call.body.confirmedGapRecovery).length, 1);
-  assert.equal(f.applies().filter(call => call.body.requireFirstRunStart).length, 2);
+  assert.equal(f.applies().filter(call => call.body.requireFirstRunStart).length, 1);
+  assert.equal(f.applies().filter(call => call.body.registeredRangeRecovery).length, 1);
   assert.equal([...f.slots.values()][0].state, 'complete');
   assert.equal(f.storage.getItem(receiptKey()), null);
   assert.deepEqual(f.assets, before, 'planning and recovery do not locally manufacture a new runtime or cycle');
 });
 
-test('a reloaded version1 receipt routes all four saved repair modes, including a certificate-only historical query', async () => {
+test('a reloaded version1 receipt routes all six saved repair modes, including boundary full and registered Seal range', async () => {
   const f = fixture(); f.seed(); f.reload(); await f.controller.tick();
-  assert.equal(f.applied.size, 4);
+  assert.equal(f.applied.size, 6);
   assert.equal(f.actions('create_blower_runtime_probe_batch').length, 0);
   assert.equal(f.actions('latest_logs_step').length, 0);
   assert.equal(f.actions('apply_completion_window_runtime_recovery').length, 1);
+  assert.equal(f.applies().filter(call => call.body.appendBoundaryRecovery).length, 1);
+  assert.equal(f.applies().filter(call => call.body.registeredRangeRecovery).length, 1);
   assert.equal([...f.slots.values()][0].state, 'complete');
 });
 
@@ -299,6 +311,49 @@ test('lost repair acknowledgement retains the exact accepted receipt and replay 
   assert.equal(new Set(f.applies().map(call => call.body.requestId)).size, 1);
   assert.equal(f.actions('create_blower_runtime_probe_batch').length, 0);
   assert.equal([...f.slots.values()][0].state, 'complete');
+});
+
+test('boundary full and registered-range lost acknowledgements resume their exact dedicated request after reload', async () => {
+  for (const mode of ['append_boundary_full','seal_registered_range']) {
+    const f = fixture({ failureOnce: true }); f.seed([mode]);
+    await f.controller.tick();
+    assert.equal(f.applied.size,1); assert.ok(f.storage.getItem(receiptKey()));
+    f.reload(); await f.controller.tick();
+    assert.equal(f.applied.size,1); assert.equal(f.applies().length,2);
+    assert.equal(new Set(f.applies().map(call=>call.body.requestId)).size,1);
+    assert.equal(f.actions('create_blower_runtime_probe_batch').length,0);
+    assert.ok(f.applies().every(call=>call.body[mode==='append_boundary_full'?'appendBoundaryRecovery':'registeredRangeRecovery']===true));
+    assert.equal([...f.slots.values()][0].state,'complete');
+  }
+});
+
+test('schedule disables a second boundary fallback batch while retaining the ordinary request outcome', async () => {
+  let policy;
+  const safeCore = {...core,async executeDataParcBatch(tasks,io) {
+    policy=io.allowBoundaryRecovery;
+    return tasks.map(task=>({tagNumber:task.snapshot.tagNumber,
+      status:task.snapshot.tagNumber==='204SDF01AN002'?'failed':'complete',
+      ...(task.snapshot.tagNumber==='204SDF01AN002'?{code:'DATAPARC_APPEND_BOUNDARY_CHANGED',message:'Boundary differs; saved value retained'}:{})}));
+  }};
+  const f=fixture({core:safeCore}); await f.controller.tick();
+  assert.equal(policy,false);
+  assert.equal(f.actions('create_blower_runtime_probe_batch').length,0);
+  const slot=[...f.slots.values()][0];
+  assert.equal(slot.state,'partial');assert.equal(slot.failedCount,1);assert.equal(slot.completedCount,26);
+});
+
+test('new mode metadata refuses a signal-only upgrade and the boundary acknowledgement must name the recovery', async () => {
+  for(const mode of ['append_boundary_full','seal_registered_range']) {
+    const row=savedIntent(mode), prefix=MODES[mode].prefix;
+    row.reuse_key=prefix+(prefix==='coverage-recovery-v1:'?mode+':':'')+'signal-only-v1:'+HASH;
+    row.expected_cycle_start_revision='signal-only-v1:saved-start-revision';
+    row.expected_cycle_start_state='legacy';row.expected_cycle_started_at='';
+    assert.equal(scheduledRuntimeRecoveryMetadata(row).runtimeRecovery.mode,'invalid');
+  }
+  const f=fixture({mutateApply:reply=>{delete reply.appendBoundaryRecovery;}});f.seed(['append_boundary_full']);
+  await f.controller.tick();
+  assert.ok(f.storage.getItem(receiptKey()));assert.equal([...f.slots.values()][0].state,'running');
+  assert.equal(f.controller.snapshot().error,'SCHEDULE_RECOVERY_APPLY_UNCONFIRMED');
 });
 
 test('unverified repair success cannot finish the schedule or clear its durable receipt', async () => {

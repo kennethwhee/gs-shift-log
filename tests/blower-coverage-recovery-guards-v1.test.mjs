@@ -29,7 +29,7 @@ const sourceEntry = {id:'legacy-entry-POCHEON#20260925#DAY#BCO1-2-5',time:'14:40
   content:'Bag Filter Fly Ash Aeration Blower #A,B V-Belt 교체 완료_TM 작업'};
 const errorCode = code => error => error.code === code && error.status >= 400;
 
-async function fixture(t, {tag=BAG,legacy=false,depthCheck=false} = {}) {
+async function fixture(t, {tag=BAG,legacy=false,depthCheck=false,recoveryMode=null} = {}) {
   const sql = new DatabaseSync(':memory:');
   t.after(() => sql.close());
   const reads = [], writes = [];
@@ -120,10 +120,10 @@ async function fixture(t, {tag=BAG,legacy=false,depthCheck=false} = {}) {
     await storeReplacementLogReceipts(db,logs,NOW);
   }
   await ensureCoverageRecoverySchema(db);
-  const mode=bag?'confirmed_gap':'seal_first_run';
+  const mode=recoveryMode||(bag?'confirmed_gap':'seal_first_run');
   const asset=()=>sql.prepare('SELECT * FROM blower_history_assets WHERE tag_number=?').get(tag);
   const events=()=>sql.prepare('SELECT * FROM blower_history_events WHERE tag_number=? ORDER BY id').all(tag);
-  const flags=()=>bag?{confirmedGapRecovery:true}:{requireFirstRunStart:true};
+  const flags=()=>mode==='confirmed_gap'?{confirmedGapRecovery:true}:mode==='seal_registered_range'?{registeredRangeRecovery:true}:{requireFirstRunStart:true};
   const body=()=>{const a=asset();return {assetTag:tag,dataParcTag:signal,startAt:origin,...flags(),incrementalRefresh:false,requireIncrementalAppend:false,
     expectedLastReplacementAt:a.last_replacement_at,expectedCycleStartState:a.cycle_start_state,expectedCycleStartedAt:a.cycle_started_at||'',
     expectedCycleStartRevision:a.cycle_start_revision,expectedCycleRuntimeRevision:a.cycle_runtime_revision};};
@@ -336,10 +336,10 @@ function dashboardAssessment(data, asset) {
   return context.ui.allOverviewRuntimeAssessment(asset);
 }
 
-async function integration(t,tag) {
+async function integration(t,tag,recoveryMode=null) {
   // Source fixtures use the exact current Tag/origin/automatic-start shapes.
   // New full RUN samples below are synthetic protocol tests, not plant data.
-  const seed=await fixture(t,{tag});
+  const seed=await fixture(t,{tag,recoveryMode});
   const RealDate=Date;
   let clock=NOW.getTime();
   globalThis.Date=class extends RealDate {constructor(...args){super(...(args.length?args:[clock]));}static now(){return clock;}};
@@ -391,12 +391,12 @@ async function integration(t,tag) {
     while(cursor<end){const next=Math.min(end,cursor+31*86400000);
       chunks.push({index:chunks.length+1,startAt:kst(cursor),endAt:kst(next)});cursor=next;}
     const seconds=append?600:seed.oldSeconds+3600;
-    const first=tag===BAG?null:new RealDate(RealDate.parse(seed.origin)+60000).toISOString();
+    const first=tag===BAG||seed.mode==='seal_registered_range'?null:new RealDate(RealDate.parse(seed.origin)+60000).toISOString();
     const available=end-(first?RealDate.parse(first):start);let used=0;
     for(const [index,chunk] of chunks.entries()){
       const from=Math.max(RealDate.parse(chunk.startAt),first?RealDate.parse(first):start),to=RealDate.parse(chunk.endAt);
       const part=index===chunks.length-1?seconds-used:Math.floor(seconds*Math.max(0,to-from)/available);used+=part;
-      Object.assign(chunk,{startState:index===0&&!append&&tag!==BAG?'stopped':'running',endState:'running',runningSeconds:part,totalRunningHours:part/3600});
+      Object.assign(chunk,{startState:index===0&&!append&&first?'stopped':'running',endState:'running',runningSeconds:part,totalRunningHours:part/3600});
     }
     return {...probe,requestId:item.id,ok:true,readOnly:true,observedAt:probe.endAt,collectedAt:new Date().toISOString(),
       startState:chunks[0].startState,endState:'running',completedChunkCount:chunks.length,chunks,
@@ -420,7 +420,7 @@ for(const tag of [BAG,SEAL_A,SEAL_C])test(`${tag} actual API batch/Agent/apply c
   const f=await integration(t,tag);
   const before=await f.project(),plan=core.plan([before.asset],new Date());
   assert.equal(plan.tasks.length,1,JSON.stringify(plan));assert.equal(plan.tasks[0].kind,'dataparc_repair');
-  assert.equal(plan.tasks[0].recoveryMode,tag===BAG?'confirmed_gap':'seal_first_run');
+  assert.equal(plan.tasks[0].recoveryMode,tag===BAG?'confirmed_gap':tag===SEAL_C?'seal_registered_range':'seal_first_run');
   assert.equal(dashboardAssessment(before.data,before.asset).requiresReview,true);
   const item=await f.create();
   assert.equal(item.probe.expectedCycleRuntimeRevision,COVERAGE_RECOVERY_PREFIX+f.initial.cycle_runtime_revision);
@@ -483,6 +483,65 @@ test('actual Seal API rejects an unvalidated first-RUN result and retains the or
   const before=f.asset(),events=f.savedEvents(),applied=await f.apply(item.id);
   assert.equal(applied.status,409,JSON.stringify(applied.body));assert.equal(applied.body.code,'DATAPARC_FIRST_RUN_UNVERIFIED');
   assert.deepEqual(f.asset(),before);assert.deepEqual(f.savedEvents(),events);
+});
+
+test('Seal C registered-range mode uses a separate table and validates a complete integral already running at the origin',async t=>{
+  const f=await fixture(t,{tag:SEAL_C,recoveryMode:'seal_registered_range',depthCheck:true});
+  const {proof,intent}=await f.queue(),probe={...f.probe(),startState:'running'};delete probe.firstRunStartedAt;
+  assert.equal(proof.mode,'seal_registered_range');assert.equal(intent.recovery_mode,'seal_registered_range');
+  assert.equal(f.sql.prepare('SELECT count(*) n FROM blower_coverage_recovery_intents_v1').get().n,0);
+  assert.equal(f.sql.prepare('SELECT count(*) n FROM blower_registered_range_recovery_intents_v1').get().n,1);
+  const checked=await f.applyCheck(intent,probe);await f.applyGuard(checked.guards);assert.ok(f.guardsChecked()>=2);
+  for(const flag of ['requireFirstRunStart','confirmedGapRecovery','completionWindowRecovery','appendBoundaryRecovery']){
+    await assert.rejects(f.applyCheck(intent,probe,{...f.flags(),[flag]:true}),errorCode('BLOWER_COVERAGE_RECOVERY_MODE_INVALID'));
+  }
+  assert.ok(await validCoverageRecoveryReuse(f.db,intent.request_id,proof));
+  const columns=Object.keys(intent);
+  f.sql.prepare(`INSERT INTO blower_coverage_recovery_intents_v1(${columns.join(',')}) VALUES(${columns.map(()=>'?').join(',')})`)
+    .run(...columns.map(key=>key==='recovery_mode'?'seal_first_run':intent[key]));
+  assert.equal(await loadCoverageRecoveryIntent(f.db,intent.request_id),null,'duplicate cross-mode authorities cannot be selected');
+});
+
+for(const tag of [BAG,SEAL_A])test(`registered-range mode rejects ${tag} rather than widening first-RUN or confirmed-gap policy`,async t=>{
+  const f=await fixture(t,{tag});
+  await assert.rejects(loadCoverageRecoveryProof(f.db,f.asset(),f.signal,'seal_registered_range',{now:NOW}),errorCode('BLOWER_COVERAGE_RECOVERY_PROOF_REQUIRED'));
+});
+
+test('Seal C registered full query clears only coverage review, creates no physical clock, then appends and replays',async t=>{
+  const f=await integration(t,SEAL_C,'seal_registered_range');
+  const before=await f.project(),plan=core.plan([before.asset],new Date());assert.equal(plan.tasks[0].recoveryMode,'seal_registered_range');
+  const item=await f.create();assert.equal(item.probe.runtimeRecovery?.mode,'seal_registered_range');
+  const raw=await f.complete(item);assert.equal(raw.startState,'running');assert.equal(raw.firstRunStartedAt,undefined);
+  const savedRaw=f.rawRequest(item.id),intent=await loadCoverageRecoveryIntent(f.db,item.id);assert.equal(intent.recovery_mode,'seal_registered_range');
+  const incorrect=await f.apply(item.id,false,{registeredRangeRecovery:false,requireFirstRunStart:true});
+  assert.equal(incorrect.status,409,JSON.stringify(incorrect.body));assert.deepEqual(f.asset(),f.initial);
+  const result=await f.apply(item.id);assert.equal(result.status,200,JSON.stringify(result.body));
+  assert.equal(f.asset().cycle_runtime_hours,raw.runningSeconds/3600);assert.equal(f.asset().cycle_started_at,f.initial.cycle_started_at);
+  assert.equal(f.asset().last_replacement_at,f.initial.last_replacement_at);assert.equal(f.asset().cycle_start_state,'legacy');
+  assert.equal(f.asset().cycle_start_revision,f.initial.cycle_start_revision);
+  assert.equal(f.savedEvents().filter(row=>row.event_type==='startup').length,0);
+  for(const old of f.originalEvents)assert.deepEqual(f.savedEvents().find(row=>row.id===old.id),old);
+  const after=await f.project(),display=dashboardAssessment(after.data,after.asset);
+  assert.equal(after.asset.runtimeCoverageEvidence.coverageComplete,true);assert.equal(after.asset.runtimeCoverageEvidence.missingLeadingSeconds,0);
+  assert.equal(after.asset.runtimeCoverageEvidence.wholeCycleVerified,false);assert.equal(after.asset.runtimeCoverageEvidence.cycleBasisConfirmed,false);
+  assert.notEqual(after.asset.runtimeCoverageEvidence.firstRunVerified,true);assert.equal(after.asset.dataParcRuntimeBasis.firstRunStartedAt,undefined);
+  assert.equal(display.requiresReview,false,JSON.stringify(display));assert.equal(display.scopeLabel,'등록 기준 누적');
+  assert.equal((await f.apply(item.id)).body.replayed,true);assert.equal(f.rawRequest(item.id),savedRaw);
+  f.advance();const next=core.plan([(await f.project()).asset],new Date());assert.equal(next.tasks[0].kind,'dataparc');
+  const append=await f.create(true),delta=await f.complete(append,true),appended=await f.apply(append.id,true);
+  assert.equal(appended.status,200,JSON.stringify(appended.body));assert.equal(f.asset().cycle_runtime_hours,(raw.runningSeconds+delta.runningSeconds)/3600);
+  const final=await f.project();assert.equal(final.asset.runtimeCoverageEvidence.coverageComplete,true);
+  assert.equal(dashboardAssessment(final.data,final.asset).scopeLabel,'등록 기준 누적');
+  assert.equal(final.asset.dataParcRuntimeBasis.firstRunStartedAt,undefined);
+  const current=f.asset();assert.equal((await f.apply(item.id)).body.replayed,true);assert.deepEqual(f.asset(),current);
+});
+
+test('a completed Seal C first-RUN request cannot be reinterpreted as a registered-range request',async t=>{
+  const f=await integration(t,SEAL_C),item=await f.create();
+  const raw=await f.complete(item,false,{firstRunStartedAt:''});assert.equal(raw.firstRunStartedAt,undefined);
+  const result=await f.apply(item.id,false,{requireFirstRunStart:false,registeredRangeRecovery:true});
+  assert.equal(result.status,409,JSON.stringify(result.body));assert.equal(result.body.code,'BLOWER_COVERAGE_RECOVERY_INTENT_CONFLICT');
+  assert.deepEqual(f.asset(),f.initial);assert.deepEqual(f.savedEvents(),f.originalEvents);
 });
 
 test('actual API transaction rolls back when the approved source changes after proof validation',async t=>{

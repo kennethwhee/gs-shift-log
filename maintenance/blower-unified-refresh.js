@@ -290,7 +290,8 @@ DP_TAGS.add("203HRJ01AN602");
           time(base.startAt) < origin || signal !== `GSPOGE.ABB_DCS.${a.tagNumber}XB04` ||
           runtime?.verified !== true || runtime.source !== 'dataparc' || basis.coverageComplete !== false ||
           evidence?.firstRunVerified === true) return null;
-      recoveryMode = 'seal_first_run'; startAt = basis.requiredStartAt;
+      recoveryMode = a.tagNumber === '204HHL10AN631' ? 'seal_registered_range' : 'seal_first_run';
+      startAt = basis.requiredStartAt;
     } else if (pendingWindow) {
       const candidate = a.completionWindowRecovery;
       if (verifiedCompletionWindow(a) || candidate.version !== 1 || candidate.dataParcTag !== signal ||
@@ -346,6 +347,23 @@ DP_TAGS.add("203HRJ01AN602");
         task.previewOnly === true || task.partialRange === true || task.replacementAutoFresh === true ||
         task.replacementAutoRange === true || task.limestoneAutoRebuild === true || !task.snapshot ||
         task.startAt !== task.queryStartAt || !sameCycle(task.snapshot, task.recoveryProof)) return false;
+    if (task.recoveryMode === 'append_boundary_full') {
+      const a = task.recoveryProof, basis = a.dataParcRuntimeBasis;
+      const seconds = basis?.runningSeconds, hours = a.cycleElapsedHours ?? a.runtimeHours;
+      return a.tagNumber === '204SDF01AN002' && a.blowerType === 'organic_fuel' &&
+        a.cycleStartState === 'started' && a.hasUnverifiedDataParcHistory === false && a.measurementRequired !== true &&
+        task.dataParcTag === 'GSPOGE.ABB_DCS.204SDF01AN002XB04' && basis?.dataParcTag === task.dataParcTag &&
+        basis.appendReady === true && basis.coverageComplete === true &&
+        typeof basis.requestId === 'string' && !!basis.requestId.trim() &&
+        typeof task.boundaryFailureRequestId === 'string' && !!task.boundaryFailureRequestId.trim() &&
+        task.boundaryFailureRequestId.length <= 200 && task.boundaryFailureRequestId !== basis.requestId &&
+        Number.isSafeInteger(seconds) && seconds >= 0 && typeof hours === 'number' && Number.isFinite(hours) &&
+        Math.abs(hours * 3600 - seconds) <= 0.01 && time(task.startAt) === time(basis.startAt) &&
+        time(task.startAt) === time(a.cycleStoredStartedAt) && time(task.startAt) < time(basis.observedAt) &&
+        time(task.boundaryFailureEndAt) > time(basis.observedAt) &&
+        time(task.recoveryPlannedAt) >= time(task.boundaryFailureEndAt) &&
+        time(task.recoveryPlannedAt) - time(task.boundaryFailureEndAt) <= 15 * 60000 && !task.endAt;
+    }
     const planned = runtimeRecoveryPlan(task.recoveryProof, task.recoveryPlannedAt);
     return !!planned && planned.recoveryMode === task.recoveryMode && planned.startAt === task.startAt &&
       planned.dataParcTag === task.dataParcTag && (planned.endAt || '') === (task.endAt || '');
@@ -684,6 +702,9 @@ DP_TAGS.add("203HRJ01AN602");
       ...(task.recoveryMode === 'role_priority' ? { rolePriorityRecovery: true, selectedCompletionAt: task.startAt } : {}),
       ...(task.recoveryMode === 'confirmed_gap' ? { confirmedGapRecovery: true } : {}),
       ...(task.recoveryMode === 'seal_first_run' ? { requireFirstRunStart: true } : {}),
+      ...(task.recoveryMode === 'seal_registered_range' ? { registeredRangeRecovery: true } : {}),
+      ...(task.recoveryMode === 'append_boundary_full' ? { appendBoundaryRecovery: true,
+        boundaryFailureRequestId: task.boundaryFailureRequestId } : {}),
       ...(task.recoveryMode === 'completion_window_zero' ? { completionWindowRecovery: true, endAt:task.endAt } : {}),
       ...(task.replacementAutoRange === true ? { replacementAutoRange: true, partialTracking: true } : {}),
       ...(task.previewOnly === true ? { limestoneTrackingOnly: true } : {}),
@@ -734,10 +755,90 @@ DP_TAGS.add("203HRJ01AN602");
     // BLOWER_LOADING_RECOVERY_V4: an accepted batch is resumed by its original
     // IDs. A long-running job is never recreated just because its UI wait ends.
     const resume = io.runtimeResume;
+    if (resume?.boundaryCreateUnconfirmed) {
+      const uncertain = resume.boundaryCreateUnconfirmed, task = uncertain.task;
+      const original = resume.createdBatch?.results?.find(row => row.assetTag === task?.snapshot?.tagNumber);
+      if (uncertain.version !== 1 || !validRuntimeRecoveryTask(task) || task.recoveryMode !== 'append_boundary_full' ||
+          original?.item?.id !== task.boundaryFailureRequestId || !Array.isArray(resume.tasks) ||
+          !resume.tasks.some(row => row.snapshot?.tagNumber === task.snapshot.tagNumber)) {
+        throw error('접수 미확인 복구 요청의 고정 근거가 변경되었습니다. 새 요청을 만들지 않았습니다.','BLOWER_RUNTIME_RECOVERY_INVALID');
+      }
+      io.assertWritable?.();
+      let reply, cause = null;
+      try {
+        reply = await io.api({url:`/api/ois-data-requests?action=boundary_recovery_status&failureRequestId=${encodeURIComponent(task.boundaryFailureRequestId)}`,
+          timeoutMs:20000});
+      } catch (error) {
+        if ([401,403].includes(Number(error?.status)) || error?.code === 'WRITE_ACCESS_CHANGED') throw error;
+        cause = error;
+      }
+      if (reply?.ok === true && reply.found === false && reply.failureRequestId === task.boundaryFailureRequestId) {
+        // After an explicit resume and a successful absence lookup, replay
+        // only the same frozen full body. Its server reuse key includes the
+        // failed request and proof hash (not the new end time); concurrent
+        // original/replayed POSTs share one atomic accepted request.
+        io.assertWritable?.();
+        try {
+          const accepted = await io.api({method:'POST',url:'/api/ois-data-requests',timeoutMs:30000,
+            body:{action:'create_blower_runtime_probe_batch',requests:[dataParcCreateBody(task)]}});
+          const row = accepted?.results?.[0];
+          if (accepted?.ok === true && accepted.atomic === true && accepted.batchVersion === 1 &&
+              accepted.requestedCount === 1 && accepted.results?.length === 1 && row?.ok === true &&
+              row.assetTag === task.snapshot.tagNumber && row.upToDate !== true) {
+            reply = {ok:true,found:true,failureRequestId:task.boundaryFailureRequestId,item:row.item};
+          } else cause = error('전체 구간 복구 요청 접수 응답을 확인하지 못했습니다. 같은 고정 요청만 다시 확인합니다.','CREATE_RESULT_UNCONFIRMED');
+        } catch (error) {
+          if ([401,403].includes(Number(error?.status)) || error?.code === 'WRITE_ACCESS_CHANGED') throw error;
+          cause = error;
+          if (![0,429,502,503,504].includes(Number(error?.status || 0))) {
+            const resolved = {...resume,outcomes:[...(resume.outcomes || []).filter(row => row.tagNumber !== task.snapshot.tagNumber),
+              {tagNumber:task.snapshot.tagNumber,displayName:task.asset?.displayName || task.snapshot.tagNumber,status:'failed',
+                requestId:task.boundaryFailureRequestId,recoveryMode:'append_boundary_full',errorCode:error.code || 'REQUEST_FAILED',
+                failureStage:'recovery_create',dataParcTag:task.dataParcTag,cycleSnapshot:{...task.snapshot},message:error.message}]};
+            delete resolved.boundaryCreateUnconfirmed;
+            io.runtimeCheckpoint?.(resolved);
+            return executeDataParcBatch(resolved.tasks,{...io,runtimeResume:resolved,allowBoundaryRecovery:false});
+          }
+        }
+      }
+      const item = reply?.item, probe = item?.probe;
+      if (reply?.ok === true && reply.found === true && reply.failureRequestId === task.boundaryFailureRequestId &&
+          item?.id && item.requestType === 'blower_runtime_probe' && probe?.requestId === item.id &&
+          probe.assetTag === task.snapshot.tagNumber && probe.dataParcTag === task.dataParcTag &&
+          time(probe.startAt) === time(task.startAt) && probe.runtimeRecovery?.mode === 'append_boundary_full') {
+        const restored = {...resume,tasks:resume.tasks.map(row => row.snapshot.tagNumber === task.snapshot.tagNumber ? task : row),
+          createdBatch:{...resume.createdBatch,results:resume.createdBatch.results.map(row => row.assetTag === task.snapshot.tagNumber
+            ? {ok:true,assetTag:row.assetTag,recoveryMode:task.recoveryMode,item} : row)},
+          outcomes:(resume.outcomes || []).filter(row => row.tagNumber !== task.snapshot.tagNumber)};
+        delete restored.boundaryCreateUnconfirmed;
+        io.runtimeCheckpoint?.(restored);
+        return executeDataParcBatch(restored.tasks,{...io,runtimeResume:restored,allowBoundaryRecovery:false});
+      }
+      // A missing GET result does not prove the earlier POST failed. Keep the
+      // receipt uncertainty and only repeat this read; never create a new full
+      // request or pretend the original delta was the accepted full request.
+      io.runtimeCheckpoint?.(resume);
+      return resume.tasks.map(row => row.snapshot.tagNumber === task.snapshot.tagNumber
+        ? {tagNumber:task.snapshot.tagNumber,displayName:task.asset?.displayName || task.snapshot.tagNumber,
+          status:'waiting',requestId:'',recoveryMode:'append_boundary_full',errorCode:cause?.code || 'CREATE_RESULT_UNCONFIRMED',
+          failureStage:'recovery_create',dataParcTag:task.dataParcTag,cycleSnapshot:{...task.snapshot},
+          message:cause?.message || '전체 구간 복구 요청 접수 확인 대기 · 새 요청 없이 서버 접수 결과만 확인합니다.'}
+        : (resume.outcomes || []).find(outcome => outcome.tagNumber === row.snapshot.tagNumber) || {
+          tagNumber:row.snapshot.tagNumber,displayName:row.asset?.displayName || row.snapshot.tagNumber,status:'waiting',
+          message:'앞선 조회 결과 확인 대기'});
+    }
     const source = (resume?.tasks || tasks || []).filter(task => task?.snapshot?.tagNumber);
     if (!source.length) return [];
     const currentFor = task => io.currentAssetFor ? io.currentAssetFor(task.snapshot.tagNumber)
       : task.asset?.dataParcRuntimeBasis ? task.asset : undefined;
+    const resultContext = (task,item = {},cause = null,failureStage = '') => ({
+      requestId: String(item.id || ''), dataParcTag: task.dataParcTag,
+      cycleSnapshot: {...task.snapshot}, recoveryMode: task.recoveryMode || null,
+      startAt: String(item.probe?.startAt || task.queryStartAt || task.startAt || ''),
+      endAt: String(item.probe?.endAt || cause?.boundaryRecovery?.endAt || task.endAt || ''),
+      completedAt: String(item.completedAt || ''),
+      ...(cause ? {errorCode:String(cause.code || 'REQUEST_FAILED'),failureStage} : {})
+    });
     const acceptedIdFor = task => String(resume?.createdBatch?.results?.find(row => row.assetTag === task.snapshot.tagNumber)?.item?.id || '');
     for (const task of source) {
       const repair = runtimeRecoveryMarker(task);
@@ -832,7 +933,10 @@ DP_TAGS.add("203HRJ01AN602");
           : '일부 기간 RUN 누적 · 교체 기준 확인 필요 · 이전 요청 자동 반영 보류 · 기존 값 유지'
       });
     }
-    const saveCheckpoint = () => io.runtimeCheckpoint?.({ version: 1, runtimeRecoveryVersion: 1,
+    let boundaryCheckpoint = null;
+    let boundaryCreateUnconfirmed = null;
+    const saveCheckpoint = () => {
+      let value = { version: 1, runtimeRecoveryVersion: 1,
       tasks: source.map(task => ({ ...task, asset: { tagNumber: task.snapshot.tagNumber,
         displayName: task.asset?.displayName || task.snapshot.tagNumber } })),
       createdBatch: { ok: true, atomic: true, batchVersion: 1, requestedCount: source.length,
@@ -840,8 +944,22 @@ DP_TAGS.add("203HRJ01AN602");
           recoveryMode: source.find(task => task.snapshot.tagNumber === row.assetTag)?.recoveryMode || null } : {
           ok: true, assetTag: row.assetTag, recoveryMode: source.find(task => task.snapshot.tagNumber === row.assetTag)?.recoveryMode || null,
           item: { id: row.item.id, status: row.item.status,
-            requestType: 'blower_runtime_probe', probe: { assetTag: row.assetTag, requestId: row.item.id } }
-        }) }, outcomes: [...resultByTag.values()].filter(item => ['complete', 'failed'].includes(item.status)) });
+            requestType: 'blower_runtime_probe', probe: { assetTag: row.assetTag, requestId: row.item.id,
+              dataParcTag:row.item.probe?.dataParcTag,startAt:row.item.probe?.startAt,endAt:row.item.probe?.endAt } }
+        }) }, outcomes: [...resultByTag.values()].filter(item => ['complete', 'failed'].includes(item.status)) };
+      // The full-range fallback replaces only its failed predecessor in the
+      // same durable browser checkpoint. Other accepted IDs/results survive a
+      // timeout or reload; the failed append is never recreated or re-applied.
+      if (boundaryCheckpoint) {
+        const tags = new Set(boundaryCheckpoint.tasks.map(task => task.snapshot.tagNumber));
+        value = {...value,tasks:value.tasks.map(task => boundaryCheckpoint.tasks.find(next => next.snapshot.tagNumber === task.snapshot.tagNumber) || task),
+          createdBatch:{...value.createdBatch,results:value.createdBatch.results.map(row =>
+            boundaryCheckpoint.createdBatch.results.find(next => next.assetTag === row.assetTag) || row)},
+          outcomes:[...value.outcomes.filter(item => !tags.has(item.tagNumber)),...boundaryCheckpoint.outcomes]};
+      }
+      if (boundaryCreateUnconfirmed) value.boundaryCreateUnconfirmed = boundaryCreateUnconfirmed;
+      io.runtimeCheckpoint?.(value);
+    };
     // This checkpoint contains accepted IDs only. An uncertain create is not a receipt.
     saveCheckpoint();
     const pending = [];
@@ -888,11 +1006,12 @@ DP_TAGS.add("203HRJ01AN602");
         const task = entry.task, s = task.snapshot, request = statusById.get(String(entry.item.id));
         if (!request || request.status === 'failed') {
           return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber, status: 'failed',
+            ...resultContext(task,{...entry.item,...request},{code:request?.errorCode || 'AGENT_QUERY_FAILED'},'query'),
             message: request?.errorMessage || '회사 PC DataPARC 조회에 실패했습니다.' };
         }
         if (request.status !== 'complete') {
           return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber,
-            requestId: entry.item.id, status: 'waiting', message: waitError
+            ...resultContext(task,{...entry.item,...request},waitError,'query'), status: 'waiting', message: waitError
               ? `상태 확인 대기 · ${errorLabel(waitError)}`
               : request.status === 'processing' ? '회사 PC 처리 중 · 같은 요청으로 결과 확인 가능'
               : '회사 PC 응답 대기 · 같은 요청으로 결과 확인 가능' };
@@ -951,13 +1070,16 @@ DP_TAGS.add("203HRJ01AN602");
               : task.recoveryMode === 'completion_window_zero' ? 'apply_completion_window_runtime_recovery' : 'dataparc_runtime_sync',
             requestId: entry.item.id,
             ...(task.recoveryMode === 'confirmed_gap' ? { confirmedGapRecovery: true } : {}),
-            ...(task.recoveryMode === 'seal_first_run' ? { requireFirstRunStart: true } : {})
+            ...(task.recoveryMode === 'seal_first_run' ? { requireFirstRunStart: true } : {}),
+            ...(task.recoveryMode === 'seal_registered_range' ? { registeredRangeRecovery: true } : {}),
+            ...(task.recoveryMode === 'append_boundary_full' ? { appendBoundaryRecovery: true } : {})
           } });
           if (recovery) {
             io.assertWritable?.();
             if (applied?.ok !== true || applied.requestId !== entry.item.id ||
                 String(applied.assetTag || applied.tagNumber || '') !== s.tagNumber ||
                 (applied.applied !== true && applied.replayed !== true) || applied.incremental === true ||
+                (task.recoveryMode === 'append_boundary_full' && applied.appendBoundaryRecovery !== true) ||
                 typeof applied.runtimeHours !== 'number' || !Number.isFinite(applied.runtimeHours) || applied.runtimeHours < 0 ||
                 !Number.isFinite(time(applied.observedAt)) || time(applied.observedAt) < time(task.recoveryProof.dataParcRuntimeBasis.observedAt) ||
                 (task.recoveryMode === 'role_priority'
@@ -974,15 +1096,19 @@ DP_TAGS.add("203HRJ01AN602");
           appliedCount += 1;
           io.progress?.(`조회 결과 저장 중 · ${appliedCount}/${pending.length}`);
           if (recovery) return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber,
+            ...resultContext(task,{...entry.item,...request}),
             status: 'complete', recoveryMode: task.recoveryMode, recoveryApplied: applied.applied === true,
             ...(applied.replayed === true ? { unchanged: true } : {}),
             message: applied.replayed === true ? '이미 보완된 결과 확인 · 현재 값 유지'
               : task.recoveryMode === 'role_priority' ? '선택 교체 기준과 누적시간 보완 완료'
               : task.recoveryMode === 'confirmed_gap' ? '앞 구간을 포함한 누적시간 보완 완료'
               : task.recoveryMode === 'completion_window_zero' ? '교체 작업 구간 정지 검증 완료 · 누적값 유지 · 완료시각 미기록'
+              : task.recoveryMode === 'seal_registered_range' ? '등록 기준부터 전체 운전시간 보완 완료 · 최초 기동시각 미확정'
+              : task.recoveryMode === 'append_boundary_full' ? '이어조회 경계 불일치 복구 완료 · 저장된 기준부터 전체 운전시간 재검증'
               : '최초 기동과 앞 구간 확인 완료' };
           const reviewStatus = task.partialRange === true ? partialAppendResultStatus(task, partialCurrent) : null;
           return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber, status: 'complete',
+            ...resultContext(task,{...entry.item,...request}),
             ...(task.partialRange === true ? { partialRange: true, runReviewStatus: reviewStatus } : {}),
             message: task.replacementAutoRange === true ? '확인 구간 RUN 조회 완료 · 교체 기록 이후 확인된 RUN'
               : task.replacementAutoFresh === true ? '새 교체 기준 RUN 조회 완료'
@@ -994,11 +1120,50 @@ DP_TAGS.add("203HRJ01AN602");
           if ([401, 403].includes(Number(cause?.status)) || cause?.code === 'WRITE_ACCESS_CHANGED') throw cause;
           const uncertain = [0, 429, 502, 503, 504].includes(Number(cause?.status || 0));
           return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber,
-            requestId: entry.item.id, status: uncertain ? 'waiting' : 'failed',
+            ...resultContext(task,{...entry.item,...request},cause,'apply'), status: uncertain ? 'waiting' : 'failed',
+            ...(cause?.code === 'DATAPARC_APPEND_BOUNDARY_CHANGED' && cause.boundaryRecovery
+              ? {boundaryRecovery:cause.boundaryRecovery} : {}),
             message: uncertain ? '조회 결과 저장 확인 대기 · 같은 요청으로 재확인 가능' : cause?.message || '조회 결과 저장 실패 · 기존 값 유지' };
         }
       })));
       for (const item of applyResults) resultByTag.set(item.tagNumber, item);
+    }
+
+    if (io.allowBoundaryRecovery !== false && ![...resultByTag.values()].some(item => item.status === 'waiting')) {
+      const failed = resultByTag.get('204SDF01AN002');
+      const original = source.find(task => task.snapshot.tagNumber === '204SDF01AN002');
+      const current = original && currentFor(original), proof = failed?.boundaryRecovery;
+      if (failed?.status === 'failed' && failed.errorCode === 'DATAPARC_APPEND_BOUNDARY_CHANGED' &&
+          original?.kind === 'dataparc' && original.incremental === true && !runtimeRecoveryMarker(original) &&
+          sameCycle(original.snapshot,current) && proof?.version === 1 && proof.eligible === true &&
+          proof.requestId === failed.requestId && proof.assetTag === original.snapshot.tagNumber &&
+          proof.dataParcTag === original.dataParcTag && time(proof.startAt) === time(current.dataParcRuntimeBasis?.startAt)) {
+        const task = {kind:'dataparc_repair',asset:current,snapshot:snapshot(current),recoveryMode:'append_boundary_full',
+          recoveryVersion:1,recoveryProof:runtimeRecoverySnapshot(current),recoveryPlannedAt:proof.endAt,
+          startAt:proof.startAt,queryStartAt:proof.startAt,dataParcTag:proof.dataParcTag,incremental:false,
+          boundaryFailureRequestId:failed.requestId,boundaryFailureEndAt:proof.endAt};
+        if (validRuntimeRecoveryTask(task)) {
+          io.progress?.('유기성 2호기 B · 이어조회 경계 불일치 · 전체 운전시간 재검증 중');
+          try {
+            const recovered = await executeDataParcBatch([task],{...io,runtimeResume:null,allowBoundaryRecovery:false,
+              runtimeCheckpoint(value) { if (value) {boundaryCheckpoint=value;saveCheckpoint();} }
+            });
+            if (recovered[0]) resultByTag.set(task.snapshot.tagNumber,recovered[0]);
+          } catch (cause) {
+            if ([401,403].includes(Number(cause?.status)) || cause?.code === 'WRITE_ACCESS_CHANGED') throw cause;
+            if (cause?.code === 'CREATE_RESULT_UNCONFIRMED') {
+              boundaryCreateUnconfirmed = {version:1,task};
+              resultByTag.set(task.snapshot.tagNumber,{...failed,status:'waiting',requestId:'',
+                errorCode:cause.code,failureStage:'recovery_create',recoveryMode:'append_boundary_full',
+                message:'전체 구간 복구 요청 접수 확인 대기 · 새 요청 없이 서버 접수 결과만 확인합니다.'});
+            } else {
+            resultByTag.set(task.snapshot.tagNumber,{...failed,errorCode:cause?.code || failed.errorCode,
+              failureStage:'recovery_create',recoveryMode:'append_boundary_full',
+              message:cause?.message || '전체 구간 복구 요청을 확인하지 못했습니다. 기존 누적값은 유지합니다.'});
+            }
+          }
+        }
+      }
     }
 
     if ([...resultByTag.values()].some(item => item.status === 'waiting')) saveCheckpoint();

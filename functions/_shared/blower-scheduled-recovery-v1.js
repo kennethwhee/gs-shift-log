@@ -5,11 +5,12 @@
 const ROLE = 'role-priority-recovery-v1:';
 const COVERAGE = 'coverage-recovery-v1:';
 const WINDOW = 'completion-window-recovery-v1:';
+const BOUNDARY = 'append-boundary-recovery-v1:';
 const SIGNAL_ONLY = 'signal-only-v1:';
 const DAY = 86400000;
 const clean = value => typeof value === 'string' && value === value.trim() ? value : '';
 const stamp = value => typeof value === 'string' && value ? Date.parse(value) : NaN;
-const marker = value => typeof value === 'string' && ['role-priority-recovery-', 'coverage-recovery-', 'completion-window-recovery-']
+const marker = value => typeof value === 'string' && ['role-priority-recovery-', 'coverage-recovery-', 'completion-window-recovery-', 'append-boundary-recovery-']
   .some(prefix => value.trim().startsWith(prefix));
 
 export function scheduledRuntimeRecoveryMetadata(row) {
@@ -29,8 +30,13 @@ export function scheduledRuntimeRecoveryMetadata(row) {
   } else if (key.startsWith(COVERAGE + 'seal_first_run:') && revision.startsWith(COVERAGE) &&
       ['204HHL10AN611', '204HHL10AN631'].includes(descriptor.assetTag)) {
     mode = 'seal_first_run'; prefix = COVERAGE; signal = `GSPOGE.ABB_DCS.${descriptor.assetTag}XB04`;
+  } else if (key.startsWith(COVERAGE + 'seal_registered_range:') && revision.startsWith(COVERAGE) &&
+      descriptor.assetTag === '204HHL10AN631') {
+    mode = 'seal_registered_range'; prefix = COVERAGE; signal = 'GSPOGE.ABB_DCS.204HHL10AN631XB04';
   } else if (key.startsWith(WINDOW) && revision.startsWith(WINDOW) && descriptor.assetTag === '204HHL60AP631') {
     mode = 'completion_window_zero'; prefix = WINDOW; signal = 'GSPOGE.ABB_DCS.204HHL60AP631XB04';
+  } else if (key.startsWith(BOUNDARY) && revision.startsWith(BOUNDARY) && descriptor.assetTag === '204SDF01AN002') {
+    mode = 'append_boundary_full'; prefix = BOUNDARY; signal = 'GSPOGE.ABB_DCS.204SDF01AN002XB04';
   } else return invalid();
   let hash = key.slice(prefix.length + (prefix === COVERAGE ? mode.length + 1 : 0));
   const signalOnly = hash.startsWith(SIGNAL_ONLY);
@@ -44,6 +50,7 @@ export function scheduledRuntimeRecoveryMetadata(row) {
       !startRevision || !['legacy', 'started'].includes(row.expected_cycle_start_state) ||
       signalOnly !== startRevision.startsWith(SIGNAL_ONLY) ||
       signalOnly && (row.expected_cycle_start_state !== 'legacy' || clean(row.expected_cycle_started_at)) ||
+      ['append_boundary_full','seal_registered_range'].includes(mode) && signalOnly ||
       !Number.isFinite(start) || !Number.isFinite(end) || !Number.isFinite(owner) ||
       start < owner || end <= start || end - start > 366 * DAY) return invalid();
   return { runtimeRecovery: { ...descriptor, mode } };

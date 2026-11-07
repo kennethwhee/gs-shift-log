@@ -570,6 +570,22 @@
       error.responseKind = !text.trim() ? "empty" : invalidJson ? (/^\s*</.test(text) ? "HTML" : "text") : "JSON";
       error.serverDetail = cfProblem ? safeText(result.detail) : "";
       error.serverCategory = cfProblem ? safeText(result.error_category) : "";
+      // Pass only the typed server candidate for this exact failed request.
+      // The shared runner and server still revalidate before a full requery.
+      const boundary = result.boundaryRecovery;
+      const boundaryText = value => typeof value === "string" && value.length > 0 && value.length <= 200 &&
+        !/[\u0000-\u0020]/.test(value);
+      const boundaryInstant = value => boundaryText(value) && /(?:Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value));
+      if (error.code === "DATAPARC_APPEND_BOUNDARY_CHANGED" && boundary?.version === 1 && boundary.eligible === true &&
+          boundaryText(boundary.requestId) && boundary.requestId === options.body?.requestId &&
+          boundaryText(boundary.assetTag) && /^[A-Z0-9]+$/.test(boundary.assetTag) && boundary.assetTag.length <= 40 &&
+          boundaryText(boundary.dataParcTag) && /^GSPOGE\.ABB_DCS\.[A-Z0-9][A-Z0-9._-]*$/.test(boundary.dataParcTag) &&
+          boundaryInstant(boundary.startAt) && boundaryInstant(boundary.endAt) &&
+          Date.parse(boundary.startAt) < Date.parse(boundary.endAt) &&
+          Date.parse(boundary.endAt) - Date.parse(boundary.startAt) <= 366 * 86400000) {
+        error.boundaryRecovery = Object.freeze({ version: 1, eligible: true, requestId: boundary.requestId,
+          assetTag: boundary.assetTag, dataParcTag: boundary.dataParcTag, startAt: boundary.startAt, endAt: boundary.endAt });
+      }
       error.payload = result;
       throw error;
     }
@@ -1242,7 +1258,9 @@
       const action = recovery.recoveryMode === "role_priority" ? "선택한 교체 완료시각부터 다시 계산합니다."
         : recovery.recoveryMode === "confirmed_gap" ? "확정된 교체 완료시각부터 앞쪽 누락 구간을 함께 조회합니다."
           : recovery.recoveryMode === "seal_first_run" ? "등록 기준 이후의 앞 구간과 실제 최초 기동을 확인합니다."
-            : "교체 완료 가능 구간 내내 정지했는지 검증합니다. 실제 완료시각은 미기록으로 유지합니다.";
+            : recovery.recoveryMode === "seal_registered_range" ? "등록 기준부터 전체 구간을 확인합니다. 실제 최초 기동시각을 확정하는 조회는 아닙니다."
+              : recovery.recoveryMode === "append_boundary_full" ? "연결 상태 불일치가 확인된 저장 구간 전체를 한 번 다시 검증합니다."
+                : "교체 완료 가능 구간 내내 정지했는지 검증합니다. 실제 완료시각은 미기록으로 유지합니다.";
       return `<div class="run-history-note" data-run-coverage="partial"${coverage.rolePriority ? ' data-role-priority-selection="true"' : ""}>
         <strong>${escapeHtml(coverage.warning)}</strong><small>보완 조회 시작 ${escapeHtml(formatKstDateTimeDisplay(recovery.startAt))}</small>
         <small>${escapeHtml(action)} 전체 최신화에서 근거와 결과를 검증해 보완합니다. 성공한 결과가 저장되기 전까지 기존 조회값을 유지합니다.</small></div>`;
@@ -2108,6 +2126,7 @@
     if (!assessment.enabled) return false;
     if (filter === "review") return assessment.requiresReview;
     if (["basis", "range", "measurement"].includes(filter)) return assessment.requiresReview && assessment.reviewGroup === filter;
+    if (filter === "query") return Boolean(window.BlowerResolutionGuide?.currentQueryResult?.(asset, state.unifiedRefreshResults));
     if (filter === "behind") return assessment.freshness.state === "behind";
     if (filter === "running" || filter === "stopped") return !assessment.operation.intermittent && assessment.operation.state === filter;
     if (filter === "intermittent") return assessment.operation.intermittent;
@@ -2129,9 +2148,12 @@
     const observedText = manual ? "직접 입력값" : assessment.coverage.observedAt
       ? formatKstDateTimeDisplay(assessment.coverage.observedAt) : "조회 전";
     const behind = assessment.freshness.state === "behind";
+    const resolutionGuide = blowerResolutionGuide(asset, assessment);
+    const queryResult = resolutionGuide?.queryResult;
     const shortMaintenance = maintenance ? maintenance.replace(/^.*?업무일지 · /, "") : "";
     const shortTransition = transition ? `${operation.state === "stopped" ? "최근 정지" : "최근 연속 기동"} ${transition.period.split(" → ")[0]}` : "";
-    const note = assessment.reasonLabel || (completionWindow ? "완료시각 미기록 · 정지 구간 검증" : shortMaintenance || shortTransition || "");
+    const note = resolutionGuide?.failure?.title || assessment.reasonLabel ||
+      (completionWindow ? "완료시각 미기록 · 정지 구간 검증" : behind ? "다른 설비보다 이전 조회값" : shortMaintenance || shortTransition || "");
     const separateRunAt = overviewSeparateRunObservedAt(assessment);
     const previewAt = !manual && preview ? preview.previewObservedAt : "";
     const separateRunNote = previewAt
@@ -2139,11 +2161,15 @@
       : separateRunAt ? `최근 RUN 확인 ${formatKstDateTimeDisplay(separateRunAt)} · 누적 미반영` : "";
     const separateRunAttributes = previewAt ? ' data-limestone-run-preview="true"'
       : ` data-operation-observed-at="${escapeHtml(separateRunAt)}"${disputedLimestone ? ' data-limestone-run-asof="true"' : ''}`;
-    const noteTitle = [assessment.reasonLabel, maintenance, transition ? `${transition.label} ${transition.period}` : "", separateRunNote].filter(Boolean).join(" · ");
+    const noteTitle = [resolutionGuide?.failure?.detail, assessment.reasonLabel, maintenance,
+      transition ? `${transition.label} ${transition.period}` : "", separateRunNote].filter(Boolean).join(" · ");
     const exactPeriod = manual ? `수동 보정 기준시각 ${startText}` : `데이터 조회 기간 ${startText} → ${observedText}`;
     const runtimeText = assessment.hours === null ? "조회 대기"
       : `${assessment.hours.toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간`;
-    const actionLabel = assessment.nextActionKey === "history" && !assessment.requiresReview ? "이력 보기" : assessment.nextActionLabel;
+    const resolutionAction = queryResult || resolutionGuide?.windowReview ||
+      ["freshness"].includes(resolutionGuide?.kind) || ["seal_registered_range", "append_boundary_full"].includes(resolutionGuide?.recoveryMode);
+    const actionLabel = resolutionAction ? queryResult ? "조회 결과 보기" : resolutionGuide?.kind === "freshness" ? "반영 시각 확인" : "확인 방법"
+      : assessment.nextActionKey === "history" && !assessment.requiresReview ? "이력 보기" : assessment.nextActionLabel;
     return `<article class="all-overview-card-shell${operation.state === "stopped" ? " is-stopped" : ""}" data-runtime-review="${assessment.requiresReview ? "true" : "false"}" data-runtime-scope="${escapeHtml(assessment.scope)}">
       <button type="button" class="all-overview-card is-assessed" data-asset-action="history" data-tag="${escapeHtml(asset.tagNumber)}"
         data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(operationState)}" data-operation-mode="${operation.intermittent ? "intermittent" : "standard"}"
@@ -2161,7 +2187,7 @@
           <span class="overview-fact-row"><small>${manual ? "보정 시각" : "조회 시작"}</small><strong>${escapeHtml(startText)}</strong></span>
           <span class="overview-fact-row" data-freshness="${escapeHtml(assessment.freshness.state)}"><small>${manual ? "입력 방식" : "반영 시각"}</small><strong>${escapeHtml(observedText)}</strong>${behind ? '<em title="다른 설비의 가장 최근 조회 종료시각보다 앞선 값입니다. 조회 실패를 뜻하지 않습니다.">이전</em>' : ""}</span>
         </span>
-        <span class="overview-card-note"${assessment.requiresReview ? ` data-run-coverage="partial" data-run-basis-status="${escapeHtml(assessment.reasonKey)}"` : ""} title="${escapeHtml(noteTitle)}">${note ? escapeHtml(note) : '<span aria-hidden="true">&nbsp;</span>'}${separateRunNote ? `<small class="overview-run-asof"${separateRunAttributes}>${escapeHtml(separateRunNote)}</small>` : ""}</span>
+        <span class="overview-card-note"${assessment.requiresReview ? ` data-run-coverage="partial" data-run-basis-status="${escapeHtml(assessment.reasonKey)}"` : ""}${queryResult ? ` data-query-result="${escapeHtml(queryResult.status)}"` : ""} title="${escapeHtml(noteTitle)}">${note ? escapeHtml(note) : '<span aria-hidden="true">&nbsp;</span>'}${separateRunNote ? `<small class="overview-run-asof"${separateRunAttributes}>${escapeHtml(separateRunNote)}</small>` : ""}</span>
       </button>
       <button type="button" class="overview-next-action" data-asset-action="overview_review" data-tag="${escapeHtml(asset.tagNumber)}" data-overview-next="${escapeHtml(assessment.nextActionKey)}"
         aria-label="${escapeHtml(`${position} ${actionLabel}`)}"><span>${escapeHtml(actionLabel)}</span><span aria-hidden="true">→</span></button>
@@ -2172,6 +2198,9 @@
     const asset = findAsset(tagNumber);
     if (!asset) return;
     const assessment = allOverviewRuntimeAssessment(asset);
+    const guide = blowerResolutionGuide(asset, assessment);
+    if (guide?.queryResult || guide?.windowReview || guide?.kind === "freshness" ||
+        ["seal_registered_range", "append_boundary_full"].includes(guide?.recoveryMode)) { openAssetHistory(tagNumber); return; }
     if (!assessment || assessment.nextActionKey === "history") { openAssetHistory(tagNumber); return; }
     // Re-evaluate the existing permission and proof helpers at click time.
     if (!hasAuthenticatedWriteAccess() || isMobileMonitoringView() || state.busy || state.unifiedRefreshBusy ||
@@ -2201,7 +2230,7 @@
     if (!guide?.describe || !asset || !assessment) return null;
     const now = state.data?.generatedAt || currentServerDate().toISOString();
     const recovery = window.BlowerUnifiedRefresh?.runtimeRecoveryPlan?.(asset, now) || null;
-    return guide.describe(asset, assessment, { recovery, events: getRawAssetEvents(asset.tagNumber) });
+    return guide.describe(asset, assessment, { recovery, events: getRawAssetEvents(asset.tagNumber), results: state.unifiedRefreshResults });
   }
 
   function blowerResolutionAccess() {
@@ -2212,6 +2241,19 @@
     return { writable: true, message: "기존 전체 최신화에서 보완 대상과 나머지 설비를 함께 확인합니다." };
   }
 
+  function blowerResolutionActionAccess(guide) {
+    const access = blowerResolutionAccess();
+    if (!access.writable || !guide || !["refresh", "resume"].includes(guide.action)) return { ...access, writable: false };
+    if (guide.action === "resume") {
+      const rows = state.unifiedRuntimeResume?.createdBatch?.results;
+      const resumable = guide.queryResult?.requestId && Array.isArray(rows) && rows.some(row =>
+        row?.assetTag === guide.tagNumber && row.item?.id === guide.queryResult.requestId);
+      if (!resumable) return { writable: false,
+        message: "현재 탭에 이어 확인할 요청 정보가 없습니다. 원래 조회를 실행한 화면에서 접수된 결과를 확인해 주세요." };
+    }
+    return access;
+  }
+
   async function runBlowerResolutionRefresh(tagNumber = "") {
     if (!blowerResolutionAccess().writable) return false;
     const assets = tagNumber ? [findAsset(tagNumber)] : state.data?.assets || [];
@@ -2220,7 +2262,7 @@
     const actionable = assets.some(asset => {
       if (!asset) return false;
       const guide = blowerResolutionGuide(asset);
-      return guide && ["automatic", "measurement"].includes(guide.kind);
+      return guide && blowerResolutionActionAccess(guide).writable;
     });
     if (!actionable) return false;
     if (elements.historyDialog?.open) elements.historyDialog.close();
@@ -2233,11 +2275,19 @@
     const guides = assets.map(asset => blowerResolutionGuide(asset, assessments.get(asset.tagNumber))).filter(Boolean);
     const summary = window.BlowerResolutionGuide.summarize(guides, missingSlots.length);
     const access = blowerResolutionAccess();
-    const counts = [["자동 보완", summary.automatic], ["근거 확인", summary.source], ["조회 필요", summary.measurement]]
+    const counts = [["누적 근거 확인", summary.requiresReview], ["최신 반영 확인", summary.latest]]
       .filter(([, count]) => count > 0).map(([label, count]) => `${label} ${count}대`).join(" · ");
+    const actionGuides = guides.filter(guide => ["refresh", "resume"].includes(guide.action));
+    const actionAccess = actionGuides.map(blowerResolutionActionAccess);
+    const canRun = actionAccess.some(item => item.writable);
+    const actionMessage = access.writable ? actionAccess.find(item => !item.writable)?.message || access.message : access.message;
+    const actionLabel = actionGuides.length && actionGuides.every(guide => guide.action === "resume")
+      ? "조회 결과 다시 확인" : summary.automatic ? "전체 최신화로 보완" : "전체 최신화";
     const rows = guides.map(guide => `<li class="blower-resolution-row" data-resolution-kind="${escapeHtml(guide.kind)}">
       <div><strong>${escapeHtml(guide.name)}</strong><small>${escapeHtml(guide.tagNumber)}</small></div>
-      <p><span>${escapeHtml(guide.kindLabel)}</span>${escapeHtml(guide.title)}</p>
+      <p><span>${escapeHtml(guide.kindLabel)}</span>${escapeHtml(guide.title)}${guide.queryResult && guide.kind !== "query"
+        ? `<small>${escapeHtml(guide.failure.title)}</small>` : ""}${guide.behind
+        ? `<small>저장된 조회 종료 ${escapeHtml(formatKstDateTimeDisplay(guide.measuredEndAt))}</small>` : ""}</p>
       <button type="button" class="button" data-resolution-action="open" data-tag="${escapeHtml(guide.tagNumber)}"
         aria-label="${escapeHtml(`${guide.name} 확인 방법`)}">확인 방법<span aria-hidden="true"> →</span></button>
     </li>`).join("");
@@ -2246,13 +2296,16 @@
     return `<section class="blower-resolution-center" aria-label="확인 항목 해결 안내">
       <button type="button" class="blower-resolution-toggle" data-resolution-action="toggle"
         aria-expanded="${state.overviewResolutionOpen ? "true" : "false"}" aria-controls="blowerResolutionItems">
-        <strong>확인 항목 <b>${summary.total}대</b></strong><span>${escapeHtml(counts || "확인할 항목 없음")}</span>
+        <strong>확인할 설비 <b>${summary.total}대</b></strong><span>${escapeHtml(counts || "확인할 항목 없음")}</span>
         <em>${state.overviewResolutionOpen ? "접기" : "확인 방법 보기"}</em>
       </button>
       <div id="blowerResolutionItems" class="blower-resolution-items"${state.overviewResolutionOpen ? "" : " hidden"}>
-        <div class="blower-resolution-toolbar"><p>${escapeHtml(generated)}<small>보완 성공 후 저장된 결과를 다시 읽어 확인 대수를 갱신합니다.</small></p>
-          ${summary.automatic ? `<button type="button" class="button primary" data-mobile-write data-resolution-action="refresh"${access.writable ? "" : " disabled"}>전체 최신화로 보완</button>` : ""}</div>
-        ${summary.automatic ? `<p class="blower-resolution-access">${escapeHtml(access.message)}</p>` : ""}
+        <div class="blower-resolution-toolbar"><p>${escapeHtml(generated)}<small>${summary.overlap
+          ? `두 확인사항이 겹치는 ${summary.overlap}대는 한 번만 표시합니다.` : "누적 근거와 최신 반영 상태를 구분해 표시합니다."}</small></p>
+          ${actionGuides.length ? `<button type="button" class="button primary" data-mobile-write data-resolution-action="refresh"${canRun ? "" : " disabled"}>${escapeHtml(actionLabel)}</button>` : ""}</div>
+        ${summary.automatic ? `<p class="blower-resolution-plan">보완 검증 가능 ${summary.automatic}대 · 저장된 검증 결과로 해소 여부를 확인합니다.</p>` : ""}
+        ${summary.failed || summary.waiting ? `<p class="blower-resolution-query-count">${summary.failed ? `최근 조회 미반영 ${summary.failed}대` : ""}${summary.failed && summary.waiting ? " · " : ""}${summary.waiting ? `결과 확인 대기 ${summary.waiting}대` : ""}</p>` : ""}
+        ${actionGuides.length ? `<p class="blower-resolution-access">${escapeHtml(actionMessage)}</p>` : ""}
         ${rows ? `<ul class="blower-resolution-list">${rows}</ul>` : ""}
         ${missingSlots.length ? `<p class="blower-resolution-missing">TAG 연결이 필요한 ${missingSlots.length}대는 설비 등록 정보를 확인해 주세요.</p>` : ""}
         ${summary.total === 0 ? '<p class="blower-resolution-complete">현재 저장된 값에 남아 있는 확인 항목이 없습니다.</p>' : ""}
@@ -2262,9 +2315,14 @@
 
   function renderBlowerResolutionHistoryGuide(guide) {
     if (!guide) return "";
-    const access = blowerResolutionAccess(), source = guide.source;
+    const access = blowerResolutionActionAccess(guide), source = guide.source;
     const context = [source.workDate, source.shift, source.role].filter(Boolean).join(" · ");
-    const action = ["automatic", "measurement"].includes(guide.kind);
+    const action = ["refresh", "resume"].includes(guide.action);
+    const actionLabel = guide.action === "resume" ? "조회 결과 다시 확인" : guide.kind === "automatic" ? "전체 최신화로 보완" : "전체 최신화";
+    const result = guide.queryResult, review = guide.windowReview;
+    const stage = { create: "요청 접수", query: "자료 조회", apply: "저장 전 검증" }[result?.failureStage];
+    const queryPeriod = result?.startAt && result?.endAt
+      ? `${formatKstDateTimeDisplay(result.startAt)} → ${formatKstDateTimeDisplay(result.endAt)}` : "";
     const longSource = source.excerpt.length > 240 || source.excerpt.split(/\r?\n/).length > 3;
     const quote = !source.excerpt ? '<p>상세 이력과 원래 업무일지에서 작업 내용을 확인해 주세요.</p>'
       : longSource ? `<details class="blower-resolution-source-quote"><summary>긴 원문 발췌 보기</summary><p>${escapeHtml(source.excerpt)}</p></details>`
@@ -2272,12 +2330,22 @@
     return `<section class="blower-resolution-guide" data-resolution-kind="${escapeHtml(guide.kind)}" aria-label="이 설비의 확인 방법">
       <header><strong>해결할 항목</strong><span>${escapeHtml(guide.kindLabel)}</span></header>
       <h4>${escapeHtml(guide.title)}</h4><p>${escapeHtml(guide.detail)}</p>
-      <div class="blower-resolution-source"><span>${escapeHtml(source.label)}</span>${context ? `<strong>${escapeHtml(context)}</strong>` : ""}
-        ${quote}</div>
+      ${result ? `<div class="blower-resolution-result" data-query-result="${escapeHtml(result.status)}">
+        ${guide.kind !== "query" ? `<strong>${escapeHtml(guide.failure.title)}</strong>` : ""}
+        ${result.completedAt ? `<small>조회 결과 시각 ${escapeHtml(formatKstDateTimeDisplay(result.completedAt))}</small>` : ""}
+        ${queryPeriod ? `<small>요청 구간 ${escapeHtml(queryPeriod)}</small>` : ""}
+        <details><summary>조회 오류 정보${stage ? ` · ${escapeHtml(stage)}` : ""}</summary>
+          ${result.errorCode ? `<code>${escapeHtml(result.errorCode)}</code>` : ""}${result.message ? `<p>${escapeHtml(result.message)}</p>` : ""}</details></div>` : ""}
+      ${guide.requiresReview && !["query", "freshness"].includes(guide.kind)
+        ? `<div class="blower-resolution-source"><span>${escapeHtml(source.label)}</span>${context ? `<strong>${escapeHtml(context)}</strong>` : ""}${quote}</div>` : ""}
+      ${review ? `<p class="blower-resolution-query" data-completion-window-review="true">검토한 작업 구간
+        <strong>${escapeHtml(formatKstDateTimeDisplay(review.windowStartAt))} → ${escapeHtml(formatKstDateTimeDisplay(review.windowEndAt))}</strong>
+        ${review.reasonCode === "RUN_OBSERVED" ? `<small>확인된 RUN ${escapeHtml(String(review.runningSeconds))}초</small>` : ""}</p>` : ""}
+      ${guide.behind || result ? `<p class="blower-resolution-last">현재 저장된 조회 종료 <strong>${escapeHtml(formatKstDateTimeDisplay(guide.measuredEndAt))}</strong></p>` : ""}
       ${guide.queryStartAt ? `<p class="blower-resolution-query">검증 조회 시작 <strong>${escapeHtml(formatKstDateTimeDisplay(guide.queryStartAt))}</strong></p>` : ""}
       ${guide.steps.length ? `<ol>${guide.steps.map(step => `<li>${escapeHtml(step)}</li>`).join("")}</ol>` : ""}
       <p class="blower-resolution-next">${escapeHtml(guide.nextStep)}</p>
-      ${action ? `<footer><button type="button" class="button primary" data-mobile-write data-history-action="resolution_refresh"${access.writable ? "" : " disabled"}>${guide.kind === "automatic" ? "전체 최신화로 보완" : "전체 최신화"}</button><small>${escapeHtml(access.message)}</small></footer>` : ""}
+      ${action ? `<footer><button type="button" class="button primary" data-mobile-write data-history-action="resolution_refresh"${access.writable ? "" : " disabled"}>${escapeHtml(actionLabel)}</button><small>${escapeHtml(access.message)}</small></footer>` : ""}
     </section>`;
   }
 
@@ -2406,11 +2474,13 @@
       </section>`;
     if (assessmentEnabled) {
       const counts = window.BlowerRuntimeAssessment.summarize([...assessments.values()]);
+      const queryCount = assets.filter(asset => window.BlowerResolutionGuide?.currentQueryResult?.(asset, state.unifiedRefreshResults)).length;
       const filter = state.overviewFilter || "all";
       const summaryButton = (key, label, count, title = "") => `<button type="button" class="overview-count-filter${filter === key && !state.overviewFilterType ? " is-active" : ""}"
         data-overview-filter="${escapeHtml(key)}" aria-pressed="${filter === key && !state.overviewFilterType ? "true" : "false"}"${title ? ` title="${escapeHtml(title)}"` : ""}><span>${escapeHtml(label)}</span><strong>${count.toLocaleString("ko-KR")}대</strong></button>`;
       const reviewButtons = [["basis", "교체 기준", counts.basisReview], ["range", "조회 구간", counts.rangeReview],
-        ["measurement", "조회 필요", counts.measurementReview + missingSlots.length], ["behind", "조회 시각 차이", counts.behind]]
+        ["measurement", "조회 필요", counts.measurementReview + missingSlots.length], ["query", "조회 결과 확인", queryCount],
+        ["behind", "조회 시각 차이", counts.behind]]
         .filter(([key, , count]) => count > 0 || filter === key)
         .map(([key, label, count]) => `<button type="button" class="overview-review-filter${filter === key && !state.overviewFilterType ? " is-active" : ""}" data-overview-filter="${key}" aria-pressed="${filter === key && !state.overviewFilterType ? "true" : "false"}">${label}<strong>${count}대</strong></button>`).join("");
       const filteredNote = filter !== "all" || state.overviewFilterType
@@ -2572,10 +2642,11 @@
     return [...byTag.values()];
   }
   function inlineRefreshKeptResult(result) {
+    if (result?.recoveryMode === 'completion_window_zero') return false;
     if (result?.unchanged === true) return true;
     let replayed = false, applied = false;
     for (const item of Object.values(state.unifiedRefreshAppliedRequests || {})) {
-      if (!item || item.previewOnly || item.tagNumber !== result?.tagNumber) continue;
+      if (!item || item.previewOnly || item.certificateOnly || item.tagNumber !== result?.tagNumber) continue;
       replayed = replayed || item.replayed === true;
       applied = applied || item.applied === true;
     }
@@ -2584,7 +2655,7 @@
   function inlineRefreshApplied() {
     const byTag = new Map();
     for (const item of Object.values(state.unifiedRefreshAppliedRequests || {})) {
-      if (!item || item.previewOnly || !item.tagNumber) continue;
+      if (!item || item.previewOnly || item.certificateOnly || !item.tagNumber) continue;
       const prior = byTag.get(item.tagNumber);
       byTag.set(item.tagNumber, { ...item, applied: item.applied === true || prior?.applied === true });
     }
@@ -2602,9 +2673,10 @@
     let visual = running ? 'running' : outcome;
     let label = '조회 대기', count = '';
     const counts = {
-      applied: results.filter(item => item.status === 'complete' && !inlineRefreshKeptResult(item) && !item.previewOnly).length,
+      applied: results.filter(item => item.status === 'complete' && !inlineRefreshKeptResult(item) && !item.previewOnly && item.recoveryMode !== 'completion_window_zero').length,
       kept: results.filter(item => item.status === 'complete' && inlineRefreshKeptResult(item) && !item.previewOnly).length,
       preview: results.filter(item => item.status === 'complete' && item.previewOnly).length,
+      certificate: results.filter(item => item.status === 'complete' && item.recoveryMode === 'completion_window_zero').length,
       waiting: results.filter(item => item.status === 'waiting').length,
       failed: results.filter(item => item.status === 'failed').length,
       skipped: results.filter(item => item.status === 'skipped').length
@@ -2637,6 +2709,7 @@
       if (reflected || !results.length) parts.push(`반영 ${reflected}대`);
       if (counts.kept) parts.push(`유지 ${counts.kept}대`);
       if (counts.preview) parts.push(`RUN 확인 ${counts.preview}대`);
+      if (counts.certificate) parts.push(`근거 검증 ${counts.certificate}대 · 반영 시각 유지`);
       if (counts.waiting) parts.push(`대기 ${counts.waiting}대`);
       if (counts.failed) parts.push(`실패 ${counts.failed}대`);
       if (counts.skipped) parts.push(`보류 ${counts.skipped}대`);
@@ -2669,17 +2742,19 @@
   function observeUnifiedRefreshApply(options, result) {
     try {
       const body = options?.body, action = body?.action;
-      if (!['dataparc_runtime_sync', 'limestone_run_track_apply', 'apply_role_priority_runtime_recovery'].includes(action) || result?.ok !== true ||
+      if (!['dataparc_runtime_sync', 'limestone_run_track_apply', 'apply_role_priority_runtime_recovery', 'apply_completion_window_runtime_recovery'].includes(action) || result?.ok !== true ||
           typeof body.requestId !== 'string' || !body.requestId ||
           (result.requestId && result.requestId !== body.requestId) ||
-          (result.applied !== true && result.replayed !== true)) return;
+          (result.applied !== true && result.replayed !== true) ||
+          (action === 'apply_completion_window_runtime_recovery' && result.certificateOnly !== true)) return;
       const tagNumber = String(result.assetTag || result.tagNumber || '');
       if (!tagNumber) return;
       if (!state.unifiedRefreshAppliedRequests) state.unifiedRefreshAppliedRequests = Object.create(null);
       const prior = state.unifiedRefreshAppliedRequests[body.requestId];
       state.unifiedRefreshAppliedRequests[body.requestId] = {
         tagNumber, applied: prior?.applied === true || result.applied === true,
-        replayed: result.replayed === true, previewOnly: action === 'limestone_run_track_apply'
+        replayed: result.replayed === true, previewOnly: action === 'limestone_run_track_apply',
+        certificateOnly: action === 'apply_completion_window_runtime_recovery'
       };
       renderInlineRefreshStatus();
     } catch (_) { /* Presentation cannot turn a committed write into failure. */ }
@@ -2907,6 +2982,12 @@
         (earlier ? ` · 이전 조회 ${earlier}대 (${formatKstDateTimeDisplay(stats.oldest.observedAt)})` : " · 전체 시각 일치") +
         " · 전체 최신화는 이어조회와 근거가 확인된 기준·누락 구간 보완을 함께 실행합니다.";
     }
+    const queryResults = (state.data?.assets || []).map(asset =>
+      window.BlowerResolutionGuide?.currentQueryResult?.(asset, state.unifiedRefreshResults)).filter(Boolean);
+    const failed = queryResults.filter(result => result.status === "failed").length;
+    const waiting = queryResults.filter(result => result.status === "waiting").length;
+    if (failed || waiting) detail += ` · 최근 조회 결과: ${[failed ? `미반영 ${failed}대` : "",
+      waiting ? `확인 대기 ${waiting}대` : ""].filter(Boolean).join(" · ")} (조회 상세에서 확인)`;
     elements.overviewLatestQueryDetail.textContent = detail;
     updateOverviewRefreshProgress();
   }
@@ -11974,17 +12055,28 @@
     const skipped = results.filter(x => x.status === "skipped").length;
     const waiting = results.filter(x => x.status === "waiting").length;
     const previews = results.filter(x => x.status === 'complete' && x.previewOnly === true).length;
+    const certificates = results.filter(x => x.status === 'complete' && x.recoveryMode === 'completion_window_zero').length;
     const recovered = results.filter(x => x.status === 'complete' && x.recoveryApplied === true &&
-      ['role_priority','confirmed_gap','seal_first_run'].includes(x.recoveryMode)).length;
-    const partialContinued = results.filter(x => x.status === 'complete' && x.partialRange === true).length;
-    const unchanged = results.filter(x => x.status === "complete" && (typeof inlineRefreshKeptResult === "function" ? inlineRefreshKeptResult(x) : x.unchanged === true) && x.previewOnly !== true).length;
-    elements.unifiedRefreshSummary.textContent = `통합조회 결과 · 반영 ${complete - unchanged - previews}대${recovered ? ` · 보완 반영 ${recovered}대` : ""}${previews ? ` · RUN 확인(누적 미반영) ${previews}대` : ""}${unchanged ? ` · 유지 ${unchanged}대` : ""}${partialContinued ? ` · 기준·구간 확인 ${partialContinued}대` : ""}${waiting ? ` · 확인 대기 ${waiting}대` : ""}${skipped || partialContinued ? ` · 조회 보류 ${skipped}대` : ""}${failed ? ` · 실패 ${failed}대` : ""}`;
+      ['role_priority', 'confirmed_gap', 'seal_first_run', 'seal_registered_range', 'completion_window_zero', 'append_boundary_full'].includes(x.recoveryMode)).length;
+    const partialContinued = window.BlowerRuntimeAssessment && Array.isArray(state.data?.assets)
+      ? state.data.assets.filter(asset => asset.enabled !== false && asset.enabled !== 0 &&
+          allOverviewRuntimeAssessment(asset)?.requiresReview === true).length
+      : results.filter(x => x.status === 'complete' && x.partialRange === true).length;
+    const unchanged = results.filter(x => x.status === "complete" && (typeof inlineRefreshKeptResult === "function" ? inlineRefreshKeptResult(x) : x.unchanged === true) && x.previewOnly !== true && x.recoveryMode !== 'completion_window_zero').length;
+    elements.unifiedRefreshSummary.textContent = `통합조회 결과 · 반영 ${complete - unchanged - previews - certificates}대${recovered ? ` · 보완 반영 ${recovered}대` : ""}${certificates ? ` · 근거 검증 ${certificates}대(누적값·반영 시각 유지)` : ""}${previews ? ` · RUN 확인(누적 미반영) ${previews}대` : ""}${unchanged ? ` · 유지 ${unchanged}대` : ""}${partialContinued ? ` · 기준·구간 확인 ${partialContinued}대` : ""}${waiting ? ` · 확인 대기 ${waiting}대` : ""}${skipped || partialContinued ? ` · 조회 보류 ${skipped}대` : ""}${failed ? ` · 실패 ${failed}대` : ""}`;
     // Presentation only: keep the original result array, requests, and receipts intact.
     // Surface true failures above protected skipped assets, with stable order inside groups.
     const priority = { failed: 0, waiting: 1, skipped: 2, complete: 3 };
     const displayResults = [...results].sort((a, b) => (priority[a.status] ?? 4) - (priority[b.status] ?? 4));
-    elements.unifiedRefreshList.innerHTML = displayResults.map(item => `<div class="unified-refresh-result" data-result="${escapeHtml(item.status)}">
-      <strong>${escapeHtml(item.displayName || item.tagNumber)}<small class="refresh-result-tag">${escapeHtml(item.tagNumber || "")}</small></strong><span>${escapeHtml(item.message)}</span></div>`).join("");
+    elements.unifiedRefreshList.innerHTML = displayResults.map(item => {
+      const failure = window.BlowerResolutionGuide?.queryFailure?.(item);
+      const stage = { create: "요청 접수", query: "자료 조회", apply: "저장 전 검증" }[item.failureStage];
+      const period = item.startAt && item.endAt && Number.isFinite(Date.parse(item.startAt)) && Number.isFinite(Date.parse(item.endAt))
+        ? `${formatKstDateTimeDisplay(item.startAt)} → ${formatKstDateTimeDisplay(item.endAt)}` : "";
+      return `<div class="unified-refresh-result" data-result="${escapeHtml(item.status)}">
+      <strong>${escapeHtml(item.displayName || item.tagNumber)}<small class="refresh-result-tag">${escapeHtml(item.tagNumber || "")}</small></strong><span>${failure ? `<b class="refresh-result-reason">${escapeHtml(failure.title)}</b>` : ""}${escapeHtml(item.message)}${failure && (period || item.errorCode)
+        ? `<details class="refresh-result-error"><summary>조회 오류 정보${stage ? ` · ${escapeHtml(stage)}` : ""}</summary>${period ? `<small>요청 구간 ${escapeHtml(period)}</small>` : ""}${item.errorCode ? `<code>${escapeHtml(item.errorCode)}</code>` : ""}</details>` : ""}</span></div>`;
+    }).join("");
   }
 
   function assertUnifiedRefreshWritable() {
@@ -12135,6 +12227,12 @@
               tagNumber: task.asset.tagNumber,
               displayName: task.asset.displayName,
               status: "failed",
+              dataParcTag: task.dataParcTag,
+              cycleSnapshot: { ...task.snapshot },
+              recoveryMode: task.recoveryMode || "",
+              startAt: task.queryStartAt || task.startAt || "",
+              endAt: task.endAt || "",
+              errorCode: typeof e.code === "string" ? e.code : "",
               message: core.errorLabel(e) + " · 기존 값 유지"
             })));
           }
@@ -12156,8 +12254,9 @@
         const skippedCount = counts.filter(x => x.status === "skipped").length;
         const issueSummary = [skippedCount ? `조회 보류 ${skippedCount}대` : "", failedCount ? `실패 ${failedCount}대` : "", missingCount ? `미확인 ${missingCount}대` : ""].filter(Boolean).join(" · ");
         const previewCount = counts.filter(x => x.status === 'complete' && x.previewOnly === true).length;
+        const certificateCount = counts.filter(x => x.status === 'complete' && x.recoveryMode === 'completion_window_zero').length;
         const unchanged = counts.filter(x => x.status === "complete" && inlineRefreshKeptResult(x) && x.previewOnly !== true).length;
-        const completion = `${formatKstDateTimeDisplay(currentServerDate().toISOString())} · 반영 ${counts.filter(x => x.status === "complete").length - unchanged - previewCount}대${previewCount ? ` · RUN 확인 ${previewCount}대(누적 미반영)` : ""}${unchanged ? ` · 유지 ${unchanged}대` : ""} / 전체 ${planned.targetCount}대`;
+        const completion = `${formatKstDateTimeDisplay(currentServerDate().toISOString())} · 반영 ${counts.filter(x => x.status === "complete").length - unchanged - previewCount - certificateCount}대${certificateCount ? ` · 근거 검증 ${certificateCount}대(누적값·반영 시각 유지)` : ""}${previewCount ? ` · RUN 확인 ${previewCount}대(누적 미반영)` : ""}${unchanged ? ` · 유지 ${unchanged}대` : ""} / 전체 ${planned.targetCount}대`;
         partial = partial || failures > 0;
         setOverviewRefreshProcessed(counts.filter(x => x.status !== "waiting").length, planned.targetCount, waitingCount ? "조회 결과 확인 대기" : partial ? "부분 완료 · 결과 확인" : "통합조회 완료");
         renderUnifiedRefreshProgress(`${partial ? "부분 통합조회" : "통합조회 완료"} · ${completion} · ${logNote}${issueSummary ? ` · ${issueSummary}` : ""}`);
@@ -12313,7 +12412,7 @@
       const overviewFilter = event.target.closest("[data-overview-filter]");
       if (overviewFilter?.dataset.overviewFilter) {
         const filter = overviewFilter.dataset.overviewFilter;
-        if (!["all", "running", "stopped", "intermittent", "review", "alerts", "basis", "range", "measurement", "behind"].includes(filter)) return;
+        if (!["all", "running", "stopped", "intermittent", "review", "alerts", "basis", "range", "measurement", "query", "behind"].includes(filter)) return;
         state.overviewFilter = filter;
         state.overviewFilterType = overviewFilter.dataset.overviewFilterType || "";
         state.statusFilter = "all";

@@ -18,6 +18,7 @@ export const COMPLETION_WINDOW_END = '2026-09-16T15:00:00.000Z';
 const RANGE_START = '2026-09-16T00:30:00.000Z';
 const ORIGIN = '2026-09-15T15:00:00.000Z';
 const TABLE = 'blower_completion_window_intents_v1';
+const REVIEW_TABLE = 'blower_completion_window_outcomes_v1';
 const CERT_TYPE = 'dataparc_completion_window_v1';
 const ACTION = 'completion_window_runtime_recovery';
 const MAX_SNAPSHOT_BYTES = 750000;
@@ -46,7 +47,8 @@ const json = (body,status=200) => Response.json(body,{status,headers:{'Cache-Con
 const failure = (code,message,status=409) => Object.assign(new Error(message),{code,status});
 const conflict = () => failure('BLOWER_COMPLETION_WINDOW_CONFLICT','검증 중 교체 근거·누적값·이력이 변경되었습니다. 기존 값은 유지합니다.');
 const unavailable = () => failure('BLOWER_COMPLETION_WINDOW_PROOF_REQUIRED','현재 교체 원문과 보존된 RUN 구간을 연결할 수 없어 기존 값을 유지합니다.');
-const errorResponse = error => json({ok:false,code:error.code || 'BLOWER_COMPLETION_WINDOW_UNAVAILABLE',message:error.message},error.status || 409);
+const errorResponse = error => json({ok:false,code:error.code || 'BLOWER_COMPLETION_WINDOW_UNAVAILABLE',message:error.message,
+  ...(error.review ? {completionWindowRecoveryReview:error.review} : {})},error.status || 409);
 const identity = row => Object.fromEntries(IDENTITY_COLUMNS.map(key => [key,row[key] ?? null]));
 const contentText = value => text(value).replace(/\r\n?/g,'\n');
 
@@ -94,10 +96,18 @@ function sameCurrentOwner(asset,events,automatic) {
 }
 
 /** Eligibility advertises a specific measurement; it is not a certificate. */
-export function completionWindowRecoveryCandidate(asset,events,automatic = replacementAutoCycleProof(asset,events)) {
+export function completionWindowRecoveryCandidate(asset,events,automatic = replacementAutoCycleProof(asset,events),review = null) {
   const proof = sameCurrentOwner(asset,events,automatic);
-  return proof ? {version:1,eligible:true,certificateOnly:true,startAt:COMPLETION_WINDOW_START,endAt:COMPLETION_WINDOW_END,
-    windowStartAt:COMPLETION_WINDOW_START,windowEndAt:COMPLETION_WINDOW_END,dataParcTag:COMPLETION_WINDOW_SIGNAL} : null;
+  if (!proof) return null;
+  const held = review?.version === 1 && review.mode === 'completion_window_zero' && review.status === 'source_required' &&
+    review.automaticRetry === false && review.dataParcTag === COMPLETION_WINDOW_SIGNAL &&
+    review.cycleStartRevision === asset.cycle_start_revision && review.runtimeRevision === asset.cycle_runtime_revision &&
+    review.runtimeRequestId === proof.base.requestId && review.replacementEventId === proof.owner.id &&
+    review.sourceLogId === automatic.sourceLogId && review.sourceSnapshotSha256 === automatic.sourceSnapshotSha256 &&
+    review.windowStartAt === COMPLETION_WINDOW_START && review.windowEndAt === COMPLETION_WINDOW_END;
+  return {version:1,eligible:!held,certificateOnly:true,startAt:COMPLETION_WINDOW_START,endAt:COMPLETION_WINDOW_END,
+    windowStartAt:COMPLETION_WINDOW_START,windowEndAt:COMPLETION_WINDOW_END,dataParcTag:COMPLETION_WINDOW_SIGNAL,
+    ...(held ? {sourceRequired:true,reasonCode:review.reasonCode,requestId:review.requestId} : {})};
 }
 
 async function currentSources(database,proof,options) {
@@ -141,15 +151,22 @@ export async function loadCompletionWindowRecoveryProof(database,asset,options={
     replacementEventId:proof.owner.id,sources:sources.identities};
   const snapshotJson = encode(snapshot);
   if (new TextEncoder().encode(snapshotJson).length > MAX_SNAPSHOT_BYTES) throw failure('BLOWER_COMPLETION_WINDOW_HISTORY_LIMIT','검증 감사자료가 허용 크기를 초과하여 기존 값을 유지합니다.');
-  return {...proof,startAt:COMPLETION_WINDOW_START,endAt:COMPLETION_WINDOW_END,dataParcTag:COMPLETION_WINDOW_SIGNAL,
+  const result = {...proof,startAt:COMPLETION_WINDOW_START,endAt:COMPLETION_WINDOW_END,dataParcTag:COMPLETION_WINDOW_SIGNAL,
     windowStartAt:COMPLETION_WINDOW_START,windowEndAt:COMPLETION_WINDOW_END,sources,snapshot,snapshotJson,snapshotSha256:await digest(snapshotJson),
     guards:[exists('blower_history_assets',asset),eventsEqual(COMPLETION_WINDOW_TAG,events),...sources.guards]};
+  if (options.allowCompletedReview !== true) {
+    const negative = await completionReviewForProof(database,result,{...options,now});
+    if (negative) throw Object.assign(failure('BLOWER_COMPLETION_WINDOW_SOURCE_REQUIRED',
+      '같은 교체 작업 구간을 이미 검증했으나 연속 정지를 입증하지 못했습니다. 실제 완료시각 확인이 필요하며 기존 RUN은 이어서 조회합니다.'),{review:publicCompletionReview(result,negative)});
+  }
+  return result;
 }
 
 export function validateCompletionWindowRecoveryView(body,proof) {
   if (!body || body.completionWindowRecovery !== true ||
       [body.incrementalRefresh,body.requireIncrementalAppend,body.limestoneTrackingOnly,body.rolePriorityRecovery,
-        body.confirmedGapRecovery,body.requireFirstRunStart].some(value => value !== undefined && value !== false))
+        body.confirmedGapRecovery,body.requireFirstRunStart,body.registeredRangeRecovery,
+        body.appendBoundaryRecovery].some(value => value !== undefined && value !== false))
     throw failure('BLOWER_COMPLETION_WINDOW_MODE_INVALID','교체 작업 구간 검증의 조회 종류가 일치하지 않습니다.',400);
   const asset = proof.asset;
   const expected = {expectedLastReplacementAt:text(asset.last_replacement_at),expectedCycleStartState:text(asset.cycle_start_state),
@@ -166,6 +183,7 @@ export async function ensureCompletionWindowSchema(database) {
     request_id TEXT PRIMARY KEY NOT NULL,version INTEGER NOT NULL CHECK(version=1),asset_tag TEXT NOT NULL,
     start_at TEXT NOT NULL,end_at TEXT NOT NULL,snapshot_sha256 TEXT NOT NULL,snapshot_json TEXT NOT NULL,created_at TEXT NOT NULL
   )`).run();
+  await ensureCompletionReviewSchema(database);
 }
 export async function loadCompletionWindowIntent(database,requestId) {
   try { return await database.prepare(`SELECT * FROM ${TABLE} WHERE request_id=?`).bind(requestId).first(); }
@@ -267,10 +285,14 @@ export async function applyCompletionWindowRecovery(database,user,body,adapters=
       instant(request.completed_at) < instant(probe.collectedAt)-5*60000)
       throw failure('BLOWER_COMPLETION_WINDOW_COLLECTION_STALE','새로 수집한 정지 구간 결과의 시각을 확인할 수 없습니다. 기존 값을 유지합니다.');
     const asset = await database.prepare('SELECT * FROM blower_history_assets WHERE tag_number=?').bind(COMPLETION_WINDOW_TAG).first();
-    const proof = await loadCompletionWindowRecoveryProof(database,asset,{now:nowDate});
+    const proof = await loadCompletionWindowRecoveryProof(database,asset,{now:nowDate,allowCompletedReview:true});
     if (proof.snapshotJson !== recovery.snapshot_json || proof.snapshotSha256 !== recovery.snapshot_sha256) throw conflict();
-    if (!zeroWindow(probe,raw)) throw failure('BLOWER_COMPLETION_WINDOW_NOT_ZERO',
-      '교체 작업의 불확실 구간에서 RUN이 확인되었거나 연속 정지를 입증하지 못했습니다. 누적값은 유지하며 실제 교체 완료시각 확인이 필요합니다.');
+    if (!zeroWindow(probe,raw)) {
+      const review = await persistCompletionWindowRecoveryReview(database,asset,proof.events,{now:nowDate,requestId});
+      throw Object.assign(failure('BLOWER_COMPLETION_WINDOW_NOT_ZERO',review?.reasonCode === 'RUN_OBSERVED'
+        ? `교체 작업의 불확실 구간에서 RUN ${review.runningSeconds}초가 확인되었습니다. 실제 완료시각 확인이 필요하며 기존 누적시간은 유지합니다.`
+        : '교체 작업의 불확실 구간에서 연속 정지를 입증하지 못했습니다. 누적값은 유지하며 실제 교체 완료시각 확인이 필요합니다.'),{review});
+    }
     const now = nowDate.toISOString(), auditId = COMPLETION_WINDOW_PREFIX+requestId;
     const metadata = {version:1,kind:'completion_window_zero',requestId,auditId,completionClockKnown:false,
       durationEquivalent:true,windowStartAt:COMPLETION_WINDOW_START,windowEndAt:COMPLETION_WINDOW_END,
@@ -390,4 +412,222 @@ export async function loadCompletionWindowProjection(database,asset,events,optio
     baseEventId:meta.baseEventId,cycleStartRevision:asset.cycle_start_revision,dataParcTag:COMPLETION_WINDOW_SIGNAL,
     sourceLogId:proof.automatic.sourceLogId,sourceSnapshotSha256:proof.automatic.sourceSnapshotSha256,
     verifiedAt:certificate.created_at};
+}
+
+const REVIEW_REQUEST_COLUMNS = ['id','request_type','status','target_date','requested_by_id','requested_at','completed_at','result_json'];
+const REVIEW_INTENT_COLUMNS = ['request_id','reuse_key','schema_version','asset_tag','dataparc_tag','window_start','window_end','chunk_days','chunk_count',
+  'expected_last_replacement_at','expected_cycle_start_state','expected_cycle_started_at','expected_cycle_start_revision','expected_cycle_runtime_revision','created_at','updated_at'];
+const REVIEW_RECOVERY_COLUMNS = ['request_id','version','asset_tag','start_at','end_at','snapshot_sha256','snapshot_json','created_at'];
+const REVIEW_LIMIT = MAX_SNAPSHOT_BYTES + 24000;
+const missingReviewTables = error => /no such table:.*(?:blower_completion_window_(?:intents|outcomes)_v1|blower_runtime_probe_intents_v5|ois_data_requests)/i.test(String(error?.message || error));
+const asSqlJson = (alias,keys) => `json_object(${keys.map(key => `'${key}',${alias}.${col(key)}`).join(',')})`;
+
+async function ensureCompletionReviewSchema(database) {
+  await database.prepare(`CREATE TABLE IF NOT EXISTS ${REVIEW_TABLE} (
+    request_id TEXT PRIMARY KEY NOT NULL,version INTEGER NOT NULL CHECK(version=1),asset_tag TEXT NOT NULL,
+    proof_fingerprint TEXT NOT NULL,outcome_sha256 TEXT NOT NULL,outcome_json TEXT NOT NULL,recorded_at TEXT NOT NULL
+  )`).run();
+  await database.prepare(`CREATE INDEX IF NOT EXISTS idx_blower_completion_window_outcomes_v1_asset
+    ON ${REVIEW_TABLE}(asset_tag,recorded_at DESC,request_id)`).run();
+}
+
+// Historical classification is deliberately narrower than a generic RUN read.
+// Only this one complete fixed window is accepted, with exact per-chunk sums,
+// the original immutable mode/wire identity and sane collection chronology.
+// Age alone does not erase a negative observation. This function can NEVER
+// issue a positive certificate or update a counter from old raw data.
+function historicalWindowResult(evidence,original,now) {
+  const {request,intent,recovery} = evidence;
+  const raw = parse(request?.result_json), chunk = raw?.chunks?.[0];
+  const seconds = (instant(COMPLETION_WINDOW_END)-instant(COMPLETION_WINDOW_START))/1000;
+  const states = value => ['running','stopped'].includes(value);
+  const hours = (value,running) => typeof value === 'number' && Number.isFinite(value) && value >= 0 &&
+    Math.abs(value-Math.round(running/3600*1e6)/1e6) <= 0.000001 + Number.EPSILON;
+  if (!raw || request?.request_type !== 'blower_runtime_probe' || request.status !== 'complete' ||
+      typeof request.id !== 'string' || !request.id || request.id.length > 200 || !text(request.requested_by_id) ||
+      typeof request.result_json !== 'string' || request.result_json.length > 24000 ||
+      raw.schemaVersion !== 1 || raw.requestType !== 'blower_runtime_probe' || raw.requestId !== request.id ||
+      raw.ok !== true || raw.readOnly !== true || raw.incremental || raw.signalOnlyCycle ||
+      raw.assetTag !== COMPLETION_WINDOW_TAG || raw.dataParcTag !== COMPLETION_WINDOW_SIGNAL ||
+      !sameTime(raw.startAt,COMPLETION_WINDOW_START) || !sameTime(raw.endAt,COMPLETION_WINDOW_END) ||
+      !sameTime(raw.observedAt,COMPLETION_WINDOW_END) || raw.chunkDays !== 31 || raw.chunkCount !== 1 || raw.completedChunkCount !== 1 ||
+      !Array.isArray(raw.chunks) || raw.chunks.length !== 1 || !chunk || chunk.index !== 1 ||
+      chunk.startAt !== raw.startAt || chunk.endAt !== raw.endAt || chunk.startState !== raw.startState || chunk.endState !== raw.endState ||
+      !states(raw.startState) || !states(raw.endState) || !Number.isSafeInteger(raw.runningSeconds) ||
+      raw.runningSeconds < 0 || raw.runningSeconds > seconds || chunk.runningSeconds !== raw.runningSeconds ||
+      !hours(raw.totalRunningHours,raw.runningSeconds) || !hours(chunk.totalRunningHours,raw.runningSeconds) ||
+      Object.hasOwn(raw,'currentState') && raw.currentState !== raw.endState ||
+      Object.hasOwn(raw,'isRunning') && raw.isRunning !== (raw.endState === 'running') ||
+      raw.expectedLastReplacementAt !== original.last_replacement_at || raw.expectedCycleStartState !== 'legacy' || raw.expectedCycleStartedAt !== '' ||
+      raw.expectedCycleStartRevision !== 'signal-only-v1:'+original.cycle_start_revision ||
+      raw.expectedCycleRuntimeRevision !== COMPLETION_WINDOW_PREFIX+original.cycle_runtime_revision ||
+      request.target_date !== `v1|${COMPLETION_WINDOW_TAG}|${raw.startAt}|${raw.endAt}` ||
+      !intent || intent.request_id !== request.id || intent.schema_version !== 1 ||
+      !String(intent.reuse_key || '').startsWith(COMPLETION_WINDOW_PREFIX) || intent.asset_tag !== COMPLETION_WINDOW_TAG ||
+      intent.dataparc_tag !== COMPLETION_WINDOW_SIGNAL || intent.window_start !== raw.startAt || intent.window_end !== raw.endAt ||
+      intent.chunk_days !== 31 || intent.chunk_count !== 1 || intent.expected_last_replacement_at !== raw.expectedLastReplacementAt ||
+      intent.expected_cycle_start_state !== raw.expectedCycleStartState || intent.expected_cycle_started_at !== raw.expectedCycleStartedAt ||
+      intent.expected_cycle_start_revision !== raw.expectedCycleStartRevision || intent.expected_cycle_runtime_revision !== raw.expectedCycleRuntimeRevision)
+    return null;
+  const stamps = [request.requested_at,request.completed_at,raw.collectedAt,recovery.created_at,intent.created_at];
+  if (stamps.some(stamp => !Number.isFinite(instant(stamp)) || instant(stamp)>now.getTime()+5*60000) ||
+      instant(raw.collectedAt)<instant(COMPLETION_WINDOW_END) ||
+      instant(raw.collectedAt)<Math.max(instant(request.requested_at),instant(recovery.created_at),instant(intent.created_at))-5*60000 ||
+      instant(request.completed_at)<instant(raw.collectedAt)-5*60000) return null;
+  const zero = raw.runningSeconds === 0 && raw.totalRunningHours === 0 && chunk.totalRunningHours === 0 &&
+    raw.startState === 'stopped' && raw.endState === 'stopped';
+  return {raw,reasonCode:zero ? '' : raw.runningSeconds > 0 ? 'RUN_OBSERVED' : 'CONTINUOUS_STOP_UNPROVEN'};
+}
+
+async function reviewEvidenceForCurrentProof(proof,evidence,now) {
+  const recovery = evidence?.recovery;
+  if (!recovery || recovery.version !== 1 || recovery.asset_tag !== COMPLETION_WINDOW_TAG ||
+      recovery.start_at !== COMPLETION_WINDOW_START || recovery.end_at !== COMPLETION_WINDOW_END ||
+      typeof recovery.snapshot_json !== 'string' || new TextEncoder().encode(recovery.snapshot_json).length > MAX_SNAPSHOT_BYTES ||
+      recovery.snapshot_sha256 !== await digest(recovery.snapshot_json) || recovery.request_id !== evidence.request?.id ||
+      !Number.isFinite(instant(recovery.created_at))) return null;
+  const snapshot = parse(recovery.snapshot_json), original = snapshot?.asset;
+  if (snapshot?.version !== 1 || snapshot.startAt !== COMPLETION_WINDOW_START || snapshot.endAt !== COMPLETION_WINDOW_END ||
+      snapshot.dataParcTag !== COMPLETION_WINDOW_SIGNAL || !original || !Array.isArray(snapshot.events) || snapshot.events.length > 2000 ||
+      original.last_replacement_at !== proof.asset.last_replacement_at || original.cycle_start_revision !== proof.asset.cycle_start_revision ||
+      snapshot.replacementEventId !== proof.owner.id || snapshot.sourceEventId !== proof.sourceEvent.id ||
+      encode(snapshot.sources) !== encode(proof.sources.identities)) return null;
+  const historical = sameCurrentOwner(original,snapshot.events,replacementAutoCycleProof(original,snapshot.events));
+  if (!historical || snapshot.baseEventId !== historical.base.eventId ||
+      instant(historical.base.observedAt)>instant(recovery.created_at) ||
+      encode(identity(historical.owner)) !== encode(identity(proof.owner)) ||
+      encode(identity(historical.sourceEvent)) !== encode(identity(proof.sourceEvent))) return null;
+  const base = descendantOf(proof,historical.base.eventId);
+  if (!base || encode(identity(base)) !== encode(identity(historical.receipt))) return null;
+  const result = historicalWindowResult(evidence,original,now);
+  if (!result) return null;
+  const binding = {version:1,mode:'completion_window_zero',assetTag:COMPLETION_WINDOW_TAG,dataParcTag:COMPLETION_WINDOW_SIGNAL,
+    lastReplacementAt:original.last_replacement_at,cycleStartRevision:original.cycle_start_revision,
+    windowStartAt:COMPLETION_WINDOW_START,windowEndAt:COMPLETION_WINDOW_END,replacementEventId:proof.owner.id,
+    replacementEventSha256:await digest(encode(identity(proof.owner))),sourceEventId:proof.sourceEvent.id,
+    sourceEventSha256:await digest(encode(identity(proof.sourceEvent))),sources:proof.sources.identities,
+    baseEventId:historical.base.eventId,baseEventSha256:await digest(encode(identity(base)))};
+  return {...result,evidence,baseEventId:historical.base.eventId,proofFingerprint:await digest(encode(binding))};
+}
+
+async function completionReviewForProof(database,proof,options={}) {
+  const now = options.now === undefined ? new Date() : options.now;
+  if (!(now instanceof Date) || !Number.isFinite(now.getTime())) return null;
+  const requestId = text(options.requestId);
+  let stored=[],queued=[];
+  try { stored=(await database.prepare(`SELECT * FROM ${REVIEW_TABLE} WHERE asset_tag=?${requestId?' AND request_id=?':''}
+    ORDER BY recorded_at DESC,request_id DESC LIMIT 8`).bind(COMPLETION_WINDOW_TAG,...(requestId?[requestId]:[])).all()).results || []; }
+  catch(error) { if(!missingReviewTables(error)) throw error; }
+  try { queued=(await database.prepare(`SELECT ${asSqlJson('c',REVIEW_RECOVERY_COLUMNS)} AS recovery_json,
+      ${asSqlJson('r',REVIEW_REQUEST_COLUMNS)} AS request_json,${asSqlJson('i',REVIEW_INTENT_COLUMNS)} AS intent_json
+    FROM ${TABLE} c JOIN ois_data_requests r ON r.id=c.request_id
+    JOIN blower_runtime_probe_intents_v5 i ON i.request_id=c.request_id
+    WHERE c.asset_tag=? AND c.version=1 AND c.start_at=? AND c.end_at=? AND r.status='complete'
+      ${requestId?' AND c.request_id=?':''}
+    ORDER BY r.completed_at DESC,r.id DESC LIMIT 8`).bind(COMPLETION_WINDOW_TAG,COMPLETION_WINDOW_START,COMPLETION_WINDOW_END,
+      ...(requestId?[requestId]:[])).all()).results || []; }
+  catch(error) { if(!missingReviewTables(error)) throw error; }
+  const candidates=[];
+  for(const row of stored) {
+    if(row.version !== 1 || row.asset_tag !== COMPLETION_WINDOW_TAG || !Number.isFinite(instant(row.recorded_at)) ||
+        typeof row.outcome_json !== 'string' || new TextEncoder().encode(row.outcome_json).length > REVIEW_LIMIT ||
+        row.outcome_sha256 !== await digest(row.outcome_json)) continue;
+    const parsed = parse(row.outcome_json);
+    if(parsed?.version !== 1 || parsed.kind !== 'completion_window_negative' || !parsed.evidence ||
+        row.request_id !== parsed.evidence.request?.id || row.proof_fingerprint !== parsed.proofFingerprint) continue;
+    candidates.push({evidence:parsed.evidence,record:row,recordReason:parsed.reasonCode});
+  }
+  for(const row of queued) candidates.push({evidence:{request:parse(row.request_json),intent:parse(row.intent_json),recovery:parse(row.recovery_json)}});
+  candidates.sort((a,b)=>instant(b.evidence.request?.completed_at)-instant(a.evidence.request?.completed_at) ||
+    text(b.evidence.request?.id).localeCompare(text(a.evidence.request?.id)) || Number(Boolean(b.record))-Number(Boolean(a.record)));
+  for(const candidate of candidates) {
+    const result = await reviewEvidenceForCurrentProof(proof,candidate.evidence,now);
+    if(!result) continue;
+    if(candidate.record && (candidate.record.proof_fingerprint !== result.proofFingerprint || candidate.recordReason !== result.reasonCode)) continue;
+    // A later valid zero query does not produce an old-data success. It only
+    // prevents an older negative outcome from overriding newer evidence.
+    if(!result.reasonCode) return null;
+    return {...result,record:candidate.record || null};
+  }
+  return null;
+}
+
+async function completionReviewContext(database,asset,events,options={},fullRows=false) {
+  if(asset?.tag_number !== COMPLETION_WINDOW_TAG) return null;
+  const now = options.now === undefined ? new Date() : options.now;
+  if(!(now instanceof Date) || !Number.isFinite(now.getTime())) return null;
+  if(!Array.isArray(events) || fullRows && events.some(row=>EVENT_COLUMNS.some(key=>!Object.hasOwn(row,key)))) {
+    const result=await database.prepare('SELECT * FROM blower_history_events WHERE tag_number=? ORDER BY id LIMIT 2001').bind(COMPLETION_WINDOW_TAG).all();
+    if(!Array.isArray(result.results) || result.results.length>2000) return null;
+    events=result.results;
+  }
+  const proof=sameCurrentOwner(asset,events,replacementAutoCycleProof(asset,events));
+  if(!proof || instant(proof.base.observedAt)>now.getTime()) return null;
+  try { const sources=await currentSources(database,proof,{...options,now});return {...proof,sources}; }
+  catch(error) { if(error?.code && error?.status) return null;throw error; }
+}
+
+function publicCompletionReview(proof,result) {
+  const raw=result.raw,request=result.evidence.request;
+  return {version:1,mode:'completion_window_zero',status:'source_required',automaticRetry:false,
+    reasonCode:result.reasonCode,requestId:request.id,windowStartAt:COMPLETION_WINDOW_START,windowEndAt:COMPLETION_WINDOW_END,
+    runningSeconds:raw.runningSeconds,startState:raw.startState,endState:raw.endState,
+    collectedAt:raw.collectedAt,completedAt:request.completed_at,
+    dataParcTag:COMPLETION_WINDOW_SIGNAL,cycleStartRevision:proof.asset.cycle_start_revision,
+    runtimeRevision:proof.asset.cycle_runtime_revision,runtimeRequestId:proof.base.requestId,
+    baseEventId:result.baseEventId,replacementEventId:proof.owner.id,sourceLogId:proof.automatic.sourceLogId,
+    sourceSnapshotSha256:proof.automatic.sourceSnapshotSha256,proofFingerprint:result.proofFingerprint};
+}
+
+/** Pure read projection, including a completed R3 request with no R4 outcome. */
+export async function loadCompletionWindowRecoveryReview(database,asset,events,options={}) {
+  const proof=await completionReviewContext(database,asset,events,options);
+  if(!proof) return null;
+  const result=await completionReviewForProof(database,proof,options);
+  return result ? publicCompletionReview(proof,result) : null;
+}
+
+/** Authorized mutation only. Persist the negative evidence, never the counter.
+ * Passing no events loads the complete rows required by the atomic guard.
+ * Ordinary append may call this before its own commit: the outcome is bound to
+ * the original base and remains valid through only its proven descendants.
+ */
+export async function persistCompletionWindowRecoveryReview(database,asset,events,options={}) {
+  const proof=await completionReviewContext(database,asset,events,options,true);
+  if(!proof) return null;
+  const result=await completionReviewForProof(database,proof,options);
+  if(!result) return null;
+  if(result.record) return publicCompletionReview(proof,result);
+  const now=options.now === undefined ? new Date() : options.now;
+  const outcome=encode({version:1,kind:'completion_window_negative',reasonCode:result.reasonCode,
+    proofFingerprint:result.proofFingerprint,evidence:result.evidence});
+  if(new TextEncoder().encode(outcome).length>REVIEW_LIMIT) return null;
+  await ensureCompletionReviewSchema(database);
+  await database.prepare('CREATE TABLE IF NOT EXISTS blower_history_atomic_guard (id TEXT PRIMARY KEY NOT NULL,valid INTEGER NOT NULL CHECK(valid=1))').run();
+  const row={request_id:result.evidence.request.id,version:1,asset_tag:COMPLETION_WINDOW_TAG,
+    proof_fingerprint:result.proofFingerprint,outcome_sha256:await digest(outcome),outcome_json:outcome,recorded_at:now.toISOString()};
+  const guards=[exists('blower_history_assets',asset),eventsEqual(COMPLETION_WINDOW_TAG,proof.events),...proof.sources.guards];
+  const ids=[crypto.randomUUID(),crypto.randomUUID()];
+  try {
+    await database.batch([
+      guard(database,ids[0],[...guards,exists('ois_data_requests',result.evidence.request),
+        exists('blower_runtime_probe_intents_v5',result.evidence.intent),exists(TABLE,result.evidence.recovery)]),
+      insert(database,REVIEW_TABLE,row),
+      guard(database,ids[1],[...guards,exists(REVIEW_TABLE,row)]),
+      database.prepare('DELETE FROM blower_history_atomic_guard WHERE id IN (?,?)').bind(...ids)
+    ]);
+  } catch(error) {
+    if(!/CHECK constraint failed|UNIQUE constraint failed/i.test(String(error?.message || error))) throw error;
+    const saved=await database.prepare(`SELECT * FROM ${REVIEW_TABLE} WHERE request_id=?`).bind(row.request_id).first();
+    if(saved?.outcome_sha256 !== row.outcome_sha256 || saved?.outcome_json !== row.outcome_json) throw conflict();
+    // A concurrent identical insert is idempotent only while the source and
+    // current descendant still own that observation. A source race must not
+    // be mistaken for a harmless unique-key collision.
+    const current=await database.prepare('SELECT * FROM blower_history_assets WHERE tag_number=?').bind(COMPLETION_WINDOW_TAG).first();
+    const currentProof=await completionReviewContext(database,current,undefined,options,true);
+    const currentResult=currentProof && await completionReviewForProof(database,currentProof,options);
+    if(!currentResult || currentResult.proofFingerprint !== result.proofFingerprint) throw conflict();
+    return publicCompletionReview(currentProof,currentResult);
+  }
+  return publicCompletionReview(proof,result);
 }

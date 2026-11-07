@@ -360,7 +360,7 @@ test('default midnight cadence is visible when settings are collapsed and contro
       const release = new URL(scripts[0], 'https://test.invalid');
       assert.match(release.searchParams.get('v'), /20261102-schedule-v3q$/);
       if (name !== 'blower-schedule-browser-v1.js') {
-        assert.equal(release.searchParams.get('runtimeRepair'), '20261107-r3');
+        assert.equal(release.searchParams.get('runtimeRepair'), '20261107-r4');
       }
       const key = scripts[0].split('?')[1];
       if (releases.has(name)) assert.equal(key, releases.get(name), `${name}: both entry points load the same release`);

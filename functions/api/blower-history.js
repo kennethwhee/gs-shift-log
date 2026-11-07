@@ -10,8 +10,10 @@ import { planBlowerRolePriority, shiftKey as replacementPriorityShiftKey } from 
 import { inspectVbeltAnnotations, annotationControlsFragment } from '../_shared/diary-vbelt-confirm-v1.js';
 import { reconcileCurrentRuntimeRecoveryV4 } from "../_shared/blower-normalize-recovery-v4.js";
 import { ROLE_RECOVERY_PREFIX, rolePriorityRecoveryProof, applyRolePriorityRecovery } from "../_shared/blower-role-recovery-v1.js";
-import { COMPLETION_WINDOW_PREFIX, COMPLETION_WINDOW_TAG, completionWindowRecoveryCandidate, loadCompletionWindowProjection, applyCompletionWindowRecovery } from "../_shared/blower-completion-window-v1.js";
+import { COMPLETION_WINDOW_PREFIX, COMPLETION_WINDOW_TAG, completionWindowRecoveryCandidate, loadCompletionWindowProjection,
+  loadCompletionWindowRecoveryReview, persistCompletionWindowRecoveryReview, applyCompletionWindowRecovery } from "../_shared/blower-completion-window-v1.js";
 import { COVERAGE_RECOVERY_PREFIX, loadCoverageRecoveryIntent, validateCoverageRecoveryApply } from "../_shared/blower-coverage-recovery-v1.js";
+import { BOUNDARY_RECOVERY_PREFIX, loadBoundaryRecoveryIntent, validateBoundaryRecoveryApply } from "../_shared/blower-boundary-recovery-v1.js";
 import { REPLACEMENT_ANALYSIS_VERSION, REPLACEMENT_NORMALIZE_ANALYSIS_VERSION, REPLACEMENT_ROLE_PRIORITY_ANALYSIS_VERSION, loadApprovedReplacementPage, storeReplacementLogReceipts, replacementSourceGuard, replacementRoleContextRows, replacementSourceHashes } from "../_shared/blower-replacement-log-source-v3.js";
 import { MANURE_INITIAL_RUN_CONFIG, initializeManureInitialRun, manureInitialRunBasis,
   manureInitialRunProjection, loadManureInitialAudit, configuredManureRunSignal,
@@ -1977,6 +1979,8 @@ async function loadAssetStates(database, settings, options = {}) {
   const completionWindowAsset = assets.find(asset => asset.tag_number === COMPLETION_WINDOW_TAG);
   const completionWindowProjection = completionWindowAsset
     ? await loadCompletionWindowProjection(database,completionWindowAsset,runtimeByTag.get(COMPLETION_WINDOW_TAG) || [],{now}) : null;
+  const completionWindowReview = completionWindowAsset && !completionWindowProjection
+    ? await loadCompletionWindowRecoveryReview(database,completionWindowAsset,runtimeByTag.get(COMPLETION_WINDOW_TAG) || [],{now}) : null;
 
   return assets.map(asset => {
     const runtimeRows = runtimeByTag.get(asset.tag_number) || [];
@@ -2093,7 +2097,8 @@ async function loadAssetStates(database, settings, options = {}) {
         cycleBasisConfirmed:false,wholeCycleVerified:false});
     }
     const completionWindowRecovery = completionWindowProof ? null
-      : completionWindowRecoveryCandidate(asset,runtimeRows,replacementAutoCycle);
+      : completionWindowRecoveryCandidate(asset,runtimeRows,replacementAutoCycle,
+        asset.tag_number === COMPLETION_WINDOW_TAG ? completionWindowReview : null);
     return { ...buildAssetState(
       asset,
       settings[asset.blower_type],
@@ -2108,6 +2113,8 @@ async function loadAssetStates(database, settings, options = {}) {
       runtimeCoverageEvidence,
       ...(completionWindowProof ? {completionWindowProof,actualLastReplacementAt:'',cycleBasisKind:'completion_window_zero'} : {}),
       ...(completionWindowRecovery ? {completionWindowRecovery} : {}),
+      ...(asset.tag_number === COMPLETION_WINDOW_TAG && completionWindowReview
+        ? {completionWindowRecoveryReview:completionWindowReview} : {}),
       ...(replacementAutoCycle ? { replacementAutoCycle } : {}),
       ...(cycleSourceReview ? { cycleSourceReview, actualLastReplacementAt: cycleSourceReview.cycleBasisConfirmed === true ? confirmedReplacementAt : "",
         cycleBasisKind: cycleSourceReview.cycleBasisConfirmed === true ? "replacement"
@@ -7647,6 +7654,8 @@ function dataParcRuntimeSyncSuccessResponse(probe, replayed) {
     eventId: dataParcRuntimeSyncEventId(probe.requestId),
     observedAt: probe.observedAt,
     runtimeHours: probe.runtimeHours,
+    ...(probe.appendBoundaryRecovery === true ? {appendBoundaryRecovery:true} : {}),
+    ...(probe.registeredRangeRecovery === true ? {registeredRangeRecovery:true} : {}),
     ...(probe.incremental ? { incremental: true, addedRunningSeconds: probe.runningSeconds,
       coverageStartAt: probe.incremental.coverageStartAt } : {}),
     isRunning: probe.isRunning,
@@ -7710,6 +7719,13 @@ async function applyCompletionWindowRuntimeRecovery(database,user,body,options={
   return applyCompletionWindowRecovery(database,user,body,{...options,
     normalizeProbe:normalizeDataParcRuntimeProbeResult,loadRuntimeIntent:loadDataParcRuntimeSyncIntent,
     matchesRuntimeIntent:isMatchingDataParcRuntimeSyncIntent});
+}
+
+function dataParcRecoveryIntentGuard(intent) {
+  const fields = Object.keys(intent).map(key =>
+    'v."' + key.replace(/"/g,'""') + '" IS json_extract(j.value,\'$.' + key + '\')').join(' AND ');
+  return {sql:"EXISTS (SELECT 1 FROM blower_runtime_probe_intents_v5 v CROSS JOIN json_each(?) j WHERE j.key='row' AND " + fields + ')',
+    values:[JSON.stringify({row:intent})]};
 }
 
 async function applyDataParcRuntimeSync(database, user, body, options) {
@@ -7845,17 +7861,32 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
     coverageRecoveryIntent = await loadCoverageRecoveryIntent(database,requestId);
     const mode = coverageRecoveryIntent?.recovery_mode;
     const modeMatches = mode === 'confirmed_gap'
-      ? body.confirmedGapRecovery === true && body.requireFirstRunStart !== true
-      : mode === 'seal_first_run' && body.requireFirstRunStart === true && body.confirmedGapRecovery !== true;
+      ? body.confirmedGapRecovery === true && body.requireFirstRunStart !== true && body.registeredRangeRecovery !== true
+      : mode === 'seal_registered_range'
+        ? body.registeredRangeRecovery === true && body.confirmedGapRecovery !== true && body.requireFirstRunStart !== true
+        : mode === 'seal_first_run' && body.requireFirstRunStart === true && body.confirmedGapRecovery !== true && body.registeredRangeRecovery !== true;
     if (!coverageWire || !coverageKey || !coverageRecoveryIntent || !modeMatches ||
         !String(intent.reuse_key).startsWith(COVERAGE_RECOVERY_PREFIX + mode + ':')) {
       return jsonResponse({ok:false,code:'BLOWER_COVERAGE_RECOVERY_INTENT_CONFLICT',
         message:'보완 조회의 종류와 저장된 근거가 일치하지 않아 기존 값을 유지합니다.'},409);
     }
-    probe = {...probe,expectedCycleRuntimeRevision:probe.expectedCycleRuntimeRevision.slice(COVERAGE_RECOVERY_PREFIX.length)};
-  } else if (body.confirmedGapRecovery === true) {
+    probe = {...probe,expectedCycleRuntimeRevision:probe.expectedCycleRuntimeRevision.slice(COVERAGE_RECOVERY_PREFIX.length),
+      ...(mode === 'seal_registered_range' ? {registeredRangeRecovery:true} : {})};
+  } else if (body.confirmedGapRecovery === true || body.registeredRangeRecovery === true) {
     return jsonResponse({ok:false,code:'BLOWER_COVERAGE_RECOVERY_INTENT_REQUIRED',
       message:'누락 구간 보완을 위해 고정한 조회 근거가 없습니다. 기존 값을 유지합니다.'},409);
+  }
+  const boundaryWire = String(intent.expected_cycle_runtime_revision || '').startsWith(BOUNDARY_RECOVERY_PREFIX);
+  const boundaryKey = String(intent.reuse_key || '').startsWith(BOUNDARY_RECOVERY_PREFIX);
+  let boundaryRecoveryIntent = null;
+  if (boundaryWire || boundaryKey || body.appendBoundaryRecovery === true) {
+    boundaryRecoveryIntent = await loadBoundaryRecoveryIntent(database,requestId);
+    if (!boundaryWire || !boundaryKey || !boundaryRecoveryIntent || body.appendBoundaryRecovery !== true ||
+        coverageRecoveryIntent || body.requireFirstRunStart === true || body.confirmedGapRecovery === true ||
+        body.registeredRangeRecovery === true) return jsonResponse({ok:false,code:'BLOWER_BOUNDARY_RECOVERY_INTENT_CONFLICT',
+      message:'경계 불일치 복구 요청과 고정 근거를 확인하지 못해 기존 누적값을 유지합니다.'},409);
+    probe = {...probe,expectedCycleRuntimeRevision:probe.expectedCycleRuntimeRevision.slice(BOUNDARY_RECOVERY_PREFIX.length),
+      appendBoundaryRecovery:true};
   }
   // Separate historical RUN tracking is not an official cycle measurement.
   // In particular, an old completed ledger request cannot become cumulative
@@ -8027,10 +8058,13 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
         message: "증분 조회 중 이전 누적시간·교체 기준이 변경되었습니다. 기존 값은 유지하며 조회 기준을 다시 확인해 주세요." }, 409);
     }
     if (base.state !== probe.startState) return jsonResponse({ ok: false, code: "DATAPARC_APPEND_BOUNDARY_CHANGED",
-      message: "이전 조회 종료 상태와 새 구간 시작 상태가 다릅니다. 이력 보기에서 RUN 재조회가 필요합니다. 기존 누적값은 유지합니다." }, 409);
+      ...(asset.tag_number === '204SDF01AN002' && coverage.complete ? {boundaryRecovery:{version:1,eligible:true,
+        requestId,assetTag:asset.tag_number,dataParcTag:probe.dataParcTag,startAt:base.startAt,endAt:probe.rawEndAt}} : {}),
+      message: "같은 조회 경계시각의 RUN 상태가 달라 이어 붙이기를 중단했습니다. 저장된 기준부터 전체 구간 검증이 필요합니다. 기존 누적값은 유지합니다." }, 409);
   }
 
   let coverageRecoveryGuards = [];
+  const fullRecoveryIntentGuard = dataParcRecoveryIntentGuard(intent);
   if (coverageRecoveryIntent) {
     try {
       const recovery = await validateCoverageRecoveryApply(database,coverageRecoveryIntent,asset,probe,body,
@@ -8040,7 +8074,35 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
       coverageRecoveryGuards = [...coverageRecoveryGuards,{sql:`EXISTS (SELECT 1 FROM ois_data_requests
         WHERE id=? AND request_type=? AND status='complete' AND target_date=? AND requested_by_id=?
           AND result_json IS ? AND completed_at IS ?)`,values:[requestRow.id,requestRow.request_type,
-        requestRow.target_date,requestRow.requested_by_id,requestRow.result_json,requestRow.completed_at]}];
+        requestRow.target_date,requestRow.requested_by_id,requestRow.result_json,requestRow.completed_at]},fullRecoveryIntentGuard];
+    } catch (error) {
+      if (error?.code && error?.status) return jsonResponse({ok:false,code:error.code,message:error.message},error.status);
+      throw error;
+    }
+  }
+
+  if (boundaryRecoveryIntent) {
+    try {
+      const recovery = await validateBoundaryRecoveryApply(database,boundaryRecoveryIntent,asset,probe,body,user,
+        {now:runtimeOptions.now,normalizeProbe:normalizeDataParcRuntimeProbeResult,
+          loadRuntimeIntent:loadDataParcRuntimeSyncIntent,matchesRuntimeIntent:isMatchingDataParcRuntimeSyncIntent});
+      if (!Array.isArray(recovery.guards) || !recovery.guards.length) throw new Error('Missing boundary recovery guards.');
+      coverageRecoveryGuards = [...recovery.guards,{sql:`EXISTS (SELECT 1 FROM ois_data_requests
+        WHERE id=? AND request_type=? AND status='complete' AND target_date=? AND requested_by_id=?
+          AND result_json IS ? AND completed_at IS ?)`,values:[requestRow.id,requestRow.request_type,
+        requestRow.target_date,requestRow.requested_by_id,requestRow.result_json,requestRow.completed_at]},fullRecoveryIntentGuard];
+    } catch (error) {
+      if (error?.code && error?.status) return jsonResponse({ok:false,code:error.code,message:error.message},error.status);
+      throw error;
+    }
+  }
+
+  // A fully validated negative window is durable evidence for this source and
+  // predecessor chain. Retain it before a normal append advances that chain;
+  // it never changes the stored total or invents a replacement completion time.
+  if (appendIntent && asset.tag_number === COMPLETION_WINDOW_TAG) {
+    try {
+      await persistCompletionWindowRecoveryReview(database,asset,undefined,{now:runtimeOptions.now});
     } catch (error) {
       if (error?.code && error?.status) return jsonResponse({ok:false,code:error.code,message:error.message},error.status);
       throw error;
