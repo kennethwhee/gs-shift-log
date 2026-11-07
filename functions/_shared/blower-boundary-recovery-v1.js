@@ -213,6 +213,35 @@ export async function findBoundaryRecoveryRequest(database,failureRequestId,user
   return {requestId:row.request_id};
 }
 
+/**
+ * Read-only diagnostics for a rejected full remeasurement. This preserves
+ * every R4 acceptance condition, including measured end-time drift.
+ * Never promotes the fresh full value into the stored counter.
+ */
+export function boundaryTotalAgreement(previousSeconds, deltaSeconds, fullSeconds, gapSeconds, elapsedSeconds) {
+  const expected = previousSeconds + deltaSeconds;
+  const allowedLaterSeconds = Number.isFinite(gapSeconds) ? Math.ceil(gapSeconds) + 2 : NaN;
+  const valid = Number.isFinite(gapSeconds) && gapSeconds >= 0 && gapSeconds <= MAX_AGE / 1000 &&
+    Number.isSafeInteger(expected) && fullSeconds >= expected - 2 &&
+    fullSeconds <= expected + allowedLaterSeconds && fullSeconds >= previousSeconds - 2 &&
+    fullSeconds <= elapsedSeconds + 2;
+  const reason = !Number.isFinite(gapSeconds) || gapSeconds < 0 || gapSeconds > MAX_AGE / 1000
+    ? 'measurement_end_time_invalid'
+    : !Number.isSafeInteger(expected) ? 'total_not_safe_integer'
+    : fullSeconds < expected - 2 ? 'new_full_below_expected'
+    : fullSeconds > expected + allowedLaterSeconds ? 'new_full_above_expected'
+    : fullSeconds < previousSeconds - 2 ? 'new_full_below_saved'
+    : fullSeconds > elapsedSeconds + 2 ? 'new_full_exceeds_elapsed' : 'within_bounds';
+  const hourText = value => Number.isFinite(value) ? (value / 3600).toFixed(3) : '?';
+  const differenceText = Number.isSafeInteger(expected) && Number.isFinite(fullSeconds)
+    ? String(fullSeconds - expected) : '?';
+  // Values appear only in the already authenticated request's 409 error.
+  // No request identifiers, operator identities, raw samples, or tokens.
+  const message = `전체 ${hourText(fullSeconds)}h / 저장 ${hourText(previousSeconds)}h / 새 구간 ${hourText(deltaSeconds)}h` +
+    ` / 차이 ${differenceText}초 (허용 -2~+${Number.isFinite(allowedLaterSeconds) ? allowedLaterSeconds : '?'}초). 기존 값 유지.`;
+  return {valid, reason, message, expectedSeconds:expected, differenceSeconds:Number.isSafeInteger(expected) ? fullSeconds - expected : null};
+}
+
 export async function validateBoundaryRecoveryApply(database,intentRow,asset,probe,body,user,options={}) {
   modeFlags(body);
   const snapshot = parse(intentRow?.snapshot_json), now = nowOf(options);
@@ -237,12 +266,10 @@ export async function validateBoundaryRecoveryApply(database,intentRow,asset,pro
       !seconds(probe.runningSeconds) || !Number.isFinite(probe.runtimeHours) || Math.abs(probe.runtimeHours*3600-probe.runningSeconds)>0.000001 ||
       [probe.observedAt,probe.collectedAt].some(value => !Number.isFinite(instant(value)) || instant(value)<now.getTime()-MAX_AGE || instant(value)>now.getTime()+FUTURE_SKEW)) throw conflict();
   const gapSeconds = (instant(probe.observedAt)-instant(proof.failedProbe.observedAt))/1000;
-  const expected = proof.base.runningSeconds + proof.failedProbe.runningSeconds;
-  if (!Number.isFinite(gapSeconds) || gapSeconds < 0 || gapSeconds > MAX_AGE/1000 || !Number.isSafeInteger(expected) ||
-      probe.runningSeconds < expected-2 || probe.runningSeconds > expected+Math.ceil(gapSeconds)+2 ||
-      probe.runningSeconds < proof.base.runningSeconds-2 ||
-      probe.runningSeconds > (instant(probe.endAt)-instant(probe.startAt))/1000+2)
-    throw failure('BLOWER_BOUNDARY_RECOVERY_TOTAL_CONFLICT','새 전체 RUN과 이전 누적·이후 구간 측정이 일치하지 않아 기존 값을 유지합니다.');
+  const comparison = boundaryTotalAgreement(proof.base.runningSeconds,proof.failedProbe.runningSeconds,
+    probe.runningSeconds,gapSeconds,(instant(probe.endAt)-instant(probe.startAt))/1000);
+  if (!comparison.valid)
+    throw failure('BLOWER_BOUNDARY_RECOVERY_TOTAL_CONFLICT',comparison.message);
   return {guards:[...proof.guards,exists(TABLE,intentRow)],comparison:{previousSeconds:proof.base.runningSeconds,
     deltaSeconds:proof.failedProbe.runningSeconds,fullSeconds:probe.runningSeconds,gapSeconds,
     failureRequestId:proof.failureRequestId,deltaEndAt:proof.failedProbe.observedAt,fullEndAt:probe.observedAt}};
