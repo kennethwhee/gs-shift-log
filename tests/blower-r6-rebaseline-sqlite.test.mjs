@@ -187,3 +187,81 @@ test('A different superadmin can inspect the frozen original R5 evidence without
     assert.deepEqual(f.asset(),before);
   }finally{globalThis.Date=NativeDate}
 });
+
+
+// R6 V5 eligibility — completed queue entries may retire only their reusable
+// key. The authenticated R5 frozen base and full measurement must still match.
+test('R6 V5 reuses validated *completed* R5 full evidence after NULL reuse key',async t=>{
+  const NativeDate=Date;let clock=time('2026-11-07T01:00:00Z');
+  globalThis.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:[clock]))}static now(){return clock}};
+  try{
+    const f=await init(t),before=f.asset(),events=f.events();
+    f.sqlite.prepare('UPDATE blower_runtime_probe_intents_v5 SET reuse_key=NULL,updated_at=? WHERE request_id=?')
+      .run('2026-11-07T00:59:00.000Z','r5-full');
+    const next=await r6Begin(f.db,OWNER);
+    assert.equal(next.case.status,'collecting');
+    assert.deepEqual(f.asset(),before);assert.deepEqual(f.events(),events);
+    const queued=await r6Advance(f.db,OWNER,next.case.id);
+    assert.equal(queued.stage[0].status,'pending');
+  }finally{globalThis.Date=NativeDate}
+});
+
+test('R6 V5 never promotes an altered non-NULL full queue key',async t=>{
+  const NativeDate=Date;let clock=time('2026-11-07T01:00:00Z');
+  globalThis.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:[clock]))}static now(){return clock}};
+  try{
+    const f=await init(t),before=f.asset();
+    f.sqlite.prepare('UPDATE blower_runtime_probe_intents_v5 SET reuse_key=? WHERE request_id=?').run('unexpected-prefix:123','r5-full');
+    await assert.rejects(r6Begin(f.db,OWNER),e=>e.code==='R6_FULL_SOURCE_INVALID'&&/연결키 1건/.test(e.message));
+    assert.deepEqual(f.asset(),before);
+  }finally{globalThis.Date=NativeDate}
+});
+
+test('R6 V5 diagnoses a retired original append reuse key but does not authorize writes',async t=>{
+  const NativeDate=Date;let clock=time('2026-11-07T01:00:00Z');
+  globalThis.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:[clock]))}static now(){return clock}};
+  try{
+    const f=await init(t),before=f.asset(),ev=f.events();
+    f.sqlite.prepare('UPDATE blower_runtime_probe_intents_v5 SET reuse_key=NULL WHERE request_id=?').run('failed-append');
+    await assert.rejects(r6Begin(f.db,OWNER),e=>e.code==='R6_APPEND_RECEIPT_RETIRED');
+    assert.deepEqual(f.asset(),before);assert.deepEqual(f.events(),ev);
+  }finally{globalThis.Date=NativeDate}
+});
+
+test('R6 V5 refuses altered raw full totals even when reuse key was retired',async t=>{
+  const NativeDate=Date;let clock=time('2026-11-07T01:00:00Z');
+  globalThis.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:[clock]))}static now(){return clock}};
+  try{
+    const f=await init(t),before=f.asset();
+    f.sqlite.prepare('UPDATE blower_runtime_probe_intents_v5 SET reuse_key=NULL WHERE request_id=?').run('r5-full');
+    const raw=JSON.parse(f.sqlite.prepare('SELECT result_json FROM ois_data_requests WHERE id=?').get('r5-full').result_json);
+    raw.runningSeconds+=100; // breaks chunk/total integrity
+    f.sqlite.prepare('UPDATE ois_data_requests SET result_json=? WHERE id=?').run(JSON.stringify(raw),'r5-full');
+    await assert.rejects(r6Begin(f.db,OWNER),e=>e.code==='R6_FULL_SOURCE_INVALID'&&/결과 1건/.test(e.message));
+    assert.deepEqual(f.asset(),before);
+  }finally{globalThis.Date=NativeDate}
+});
+
+test('R6 V5 diagnoses current asset changes and prevents stale approval proposals',async t=>{
+  const NativeDate=Date;let clock=time('2026-11-07T01:00:00Z');
+  globalThis.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:[clock]))}static now(){return clock}};
+  try{
+    const f=await init(t),before=f.asset();
+    f.sqlite.prepare('UPDATE blower_history_assets SET cycle_runtime_revision=? WHERE tag_number=?').run('external-revision',TAG);
+    await assert.rejects(r6Begin(f.db,OWNER),e=>e.code==='R6_BASE_PROOF_CHANGED');
+    assert.notDeepEqual(f.asset(),before);
+  }finally{globalThis.Date=NativeDate}
+});
+
+
+test('R6 V5 rejects R5 full-result ownership changes without revealing identities', async t=>{
+  const NativeDate=Date;let clock=time('2026-11-07T01:00:00Z');
+  globalThis.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:[clock]))}static now(){return clock}};
+  try{
+    const f=await init(t),before=f.asset();
+    f.sqlite.prepare('UPDATE blower_runtime_probe_intents_v5 SET reuse_key=NULL WHERE request_id=?').run('r5-full');
+    f.sqlite.prepare('UPDATE ois_data_requests SET requested_by_id=? WHERE id=?').run('other-user','r5-full');
+    await assert.rejects(r6Begin(f.db,OWNER),e=>e.code==='R6_FULL_SOURCE_INVALID'&&/연결키 1건/.test(e.message));
+    assert.deepEqual(f.asset(),before);
+  }finally{globalThis.Date=NativeDate}
+});

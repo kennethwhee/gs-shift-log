@@ -77,34 +77,86 @@ async function baseProof(db,user,failedId){
 async function latestConflict(db,user){
   let rows;
   try{rows=await db.prepare(`SELECT * FROM blower_boundary_recovery_intents_v1
-    WHERE asset_tag=? ORDER BY created_at DESC,request_id DESC LIMIT 12`).bind(BOUNDARY_RECOVERY_TAG).all();}
-  catch(e){if(/no such table/i.test(String(e)))throw error('R6_NO_CONFLICT','기존 R5 전체 재조회 증거가 없어 시작할 수 없습니다.');throw e;}
+    WHERE asset_tag=? ORDER BY created_at DESC,request_id DESC LIMIT 32`).bind(BOUNDARY_RECOVERY_TAG).all();}
+  catch(e){if(/no such table/i.test(String(e)))throw error('R6_NO_CONFLICT','R5 전체 재조회 증거 테이블이 없습니다. 기존 값을 유지합니다.');throw e;}
+  // This is a read-only eligibility scan. Rejected records never authorize a
+  // change. Counters contain no request IDs, employee IDs or raw OIS data.
+  const rejects={owner:0,appendKeyRetired:0,baseChanged:0,snapshotChanged:0,
+    fullUnavailable:0,fullKeyChanged:0,rawInvalid:0,notAboveExpected:0};
+  let examined=0;
   for(const boundary of rows.results||[]){
     if(boundary.recovery_mode!=='append_boundary_full')continue;
+    examined++;
     const frozen=parse(boundary.snapshot_json);
-    if(!frozen?.actorId||(user?.isSuperAdmin!==true&&frozen.actorId!==actor(user)))continue;
+    if(!frozen?.actorId||(user?.isSuperAdmin!==true&&frozen.actorId!==actor(user))){rejects.owner++;continue;}
     let proof;
-    try{proof=await baseProof(db,{employeeNo:frozen.actorId,isSuperAdmin:user?.isSuperAdmin===true},boundary.failure_request_id);}catch(e){if(e?.code==='BLOWER_BOUNDARY_RECOVERY_FORBIDDEN')throw e;continue;}
-    if(boundary.snapshot_sha256!==proof.snapshotSha256||boundary.snapshot_json!==proof.snapshotJson)continue;
+    try{proof=await baseProof(db,{employeeNo:frozen.actorId,isSuperAdmin:user?.isSuperAdmin===true},boundary.failure_request_id);}
+    catch(e){
+      if(e?.code==='BLOWER_BOUNDARY_RECOVERY_FORBIDDEN')throw e;
+      // Old R5 requests can lose their *reusable queue key* when later reads
+      // supersede them. This is not proof that the immutable source was valid;
+      // unlike a retired full key, a retired failed-append key still needs a
+      // separately reviewed snapshot verifier before any R6 approval.
+      const originalIntent=await db.prepare('SELECT reuse_key FROM blower_runtime_probe_intents_v5 WHERE request_id=?')
+        .bind(boundary.failure_request_id).first();
+      if(originalIntent && originalIntent.reuse_key===null &&
+         typeof frozen?.runtimeIntent?.reuse_key==='string' &&
+         frozen.runtimeIntent.reuse_key.startsWith('append-v1:')) rejects.appendKeyRetired++;
+      else rejects.baseChanged++;
+      continue;
+    }
+    if(boundary.snapshot_sha256!==proof.snapshotSha256||boundary.snapshot_json!==proof.snapshotJson){rejects.snapshotChanged++;continue;}
     const fullRequest=await db.prepare('SELECT * FROM ois_data_requests WHERE id=?').bind(boundary.request_id).first();
     const fullIntent=await db.prepare('SELECT * FROM blower_runtime_probe_intents_v5 WHERE request_id=?').bind(boundary.request_id).first();
     if(!fullRequest||fullRequest.status!=='complete'||fullRequest.request_type!=='blower_runtime_probe'||
-       !fullIntent||!text(fullIntent.reuse_key).startsWith(BOUNDARY_RECOVERY_PREFIX)||
+       !fullIntent||!fullRequest.requested_by_id){rejects.fullUnavailable++;continue;}
+    // The R5 queue may clear reuse_key to NULL when a newer request supersedes
+    // this *completed* request. This field only gates queue reuse, not the
+    // original DataPARC measurement. Accept NULL ONLY when the original frozen
+    // snapshot, request ownership, full wire revision, measurement window and
+    // raw R5 result are all revalidated below. An unrelated non-null key fails.
+    const fullKey=fullIntent.reuse_key;
+    if(!(fullKey===null||(typeof fullKey==='string'&&fullKey.startsWith(BOUNDARY_RECOVERY_PREFIX)))||
        fullIntent.expected_cycle_runtime_revision!==BOUNDARY_RECOVERY_PREFIX+proof.asset.cycle_runtime_revision||
-       !fullRequest.requested_by_id)continue;
-    // No browser-computed totals are accepted: validate the original R5 raw response against its queue intent.
-    const norm=normalizeBlowerRuntimeProbeResult(parse(fullRequest.result_json),convertBlowerRuntimeProbeIntentRow(fullIntent),fullRequest.id,new Date());
-    if(norm.error||!norm.result||!same(norm.result.startAt,proof.startAt)||!same(norm.result.endAt,fullIntent.window_end))continue;
+       fullRequest.requested_by_id!==frozen.actorId||
+       fullRequest.target_date!==`v1|${BOUNDARY_RECOVERY_TAG}|${fullIntent.window_start}|${fullIntent.window_end}`||
+       !same(fullIntent.window_start,proof.startAt)||
+       fullIntent.asset_tag!==BOUNDARY_RECOVERY_TAG||fullIntent.dataparc_tag!==BOUNDARY_RECOVERY_SIGNAL||
+       fullIntent.expected_last_replacement_at!==proof.asset.last_replacement_at||
+       fullIntent.expected_cycle_start_state!==proof.asset.cycle_start_state||
+       fullIntent.expected_cycle_started_at!==text(proof.asset.cycle_started_at)||
+       fullIntent.expected_cycle_start_revision!==text(proof.asset.cycle_start_revision)){
+      rejects.fullKeyChanged++;continue;
+    }
+    const norm=normalizeBlowerRuntimeProbeResult(parse(fullRequest.result_json),
+      convertBlowerRuntimeProbeIntentRow(fullIntent),fullRequest.id,new Date());
+    if(norm.error||!norm.result||!same(norm.result.startAt,proof.startAt)||
+       !same(norm.result.endAt,fullIntent.window_end)) {rejects.rawInvalid++;continue;}
     const full=norm.result,cutoff=proof.base.observedAt;
     const gap=(iso(full.endAt)-iso(proof.failedProbe.observedAt))/1000;
     const comparison=boundaryTotalAgreement(proof.base.runningSeconds,proof.failedProbe.runningSeconds,
       full.runningSeconds,gap,(iso(full.endAt)-iso(full.startAt))/1000);
     if(comparison.valid||comparison.reason!=='new_full_above_expected'||
        !Number.isFinite(iso(cutoff))||!(iso(full.endAt)>iso(cutoff))||
-       !same(full.startAt,proof.startAt)||!same(proof.failedProbe.startAt,cutoff))continue;
+       !same(full.startAt,proof.startAt)||!same(proof.failedProbe.startAt,cutoff)){
+      rejects.notAboveExpected++;continue;
+    }
     return {proof,fullRequest,fullIntent,boundary,full,comparison};
   }
-  throw error('R6_NO_VERIFIED_CONFLICT','현재 누적값에 연결된 전체 RUN 불일치 증거를 찾지 못했습니다. 기존 값을 유지합니다.');
+  // Never collapse incompatible evidence into an unexplained "not found".
+  // The diagnostic does not assert which specific live row is authoritative.
+  if(rejects.appendKeyRetired)throw error('R6_APPEND_RECEIPT_RETIRED',
+    `R6 원본 이어조회 재사용키가 후속 조회로 정리돼 검증을 보류했습니다 (${rejects.appendKeyRetired}건). 저장된 원본과 최신 자료의 독립 대조가 필요합니다. 기존 누적값 유지.`);
+  if(rejects.baseChanged||rejects.snapshotChanged)throw error('R6_BASE_PROOF_CHANGED',
+    `R6 고정 근거가 현재 저장값·조회 이력과 일치하지 않아 검증을 보류했습니다 (기준 ${rejects.baseChanged}건, 스냅샷 ${rejects.snapshotChanged}건). 기존 누적값 유지.`);
+  if(rejects.fullKeyChanged||rejects.rawInvalid||rejects.fullUnavailable)throw error('R6_FULL_SOURCE_INVALID',
+    `R6 전체 조회 원본을 재검증하지 못했습니다 (요청 ${rejects.fullUnavailable}건, 연결키 ${rejects.fullKeyChanged}건, 결과 ${rejects.rawInvalid}건). 기존 누적값 유지.`);
+  if(rejects.owner)throw error('R6_OWNER_MISMATCH',
+    'R5 조회 작성자와 현재 검증 시작 계정이 다릅니다. 해당 조회 작성자 또는 최고관리자 권한을 확인해 주세요. 기존 누적값 유지.');
+  if(rejects.notAboveExpected)throw error('R6_CONFLICT_NOT_REPRODUCED',
+    `R6 현재 근거에서 +109초 유형의 초과 불일치가 재현되지 않았습니다 (${rejects.notAboveExpected}건). 기존 누적값 유지.`);
+  throw error('R6_NO_VERIFIED_CONFLICT',
+    `검증 가능한 R5 전체 RUN 불일치 기록이 없습니다 (검토 ${examined}건). 기존 누적값 유지.`);
 }
 
 async function lookupCase(db,id,user){
