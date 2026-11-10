@@ -68,7 +68,7 @@ export function r9VerifiedSavedSignal(rows,assetTag,expectedSignal){
     try{event=JSON.parse(row.source_text)}catch{continue}
     if(event?.schemaVersion!==1||event?.requestType!=='blower_runtime_probe'||
        event?.assetTag!==assetTag||typeof event?.requestId!=='string'||
-       !/^[0-9a-f-]{36}$/i.test(event.requestId)||
+       !/^(?:[0-9a-f-]{36}|[A-Za-z0-9]{4}_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_[0-9]{2}_[0-9]{2})$/i.test(event.requestId)||
        row.source_log_id!==event.requestId||row.id!=='dataparc_runtime:'+event.requestId||
        typeof event.dataParcTag!=='string')continue;
     return event.dataParcTag===expectedSignal
