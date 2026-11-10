@@ -217,12 +217,41 @@ test('failed retry shows the server message and cannot save until a fresh GET su
   assert.equal(f.requests.filter(row => row.request.method === 'POST').length, 1);
 });
 
+for (const position of ['TO', 'BCO1', 'BCO2', 'TGO']) {
+  test(`${position} can edit the shared N/S TO record when the server grants power entry`, async () => {
+    const f = fixture();
+    f.setToken('Bearer test-' + position);
+    const data = payload(VALUES);
+    data.sourceLog = {id: 'employee-position:test-' + position, revision: 1};
+    await f.start(data); await f.open(data);
+    assert.equal(f.get('toNightPowerTitle').textContent, '전력 실적 입력');
+    assert.equal(f.get('toNightPowerSave').hidden, false);
+    assert.equal(f.get('toNightPowerSave').disabled, false);
+    for (const key of KEYS) assert.equal(f.input(key).readOnly, false);
+    f.input('ismartReception').value = '0';
+    await f.submit();
+    const write = f.requests.at(-1);
+    assert.equal(write.request.method, 'POST');
+    assert.equal(write.request.headers.get('Authorization'), 'Bearer test-' + position);
+    const body = JSON.parse(write.request.body);
+    assert.equal(body.role, 'TO');
+    assert.equal(body.shift, 'NS');
+    assert.equal(body.targetDate, DATE);
+    assert.equal(body.sourceLogId, data.sourceLog.id);
+    assert.equal(body.expectedRevision, 1);
+    assert.equal(body.values.ismartReception, 0);
+    write.respond({...payload(COMPLETE, {revision: 2}), sourceLog: data.sourceLog}); await f.flush();
+    assert.equal(f.get('toNightPowerDialog').open, false);
+    assert.equal(f.button().textContent, '✓ 입력 완료');
+  });
+}
+
 for (const [name, values, label, complete] of [
   ['complete', COMPLETE, '✓ 입력 완료', true],
   ['partial', VALUES, '일부 입력 3/4', false],
   ['empty', null, '전력 미입력', false]
 ]) {
-  test(`non-TO sees ${name} saved status and can only read the dialog`, async () => {
+  test(`unauthorized position sees ${name} saved status and can only read the dialog`, async () => {
     const data = payload(values, {canEdit: false});
     const f = fixture(); await f.start(data);
     assert.equal(f.button().hidden, false);
@@ -252,7 +281,7 @@ for (const canEdit of [true, false]) {
     ['complete', COMPLETE, '✓ 입력 완료'],
     ['partial', VALUES, '일부 입력 3/4']
   ]) {
-    test(`${name} ${canEdit ? 'TO' : 'non-TO'} status is explicitly last-saved during loading and failure`, async () => {
+    test(`${name} ${canEdit ? 'editor' : 'read-only user'} status is explicitly last-saved during loading and failure`, async () => {
       const data = payload(values, {canEdit}); const f = fixture(); await f.start(data);
       const refresh = f.window.toNightPower.refreshMeeting(); await f.flush();
       assert.equal(f.button().hidden, false);

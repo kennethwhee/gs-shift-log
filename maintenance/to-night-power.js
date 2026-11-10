@@ -152,9 +152,9 @@
     }
     const duty = payload.sourceLog;
     if (duty !== null && (!duty || typeof duty.id !== 'string' || !duty.id || !Number.isSafeInteger(duty.revision) || duty.revision < 1)) {
-      throw new Error('TO 담당 업무일지 정보를 확인하지 못했습니다.');
+      throw new Error('전력 입력 권한 정보를 확인하지 못했습니다.');
     }
-    if (payload.canEdit && !duty) throw new Error('TO 담당자를 확인하지 못했습니다.');
+    if (payload.canEdit && !duty) throw new Error('전력 입력 담당자를 확인하지 못했습니다.');
     if (Object.hasOwn(payload, 'capabilities') && (!payload.capabilities ||
         typeof payload.capabilities !== 'object' || Array.isArray(payload.capabilities) ||
         typeof payload.capabilities.partialValues !== 'boolean' || typeof payload.capabilities.clearFields !== 'boolean')) {
@@ -461,7 +461,7 @@
       /저장자료.*불러오기/.test(String(button.textContent || '').replace(/\s+/g, ' ').trim())
     );
     if (reloadButton) reloadButton.hidden = true;
-    setBusy(true); say('저장자료와 TO 담당자를 확인하고 있습니다.');
+    setBusy(true); say('저장자료와 전력 입력 권한을 확인하고 있습니다.');
     try {
       const payload = await load(state.date, true);
       if (state !== modalState || state.session !== checkSession()) return;
@@ -470,7 +470,7 @@
       setText(byId('toNightPowerTitle'), editable ? '전력 실적 입력' : '전력 실적 확인');
       setText(dialog.querySelector('.to-night-power-help'), editable
         ? inputHelp
-        : '읽기 전용 · N/S TO 담당자가 저장한 전력 실적입니다.');
+        : '읽기 전용 · N/S 전력 실적은 TO·BCO1·BCO2·TGO 보직에서 입력할 수 있습니다.');
       for (const [key] of FORM_FIELDS) {
         const input = form.elements.namedItem(key);
         const value = String(payload.item?.values[key] ?? '');
@@ -483,11 +483,11 @@
       }
       say(payload.item
         ? editable
-          ? `저장자료를 불러왔습니다. 입력자: ${payload.item.updatedBy || 'TO 담당자'}`
-          : `저장자료를 읽기 전용으로 불러왔습니다. 입력자: ${payload.item.updatedBy || 'TO 담당자'}`
+          ? `저장자료를 불러왔습니다. 입력자: ${payload.item.updatedBy || '담당자'}`
+          : `저장자료를 읽기 전용으로 불러왔습니다. 입력자: ${payload.item.updatedBy || '담당자'}`
         : editable
           ? '확인된 항목을 하나 이상 입력해 주세요. 미확인 값은 빈칸으로, 실제 사용량이 없으면 0으로 입력해 주세요.'
-          : '저장된 전력 자료가 없습니다. TO 담당자 입력 대기 중입니다.');
+          : '저장된 전력 자료가 없습니다. 담당자 입력 대기 중입니다.');
     } catch (error) { if (state === modalState) { state.payload = null; say(error.message, true); } }
     finally {
       setBusy(false);
@@ -662,7 +662,7 @@
       renderSolarCumulative(entry.payload);
       setText(byId(PREFIX + 'PowerDate'), date);
       badge(entry.status === 'error' ? '재조회 실패 · 마지막 저장값 유지' : '재확인 중 · 마지막 저장값 유지', entry.status === 'error' ? 'error' : 'loading');
-      card.title = `${date} N/S TO · ${entry.payload.item.updatedBy || 'TO 담당자'} · ${entry.payload.item.updatedAt || ''} · 마지막 저장값 (재확인 전)` + (entry.error ? ` · ${entry.error}` : '');
+      card.title = `${date} N/S TO · ${entry.payload.item.updatedBy || '담당자'} · ${entry.payload.item.updatedAt || ''} · 마지막 저장값 (재확인 전)` + (entry.error ? ` · ${entry.error}` : '');
       return;
     }
 
@@ -706,7 +706,7 @@
       setText(byId(PREFIX + 'PowerDate'), date);
       const count = enteredCount(entry.payload.item.values);
       badge(count === FIELDS.length ? 'TO 입력 완료' : `TO 일부 입력 ${count}/4`, count === FIELDS.length ? 'complete' : 'idle');
-      card.title = `${date} N/S TO · ${entry.payload.item.updatedBy || 'TO 담당자'} · ${entry.payload.item.updatedAt || ''} · kWh`;
+      card.title = `${date} N/S TO · ${entry.payload.item.updatedBy || '담당자'} · ${entry.payload.item.updatedAt || ''} · kWh`;
     } else {
       // A missing TO record does not delete an independent same-date saved card.
       const visibleDate = String(byId(PREFIX + 'PowerDate')?.textContent || '')

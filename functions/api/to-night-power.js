@@ -7,6 +7,7 @@
  */
 const FIELDS = Object.freeze(['generatorEcmsGen1', 'ismartReception', 'epowerTransmission', 'solarDailyGeneration']);
 const CAPABILITIES = Object.freeze({partialValues: true, clearFields: true});
+const INPUT_POSITIONS = Object.freeze(['TO', 'BCO1', 'BCO2', 'TGO']);
 const TABLE = 'to_night_power_daily';
 const AUDIT = 'to_night_power_audit';
 const HISTORY = 'morning_meeting_auto_history_overrides';
@@ -54,11 +55,11 @@ async function authenticate(context) {
   }
   return {...user, employee_no: String(user.employee_no).trim(), tokenHash};
 }
-function isRegisteredTo(user) {
-  return Boolean(user && Number(user.is_allowed) === 1 && String(user.position || '').trim().toUpperCase() === 'TO');
+function isRegisteredPowerEditor(user) {
+  return Boolean(user && Number(user.is_allowed) === 1 && INPUT_POSITIONS.includes(String(user.position || '').trim().toUpperCase()));
 }
 function accountAuthority(user) {
-  return isRegisteredTo(user)
+  return isRegisteredPowerEditor(user)
     ? {id: `employee-position:${user.employee_no}`, revision: 1, author: String(user.name || '')}
     : null;
 }
@@ -206,7 +207,7 @@ export async function onRequestPost(context) {
     try { body = JSON.parse(text); } catch { throw new InputError('입력 내용을 읽지 못했습니다.'); }
     const allowed = ['targetDate', 'shift', 'role', 'values', 'expectedRevision', 'sourceLogId', 'sourceLogRevision', 'clearFields'];
     if (!isObject(body) || Object.keys(body).some(key => !allowed.includes(key))) throw new InputError('허용되지 않은 입력 항목입니다.');
-    if (body.shift !== 'NS' || body.role !== 'TO') throw new InputError('야간(N/S) TO 담당자만 입력할 수 있습니다.', 403, 'NIGHT_TO_ONLY');
+    if (body.shift !== 'NS' || body.role !== 'TO') throw new InputError('야간(N/S) TO 전력 실적만 입력할 수 있습니다.', 403, 'NIGHT_TO_ONLY');
     if (!validDate(body.targetDate)) throw new InputError('실적 기준일을 확인해 주세요.');
     if (!validValues(body.values)) throw new InputError('한 항목 이상을 0 이상인 kWh 숫자로 입력해 주세요. 미확인 항목은 비워 둘 수 있습니다.');
     const clearFields = Object.hasOwn(body, 'clearFields') ? body.clearFields : [];
@@ -219,9 +220,9 @@ export async function onRequestPost(context) {
       throw new InputError('자료 버전을 확인해 주세요. 입력창을 다시 열어 주세요.');
     }
     const date = body.targetDate, authority = accountAuthority(user);
-    if (!authority) throw new InputError('직원 정보의 보직이 TO인 계정만 N/S 전력 실적을 입력·수정할 수 있습니다.', 403, 'TO_POSITION_REQUIRED');
+    if (!authority) throw new InputError('직원 정보의 보직이 TO·BCO1·BCO2·TGO인 계정만 N/S 전력 실적을 입력·수정할 수 있습니다.', 403, 'TO_POSITION_REQUIRED');
     if (authority.id !== body.sourceLogId || authority.revision !== body.sourceLogRevision) {
-      throw new InputError('TO 보직 정보가 변경되었습니다. 입력값을 확인한 뒤 저장자료를 다시 불러와 주세요.', 409, 'TO_POSITION_CHANGED');
+      throw new InputError('전력 입력 보직 정보가 변경되었습니다. 입력값을 확인한 뒤 저장자료를 다시 불러와 주세요.', 409, 'TO_POSITION_CHANGED');
     }
     const exists = await tableExists(db);
     const previous = exists ? await db.prepare(`SELECT * FROM ${TABLE} WHERE target_date = ?`).bind(date).first() : null;
@@ -237,7 +238,7 @@ export async function onRequestPost(context) {
       clearFields.includes(key) ? null : body.values[key] ?? previousItem?.values[key] ?? null]));
     await ensureSchema(db);
     const now = new Date().toISOString(), json = JSON.stringify(values);
-    // Recheck the session, registered TO position and power revision IN the write
+    // Recheck the session, registered input position and power revision IN the write
     // transaction. 업무일지 synchronization has no authority over this record.
     // Invalid JSON deliberately aborts/rolls back the batch on any conflict.
     const guard = db.prepare(`SELECT json(CASE WHEN
@@ -246,9 +247,9 @@ export async function onRequestPost(context) {
         INNER JOIN users AS u ON u.employee_no = s.employee_no
         INNER JOIN employees AS e ON e.employee_no = s.employee_no
         WHERE s.token_hash = ? AND s.employee_no = ? AND u.is_active = 1 AND e.is_allowed = 1
-          AND UPPER(TRIM(e.position)) = 'TO' AND julianday(s.expires_at) > julianday(?))
+          AND UPPER(TRIM(e.position)) IN (${INPUT_POSITIONS.map(() => '?').join(', ')}) AND julianday(s.expires_at) > julianday(?))
       THEN 'true' ELSE 'TO_POWER_CONFLICT' END) AS allowed`)
-      .bind(date, body.expectedRevision, user.tokenHash, user.employee_no, now);
+      .bind(date, body.expectedRevision, user.tokenHash, user.employee_no, ...INPUT_POSITIONS, now);
     const upsert = db.prepare(`INSERT INTO ${TABLE}
       (target_date, values_json, revision, source_log_id, source_log_revision,
        created_by_id, created_by_name, created_at, updated_by_id, updated_by_name, updated_at)
@@ -267,7 +268,7 @@ export async function onRequestPost(context) {
     try { results = await db.batch([guard, upsert, audit, db.prepare(`SELECT * FROM ${TABLE} WHERE target_date = ?`).bind(date)]); }
     catch (error) {
       if (/malformed JSON/i.test(String(error?.message || '') + ' ' + String(error?.cause?.message || ''))) {
-        throw new InputError('TO 보직 또는 저장자료가 변경되었습니다. 입력값을 보관한 뒤 저장자료를 다시 불러와 주세요.', 409, 'POWER_WRITE_CONFLICT');
+        throw new InputError('전력 입력 보직 또는 저장자료가 변경되었습니다. 입력값을 보관한 뒤 저장자료를 다시 불러와 주세요.', 409, 'POWER_WRITE_CONFLICT');
       }
       throw error;
     }

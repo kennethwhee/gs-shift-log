@@ -26,9 +26,11 @@ function fixture() {
     CREATE TABLE shift_logs(id TEXT PRIMARY KEY,work_date TEXT,shift TEXT,role TEXT,author TEXT,author_id TEXT,
       revision INTEGER,updated_at TEXT,created_at TEXT);`);
   for (const [id, name, role, position] of [
-    ['to', 'TEST TO', 'user', 'TO'], ['other', 'TEST OTHER', 'user', 'BCO1'],
-    ['admin', 'TEST ADMIN', 'super_admin', 'BCO1'], ['same-name', 'TEST TO', 'user', 'BCO2'],
-    ['to-admin', 'TEST TO ADMIN', 'super_admin', 'TO']
+    ['to', 'TEST TO', 'user', 'TO'], ['other', 'TEST OTHER', 'user', 'MECHANICAL'],
+    ['admin', 'TEST ADMIN', 'super_admin', 'MECHANICAL'], ['same-name', 'TEST TO', 'user', 'MECHANICAL'],
+    ['to-admin', 'TEST TO ADMIN', 'super_admin', 'TO'],
+    ['bco1', 'TEST BCO1', 'user', 'BCO1'], ['bco2', 'TEST BCO2', 'user', 'BCO2'],
+    ['tgo', 'TEST TGO', 'user', 'TGO']
   ]) {
     sql.prepare('INSERT INTO users VALUES (?, ?, ?, 1)').run(id, name, role);
     sql.prepare('INSERT INTO employees VALUES (?, ?, ?, ?, 1)').run(id, name, role, position);
@@ -89,6 +91,49 @@ run('GET: registered TO position is allowed before any TO log is written; read c
 for (const user of ['other', 'admin', 'same-name']) run(`GET/POST: ${user} has no owner bypass`, async f => {
   assert.equal((await f.call('GET', null, user)).data.canEdit, false);
   assert.equal((await f.call('POST', f.body(), user)).status, 403); assert.equal(f.count('to_night_power_daily'), 0);
+});
+for (const user of ['bco1', 'bco2', 'tgo']) run(`registered ${user.toUpperCase()} can create and correct the shared TO record without a duty log`, async f => {
+  f.sql.exec('DELETE FROM shift_logs');
+  const loaded = await f.call('GET', null, user);
+  assert.equal(loaded.status, 200); assert.equal(loaded.data.canEdit, true);
+  assert.equal(loaded.data.role, 'TO'); assert.equal(loaded.data.shift, 'NS');
+  assert.equal(loaded.data.sourceLog.id, `employee-position:${user}`);
+  const body = {...f.body(), sourceLogId: loaded.data.sourceLog.id};
+  const created = await f.call('POST', body, user);
+  assert.equal(created.status, 200); assert.equal(created.data.item.role, 'TO');
+  assert.equal(created.data.item.updatedBy, `TEST ${user.toUpperCase()}`);
+  assert.deepEqual(created.data.item.values, VALUES);
+  const corrected = await f.call('POST', {...body, expectedRevision: 1, values: {...VALUES, ismartReception: 23}}, user);
+  assert.equal(corrected.status, 200); assert.equal(corrected.data.item.revision, 2);
+  assert.equal((await f.call()).data.item.values.ismartReception, 23);
+  assert.equal(f.count('to_night_power_daily'), 1); assert.equal(f.count('to_night_power_audit'), 2);
+  assert.deepEqual(f.sql.prepare('SELECT updated_by_id FROM to_night_power_audit ORDER BY revision').all().map(row => row.updated_by_id), [user, user]);
+});
+for (const user of ['bco1', 'bco2', 'tgo']) run(`${user.toUpperCase()} still requires employee login allowance and transaction-time permission`, async f => {
+  const body = {...f.body(), sourceLogId: `employee-position:${user}`};
+  f.sql.prepare('UPDATE employees SET is_allowed = 0 WHERE employee_no = ?').run(user);
+  assert.equal((await f.call('GET', null, user)).data.canEdit, false);
+  assert.equal((await f.call('POST', body, user)).status, 403);
+  f.sql.prepare('UPDATE employees SET is_allowed = 1 WHERE employee_no = ?').run(user);
+  f.db.beforeWriteBatch = () => f.sql.prepare('UPDATE employees SET position = ? WHERE employee_no = ?').run('MECHANICAL', user);
+  assert.equal((await f.call('POST', body, user)).status, 409);
+  assert.equal(f.count('to_night_power_daily'), 0); assert.equal(f.count('to_night_power_audit'), 0);
+});
+run('registered input positions share revision conflicts while recording each actual editor', async f => {
+  await f.call('POST');
+  const toBefore = powerSnapshot(f);
+  const body = {...f.body(), sourceLogId: 'employee-position:bco1'};
+  assert.equal((await f.call('POST', body, 'bco1')).status, 409);
+  assert.deepEqual(powerSnapshot(f), toBefore);
+  assert.equal((await f.call('POST', {...body, expectedRevision: 1}, 'bco1')).status, 200);
+  assert.deepEqual(f.sql.prepare('SELECT updated_by_id FROM to_night_power_audit ORDER BY revision').all().map(row => row.updated_by_id), ['to', 'bco1']);
+});
+for (const position of ['BCO1,TO', 'TGO trainee', '', null]) run(`unapproved employee position ${JSON.stringify(position)} cannot inherit permission from account role`, async f => {
+  f.sql.prepare("UPDATE employees SET position = ? WHERE employee_no = 'admin'").run(position);
+  const body = {...f.body(), sourceLogId: 'employee-position:admin'};
+  assert.equal((await f.call('GET', null, 'admin')).data.canEdit, false);
+  assert.equal((await f.call('POST', body, 'admin')).status, 403);
+  assert.equal(f.count('to_night_power_daily'), 0);
 });
 run('missing saved duty does not remove registered TO input permission', async f => {
   f.sql.exec('DELETE FROM shift_logs'); assert.equal((await f.call()).data.canEdit, true);
@@ -180,7 +225,7 @@ run('a newer TO log by another employee cannot steal account-position authorizat
   assert.equal((await f.call('POST')).status, 200);
 });
 for (const [name, mutation] of [
-  ['position reassignment', f => f.sql.exec("UPDATE employees SET position = 'BCO1' WHERE employee_no = 'to'")],
+  ['position reassignment', f => f.sql.exec("UPDATE employees SET position = 'MECHANICAL' WHERE employee_no = 'to'")],
   ['employee disabled', f => f.sql.exec("UPDATE employees SET is_allowed = 0 WHERE employee_no = 'to'")],
   ['session revoked', f => f.sql.exec('DELETE FROM shift_log_sessions')],
   ['user disabled', f => f.sql.exec("UPDATE users SET is_active = 0 WHERE employee_no = 'to'")]
@@ -190,7 +235,7 @@ for (const [name, mutation] of [
 });
 run('position changed after opening blocks save without erasing existing data', async f => {
   await f.call('POST'); const before = powerSnapshot(f); const body = f.body(); body.expectedRevision = 1;
-  f.sql.exec("UPDATE employees SET position = 'BCO1' WHERE employee_no = 'to'");
+  f.sql.exec("UPDATE employees SET position = 'MECHANICAL' WHERE employee_no = 'to'");
   assert.equal((await f.call('POST', body)).status, 403); assert.deepEqual(powerSnapshot(f), before);
 });
 run('audit failure rolls back the saved values', async f => {

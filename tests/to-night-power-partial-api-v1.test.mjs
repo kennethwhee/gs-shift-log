@@ -139,7 +139,7 @@ run('a write occurring after merge is detected by the atomic revision guard', as
 
 run('partial save retains the transaction-time TO authority guard', async f => {
   await f.call('POST', f.body());
-  f.db.beforeWriteBatch = () => f.sql.exec("UPDATE employees SET position = 'BCO1' WHERE employee_no = 'to'");
+  f.db.beforeWriteBatch = () => f.sql.exec("UPDATE employees SET position = 'MECHANICAL' WHERE employee_no = 'to'");
   assert.equal((await f.call('POST', f.body({...EMPTY, ismartReception: 1}, 1))).status, 409);
   assert.deepEqual((await f.call('GET')).data.item.values, PARTIAL);
   assert.equal(f.audit().length, 1);
@@ -266,7 +266,7 @@ run('explicit clear cannot erase a newer value on stale or racing revisions', as
 run('explicit clear is blocked after TO authority changes', async f => {
   const initial = {...PARTIAL, ismartReception: 0};
   await f.call('POST', f.body(initial));
-  f.db.beforeWriteBatch = () => f.sql.exec("UPDATE employees SET position = 'BCO1' WHERE employee_no = 'to'");
+  f.db.beforeWriteBatch = () => f.sql.exec("UPDATE employees SET position = 'MECHANICAL' WHERE employee_no = 'to'");
   const result = await f.call('POST', {...f.body(PARTIAL, 1), clearFields: ['ismartReception']});
   assert.equal(result.status, 409);
   assert.deepEqual((await f.call('GET')).data.item.values, initial);
