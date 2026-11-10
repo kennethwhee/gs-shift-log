@@ -10,18 +10,12 @@
   <link rel="stylesheet" href="blower-history-mobile-dialog-close-v1.css?v=20260903-v1">
   <link rel="stylesheet" href="/maintenance/seal-pot-ois-shadow.css?v=20260901-v2">
   <script src="shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
-  <link rel="stylesheet" href="blower-r6-review.css?v=20261107-r6-v1">
-  <link rel="stylesheet" href="blower-r7-evidence.css?v=20261107-r7-v1">
-  <link rel="stylesheet" href="blower-r8-timeline.css?v=20261107-r8-v1">
   <link rel="stylesheet" href="blower-r9-signal-v1.css?v=20261107-r9-v1">
   <link rel="stylesheet" href="blower-unified-refresh.css?v=20261022-query-resource-v3-20261102-inline-v3n-20261102-label-v3o-20261102-right-v3p">
   <script src="blower-refresh-timing.js?v=20260915-fast-timing-v12-20261102-inline-v3n" defer></script>
   <script src="blower-unified-refresh.js?v=20261031-limestone-ledger-v3g-20261102-auto-v3m-20261102-inline-v3n-20261102-schedule-v3q&runtimeRepair=20261107-r4&blowerNormalize=20261104-v4-r6-20261102-schedule-v3q" defer></script>
   <script src="blower-runtime-assessment.js?v=20261106-v2&runtimeRepair=20261107-r4" defer></script>
   <script src="blower-resolution-guide.js?v=20261107-r4" defer></script>
-  <script src="blower-r6-review.js?v=20261107-r6-v1" defer></script>
-  <script src="blower-r7-evidence.js?v=20261107-r7-v1" defer></script>
-  <script src="blower-r8-timeline.js?v=20261107-r8-v1" defer></script>
   <script src="blower-r9-signal-v1.js?v=20261107-r9-v1" defer></script>
   <script src="blower-history.js?v=20261031-limestone-ledger-v3g-checkpoint-v3k-ui-20261102-auto-v3m-20261102-inline-v3n-20261102-label-v3o-20261102-row-v3r-20261103-bag-v3s&blowerNormalize=20261104-v4-r6-20261102-schedule-v3q&runTransition=20261106-v2&runtimeAssessment=20261106-v2&runtimeRepair=20261107-r4" defer></script>
   <script src="/maintenance/seal-pot-ois-shadow.js?v=20260909-unified-refresh-v1" defer></script>
@@ -178,51 +172,10 @@
             </section>
           </section>
 
-          <!-- R6 is opt-in. Merely opening the page never enqueues DataPARC. -->
-          <section class="blower-r6-panel" id="blowerR6Panel" aria-label="유기성 2호기 B 누적시간 검증" hidden>
-            <details id="blowerR6Details">
-              <summary>유기성 2호기 B · 검증형 누적 재기준화 (R6)</summary>
-              <p class="blower-r6-intro">기존 누적시간은 유지하면서 독립된 전체 조회 2회와 경계 분할 조회 2회를 비교합니다. 검증 성공 후에도 최고관리자의 명시적 승인이 있어야 변경됩니다.</p>
-              <p class="blower-r6-status" id="blowerR6Status" role="status" aria-live="polite">검증 상태 확인 중</p>
-              <div class="blower-r6-stages" id="blowerR6Stages"></div>
-              <div class="blower-r6-actions">
-                <button type="button" class="button secondary" id="blowerR6Start">R6 검증 시작</button>
-                <button type="button" class="button secondary" id="blowerR6Continue" hidden>R6 조회 이어서 확인</button>
-                <button type="button" class="button secondary" id="blowerR6Cancel" hidden>R6 검증 취소</button>
-              </div>
-              <section class="blower-r6-proposal" id="blowerR6Proposal" hidden>
-                <p id="blowerR6Comparison"></p>
-                <p>네 번의 조회 결과가 일치해도 교체 완료시각을 추정하지 않습니다. 기존 Agent의 결과에는 개별 샘플 GOOD 품질 표식이 없으므로 분할구간·상태·초 단위 합계 검증과 관리자 확인을 적용합니다.</p>
-                <label>대상 TAG 직접 입력 <input id="blowerR6Confirmation" autocomplete="off" placeholder="204SDF01AN002" maxlength="20"></label>
-                <label>정정 사유·확인 근거 <textarea id="blowerR6Note" rows="2" maxlength="500" placeholder="변경 전·후 누적시간과 확인 근거를 작성하세요"></textarea></label>
-                <button type="button" class="button primary" id="blowerR6Approve">검증된 누적시간 승인·기록</button>
-              </section>
-            </details>
-          </section>
-
-          <!-- R7 verifies two unresolved belt cycles without altering saved hours. -->
-          <section class="blower-r7-panel" id="blowerR7Panel" hidden>
-            <details>
-              <summary>잔여 7대 · R7 근거 검증 (FBHE 1B · Limestone 2A)</summary>
-              <p>확정된 교체 완료시각을 만들지 않습니다. DataPARC 읽기 전용 조회를 수동으로 요청하며, 조회 성공만으로 경고를 해제하지 않습니다.</p>
-              <div class="blower-r7-grid">
-                <article><strong>FBHE 1호기 B</strong><p>10월 8일 13:04 이후 RUN이 0초인지 확인</p>
-                  <button type="button" id="blowerR7FbheStart">0초 검증 조회</button>
-                  <button type="button" id="blowerR7FbheCheck">결과 확인</button>
-                  <p id="blowerR7FbheStatus" role="status">아직 조회하지 않았습니다.</p></article>
-                <article><strong>Limestone 2호기 A</strong><p>9월 19일 00:00~20일 00:00 RUN 별도 확인</p>
-                  <button type="button" id="blowerR7LimestoneStart">앞 구간 조회</button>
-                  <button type="button" id="blowerR7LimestoneCheck">결과 확인</button>
-                  <p id="blowerR7LimestoneStatus" role="status">아직 조회하지 않았습니다.</p></article>
-              </div>
-              <p class="blower-r7-note">조회 결과는 근거 검토용입니다. 운전시간·교체시각·확인 항목은 자동 변경되지 않습니다. 결과에 누락/품질 정보가 없다면 확정 전 추가 확인이 필요합니다.</p>
-            </details>
-          </section>
-
           <!-- R9 bounded event-time examination; the existing Blower cards and counters remain authoritative. -->
           <section class="blower-r9-panel" id="blowerR9Panel" hidden>
             <details>
-              <summary>R9 · 27대 기동·정지 신호 시간 이력 (읽기 전용)</summary>
+              <summary>RUN 신호 구간 조회 (읽기 전용)</summary>
               <p class="blower-r9-help">과거 하루의 DataPARC RUN 시작·종료 구간과 운전시간을 확인합니다. 시간창 처음·끝은 절체시각으로 확정하지 않습니다. 오일 교체는 누적 초기화 대상이 아니며, 현재 누적시간은 변경하지 않습니다.</p>
               <div class="blower-r9-actions">
                 <label>설비<select id="blowerR9Asset" aria-label="R9 Blower 설비"></select></label>
@@ -235,23 +188,6 @@
               <p class="blower-r9-help">정비 완료·계획정비 승인 및 품질 검증 이전에는 V-belt 새 주기 계산 또는 저장값 초기화를 실행하지 않습니다.</p>
             </details>
           </section>
-          <!-- R8 time-slice evidence only; this tool never edits saved cycles. -->
-          <section class="blower-r8-panel" id="blowerR8Panel" hidden>
-            <details>
-              <summary>R8 · 시간대별 RUN 구간 확인 (FBHE 1B · Limestone 2A)</summary>
-              <p class="blower-r8-intro">R7 합계: FBHE 1B 647초 / Limestone 2A 50,494초. 이 화면은 큰 구간을 둘로 나누고 RUN과 정지가 섞인 구간만 추가 조회합니다. 구간 합계는 정확한 ON/OFF 이벤트시각을 보장하지 않습니다.</p>
-              <p class="blower-r8-help">수동 요청만 등록합니다. 여러 차례 DataPARC 조회가 필요할 수 있습니다. 전체 최신화·다른 보완 조회와 동시에 실행하지 마세요. 누적시간·교체 기준·확인 대수는 변경되지 않습니다.</p>
-              <div class="blower-r8-actions"><button type="button" id="blowerR8Check">접수 결과 확인</button><span id="blowerR8Status" role="status">조회 시작 전</span></div>
-              <div class="blower-r8-grid">
-                <article><strong>FBHE 1호기 B</strong><p class="blower-r8-help">2026-10-08 13:04~11-07 14:00을 작업일과 이후 기간으로 구분. 최초 4개 구간 조회.</p>
-                  <button type="button" id="blowerR8Fbhe">FBHE 시간 구간 조회</button><div id="blowerR8FbheRows"></div></article>
-                <article><strong>Limestone 2호기 A</strong><p class="blower-r8-help">2026-09-19 00:00~20일 00:00, 최초 전·후 12시간씩 확인.</p>
-                  <button type="button" id="blowerR8Limestone">Limestone 시간 구간 조회</button><div id="blowerR8LimestoneRows"></div></article>
-              </div>
-              <p class="blower-r8-help">RUN/정지 혼재 구간의 「시간 구간 세분화」로 범위를 좁힙니다(최소 약 1분). 측정 분할 차이가 있거나 원본 품질·완료시각 근거가 없으면 경고를 해제하지 않습니다.</p>
-            </details>
-          </section>
-
           <section class="status-toolbar" aria-label="설비 상태 필터">
             <div class="status-filters" id="statusFilters"></div>
             <span class="visible-count" id="visibleAssetCount"></span>
