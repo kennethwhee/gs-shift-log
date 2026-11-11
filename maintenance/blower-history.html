@@ -16,7 +16,7 @@
   <script src="blower-unified-refresh.js?v=20261031-limestone-ledger-v3g-20261102-auto-v3m-20261102-inline-v3n-20261102-schedule-v3q&runtimeRepair=20261107-r4&blowerNormalize=20261104-v4-r6-20261102-schedule-v3q&limestone2a=20261111-v1&limestone1b=20261111-v1&fbhe1bStandby=20261112-v1&fbhe2cStandby=20261112-v1&fbhe1aRuntime=20261112-v1&batchAppendContract=20261112-v1" defer></script>
   <script src="blower-runtime-assessment.js?v=20261106-v2&runtimeRepair=20261107-r4" defer></script>
   <script src="blower-resolution-guide.js?v=20261107-r4" defer></script>
-  <script src="blower-r9-signal-v1.js?v=20261107-r9-v1&freshSnapshot=20261111-v1" defer></script>
+  <script src="blower-r9-signal-v1.js?v=20261107-r9-v1&freshSnapshot=20261111-v1&operationalUi=20261112-v1" defer></script>
   <link rel="stylesheet" href="blower-silo-basis-recovery-v1.css?v=20261111-v3">
   <script src="blower-silo-basis-recovery-v1.js?v=20261111-v3" defer></script>
   <link rel="stylesheet" href="blower-limestone2a-first-run-v1.css?v=20261111-v2">
@@ -29,7 +29,9 @@
   <script src="blower-fbhe2c-standby-v1.js?v=20261112-v1" defer></script>
   <link rel="stylesheet" href="blower-fbhe1a-runtime-v1.css?v=20261112-v1">
   <script src="blower-fbhe1a-runtime-v1.js?v=20261112-v1" defer></script>
-  <script src="blower-history.js?v=20261031-limestone-ledger-v3g-checkpoint-v3k-ui-20261102-auto-v3m-20261102-inline-v3n-20261102-label-v3o-20261102-row-v3r-20261103-bag-v3s&blowerNormalize=20261104-v4-r6-20261102-schedule-v3q&runTransition=20261106-v2&runtimeAssessment=20261106-v2&runtimeRepair=20261107-r4&siloBasis=20261111-v3&limestone2a=20261111-v1&limestone1b=20261111-v1&fbhe1bStandby=20261112-v1&fbhe2cStandby=20261112-v1&fbhe1aRuntime=20261112-v1&verifiedCardCopy=20261112-v1" defer></script>
+  <link rel="stylesheet" href="blower-history-timeline-v1.css?v=20261112-v1">
+  <script src="blower-history-timeline-v1.js?v=20261112-v1" defer></script>
+  <script src="blower-history.js?v=20261031-limestone-ledger-v3g-checkpoint-v3k-ui-20261102-auto-v3m-20261102-inline-v3n-20261102-label-v3o-20261102-row-v3r-20261103-bag-v3s&blowerNormalize=20261104-v4-r6-20261102-schedule-v3q&runTransition=20261106-v2&runtimeAssessment=20261106-v2&runtimeRepair=20261107-r4&siloBasis=20261111-v3&limestone2a=20261111-v1&limestone1b=20261111-v1&fbhe1bStandby=20261112-v1&fbhe2cStandby=20261112-v1&fbhe1aRuntime=20261112-v1&verifiedCardCopy=20261112-v1&operationalUi=20261112-v1" defer></script>
   <script src="/maintenance/seal-pot-ois-shadow.js?v=20260909-unified-refresh-v1" defer></script>
   <link rel="stylesheet" href="/maintenance/blower-schedule-v1.css?v=20261029-settings-v2">
   <script src="/maintenance/blower-schedule-v1.js?v=20261031-limestone-ledger-v3g-20261102-schedule-v3q&runtimeRepair=20261107-r4" defer></script>
@@ -125,6 +127,10 @@
             <details class="advanced-management-tools" id="advancedManagementTools" hidden>
               <summary>진단·복구</summary>
               <div class="advanced-management-actions">
+                <label class="diagnostic-tools-toggle" for="diagnosticToolsToggle">
+                  <input type="checkbox" id="diagnosticToolsToggle">
+                  <span>진단·복구 도구 표시</span>
+                </label>
         <button
           type="button"
           class="button secondary audit-history-button"
@@ -811,6 +817,7 @@
       </header>
       <div class="dialog-body">
         <div class="history-cycle-summary" id="historyCycleSummary"></div>
+        <div class="history-recovery-tools" id="historyRecoveryTools" aria-label="진단·복구 도구" hidden></div>
         <div class="asset-history-list" id="assetHistoryList"></div>
       </div>
       <footer class="dialog-footer history-dialog-footer">

@@ -80,6 +80,7 @@ async function setup(tag = BAG) {
 function uiFor(asset) {
   const nodes = new Map();
   const element = () => ({ innerHTML: '', textContent: '', value: '', hidden: false, disabled: false,
+    replaceChildren() { this.innerHTML = ''; this.textContent = ''; },
     dataset: {}, classList: { add() {}, remove() {}, toggle() {} }, addEventListener() {},
     setAttribute() {}, removeAttribute() {}, showModal() {}, close() {}, focus() {} });
   const context = vm.createContext({ console, Date, setTimeout, clearTimeout,

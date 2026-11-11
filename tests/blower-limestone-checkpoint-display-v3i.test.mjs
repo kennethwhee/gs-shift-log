@@ -11,6 +11,7 @@ const marker='  if (document.readyState === "loading") {';
 assert.ok(source.includes(marker), 'original DOM readiness contract must be present');
 function element(){ return {
   innerHTML:'',textContent:'',disabled:false,hidden:false,style:{},dataset:{},
+  replaceChildren(){this.innerHTML='';this.textContent='';},
   setAttribute(){},removeAttribute(){},showModal(){},close(){},addEventListener(){},
   classList:{toggle(){},add(){},remove(){}},getAttribute(){return null;},closest(){return null;},
   querySelector(){return null;},querySelectorAll(){return []}

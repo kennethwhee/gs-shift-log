@@ -270,7 +270,7 @@ test('actual correction button hides only the current recovered Silo and direct 
     else assert.doesNotMatch(rawSource, /\r/);
     const source = normalizeLineEndings(rawSource);
     const correction = extractSection(source, '    if (elements.historyRuntimeCorrectionButton) {',
-      '\n\n    elements.assetHistoryList', lineEnding + ' correction button');
+      '\n\n    const renderAssetHistoryEvent', lineEnding + ' correction button');
     const render = new Function('elements', 'asset', 'hasAuthenticatedWriteAccess', 'awaitingBackfill', 'startupPending', correction);
     const set = extractSection(source, '  const DATAPARC_RUNTIME_ASSET_TAGS = new Set([', '\n  ]);', lineEnding + ' supported assets');
     const tags = [...set.matchAll(/"([0-9A-Z]+)"/g)].map(match => match[1]);

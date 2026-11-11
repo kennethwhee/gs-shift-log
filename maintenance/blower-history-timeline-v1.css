@@ -1,0 +1,74 @@
+.blower-history-auto-log {
+  margin-top: 10px;
+  border: 1px solid #d8e1ec;
+  border-radius: 9px;
+  background: #f8fafc;
+  color: #35516e;
+}
+.blower-history-auto-log > summary {
+  padding: 12px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.blower-history-auto-log > summary:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+.blower-history-auto-log-content {
+  display: grid;
+  gap: 10px;
+  padding: 0 12px 12px;
+}
+.blower-history-auto-log-content .asset-history-item {
+  background: #fff;
+}
+.blower-history-auto-log-row > td {
+  padding: 0;
+}
+.blower-history-auto-log-row .blower-history-auto-log {
+  margin-top: 0;
+  border: 0;
+  border-radius: 0;
+}
+.blower-history-auto-log--table > .table-wrap {
+  margin: 0 10px 10px;
+}
+
+.blower-history-auto-log-content,
+.blower-history-auto-log--table > .table-wrap {
+  max-height: 360px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.blower-history-auto-log:not([open]) > .blower-history-auto-log-content,
+.blower-history-auto-log:not([open]) > .table-wrap {
+  display: none;
+}
+
+.diagnostic-tools-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.diagnostic-tools-toggle input {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+.history-recovery-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+  max-width: 100%;
+}
+.history-recovery-tools[hidden] {
+  display: none;
+}

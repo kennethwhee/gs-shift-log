@@ -83,6 +83,8 @@
     overviewFilter: "all",
     overviewFilterType: "",
     overviewResolutionOpen: false,
+    diagnosticToolsVisible: false,
+    diagnosticToolsSession: "",
     historyAssetTag: "",
     subview: "overview",
     busy: false,
@@ -140,6 +142,8 @@
       "managementMenu",
       "managementCandidateBadge",
       "advancedManagementTools",
+      "diagnosticToolsToggle",
+      "historyRecoveryTools",
       "historicalBackfillNotice",
       "overviewBackfillCallout",
       "overviewBackfillTitle",
@@ -1104,6 +1108,26 @@
       ? "공유 조회" : isMobileMonitoringView() ? "조회 전용" : "";
   }
 
+  function diagnosticToolsAvailable() {
+    return hasAuthenticatedWriteAccess() && !isMobileMonitoringView() &&
+      state.data?.user?.isSuperAdmin === true && Boolean(getSessionToken());
+  }
+
+  function diagnosticToolsEnabled() {
+    return state.diagnosticToolsVisible === true && diagnosticToolsAvailable() &&
+      state.diagnosticToolsSession === getSessionToken();
+  }
+
+  function setDiagnosticToolsVisible(visible) {
+    state.diagnosticToolsVisible = visible === true && diagnosticToolsAvailable();
+    state.diagnosticToolsSession = state.diagnosticToolsVisible ? getSessionToken() : "";
+    renderHeaderActions();
+    if (state.diagnosticToolsVisible && elements.historyDialog?.open && state.historyAssetTag) {
+      elements.historyDialog.close();
+      openAssetHistory(state.historyAssetTag);
+    }
+  }
+
   function renderHeaderActions() {
     const canManage = hasAuthenticatedWriteAccess() && !isMobileMonitoringView();
     const canDiagnose = canManage && Boolean(state.data?.user?.isSuperAdmin);
@@ -1113,6 +1137,20 @@
       if (!canManage) elements.managementMenu.open = false;
     }
     if (elements.advancedManagementTools) elements.advancedManagementTools.hidden = !canDiagnose;
+    const diagnosticsVisible = diagnosticToolsEnabled();
+    if (!diagnosticsVisible) {
+      state.diagnosticToolsVisible = false;
+      state.diagnosticToolsSession = "";
+    }
+    if (elements.diagnosticToolsToggle) {
+      elements.diagnosticToolsToggle.checked = diagnosticsVisible;
+      elements.diagnosticToolsToggle.disabled = !diagnosticToolsAvailable();
+    }
+    if (elements.historyRecoveryTools) {
+      elements.historyRecoveryTools.hidden = !diagnosticsVisible;
+      if (!diagnosticsVisible) elements.historyRecoveryTools.replaceChildren();
+    }
+    window.BlowerR9Signal?.setDiagnosticsVisible(diagnosticsVisible, state.data);
   }
 
   function renderMissingTags() {
@@ -3241,8 +3279,7 @@
     elements.historyEmpty.textContent = shouldHideAutomaticData()
       ? "초기 재구성 완료 전에는 수동 등록 이력만 표시합니다."
       : "등록된 이력이 없습니다.";
-    elements.historyBody.innerHTML = events
-      .map(event => `
+    const renderHistoryRow = event => `
         <tr>
           <td>${escapeHtml(typeof historyEventDateDisplay === "function" ? historyEventDateDisplay(event) : ["startup", "operation_start", "operation_stop", "runtime_correction"].includes(event.eventType) ? formatKstDateTimeDisplay(event.eventDate) : formatDate(event.eventDate))}</td>
           <td>
@@ -3256,8 +3293,10 @@
           <td>${escapeHtml(displayEventContent(event))}</td>
           <td>${escapeHtml(historySourceLabel(event))}${event.createdByName ? `<br><small>${escapeHtml(event.createdByName)}</small>` : ""}</td>
         </tr>
-      `)
-      .join("");
+      `;
+    elements.historyBody.innerHTML = typeof window.BlowerHistoryTimeline?.renderHistoryTable === "function"
+      ? window.BlowerHistoryTimeline.renderHistoryTable(events, { renderRow: renderHistoryRow, formatDateTime: formatKstDateTimeDisplay, columnCount: 8 })
+      : events.map(renderHistoryRow).join("");
   }
 
   function openAssetHistory(tagNumber) {
@@ -3406,8 +3445,7 @@
       elements.historyRuntimeCorrectionButton.disabled = !canCorrectRuntime;
     }
 
-    elements.assetHistoryList.innerHTML = events.length
-      ? events.map(event => {
+    const renderAssetHistoryEvent = event => {
           const content = displayEventContent(event) || "등록 내용 없음";
           const detail = [event.issueType, event.actionType].filter(Boolean).join(" → ");
           const editableEvent = canEditAnyHistoryEvent(asset, event);
@@ -3432,11 +3470,23 @@
               </div>
             </article>
           `;
-        }).join("")
+    };
+    elements.assetHistoryList.innerHTML = events.length
+      ? typeof window.BlowerHistoryTimeline?.renderAssetTimeline === "function"
+        ? window.BlowerHistoryTimeline.renderAssetTimeline(events, { renderEvent: renderAssetHistoryEvent, formatDateTime: formatKstDateTimeDisplay })
+        : events.map(renderAssetHistoryEvent).join("")
       : `<div class="empty-state compact">등록된 이력이 없습니다.</div>`;
 
+    if (elements.historyRecoveryTools) {
+      elements.historyRecoveryTools.replaceChildren();
+      elements.historyRecoveryTools.hidden = !diagnosticToolsEnabled();
+    }
+    if (!diagnosticToolsEnabled()) {
+      elements.historyDialog.showModal();
+      return;
+    }
     window.BlowerSiloBasisRecovery?.mount({
-      container: elements.historyCycleSummary, asset, document,
+      container: elements.historyRecoveryTools, asset, document,
       getAsset: () => findAsset(tagNumber),
       canWrite: () => hasAuthenticatedWriteAccess() && state.data?.permissions?.canAdmin === true,
       isMobile: isMobileMonitoringView,
@@ -3454,7 +3504,7 @@
       }
     });
     window.BlowerLimestone2aFirstRun?.mount({
-      container: elements.historyCycleSummary, asset, document,
+      container: elements.historyRecoveryTools, asset, document,
       getAsset: () => findAsset(tagNumber),
       canWrite: () => hasAuthenticatedWriteAccess() && state.data?.permissions?.canAdmin === true,
       isMobile: isMobileMonitoringView, session: getSessionToken,
@@ -3467,7 +3517,7 @@
       }
     });
     window.BlowerLimestone1bFirstRun?.mount({
-      container: elements.historyCycleSummary, asset, document,
+      container: elements.historyRecoveryTools, asset, document,
       getAsset: () => findAsset(tagNumber),
       canWrite: () => hasAuthenticatedWriteAccess() && state.data?.permissions?.canAdmin === true,
       isMobile: isMobileMonitoringView, session: getSessionToken,
@@ -3481,7 +3531,7 @@
       }
     });
     window.BlowerFbhe1bStandby?.mount({
-      container: elements.historyCycleSummary, asset, document,
+      container: elements.historyRecoveryTools, asset, document,
       getAsset: () => findAsset(tagNumber),
       canWrite: () => hasAuthenticatedWriteAccess() && state.data?.permissions?.canAdmin === true,
       isMobile: isMobileMonitoringView, session: getSessionToken,
@@ -3494,7 +3544,7 @@
       }
     });
     window.BlowerFbhe2cStandby?.mount({
-      container: elements.historyCycleSummary, asset, document,
+      container: elements.historyRecoveryTools, asset, document,
       getAsset: () => findAsset(tagNumber),
       canWrite: () => hasAuthenticatedWriteAccess() && state.data?.permissions?.canAdmin === true,
       isMobile: isMobileMonitoringView, session: getSessionToken,
@@ -3507,7 +3557,7 @@
       }
     });
     window.BlowerFbhe1aRuntime?.mount({
-      container: elements.historyCycleSummary, asset, document,
+      container: elements.historyRecoveryTools, asset, document,
       getAsset: () => findAsset(tagNumber),
       canWrite: () => hasAuthenticatedWriteAccess() && state.data?.permissions?.canAdmin === true,
       isMobile: isMobileMonitoringView, session: getSessionToken,
@@ -12498,6 +12548,13 @@
     });
     window.addEventListener?.("beforeunload", event => {
       if (state.unifiedRefreshBusy) { event.preventDefault(); event.returnValue = ""; }
+    });
+    window.addEventListener?.("storage", event => {
+      if (event.key === AUTH_STORAGE_KEY || event.key === null) renderHeaderActions();
+    });
+    window.addEventListener?.("focus", () => renderHeaderActions());
+    elements.diagnosticToolsToggle?.addEventListener("change", () => {
+      setDiagnosticToolsVisible(elements.diagnosticToolsToggle.checked);
     });
     elements.managementMenu?.addEventListener("click", event => {
       if (event.target.closest("button")) elements.managementMenu.open = false;

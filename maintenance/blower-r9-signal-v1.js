@@ -12,7 +12,7 @@ const validDay=v=>/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(Date.parse(v+'T00
   new Date(v+'T00:00:00Z').toISOString().slice(0,10)===v;
 const latestDay=()=>new Date(Date.now()+9*3600000-86400000).toISOString().slice(0,10);
 const fmt=v=>new Intl.DateTimeFormat('ko-KR',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(v));
-let busy=false,active=null,verifiedAssets=[];
+let busy=false,active=null,verifiedAssets=[],diagnosticsVisible=false,bound=false;
 function user(){try{return JSON.parse(root.localStorage.getItem(KEY)||'null')}catch{return null}}
 function actor(){const u=user();return text(u?.employeeNo||u?.employee_no||u?.user?.employeeNo)}
 function token(){const u=user(),t=text(u?.sessionToken||u?.session_token);if(!t||t.length>8192)throw Error('로그인이 필요합니다.');return t;}
@@ -83,7 +83,7 @@ function verifyResponse(info,raw,id){const item=raw?.item;const probe=item?.prob
   (c.endState==='running')!==(periods.length>0&&stamp(periods.at(-1).endAt)===end))return null;
  return {periods,runSeconds:c.runningSeconds};
 }
-async function begin(){if(busy)return;setBusy(true);empty();try{const info=selected(),session={actor:actor(),token:token()},old=loadId(info);
+async function begin(){if(busy||!diagnosticsVisible)return;setBusy(true);empty();try{const info=selected(),session={actor:actor(),token:token()},old=loadId(info);
  sameSession(session);
  if(old){
   // Only an explicitly confirmed failed R9 request may be retried, and only
@@ -106,11 +106,12 @@ async function begin(){if(busy)return;setBusy(true);empty();try{const info=selec
   expectedCycleStartedAt:a.cycleStoredStartedAt??a.cycleStartedAt??'',expectedCycleStartRevision:a.cycleStartRevision||'',
   expectedCycleRuntimeRevision:a.cycleRuntimeRevision||''};
  sameSession(session);
+ if(!diagnosticsVisible)throw Error('진단·복구 도구가 닫혔습니다. 요청을 새로 접수하지 않았습니다.');
  const reply=await request(API,'POST',body);const id=text(reply.item?.id||reply.items?.[0]?.id||reply.requestId);
  if(!/^[0-9a-f-]{36}$/i.test(id))throw Error('요청 ID가 올바르지 않습니다.');
  active={...info,id};saveId(info,id);status('접수 완료 · '+id+' · 결과 확인을 눌러주세요. 기존 누적시간은 변경하지 않습니다.');
  }catch(e){status('조회 요청 중단 · '+text(e.message||e).slice(0,230));}finally{setBusy(false);}}
-async function check(){if(busy)return;setBusy(true);try{const info=selected(),id=loadId(info);
+async function check(){if(busy||!diagnosticsVisible)return;setBusy(true);try{const info=selected(),id=loadId(info);
  if(!id){status('조회 요청을 먼저 접수해 주세요.');return;}
  const response=await request(API+'?id='+encodeURIComponent(id)+'&_='+Date.now()),item=response.item;
  if(item?.id!==id)throw Error('조회 ID가 일치하지 않습니다.');
@@ -120,19 +121,34 @@ async function check(){if(busy)return;setBusy(true);try{const info=selected(),id
  if(!outcome){status('R9 상세 데이터 검증 실패 또는 회사 PC Agent에 R9 기능이 반영되지 않았습니다. 누적시간은 유지됩니다.');return;}
  showResult(outcome,info);status('기동·정지 구간 '+outcome.periods.length+'건 검증 완료 · 누적시간·정비이력 저장값은 그대로 유지');
  }catch(e){status('결과 확인 중단 · '+text(e.message||e).slice(0,230));}finally{setBusy(false);}}
-async function init(){const panel=el('blowerR9Panel');if(!panel||!actor()||!text(user()?.sessionToken||user()?.session_token))return;
- if(root.matchMedia?.('(max-width:700px), (max-width:1024px) and (hover:none) and (pointer:coarse)')?.matches)return;
- try{const data=await request('/api/blower-history');
-  if(data.permissions?.isSuperAdmin!==true && data.user?.isSuperAdmin!==true)return;
-  verifiedAssets=(data.assets||[]).filter(a=>SIGNALS[a.tagNumber]&&a.dataParcTag===SIGNALS[a.tagNumber]&&a.cycleRuntimeRevision&&a.cycleStartRevision);
-  const select=el('blowerR9Asset');verifiedAssets.sort((a,b)=>Number(a.sortOrder)-Number(b.sortOrder));
-  for(const a of verifiedAssets){const o=root.document.createElement('option');o.value=a.tagNumber;o.textContent=(a.displayName||a.tagNumber)+' · '+a.tagNumber;select.appendChild(o);}
-  const dt=el('blowerR9Date');dt.value=latestDay();dt.max=latestDay();
-  panel.hidden=false;el('blowerR9Start').addEventListener('click',begin);el('blowerR9Check').addEventListener('click',check);
-  el('blowerR9Asset').addEventListener('change',()=>{empty();status('조회할 설비·날짜를 선택한 후 요청해 주세요.');});
-  dt.addEventListener('change',()=>{empty();status('조회할 설비·날짜를 선택한 후 요청해 주세요.');});
-  status('검증된 RUN 신호 '+verifiedAssets.length+'/27대 · 신호 불일치 설비는 조회 제외 · 누적 변경 없음');
- }catch(e){status('R9 설비 목록 확인 실패 · '+text(e.message||e).slice(0,200));}
+function bind(){
+ if(bound||!el('blowerR9Panel'))return;
+ bound=true;
+ el('blowerR9Start').addEventListener('click',begin);el('blowerR9Check').addEventListener('click',check);
+ el('blowerR9Asset').addEventListener('change',()=>{empty();status('조회할 설비·날짜를 선택한 후 요청해 주세요.');});
+ el('blowerR9Date').addEventListener('change',()=>{empty();status('조회할 설비·날짜를 선택한 후 요청해 주세요.');});
 }
+function setDiagnosticsVisible(visible,data){
+ const panel=el('blowerR9Panel');if(!panel)return false;
+ const mobile=root.matchMedia?.('(max-width:700px), (max-width:1024px) and (hover:none) and (pointer:coarse)')?.matches;
+ const authorized=!!actor()&&!!text(user()?.sessionToken||user()?.session_token)&&!mobile&&data?.permissions?.canWrite!==false&&
+  (data?.permissions?.isSuperAdmin===true||data?.user?.isSuperAdmin===true);
+ diagnosticsVisible=visible===true&&authorized;panel.hidden=!diagnosticsVisible;
+ if(!diagnosticsVisible)return false;
+ bind();
+ if(busy)return true;
+ const select=el('blowerR9Asset'),selectedTag=text(select.value),dt=el('blowerR9Date');
+ verifiedAssets=(Array.isArray(data?.assets)?data.assets:[]).filter(a=>SIGNALS[a.tagNumber]&&a.dataParcTag===SIGNALS[a.tagNumber]&&a.cycleRuntimeRevision&&a.cycleStartRevision);
+ verifiedAssets.sort((a,b)=>Number(a.sortOrder)-Number(b.sortOrder));
+ select.replaceChildren();
+ for(const a of verifiedAssets){const o=root.document.createElement('option');o.value=a.tagNumber;o.textContent=(a.displayName||a.tagNumber)+' · '+a.tagNumber;select.appendChild(o);}
+ if(verifiedAssets.some(a=>a.tagNumber===selectedTag))select.value=selectedTag;
+ if(!dt.value)dt.value=latestDay();dt.max=latestDay();
+ if(!text(el('blowerR9Status').textContent)||text(el('blowerR9Status').textContent)==='조회할 설비를 확인하고 있습니다.')
+  status('검증된 RUN 신호 '+verifiedAssets.length+'/27대 · 신호 불일치 설비는 조회 제외 · 누적 변경 없음');
+ return true;
+}
+root.BlowerR9Signal=Object.freeze({setDiagnosticsVisible});
+function init(){bind();if(el('blowerR9Panel'))el('blowerR9Panel').hidden=!diagnosticsVisible;}
 if(root.document.readyState==='loading')root.document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })(typeof window!=='undefined'?window:globalThis);
