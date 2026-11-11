@@ -12,6 +12,154 @@ const TARGET = Object.freeze({
   replacedOn: '2026-08-25',
   completedTime: '14:25',
 });
+
+// Expanded vocabulary only offers a manual checkbox; these are never inferred
+// replacement events. Both browser and server use the same normalization.
+const relatedWordCandidates = [
+  'FBHE #A V벨트 갈았음',
+  'FBHE #A V벨트 갈았다',
+  'FBHE #A V벨트 갈아 끼움',
+  'FBHE #A V벨트 갈아끼웠음',
+  'FBHE #A V벨트 갈아 끼우기 작업',
+  'FBHE #A 밸트 갈아줌',
+  'FBHE #A 벨트 바꿈',
+  'FBHE #A 벨트 바꿨음',
+  'FBHE #A 벨트 바꿔 끼움',
+  'FBHE #A 벨트 바꾸기 요청',
+  'FBHE #A 브이밸트 교환 완료',
+  'FBHE #A 브이 벨트 대체 완료',
+  'FBHE #A V/B 교환 완료',
+  'Seal Pot Blower V/B 갈아 끼움',
+  'V-BELTS changed out',
+  'V/BELT change out',
+  'VBELT CHANGING',
+  'V BLETS exchanged',
+  'V-Belt swapped',
+  'V-Belt swap',
+  'V-Belt renewed',
+  'V-Belt renewal',
+  'V-Belt replacing',
+  'V-Belt 신품 장착',
+  'V-Belt 신품',
+  '새 벨트',
+  '신품 V-Belt 설치 완료',
+  'V-Belt 탈거 후 새것 취부',
+  'V-Belt 새 부품 부착',
+  'V-Belt 신규품 체결',
+  'V-Belt 대체품 장착',
+  'V-Belt 새거 장착',
+  'V-Belt 새걸로 설치',
+  'V-Belt 새품 취부',
+  'V-Belt 갈기 작업 완료',
+  'V-Belt 갈기',
+  'Fly Ash Bag Filter Blower V-Belt 신품',
+  '새로 V-Belt 설치',
+  'V-Belt 새로 달았음',
+  'FBHE #A NEW BELT fitted',
+  'V-Belt NEW',
+  'V-Belt new installation',
+  'V-Belt 정비 완료',
+  'V-Belt 수리',
+  'V-Belt 보수 완료',
+  'V-Belt 파손 후 복구 완료',
+  'V-Belt 끊어짐 조치 완료',
+  'V-Belt 균열 조치',
+  'V-Belt 마모 관련 작업 완료',
+  'V-Belt 손상 후 처리',
+  'V-Belt CRACK repair completed',
+  'V-Belt restored',
+  'V-Belt\n - 신품 장착 완료',
+  'V-Belt 신품\n - 장착 완료',
+  'V-Belt\n - 신품\n - 설치 완료',
+  '장력 조정 후 V-Belt 신품 장착',
+  'V-Belt 신품 장착 및 장력 조정',
+  'V-Belt 신품 장착 및 Suction Filter 점검',
+  'V-Belt 및 Suction Filter 신품 장착',
+];
+
+for (const content of relatedWordCandidates) {
+  test('related wording exposes only a manual candidate: ' + content.replace(/\n/g, ' / '), () => {
+    assert.equal(isReplacementCandidate(content), true);
+    assert.equal(normalizeAnnotation(null, content), null);
+    const unchecked = normalizeAnnotation({ version: 1, confirmed: false, content, targets: [] }, content);
+    assert.equal(unchecked.confirmed, false);
+    assert.deepEqual(unchecked.targets, []);
+    const confirmed = normalizeAnnotation({ version: 1, confirmed: true, content, targets: [{...TARGET, completedTime: ''}] }, content);
+    assert.equal(confirmed?.confirmed, true, 'manual confirmation must also pass the shared server-side rule');
+    assert.equal(confirmed.targets[0].completedTime, '', 'no work clock is borrowed or invented');
+  });
+}
+
+const relatedWordExclusions = [
+  'V-Belt 교환 안함',
+  'V-Belt 교환 취소',
+  'V-Belt 대체 보류',
+  'V-Belt 갈지 않았음',
+  'V-Belt 갈아 끼우지 않음',
+  'V-Belt 바꾸지 않음',
+  'V-Belt 바꾸지 못함',
+  'V-Belt 교환 못함',
+  'V-Belt 안 갈았음',
+  'V-Belt 아직 안 바꿨음',
+  'V-Belt 갈아끼우지 못함',
+  'V-Belt 갈아 끼우기 안함',
+  'V-Belt 갈아 끼우기 보류',
+  'V-Belt 바꾸기 취소',
+  'V-Belt 신품 장착 보류',
+  'V-Belt 신품 설치 불가',
+  'V-Belt 미복구',
+  'V-Belt NOT CHANGED',
+  'V-Belt NOT YET INSTALLED',
+  'V-Belt NEVER REPAIRED',
+  'V-Belt NOT CHANGING',
+  'V-Belt NO REPLACEMENT',
+  'V-Belt REPLACEMENT CANCELLED',
+  'V-Belt 장력 조정 정비',
+  'V-Belt Tension 조임',
+  'V-Belt 텐션 조절 후 복구',
+  'V-Belt Cover 복구',
+  'V-Belt Pulley 수리',
+  'V-Belt Bearing 신품 장착',
+  'V-Belt 신품 Bearing 장착',
+  '신품 V-Belt Cover 복구',
+  '새벨트 Cover 복구',
+  'V-Belt 점검 및 Filter 신품 교환',
+  'Motor 신품 설치 및 V-Belt 체결',
+  'V-Belt 신품 재고 확인',
+  'V-Belt 신품 입고',
+  'V-Belt 신품 확보',
+  'V-Belt 신품 장착용 재고 확보',
+  'V-Belt 신품 설치용 자재 입고',
+  'NEW BELT FOR INSTALLATION STOCK',
+  'V-Belt 새로 점검',
+  '새 벨트 상태 확인',
+  'V-Belt 균열 발견',
+  'V-Belt 파손 확인',
+  'V-Belt 점검',
+  'V-Belt 교체 이력',
+  'V-Belt 대체로 양호',
+  'V-Belt 상태가 대체로 정상',
+  'V-Belt 갈기갈기 찢어짐',
+  'FBHE #A V-Belt 끊어짐으로 교환 운전',
+  'FBHE #A V-Belt 끊어짐으로 대체 운전',
+  'FBHE #A V-Belt broken CHANGE OVER',
+  'FBHE #A V-Belt broken CHANGEOVER',
+  'V-Belt 교환 요청 → 자재 부족으로 Tension 조정',
+  'V-Belt 갈아 끼우기 요청 → 자재 부족으로 Tension 조정',
+  'AHU V-Belt 신품 장착',
+  'Coal Feeder Belt 바꿈',
+  'V/B 교환',
+  'AHU V/B 교환',
+  '1. Coal Feeder Belt 바꿈\n2. FBHE #A Filter 교환',
+  '1. FBHE #A V-Belt 점검\n2. FBHE #A Filter 신품 교환',
+];
+
+for (const content of relatedWordExclusions) {
+  test('related wording keeps nonreplacement excluded: ' + content.replace(/\n/g, ' / '), () => {
+    assert.equal(isReplacementCandidate(content), false);
+    assert.equal(normalizeAnnotation({ version: 1, confirmed: true, content, targets: [{...TARGET}] }, content), null);
+  });
+}
 const confirmation = (content = CONTENT, targets = [{...TARGET}]) => ({
   version: 1,
   confirmed: true,

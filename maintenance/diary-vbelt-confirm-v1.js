@@ -1,4 +1,4 @@
-import { normalizeContent, isReplacementCandidate, normalizeAnnotation } from './diary-vbelt-core-v1.js';
+import { normalizeContent, isReplacementCandidate, normalizeAnnotation } from './diary-vbelt-core-v1.js?keywords=20261111-v2';
 
 const editorStates = new WeakMap();
 let assetRequest = null;
