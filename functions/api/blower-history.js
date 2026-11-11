@@ -4,6 +4,7 @@ import { siloBasisResponse } from "../_shared/blower-silo-basis-v1.js";
 import { limestone2aFirstRunResponse } from "../_shared/blower-limestone2a-first-run-v1.js";
 import { limestone1bFirstRunResponse } from "../_shared/blower-limestone1b-first-run-v1.js";
 import { fbhe1bStandbyResponse, loadFbhe1bStandbyProjection } from "../_shared/blower-fbhe1b-standby-v1.js";
+import { fbhe2cStandbyResponse, loadFbhe2cStandbyProjection } from "../_shared/blower-fbhe2c-standby-v1.js";
 import { savedFirstRunStart, savedTrailingStateStart, validatedFirstRunStart, validatedTrailingStateStart } from "../_shared/blower-run-transition.js";
 import { blowerStopMaintenanceKind, loadBlowerStopMaintenance } from "../_shared/blower-stop-maintenance.js";
 import { buildRuntimeCoverageEvidence, currentManualRuntimeMeasurement } from "../_shared/blower-runtime-coverage-evidence.js";
@@ -2016,6 +2017,9 @@ async function loadAssetStates(database, settings, options = {}) {
   const fbhe1bStandbyAsset=assets.find(asset=>asset.tag_number==='104HHL60AP621');
   const fbhe1bStandbyProjection=fbhe1bStandbyAsset
     ?await loadFbhe1bStandbyProjection(database,fbhe1bStandbyAsset,{now}):null;
+  const fbhe2cStandbyAsset=assets.find(asset=>asset.tag_number==='204HHL60AP631');
+  const fbhe2cStandbyProjection=fbhe2cStandbyAsset
+    ?await loadFbhe2cStandbyProjection(database,fbhe2cStandbyAsset,{now}):null;
 
   return assets.map(asset => {
     const runtimeRows = runtimeByTag.get(asset.tag_number) || [];
@@ -2063,11 +2067,18 @@ async function loadAssetStates(database, settings, options = {}) {
     if(fbhe1bStandbyProof)runtimeBasis={...runtimeBasis,composite:true,appendReady:true,
       coverageComplete:true,missingLeadingSeconds:0,requiredStartAt:asset.last_replacement_at,
       completionClockKnown:false,cycleBasisConfirmed:false,fbhe1bStandby:fbhe1bStandbyProof};
-    const durationEquivalentProof=firstRunDurationProof||fbhe1bStandbyProof;
+    const fbhe2cStandbyProof=asset===fbhe2cStandbyAsset&&runtimeBasis&&fbhe2cStandbyProjection&&
+      runtimeBasis.runningSeconds===fbhe2cStandbyProjection.currentRunningSeconds&&
+      Date.parse(runtimeBasis.observedAt)===Date.parse(fbhe2cStandbyProjection.currentObservedAt)
+      ?fbhe2cStandbyProjection:null;
+    if(fbhe2cStandbyProof)runtimeBasis={...runtimeBasis,composite:true,appendReady:true,
+      coverageComplete:true,missingLeadingSeconds:0,requiredStartAt:asset.last_replacement_at,
+      completionClockKnown:false,cycleBasisConfirmed:false,fbhe2cStandby:fbhe2cStandbyProof};
+    const durationEquivalentProof=firstRunDurationProof||fbhe1bStandbyProof||fbhe2cStandbyProof;
     const runRuntime = durationEquivalentProof&&runtimeBasis
       ?{version:1,source:'dataparc',verified:true,needsQuery:false,signalConfigured:true,
         measuredAt:runtimeBasis.observedAt,state:asset.cycle_runtime_state,
-        legacyStoredHours:Number(asset.cycle_runtime_hours),reason:fbhe1bStandbyProof?'verified_fbhe1b_standby':limestone1bFirstRunProof?'verified_limestone1b_first_run':'verified_limestone2a_first_run'}
+        legacyStoredHours:Number(asset.cycle_runtime_hours),reason:fbhe2cStandbyProof?'verified_fbhe2c_standby':fbhe1bStandbyProof?'verified_fbhe1b_standby':limestone1bFirstRunProof?'verified_limestone1b_first_run':'verified_limestone2a_first_run'}
       :fbheSealRunProvenance(asset, runtimeRows, now);
     let manualMeasurement = null;
     if (runRuntime) {
@@ -2182,7 +2193,13 @@ async function loadAssetStates(database, settings, options = {}) {
         coverageComplete:true,missingLeadingSeconds:0,requiredStartAt:asset.last_replacement_at,
         cycleBasisConfirmed:false,wholeCycleVerified:false,sampleGoodCertified:false});
     }
-    const completionWindowRecovery = completionWindowProof ? null
+    if(fbhe2cStandbyProof&&runtimeCoverageEvidence.measurementVerified===true&&runtimeBasis){
+      Object.assign(runtimeCoverageEvidence,{durationEquivalent:true,durationVerified:true,
+        completionClockKnown:false,fbhe2cStandby:fbhe2cStandbyProof,composite:true,
+        coverageComplete:true,missingLeadingSeconds:0,requiredStartAt:asset.last_replacement_at,
+        cycleBasisConfirmed:false,wholeCycleVerified:false,sampleGoodCertified:false});
+    }
+    const completionWindowRecovery = completionWindowProof || fbhe2cStandbyProof ? null
       : completionWindowRecoveryCandidate(asset,runtimeRows,replacementAutoCycle,
         asset.tag_number === COMPLETION_WINDOW_TAG ? completionWindowReview : null);
     return { ...buildAssetState(
@@ -2204,8 +2221,10 @@ async function loadAssetStates(database, settings, options = {}) {
         cycleBasisKind:'replacement_first_run_equivalent'}:{}),
       ...(fbhe1bStandbyProof?{fbhe1bStandbyProof,actualLastReplacementAt:'',
         cycleBasisKind:'replacement_standby_equivalent'}:{}),
+      ...(fbhe2cStandbyProof?{fbhe2cStandbyProof,actualLastReplacementAt:'',
+        cycleBasisKind:'replacement_standby_equivalent'}:{}),
       ...(completionWindowRecovery ? {completionWindowRecovery} : {}),
-      ...(asset.tag_number === COMPLETION_WINDOW_TAG && completionWindowReview
+      ...(asset.tag_number === COMPLETION_WINDOW_TAG && completionWindowReview && !fbhe2cStandbyProof
         ? {completionWindowRecoveryReview:completionWindowReview} : {}),
       ...(replacementAutoCycle ? { replacementAutoCycle } : {}),
       ...(cycleSourceReview ? { cycleSourceReview, actualLastReplacementAt: cycleSourceReview.cycleBasisConfirmed === true ? confirmedReplacementAt : "",
@@ -4986,6 +5005,8 @@ async function handleGet(context, user) {
     requestId:normalizeText(url.searchParams.get('requestId')),nonce:normalizeText(url.searchParams.get('nonce')),
     witnessRequestId:normalizeText(url.searchParams.get('witnessRequestId'))});
   if(action==='fbhe1b_standby_status')return fbhe1bStandbyResponse(database,user,'status',{
+    requestId:normalizeText(url.searchParams.get('requestId'))});
+  if(action==='fbhe2c_standby_status')return fbhe2cStandbyResponse(database,user,'status',{
     requestId:normalizeText(url.searchParams.get('requestId'))});
 
   if (action === 'replacement_assets') {
@@ -15946,6 +15967,7 @@ async function handlePost(context, user, body) {
   if(action==='start_limestone1b_first_run')return limestone1bFirstRunResponse(database,user,'start',body);
   if(action==='apply_limestone1b_first_run')return limestone1bFirstRunResponse(database,user,'apply',body);
   if(action==='apply_fbhe1b_standby')return fbhe1bStandbyResponse(database,user,'apply',body);
+  if(action==='apply_fbhe2c_standby')return fbhe2cStandbyResponse(database,user,'apply',body);
 
   if (action === "initialize_manure_run") {
     return initializeManureInitialRun(database, user, body);
@@ -16089,7 +16111,7 @@ export async function onRequestGet(context) {
   try {
     const readAction = new URL(context.request.url).searchParams.get('action');
     const replacementAssetRead = readAction === 'replacement_assets';
-    const siloDiagnosticRead = ['silo_basis_recovery_diagnostics','limestone2a_first_run_status','limestone1b_first_run_status','fbhe1b_standby_status'].includes(readAction);
+    const siloDiagnosticRead = ['silo_basis_recovery_diagnostics','limestone2a_first_run_status','limestone1b_first_run_status','fbhe1b_standby_status','fbhe2c_standby_status'].includes(readAction);
     const authentication = await getAuthenticatedUser(
       context,
       { optional: true, readOnly: replacementAssetRead || siloDiagnosticRead }

@@ -49,14 +49,14 @@
   }
 
   function cycleReferenceLabel(asset, short = false) {
-    if ((window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset) || window.BlowerUnifiedRefresh?.verifiedFbhe1bStandby?.(asset)) || (window.BlowerUnifiedRefresh?.verifiedLimestone2aFirstRun?.(asset) || window.BlowerUnifiedRefresh?.verifiedLimestone1bFirstRun?.(asset))) return "교체일";
+    if ((window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset) || (window.BlowerUnifiedRefresh?.verifiedFbhe1bStandby?.(asset) || window.BlowerUnifiedRefresh?.verifiedFbhe2cStandby?.(asset))) || (window.BlowerUnifiedRefresh?.verifiedLimestone2aFirstRun?.(asset) || window.BlowerUnifiedRefresh?.verifiedLimestone1bFirstRun?.(asset))) return "교체일";
     if (window.BlowerUnifiedRefresh?.rolePriorityReview?.(asset)) return "상위 보직 교체 기준";
     if (asset?.replacementAutoCycle?.normalizationVersion === 4 && asset.replacementAutoCycle.registeredRuntimeRange === true) return "RUN 조회기준";
     return isInitialStartupBasis(asset) ? "최초 기동" : short ? "최근 교체" : "최근 V-Belt 교체";
   }
 
   function cycleReferenceDisplay(asset) {
-    if ((window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset) || window.BlowerUnifiedRefresh?.verifiedFbhe1bStandby?.(asset)) || (window.BlowerUnifiedRefresh?.verifiedLimestone2aFirstRun?.(asset) || window.BlowerUnifiedRefresh?.verifiedLimestone1bFirstRun?.(asset))) return formatDate(asset.lastReplacementAt);
+    if ((window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset) || (window.BlowerUnifiedRefresh?.verifiedFbhe1bStandby?.(asset) || window.BlowerUnifiedRefresh?.verifiedFbhe2cStandby?.(asset))) || (window.BlowerUnifiedRefresh?.verifiedLimestone2aFirstRun?.(asset) || window.BlowerUnifiedRefresh?.verifiedLimestone1bFirstRun?.(asset))) return formatDate(asset.lastReplacementAt);
     const priority = window.BlowerUnifiedRefresh?.rolePriorityReview?.(asset);
     if (priority) return priority.selected.timePrecision === "minute"
       ? formatKstDateTimeDisplay(priority.selected.selectedCompletionAt)
@@ -1215,7 +1215,7 @@
 
   // The retained number is measured within this receipt, not a certified whole-cycle total.
   function commonRunCoverage(asset) {
-    if ((window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset) || window.BlowerUnifiedRefresh?.verifiedFbhe1bStandby?.(asset)) || (window.BlowerUnifiedRefresh?.verifiedLimestone2aFirstRun?.(asset) || window.BlowerUnifiedRefresh?.verifiedLimestone1bFirstRun?.(asset))) return null;
+    if ((window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset) || (window.BlowerUnifiedRefresh?.verifiedFbhe1bStandby?.(asset) || window.BlowerUnifiedRefresh?.verifiedFbhe2cStandby?.(asset))) || (window.BlowerUnifiedRefresh?.verifiedLimestone2aFirstRun?.(asset) || window.BlowerUnifiedRefresh?.verifiedLimestone1bFirstRun?.(asset))) return null;
     const automatic = asset?.replacementAutoCycle;
     const rolePriority = window.BlowerUnifiedRefresh?.rolePriorityReview?.(asset) || null;
     const rangeTracking = window.BlowerUnifiedRefresh?.replacementRangeTracking?.(asset) === true;
@@ -2103,7 +2103,7 @@
       tagNumber: asset.tagNumber, enabled: asset.enabled, hours,
       provenance: manual ? "manual" : measured ? "measured" : hours !== null ? "retained" : "unknown",
       pending, wholeCycleVerified: linkedEvidence && evidence.wholeCycleVerified === true,
-      durationEquivalent: linkedEvidence && Boolean((window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset) || window.BlowerUnifiedRefresh?.verifiedFbhe1bStandby?.(asset)) || (window.BlowerUnifiedRefresh?.verifiedLimestone2aFirstRun?.(asset) || window.BlowerUnifiedRefresh?.verifiedLimestone1bFirstRun?.(asset))),
+      durationEquivalent: linkedEvidence && Boolean((window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset) || (window.BlowerUnifiedRefresh?.verifiedFbhe1bStandby?.(asset) || window.BlowerUnifiedRefresh?.verifiedFbhe2cStandby?.(asset))) || (window.BlowerUnifiedRefresh?.verifiedLimestone2aFirstRun?.(asset) || window.BlowerUnifiedRefresh?.verifiedLimestone1bFirstRun?.(asset))),
       coverage: manual ? { complete: null, startAt: null, observedAt: null, requiredStartAt: null, missingLeadingSeconds: null } : {
         complete: linkedEvidence ? evidence.coverageComplete : measuredBasis?.coverageComplete,
         startAt: measuredBasis?.startAt, observedAt: measuredBasis?.observedAt,
@@ -2146,7 +2146,7 @@
     const operationLabel = operation.state === "running" ? "기동중" : operation.state === "stopped" ? "정지중" : "상태 미확인";
     const completionWindow = window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset);
     const limestoneFirstRun = (window.BlowerUnifiedRefresh?.verifiedLimestone2aFirstRun?.(asset) || window.BlowerUnifiedRefresh?.verifiedLimestone1bFirstRun?.(asset));
-    const standbyProof = window.BlowerUnifiedRefresh?.verifiedFbhe1bStandby?.(asset);
+    const standbyProof = (window.BlowerUnifiedRefresh?.verifiedFbhe1bStandby?.(asset) || window.BlowerUnifiedRefresh?.verifiedFbhe2cStandby?.(asset));
     const referenceLabel = completionWindow || limestoneFirstRun || standbyProof ? "교체일" : isInitialStartupBasis(asset) ? "최초 기동" : partialCoverage?.registeredRuntimeRange ? "조회 기준" : "교체 기준";
     const referenceValue = replacement.split(" · ")[0];
     const manual = assessment.scope === "manual";
@@ -3319,7 +3319,7 @@
       const policyAlert = ["warning", "critical", "overdue"].includes(severity);
       elements.historyCycleSummary.innerHTML = `
         <span class="status-pill ${runtimeAssessment.requiresReview ? "runtime_unknown" : policyAlert ? escapeHtml(severity) : "unset"}" data-runtime-assessment="${escapeHtml(runtimeAssessment.scope)}">${escapeHtml(runtimeAssessment.reasonLabel || (policyAlert ? severityLabel(severity) : runtimeAssessment.scopeLabel))}</span>
-        <div><span>${(window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset) || window.BlowerUnifiedRefresh?.verifiedFbhe1bStandby?.(asset)) || (window.BlowerUnifiedRefresh?.verifiedLimestone2aFirstRun?.(asset) || window.BlowerUnifiedRefresh?.verifiedLimestone1bFirstRun?.(asset)) ? "교체일 · 완료시각 미기록" : isInitialStartupBasis(asset) ? "최초 기동" : partialCoverage?.registeredRuntimeRange ? "조회 기준" : "교체 기준"}</span><strong>${escapeHtml(cycleReferenceDisplay(asset))}</strong></div>
+        <div><span>${(window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset) || (window.BlowerUnifiedRefresh?.verifiedFbhe1bStandby?.(asset) || window.BlowerUnifiedRefresh?.verifiedFbhe2cStandby?.(asset))) || (window.BlowerUnifiedRefresh?.verifiedLimestone2aFirstRun?.(asset) || window.BlowerUnifiedRefresh?.verifiedLimestone1bFirstRun?.(asset)) ? "교체일 · 완료시각 미기록" : isInitialStartupBasis(asset) ? "최초 기동" : partialCoverage?.registeredRuntimeRange ? "조회 기준" : "교체 기준"}</span><strong>${escapeHtml(cycleReferenceDisplay(asset))}</strong></div>
         <div><span>누적 범위</span><strong>${escapeHtml(runtimeAssessment.scopeLabel)}</strong></div>
         <div><span>누적 운전시간</span><strong>${escapeHtml(runtimeText)}</strong></div>
         <div class="run-history-note" data-runtime-assessment-period="true"><strong>${manualAt ? "보정 시각" : "데이터 조회 기간"}</strong><small>${escapeHtml(period)}</small><span>${escapeHtml(operationText)}</span>${runtimeAssessment.freshness.state === "behind" ? '<span>다른 설비의 최신 조회와 반영 시각이 다릅니다.</span>' : ""}</div>`;
@@ -3489,6 +3489,19 @@
       reload: async view => {
         await loadData({ silent: true, syncOperations: false, strict: true });
         return window.BlowerFbhe1bStandby.verifyReadback(findAsset(tagNumber), view);
+      }
+    });
+    window.BlowerFbhe2cStandby?.mount({
+      container: elements.historyCycleSummary, asset, document,
+      getAsset: () => findAsset(tagNumber),
+      canWrite: () => hasAuthenticatedWriteAccess() && state.data?.permissions?.canAdmin === true,
+      isMobile: isMobileMonitoringView, session: getSessionToken,
+      storage: { getItem: key => window.sessionStorage.getItem(key), setItem: (key, value) => window.sessionStorage.setItem(key, value) },
+      isBusy: () => state.busy || state.unifiedRefreshBusy || state.dataparcRuntimeBusy || state.backfillRunning,
+      setBusy: value => { state.dataparcRuntimeBusy = value; setBusy(value); }, api: apiRequest,
+      reload: async view => {
+        await loadData({ silent: true, syncOperations: false, strict: true });
+        return window.BlowerFbhe2cStandby.verifyReadback(findAsset(tagNumber), view);
       }
     });
     elements.historyDialog.showModal();
