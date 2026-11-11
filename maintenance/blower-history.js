@@ -2161,7 +2161,7 @@
     const shortMaintenance = maintenance ? maintenance.replace(/^.*?업무일지 · /, "") : "";
     const shortTransition = transition ? `${operation.state === "stopped" ? "최근 정지" : "최근 연속 기동"} ${transition.period.split(" → ")[0]}` : "";
     const note = resolutionGuide?.failure?.title || assessment.reasonLabel ||
-      (runtimeProof ? "완료시각 미기록 · RUN 재측정" : standbyProof ? "완료시각 미기록 · 교체 후 정지 확인" : limestoneFirstRun ? "완료시각 미기록 · 최초 기동 확인" : completionWindow ? "완료시각 미기록 · 정지 구간 검증" : behind ? "다른 설비보다 이전 조회값" : shortMaintenance || shortTransition || "");
+      (runtimeProof || standbyProof || limestoneFirstRun || completionWindow ? "교체 후 누적 검증 완료" : behind ? "다른 설비보다 이전 조회값" : shortMaintenance || shortTransition || "");
     const separateRunAt = overviewSeparateRunObservedAt(assessment);
     const previewAt = !manual && preview ? preview.previewObservedAt : "";
     const separateRunNote = previewAt

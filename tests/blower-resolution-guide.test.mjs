@@ -264,7 +264,7 @@ test('cards, history and center clear only a verified linked duration certificat
   assert.equal(assessed.scope, 'cycle-equivalent'); assert.equal(assessed.requiresReview, false);
   assert.equal(assessed.wholeCycleVerified, false); assert.equal(f.ui.blowerResolutionGuide(valid), null);
   assert.match(card, /교체 후 누적/); assert.match(card, /<small>교체일<\/small><strong>2026-09-16<\/strong>/);
-  assert.match(card, /완료시각 미기록 · 정지 구간 검증/); assert.match(card, /734\.0시간/);
+  assert.match(card, /교체 후 누적 검증 완료/); assert.match(card, /734\.0시간/);
   assert.doesNotMatch(card, /조회 구간 RUN|측정 구간 누적/);
   assert.match(f.ui.elements.assetGroups.innerHTML, /확인할 설비 <b>0대/);
   assert.match(f.ui.elements.historyCycleSummary.innerHTML, /data-completion-window-proof="true"/);

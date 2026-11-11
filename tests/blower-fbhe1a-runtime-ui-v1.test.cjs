@@ -566,7 +566,7 @@ test('actual main FBHE 1A date and overview adapter certify only verified measur
       '\nreturn { referenceLabel, referenceValue, note };\n}\nreturn renderRuntimeAssessmentOverviewCard;')(
       window, () => false, value => value, () => '', () => null);
     const shown = card(asset, { assessment: result, replacement: dates.display(asset), transition: null, maintenance: '', partialCoverage: null });
-    assert.equal(shown.referenceValue, DAY, name); assert.match(shown.note, /완료시각 미기록.*RUN 재측정/, name);
+    assert.equal(shown.referenceValue, DAY, name); assert.equal(shown.note, '교체 후 누적 검증 완료', name);
     assert.doesNotMatch(JSON.stringify(shown), /10:50:39|00:00|2026-10-08|최초 기동/, name);
   }
 });

@@ -304,7 +304,7 @@ test('actual main standby date and card note retain day-only completion without 
       replacement: dateHelpers.display(asset), transition: null, maintenance: '', partialCoverage: null };
     const rendered = card(asset, info);
     assert.equal(rendered.referenceLabel, '교체일', name); assert.equal(rendered.referenceValue, DAY, name);
-    assert.match(rendered.note, /완료시각 미기록.*정지 확인/, name);
+    assert.equal(rendered.note, '교체 후 누적 검증 완료', name);
     assert.doesNotMatch(JSON.stringify(rendered), /13:14:47|13:04|00:00/, name);
   }
 });
