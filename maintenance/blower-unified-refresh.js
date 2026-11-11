@@ -763,6 +763,12 @@ DP_TAGS.add("203HRJ01AN602");
         continue;
       }
       const replacementProof = a.replacementAutoCycle;
+      const limestoneFirstRun = verifiedLimestone2aFirstRun(a) || verifiedLimestone1bFirstRun(a);
+      const closedFirstRun = a.tagNumber === '103HRJ01AN602' && String(a.cycleStartRevision || '').startsWith('lime1b-first-run-v1:') ||
+        a.tagNumber === '203HRJ01AN601' && String(a.cycleStartRevision || '').startsWith('lime2a-first-run-v1:');
+      if (closedFirstRun && !limestoneFirstRun) {
+        skip('교체 후 RUN 근거 불일치 · 기존 조회값 보호 · 전체 재조회하지 않음'); continue;
+      }
       const standbyProof = verifiedFbhe1bStandby(a) || verifiedFbhe2cStandby(a) || verifiedFbhe1aRuntime(a);
       const priority = standbyProof ? null : rolePriorityReview(a);
       if (priority && a.cycleSourceReview?.measuredRangeMayContinue !== true) {
@@ -870,7 +876,7 @@ DP_TAGS.add("203HRJ01AN602");
       // A verified partial receipt may advance its own measured range. It does
       // not certify the omitted leading interval or a physical replacement time.
       const automaticAppend = automaticLimestone && previous?.appendReady === true &&
-        previous.dataParcTag === dataParcTag && (time(previous.startAt) === replacement || !!partialBase) &&
+        previous.dataParcTag === dataParcTag && (time(previous.startAt) === replacement || !!partialBase || !!limestoneFirstRun) &&
         Number.isFinite(time(previous.observedAt)) && time(previous.observedAt) > replacement &&
         time(previous.observedAt) <= end;
       const limestoneAutoRebuild = automaticLimestone && !automaticAppend;
