@@ -5,5 +5,7 @@
 .silo-basis-recovery dt { color: #596b78; }
 .silo-basis-recovery dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .silo-basis-recovery-note { color: #596b78; }
+.silo-basis-recovery-failure { padding: 8px 10px; border-left: 3px solid #b77927; background: #fff8e9; }
+.silo-basis-recovery-diagnostic { margin: 10px 0; padding: 10px; border: 1px solid #ccd9e1; border-radius: 6px; background: #fff; color: #294653; font-size: 11px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
 .silo-basis-recovery .silo-basis-recovery-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 0; border: 0; }
 .silo-basis-recovery [hidden] { display: none !important; }

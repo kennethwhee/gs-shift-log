@@ -4899,6 +4899,8 @@ async function handleGet(context, user) {
   const permissions = buildPermissions(user);
   if(action==='silo_basis_recovery_status')return siloBasisResponse(database,user,'status',{
     requestId:normalizeText(url.searchParams.get('requestId')),nonce:normalizeText(url.searchParams.get('nonce'))});
+  if(action==='silo_basis_recovery_diagnostics')return siloBasisResponse(database,user,'diagnostics',{
+    requestId:normalizeText(url.searchParams.get('requestId')),nonce:normalizeText(url.searchParams.get('nonce'))});
 
   if (action === 'replacement_assets') {
     if (!user) return jsonResponse({ok:false,message:'로그인이 필요합니다.'},401);
@@ -15947,17 +15949,19 @@ async function handlePost(context, user, body) {
 
 export async function onRequestGet(context) {
   try {
-    const replacementAssetRead = new URL(context.request.url).searchParams.get('action') === 'replacement_assets';
+    const readAction = new URL(context.request.url).searchParams.get('action');
+    const replacementAssetRead = readAction === 'replacement_assets';
+    const siloDiagnosticRead = readAction === 'silo_basis_recovery_diagnostics';
     const authentication = await getAuthenticatedUser(
       context,
-      { optional: true, readOnly: replacementAssetRead }
+      { optional: true, readOnly: replacementAssetRead || siloDiagnosticRead }
     );
 
     if (authentication.error) {
       return authentication.error;
     }
 
-    if (authentication.user && !replacementAssetRead) {
+    if (authentication.user && !replacementAssetRead && !siloDiagnosticRead) {
       await ensureBlowerHistorySchemaReady(context.env.DB);
     }
     return await handleGet(context, authentication.user);

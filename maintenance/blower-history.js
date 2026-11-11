@@ -563,6 +563,11 @@
       error.status = response.status;
       error.cloudflareCode = /^(?:1[0-9]{3}|5[0-9]{2})$/.test(cfCode) ? cfCode : "";
       error.code = safeText(result.code).slice(0, 120) || (error.cloudflareCode ? "CLOUDFLARE_" + error.cloudflareCode : "HTTP_ERROR");
+      if (error.code === "SILO_BASIS_STORAGE_FAILED" &&
+          ["LOOKUP", "LOAD_PROOF", "VALIDATE_PREFIX", "BUILD_CERTIFICATE", "DERIVE_APPEND_BASE", "ATOMIC_BATCH", "REPLAY_CHECK"].includes(result.diagnostic?.stage) &&
+          ["UNKNOWN", "D1_CONSTRAINT", "D1_QUERY_LIMIT", "D1_QUERY_INVALID", "D1_REQUEST_LIMIT", "D1_CAPACITY_LIMIT", "D1_TIMEOUT", "D1_BUSY", "D1_UNAVAILABLE"].includes(result.diagnostic?.reason)) {
+        error.diagnostic = { stage: result.diagnostic.stage, reason: result.diagnostic.reason };
+      }
       error.retryable = result.retryable === false ? false : result.retryable === true || [429, 502, 503, 504].includes(response.status);
       error.retryAfterMs = parseRetryAfterMs(response.headers.get("Retry-After"));
       if (!error.retryAfterMs && cfProblem && Number.isFinite(result.retry_after) && result.retry_after >= 0) error.retryAfterMs = Math.min(30000, result.retry_after * 1000);

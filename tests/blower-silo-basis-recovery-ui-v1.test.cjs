@@ -17,6 +17,21 @@ function complete(patch = {}) {
     preview: { prefixRunningSeconds: 4000000, tailRunningSeconds: 7602274,
       totalRunningSeconds: 11602274, observedAt: '2026-11-11T05:18:47+09:00' }, ...patch });
 }
+function diagnosticResponse(patch = {}) {
+  return { ok: true, diagnosticVersion: 2, readOnly: true, applyAllowed: false, requestState: 'complete',
+    dimensionsScope: 'precondition_diagnostic',
+    stages: [{ stage: 'EXISTING_REQUEST', outcome: 'pass' }, { stage: 'PREFIX_INTEGRITY', outcome: 'pass' },
+      { stage: 'PREFIX_FRESHNESS', outcome: 'fail', reason: 'SILO_PREFIX_STALE' },
+      { stage: 'DERIVE_APPEND_BASE', outcome: 'pass' }, { stage: 'BEFORE_GUARDS', outcome: 'pass' }],
+    prefix: { integrity: 'pass', freshness: 'expired' }, proof: { compatible: true }, derivation: { valid: true },
+    guards: { total: 8, passed: 8, failed: 0, combined: { outcome: 'pass' },
+      checks: [{ index: 0, outcome: 'pass' }] },
+    dimensions: { maxSqlBytes: 30356, maxBindings: 19, maxBoundValueBytes: 348227, serializedBytes: 1008477 }, ...patch };
+}
+async function readyController(h) {
+  await h.controller.refresh(); h.set(response({ request: { id: requestId, status: 'pending' } }));
+  await h.controller.start(); h.set(complete()); await h.controller.refresh();
+}
 function recoveredAsset(delta = 0) {
   const view = complete(), observedAt = new Date(Date.parse(view.preview.observedAt) + delta * 1000).toISOString();
   const certificate = { version: 1, prefixRequestId: requestId, certificateEventId: 'dataparc_silo_basis:' + requestId,
@@ -303,9 +318,130 @@ test('mounted history panel stays read-only until explicit check, start, review 
 test('history integration is isolated to Silo and loaded before the history bridge with a cache token', () => {
   const html = fs.readFileSync(require.resolve('../maintenance/blower-history.html'), 'utf8');
   const history = fs.readFileSync(require.resolve('../maintenance/blower-history.js'), 'utf8');
-  assert.match(html, /blower-silo-basis-recovery-v1\.js\?v=20261111-v1/);
-  assert.match(html, /src="blower-history\.js\?[^"\n]*&siloBasis=20261111-v1/);
+  assert.match(html, /blower-silo-basis-recovery-v1\.js\?v=20261111-v2/);
+  assert.match(html, /src="blower-history\.js\?[^"\n]*&siloBasis=20261111-v2/);
   assert.ok(html.indexOf('blower-silo-basis-recovery-v1.js') < html.indexOf('src="blower-history.js'));
   assert.match(history, /BlowerSiloBasisRecovery\?\.mount/);
   assert.equal(ui.mount({ container: {}, asset: { tagNumber: '104ETH03AN601' }, canWrite: () => true, isMobile: () => false }), null);
+});
+test('R2 keeps safe apply failure HTTP/stage/reason across successful status reads and a controller reload', async () => {
+  const h = harness(); await readyController(h);
+  const error = Object.assign(new Error('PRIVATE_TOKEN secret URL and raw SQL'), { status: 500,
+    code: 'SILO_BASIS_STORAGE_FAILED', diagnostic: { stage: 'ATOMIC_BATCH', reason: 'D1_QUERY_INVALID', raw: 'PRIVATE_TOKEN' },
+    responseKind: 'JSON', requestId: 'PRIVATE_REQUEST', token: 'PRIVATE_TOKEN' });
+  h.set(error); assert.equal(await h.controller.apply(), false);
+  const previous = h.controller.snapshot().lastFailure;
+  assert.equal(previous.action, 'APPLY'); assert.equal(previous.httpStatus, 500);
+  assert.equal(previous.stage, 'ATOMIC_BATCH'); assert.equal(previous.reason, 'D1_QUERY_INVALID');
+  assert.doesNotMatch(h.saved.get(ui.FAILURE_KEY), /PRIVATE|secret|SQL|URL/);
+  h.set(complete()); await h.controller.refresh();
+  assert.deepEqual(h.controller.snapshot().lastFailure, previous);
+  const reloaded = ui.createController(h.deps);
+  assert.deepEqual(reloaded.snapshot().lastFailure, previous);
+  assert.match(ui.failureSummary(previous), /HTTP 500/);
+  assert.doesNotMatch(ui.diagnosticSummary(h.controller.snapshot()), /PRIVATE|silo-recovery-123|session-not-stored/);
+});
+test('R2 existing-request diagnostics use only one explicit GET, preserve the original record and keep expired results ineligible', async () => {
+  const h = harness(); await readyController(h);
+  const original = h.saved.get(ui.KEY), before = h.calls.length;
+  h.set(diagnosticResponse());
+  assert.equal(await h.controller.diagnose(), true);
+  const calls = h.calls.slice(before);
+  assert.equal(calls.length, 1); assert.equal(calls[0].method, undefined); assert.equal(calls[0].body, undefined);
+  assert.match(calls[0].url, /^\/api\/blower-history\?action=silo_basis_recovery_diagnostics&requestId=silo-recovery-123$/);
+  assert.equal(h.saved.get(ui.KEY), original);
+  assert.equal(h.controller.snapshot().phase, 'stale');
+  assert.equal(h.controller.snapshot().view.code, 'SILO_PREFIX_STALE');
+  assert.equal(h.controller.snapshot().diagnostics.prefix.integrity, 'pass');
+  assert.equal(h.controller.snapshot().diagnostics.applyAllowed, false);
+  assert.equal(await h.controller.apply(), false);
+  assert.equal(h.calls.length, before + 1, 'diagnostics and expired apply never create a POST');
+  const text = ui.diagnosticSummary(h.controller.snapshot());
+  assert.match(text, /readOnly=true · applyAllowed=false/); assert.match(text, /유효기간: 만료/);
+  assert.match(text, /precondition_diagnostic/); assert.match(text, /원본: 통과/);
+});
+test('R2 read-only diagnostics do not invent a request or replace stored apply failure when diagnostics fail', async () => {
+  const empty = harness(); assert.equal(await empty.controller.diagnose(), false); assert.equal(empty.calls.length, 0);
+  const h = harness(); await readyController(h);
+  h.set(Object.assign(new Error('private'), { status: 504, code: 'REQUEST_TIMEOUT' })); await h.controller.apply();
+  const before = h.controller.snapshot().lastFailure;
+  h.set(Object.assign(new Error('different private'), { status: 500, code: 'HTTP_ERROR' })); await h.controller.diagnose();
+  assert.deepEqual(h.controller.snapshot().lastFailure, before);
+  assert.equal(h.controller.snapshot().diagnostics, null);
+});
+test('R2 old version-one record stays compatible and no historical HTTP status is fabricated', () => {
+  const saved = JSON.stringify({ version: 1, nonce: 'old-fixture-nonce', proofHash: PROOF, requestId });
+  const h = harness({ storage: { getItem: key => key === ui.KEY ? saved : null, setItem() {} } });
+  assert.equal(h.controller.snapshot().phase, 'resume'); assert.equal(h.controller.hasRequest(), true);
+  assert.equal(h.controller.snapshot().lastFailure, null);
+  assert.doesNotMatch(ui.failureSummary(null), /HTTP [0-9]/);
+});
+test('R2 stale status keeps an explicit expiry code apart from the persisted earlier apply failure', async () => {
+  const h = harness(); await readyController(h);
+  h.set(Object.assign(new Error('private'), { status: 500, code: 'HTTP_ERROR' })); await h.controller.apply();
+  h.set(complete({ eligible: false, code: 'SILO_PREFIX_STALE', message: 'PRIVATE_MESSAGE' })); await h.controller.refresh();
+  const state = h.controller.snapshot();
+  assert.equal(state.phase, 'stale'); assert.equal(state.view.code, 'SILO_PREFIX_STALE');
+  assert.equal(state.lastFailure.httpStatus, 500); assert.equal(state.lastFailure.action, 'APPLY');
+  assert.match(ui.diagnosticSummary(state), /SILO_PREFIX_STALE/);
+  assert.doesNotMatch(ui.diagnosticSummary(state), /PRIVATE_MESSAGE/);
+});
+test('R2 malicious diagnostic strings and failure fields never enter normalized output or copied summary', () => {
+  const secret = 'PRIVATE_TOKEN_SESSION_EMPLOYEE_REQUEST_SQL';
+  const raw = diagnosticResponse({ requestState: secret, requestId: secret, token: secret,
+    stages: [{ stage: secret, outcome: secret, reason: secret, raw: secret }],
+    guards: { total: secret, passed: -1, failed: Infinity, combined: { outcome: 'fail', reason: 'D1_QUERY_INVALID', raw: secret },
+      checks: [{ index: secret, outcome: secret, reason: secret }] },
+    dimensions: { maxSqlBytes: secret, maxBindings: 1e15, maxBoundValueBytes: {}, serializedBytes: NaN } });
+  const normalized = ui.normalizeDiagnostics(raw);
+  const failure = ui.safeFailure({ action: 'APPLY', httpStatus: '500', code: secret, stage: secret,
+    reason: secret, responseKind: secret, atUtc: secret, elapsedMs: secret, raw: secret });
+  assert.equal(failure.httpStatus, null); assert.equal(failure.code, 'UNKNOWN');
+  const summary = ui.diagnosticSummary({ diagnostics: normalized, lastFailure: failure });
+  assert.doesNotMatch(JSON.stringify(normalized) + JSON.stringify(failure) + summary, /PRIVATE|EMPLOYEE|SESSION/);
+  assert.match(summary, /통합 비교: 실패 \[D1_QUERY_INVALID\]/);
+  assert.throws(() => ui.normalizeDiagnostics({ ...raw, readOnly: false }), /INVALID_RESPONSE/);
+  assert.throws(() => ui.normalizeDiagnostics({ ...raw, applyAllowed: true }), /INVALID_RESPONSE/);
+});
+test('R2 an unexecuted freshness check is distinct from expiry after invalid prefix integrity', () => {
+  const normalized = ui.normalizeDiagnostics(diagnosticResponse({ prefix: { integrity: 'fail', freshness: 'skip' },
+    stages: [{ stage: 'PREFIX_INTEGRITY', outcome: 'fail', reason: 'SILO_PREFIX_SUM_INVALID' },
+      { stage: 'PREFIX_FRESHNESS', outcome: 'skip' }], derivation: { valid: null } }));
+  const summary = ui.diagnosticSummary({ diagnostics: normalized });
+  assert.match(summary, /앞 구간 원본: 실패 · 유효기간: 미실행/);
+  assert.doesNotMatch(summary, /유효기간: 만료/);
+  assert.equal(normalized.applyAllowed, false);
+});
+test('R2 classifies readback failures separately from the already accepted apply response', async () => {
+  const h = harness({ reload: async () => { throw Object.assign(new Error('private'), { status: 503, code: 'HTTP_ERROR' }); } });
+  await readyController(h); h.set(complete({ applied: true }));
+  await h.controller.apply();
+  assert.equal(h.controller.snapshot().lastFailure.action, 'READBACK');
+  assert.equal(h.controller.snapshot().lastFailure.stage, 'READBACK');
+  assert.equal(h.controller.snapshot().lastFailure.httpStatus, 503);
+});
+test('R2 mounted diagnostic controls are explicit, copy only sanitized results, and hide the copy button without clipboard support', async () => {
+  function element(tag) { return { tag, children: [], handlers: {}, hidden: false, disabled: false, textContent: '',
+    appendChild(child) { this.children.push(child); }, replaceChildren() { this.children = []; }, setAttribute() {},
+    addEventListener(name, fn) { this.handlers[name] = fn; } }; }
+  const old = JSON.stringify({ version: 1, nonce: 'old-fixture-nonce', proofHash: PROOF, requestId });
+  const h = harness({ session: () => 'r2-clipboard-session',
+    storage: { getItem: key => key === ui.KEY ? old : null, setItem() {} } });
+  const container = element('div'); let copied = '';
+  const controller = ui.mount({ ...h.deps, document: { createElement: element }, container, asset: { tagNumber: ui.TAG },
+    clipboard: { writeText: async value => { copied = value; } } });
+  const section = container.children[0], buttons = section.children.at(-1).children;
+  assert.equal(h.calls.length, 0); assert.equal(buttons[3].hidden, false);
+  assert.equal(buttons[3].textContent, '저장 오류 점검 (읽기 전용)'); assert.equal(buttons[4].hidden, true);
+  h.set(diagnosticResponse()); buttons[3].handlers.click(); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(h.calls.length, 1); assert.equal(buttons[4].hidden, false);
+  await buttons[4].handlers.click();
+  assert.match(copied, /readOnly=true · applyAllowed=false/);
+  assert.doesNotMatch(copied, /silo-recovery-123|old-fixture-nonce|r2-clipboard-session/);
+  assert.equal(h.calls.length, 1, 'copy does not call the server');
+  assert.equal(controller.snapshot().diagnostics.prefix.freshness, 'expired');
+  const other = element('div');
+  ui.mount({ ...h.deps, session: () => 'r2-no-clipboard-session', document: { createElement: element }, container: other,
+    asset: { tagNumber: ui.TAG }, clipboard: {} });
+  assert.equal(other.children[0].children.at(-1).children[4].hidden, true);
 });
