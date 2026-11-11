@@ -30,20 +30,23 @@ export const LIMESTONE1B_CYCLE_PREFIX=LIMESTONE1B_FIRST_RUN_CYCLE_PREFIX, LIMEST
 const LIMESTONE1B_OWNER='c9e685ca-a192-4a88-81ae-1d76314bdfb6', LIMESTONE1B_CERT_PREFIX='dataparc_limestone1b_first_run:';
 const siloParse=v=>{try{return JSON.parse(v)}catch{return null}};
 const safeSeconds=v=>Number.isSafeInteger(v)&&v>=0;
-// One read statement, independent CASE predicates. UNION ALL avoids the deep
-// expression tree of a combined AND while retaining every exact comparison.
+// Independent CASE predicates avoid a deep combined AND. workerd permits at
+// most five compound SELECT terms, so keep every read group within that limit.
 async function readGuardChecks(database,checks){
   if(!Array.isArray(checks)||!checks.length||checks.some(check=>typeof check?.sql!=='string'||!check.sql.trim()||!Array.isArray(check.values)))return false;
-  const sql=checks.map((check,index)=>`SELECT ${index} AS guard_index,CASE WHEN (${check.sql}) THEN 1 ELSE 0 END AS valid`).join(' UNION ALL ');
-  const values=checks.flatMap(check=>check.values);
-  if(values.length>100||new TextEncoder().encode(sql).length>=100000)return false;
-  const result=await database.prepare(sql).bind(...values).all(),rows=result?.results;
-  if(result?.success===false||!Array.isArray(rows)||rows.length!==checks.length)return false;
   const seen=new Set();
-  for(const row of rows){
-    const index=row?.guard_index;
-    if(!Number.isSafeInteger(index)||index<0||index>=checks.length||seen.has(index)||row.valid!==1)return false;
-    seen.add(index);
+  for(let offset=0;offset<checks.length;offset+=5){
+    const group=checks.slice(offset,offset+5);
+    const sql=group.map((check,index)=>`SELECT ${offset+index} AS guard_index,CASE WHEN (${check.sql}) THEN 1 ELSE 0 END AS valid`).join(' UNION ALL ');
+    const values=group.flatMap(check=>check.values);
+    if(values.length>100||new TextEncoder().encode(sql).length>=100000)return false;
+    const result=await database.prepare(sql).bind(...values).all(),rows=result?.results;
+    if(result?.success===false||!Array.isArray(rows)||rows.length!==group.length)return false;
+    for(const row of rows){
+      const index=row?.guard_index;
+      if(!Number.isSafeInteger(index)||index<offset||index>=offset+group.length||seen.has(index)||row.valid!==1)return false;
+      seen.add(index);
+    }
   }
   return seen.size===checks.length;
 }
