@@ -1,6 +1,7 @@
 import dailyOperationQueryContract from "../../daily-operation/daily-operation-query-contract.js";
 import { prepareScheduledBatch, scheduledBatchStatements, isScheduledBatchConflict } from "../_shared/blower-schedule-v1.js";
-import { loadAppendBase, verifiedAppendBase, ensureAppendSchema, appendIntentStatement, BLOWER_LIMESTONE_INCREMENTAL_VERSION } from "../_shared/blower-incremental.js";
+import { loadAppendBase, verifiedAppendBase, ensureAppendSchema, appendIntentStatement, BLOWER_LIMESTONE_INCREMENTAL_VERSION,
+  SILO_BASIS_TAG, SILO_BASIS_CYCLE_PREFIX } from "../_shared/blower-incremental.js";
 import { validatedFirstRunStart, validatedTrailingStateStart } from "../_shared/blower-run-transition.js";
 import { replacementAutoCycleProof, isReplacementAutoRevision } from "../_shared/blower-replacement-auto-v3.js";
 import { ROLE_RECOVERY_PREFIX, loadRolePriorityRecoveryProof, validateRoleRecoveryView, ensureRoleRecoverySchema,
@@ -20087,9 +20088,15 @@ async function loadBlowerRuntimeProbeBatchPreparation(database, mappings) {
   const appendBasesByTag = new Map();
   for (const mapping of mappings) {
     if (mapping.error || appendBasesByTag.has(mapping.assetTag)) continue;
-    appendBasesByTag.set(mapping.assetTag, verifiedAppendBase(
-      assetsByTag.get(mapping.assetTag), eventsByTag.get(mapping.assetTag) || [], mapping.dataParcTag
-    ));
+    const asset = assetsByTag.get(mapping.assetTag);
+    // The recovered Silo cycle depends on its replacement owner, immutable
+    // certificate/raw receipts and current approved sources. Use the same strict
+    // loader as a single request; the ordinary bulk preload remains unchanged.
+    const recoveredSilo = asset?.tag_number === SILO_BASIS_TAG &&
+      String(asset.cycle_start_revision || "").startsWith(SILO_BASIS_CYCLE_PREFIX);
+    appendBasesByTag.set(mapping.assetTag, recoveredSilo
+      ? await loadAppendBase(database, asset, mapping.dataParcTag)
+      : verifiedAppendBase(asset, eventsByTag.get(mapping.assetTag) || [], mapping.dataParcTag));
   }
   const autoAssets = [...assetsByTag.values()].filter(isReplacementAutoRevision);
   return {assetsByTag, appendBasesByTag,
