@@ -2,6 +2,7 @@ import { handleBlowerSchedule } from "../_shared/blower-schedule-v1.js";
 import { incrementalEvidence, verifiedAppendBase, loadAppendBase, loadAppendIntent, combineAppendProbe, cycleRuntimeCoverage, SILO_BASIS_CYCLE_PREFIX, SILO_BASIS_SIGNAL } from "../_shared/blower-incremental.js";
 import { siloBasisResponse } from "../_shared/blower-silo-basis-v1.js";
 import { limestone2aFirstRunResponse } from "../_shared/blower-limestone2a-first-run-v1.js";
+import { limestone1bFirstRunResponse } from "../_shared/blower-limestone1b-first-run-v1.js";
 import { savedFirstRunStart, savedTrailingStateStart, validatedFirstRunStart, validatedTrailingStateStart } from "../_shared/blower-run-transition.js";
 import { blowerStopMaintenanceKind, loadBlowerStopMaintenance } from "../_shared/blower-stop-maintenance.js";
 import { buildRuntimeCoverageEvidence, currentManualRuntimeMeasurement } from "../_shared/blower-runtime-coverage-evidence.js";
@@ -1788,6 +1789,13 @@ function latestSuccessfulDataParcTag(assetTag, rows) {
 
 function currentDataParcRuntimeBasis(asset, rows) {
   if (!asset?.last_replacement_at) return null;
+  if(isLimestone1bRecoveredAsset(asset)){
+    const base=verifiedAppendBase(asset,rows,'GSPOGE.ABB_DCS.103HRJ01AN602XB04');
+    if(!base)return null;
+    const owner=rows.find(row=>row.id===base.eventId);let raw;try{raw=JSON.parse(owner.source_text)}catch{return null;}
+    return {...base,appendReady:true,composite:true,lastQueryStartAt:owner.source_type==='dataparc_runtime'?raw.startAt:'',
+      lastAddedSeconds:owner.source_type==='dataparc_runtime'?raw.incremental?.deltaRunningSeconds??null:null};
+  }
   if(isLimestone2aRecoveredAsset(asset)){
     const base=verifiedAppendBase(asset,rows,'GSPOGE.ABB_DCS.203HRJ01AN601XB04');
     if(!base)return null;
@@ -2001,6 +2009,9 @@ async function loadAssetStates(database, settings, options = {}) {
   const limestone2aRecoveredAsset=assets.find(isLimestone2aRecoveredAsset);
   const limestone2aRecoveredProof=limestone2aRecoveredAsset
     ?await loadAppendBase(database,limestone2aRecoveredAsset,'GSPOGE.ABB_DCS.203HRJ01AN601XB04'):null;
+  const limestone1bRecoveredAsset=assets.find(isLimestone1bRecoveredAsset);
+  const limestone1bRecoveredProof=limestone1bRecoveredAsset
+    ?await loadAppendBase(database,limestone1bRecoveredAsset,'GSPOGE.ABB_DCS.103HRJ01AN602XB04'):null;
 
   return assets.map(asset => {
     const runtimeRows = runtimeByTag.get(asset.tag_number) || [];
@@ -2038,10 +2049,13 @@ async function loadAssetStates(database, settings, options = {}) {
     if(asset===siloRecoveredAsset&&!siloRecoveredProof)runtimeBasis=null;
     if(asset===limestone2aRecoveredAsset&&!limestone2aRecoveredProof)runtimeBasis=null;
     const limestone2aFirstRunProof=asset===limestone2aRecoveredAsset?limestone2aRecoveredProof?.limestone2aFirstRun:null;
-    const runRuntime = limestone2aFirstRunProof&&runtimeBasis
+    if(asset===limestone1bRecoveredAsset&&!limestone1bRecoveredProof)runtimeBasis=null;
+    const limestone1bFirstRunProof=asset===limestone1bRecoveredAsset?limestone1bRecoveredProof?.limestone1bFirstRun:null;
+    const firstRunDurationProof=limestone2aFirstRunProof||limestone1bFirstRunProof;
+    const runRuntime = firstRunDurationProof&&runtimeBasis
       ?{version:1,source:'dataparc',verified:true,needsQuery:false,signalConfigured:true,
         measuredAt:runtimeBasis.observedAt,state:asset.cycle_runtime_state,
-        legacyStoredHours:Number(asset.cycle_runtime_hours),reason:'verified_limestone2a_first_run'}
+        legacyStoredHours:Number(asset.cycle_runtime_hours),reason:limestone1bFirstRunProof?'verified_limestone1b_first_run':'verified_limestone2a_first_run'}
       :fbheSealRunProvenance(asset, runtimeRows, now);
     let manualMeasurement = null;
     if (runRuntime) {
@@ -2102,7 +2116,10 @@ async function loadAssetStates(database, settings, options = {}) {
     const limestone2aSourceReview=asset===limestone2aRecoveredAsset&&!limestone2aFirstRunProof
       ?{code:'LIMESTONE2A_FIRST_RUN_SOURCE_CHANGED',cycleBasisConfirmed:false,measuredRangeMayContinue:false,
         message:'교체 후 첫 RUN 연결 근거가 변경되어 재확인이 필요합니다. 기존 누적값은 유지합니다.'}:null;
-    const cycleSourceReview = completionWindowProof || limestone2aFirstRunProof ? null : limestone2aSourceReview || siloSourceReview || rolePriorityRevokedReview || rolePriorityReview || confirmedRangeReview || normalizationReview || reviewedCycleSourceWarning(asset, runtimeRows) ||
+    const limestone1bSourceReview=asset===limestone1bRecoveredAsset&&!limestone1bFirstRunProof
+      ?{code:'LIMESTONE1B_FIRST_RUN_SOURCE_CHANGED',cycleBasisConfirmed:false,measuredRangeMayContinue:false,
+        message:'교체 후 첫 RUN 실측 근거가 변경되어 재확인이 필요합니다. 기존 누적값은 유지합니다.'}:null;
+    const cycleSourceReview = completionWindowProof || firstRunDurationProof ? null : limestone1bSourceReview || limestone2aSourceReview || siloSourceReview || rolePriorityRevokedReview || rolePriorityReview || confirmedRangeReview || normalizationReview || reviewedCycleSourceWarning(asset, runtimeRows) ||
       (replacementAutoCycle && !replacementAutoCycle.clockKnown && !replacementAutoCycle.registeredBaseline
         ? { code: "REPLACEMENT_COMPLETION_TIME_MISSING", cycleBasisConfirmed: false,
           measuredRangeMayContinue: false,
@@ -2118,7 +2135,7 @@ async function loadAssetStates(database, settings, options = {}) {
     const initialBasis = manureInitialRunProjection(asset, runtimeRows, initialRunAudit);
     const runtimeCoverageEvidence = buildRuntimeCoverageEvidence({ asset, rows: runtimeRows, measuredBasis,
       runRuntime, manualMeasurement,
-      replacementAutoCycle:limestone2aFirstRunProof?{...replacementAutoCycle,requiresRunRefresh:false}:replacementAutoCycle,
+      replacementAutoCycle:firstRunDurationProof?{...replacementAutoCycle,requiresRunRefresh:false}:replacementAutoCycle,
       cycleSourceReview, initialBasis });
     if(measuredBasis?.siloBasis&&runtimeCoverageEvidence.measurementVerified===true&&!cycleSourceReview){
       Object.assign(runtimeCoverageEvidence,{cycleBasisConfirmed:true,wholeCycleVerified:true,composite:true,
@@ -2141,6 +2158,12 @@ async function loadAssetStates(database, settings, options = {}) {
         coverageComplete:true,missingLeadingSeconds:0,requiredStartAt:runtimeBasis.startAt,
         cycleBasisConfirmed:false,wholeCycleVerified:false,sampleGoodCertified:false});
     }
+    if(limestone1bFirstRunProof&&runtimeCoverageEvidence.measurementVerified===true&&runtimeBasis){
+      Object.assign(runtimeCoverageEvidence,{durationEquivalent:true,durationVerified:true,
+        completionClockKnown:false,limestone1bFirstRun:limestone1bFirstRunProof,
+        coverageComplete:true,missingLeadingSeconds:0,requiredStartAt:runtimeBasis.startAt,
+        cycleBasisConfirmed:false,wholeCycleVerified:false,sampleGoodCertified:false});
+    }
     const completionWindowRecovery = completionWindowProof ? null
       : completionWindowRecoveryCandidate(asset,runtimeRows,replacementAutoCycle,
         asset.tag_number === COMPLETION_WINDOW_TAG ? completionWindowReview : null);
@@ -2159,6 +2182,8 @@ async function loadAssetStates(database, settings, options = {}) {
       ...(completionWindowProof ? {completionWindowProof,actualLastReplacementAt:'',cycleBasisKind:'completion_window_zero'} : {}),
       ...(limestone2aFirstRunProof?{limestone2aFirstRunProof,actualLastReplacementAt:'',
         cycleBasisKind:'replacement_first_run_equivalent'}:{}),
+      ...(limestone1bFirstRunProof?{limestone1bFirstRunProof,actualLastReplacementAt:'',
+        cycleBasisKind:'replacement_first_run_equivalent'}:{}),
       ...(completionWindowRecovery ? {completionWindowRecovery} : {}),
       ...(asset.tag_number === COMPLETION_WINDOW_TAG && completionWindowReview
         ? {completionWindowRecoveryReview:completionWindowReview} : {}),
@@ -2169,7 +2194,7 @@ async function loadAssetStates(database, settings, options = {}) {
       ...(runRuntime ? { runRuntime } : {}),
       ...((runtimeBasis?.coverageComplete === false && !completionWindowProof) || cycleSourceReview
         ? { remainingHours: null, progressPct: null, severity: "runtime_unknown" } : {}),
-      ...(replacementAutoCycle?.requiresRunRefresh && !limestone2aFirstRunProof ? {
+      ...(replacementAutoCycle?.requiresRunRefresh && !firstRunDurationProof ? {
         runtimeHours: null, cycleElapsedHours: null, remainingHours: null, progressPct: null,
         severity: "runtime_unknown", measurementRequired: true,
         runRuntime: { verified: false, source: "replacement_auto", state: "unknown", needsQuery: true,
@@ -4688,6 +4713,7 @@ async function confirmLimestoneBasis(database, user, body, options = {}) {
   if (!asset || asset.blower_type !== 'limestone' || Number(asset.enabled) !== 1)
     return fail('활성 Limestone 설비를 찾을 수 없습니다.', 404, 'LIMESTONE_BASIS_ASSET_UNAVAILABLE');
   if(isLimestone2aRecoveredAsset(asset))return fail(LIMESTONE2A_HISTORY_PROTECTED_MESSAGE,409,'LIMESTONE2A_FIRST_RUN_EVIDENCE_PROTECTED');
+  if(isLimestone1bRecoveredAsset(asset))return fail(LIMESTONE1B_HISTORY_PROTECTED_MESSAGE,409,'LIMESTONE1B_FIRST_RUN_EVIDENCE_PROTECTED');
   if (body.expectedLastReplacementAt !== normalizeText(asset.last_replacement_at) ||
       body.expectedCycleStartRevision !== normalizeText(asset.cycle_start_revision) ||
       body.expectedCycleRuntimeRevision !== normalizeText(asset.cycle_runtime_revision))
@@ -4936,6 +4962,9 @@ async function handleGet(context, user) {
     requestId:normalizeText(url.searchParams.get('requestId')),nonce:normalizeText(url.searchParams.get('nonce'))});
   if(action==='limestone2a_first_run_status')return limestone2aFirstRunResponse(database,user,'status',{
     requestId:normalizeText(url.searchParams.get('requestId'))});
+  if(action==='limestone1b_first_run_status')return limestone1bFirstRunResponse(database,user,'status',{
+    requestId:normalizeText(url.searchParams.get('requestId')),nonce:normalizeText(url.searchParams.get('nonce')),
+    witnessRequestId:normalizeText(url.searchParams.get('witnessRequestId'))});
 
   if (action === 'replacement_assets') {
     if (!user) return jsonResponse({ok:false,message:'로그인이 필요합니다.'},401);
@@ -5955,6 +5984,7 @@ async function editCurrentManualReplacement(database, user, body, options = {}) 
   if (!selected) return failure("수정할 교체 이력을 찾을 수 없습니다.", 404);
   if(siloBasisHistoryMutationBlocked(asset,selected,'replacement'))return jsonResponse({ok:false,code:'SILO_BASIS_EVIDENCE_PROTECTED',message:SILO_HISTORY_PROTECTED_MESSAGE},409);
   if(limestone2aFirstRunHistoryMutationBlocked(asset,selected,'replacement'))return jsonResponse({ok:false,code:'LIMESTONE2A_FIRST_RUN_EVIDENCE_PROTECTED',message:LIMESTONE2A_HISTORY_PROTECTED_MESSAGE},409);
+  if(limestone1bFirstRunHistoryMutationBlocked(asset,selected,'replacement'))return jsonResponse({ok:false,code:'LIMESTONE1B_FIRST_RUN_EVIDENCE_PROTECTED',message:LIMESTONE1B_HISTORY_PROTECTED_MESSAGE},409);
   if (selected.source_type !== "manual" || rows[0]?.id !== eventId) {
     return failure("현재 주기의 최신 수동 교체 이력만 수정할 수 있습니다.", 409);
   }
@@ -6341,6 +6371,17 @@ function siloBasisHistoryMutationBlocked(asset, selected, nextEventType = "") {
 function isLimestone2aRecoveredAsset(asset){
   return asset?.tag_number==='203HRJ01AN601'&&String(asset.cycle_start_revision||'').startsWith('lime2a-first-run-v1:');
 }
+function isLimestone1bRecoveredAsset(asset){
+  return asset?.tag_number==='103HRJ01AN602'&&String(asset.cycle_start_revision||'').startsWith('lime1b-first-run-v1:');
+}
+function limestone1bFirstRunHistoryMutationBlocked(asset,selected,nextEventType=''){
+  if(!selected)return false;
+  if(selected.source_type==='dataparc_limestone1b_first_run_v1'||
+    selected.tag_number==='103HRJ01AN602'&&String(selected.id||'').startsWith('dataparc_limestone1b_first_run:'))return true;
+  const boundaries=['replacement','startup','operation_start','operation_stop','runtime_correction','cycle_source_reconcile'];
+  return isLimestone1bRecoveredAsset(asset)&&(boundaries.includes(selected.event_type)||boundaries.includes(nextEventType));
+}
+const LIMESTONE1B_HISTORY_PROTECTED_MESSAGE='교체 후 첫 RUN의 실측 근거는 일반 수정·삭제로 변경할 수 없습니다. 실제 새 V-Belt 교체는 교체 등록을 사용해 주세요.';
 function limestone2aFirstRunHistoryMutationBlocked(asset,selected,nextEventType=''){
   if(!selected)return false;
   if(selected.source_type==='dataparc_limestone2a_first_run_v1'||
@@ -6357,6 +6398,7 @@ function planManualHistoryDeletion(asset, events, eventId, options = {}) {
   if (!selected) return fail("삭제할 이력을 찾을 수 없습니다. 이력을 다시 열어 주세요.", "HISTORY_DELETE_NOT_FOUND", 404);
   if(siloBasisHistoryMutationBlocked(asset,selected))return fail(SILO_HISTORY_PROTECTED_MESSAGE,'SILO_BASIS_EVIDENCE_PROTECTED');
   if(limestone2aFirstRunHistoryMutationBlocked(asset,selected))return fail(LIMESTONE2A_HISTORY_PROTECTED_MESSAGE,'LIMESTONE2A_FIRST_RUN_EVIDENCE_PROTECTED');
+  if(limestone1bFirstRunHistoryMutationBlocked(asset,selected))return fail(LIMESTONE1B_HISTORY_PROTECTED_MESSAGE,'LIMESTONE1B_FIRST_RUN_EVIDENCE_PROTECTED');
   if (selected.source_type === 'limestone_basis_confirmed') return fail(
     '교체 기준 확정 근거는 보존됩니다. 잘못 확정한 기준은 새 근거와 함께 다시 확정해 주세요.', 'LIMESTONE_BASIS_EVIDENCE_PROTECTED');
   if (manureInitialHistoryMutationBlocked(asset, events, selected, "", options.initialAudit)) return fail(
@@ -6513,6 +6555,7 @@ async function editAnyHistoryEvent(database, user, body, options = {}) {
   if (!selected) return fail("수정할 이력을 찾을 수 없습니다.", 404, "HISTORY_EDIT_NOT_FOUND");
   if(siloBasisHistoryMutationBlocked(asset,selected,normalizeText(body.eventType)))return fail(SILO_HISTORY_PROTECTED_MESSAGE,409,'SILO_BASIS_EVIDENCE_PROTECTED');
   if(limestone2aFirstRunHistoryMutationBlocked(asset,selected,normalizeText(body.eventType)))return fail(LIMESTONE2A_HISTORY_PROTECTED_MESSAGE,409,'LIMESTONE2A_FIRST_RUN_EVIDENCE_PROTECTED');
+  if(limestone1bFirstRunHistoryMutationBlocked(asset,selected,normalizeText(body.eventType)))return fail(LIMESTONE1B_HISTORY_PROTECTED_MESSAGE,409,'LIMESTONE1B_FIRST_RUN_EVIDENCE_PROTECTED');
   if (selected.source_type === 'limestone_basis_confirmed') return fail(
     '교체 기준 확정 근거는 보존됩니다. 잘못 확정한 기준은 새 근거와 함께 다시 확정해 주세요.', 409, 'LIMESTONE_BASIS_EVIDENCE_PROTECTED');
   const initialAudit = tagNumber === MANURE_INITIAL_RUN_CONFIG.tagNumber ? await loadManureInitialAudit(database) : null;
@@ -6588,6 +6631,7 @@ async function registerStartup(database, user, body, source = {}) {
     return jsonResponse({ ok: false, message: "등록된 Blower TAG를 찾을 수 없습니다." }, 404);
   }
   if(isLimestone2aRecoveredAsset(asset))return jsonResponse({ok:false,code:'LIMESTONE2A_FIRST_RUN_EVIDENCE_PROTECTED',message:LIMESTONE2A_HISTORY_PROTECTED_MESSAGE},409);
+  if(isLimestone1bRecoveredAsset(asset))return jsonResponse({ok:false,code:'LIMESTONE1B_FIRST_RUN_EVIDENCE_PROTECTED',message:LIMESTONE1B_HISTORY_PROTECTED_MESSAGE},409);
 
   if (!normalizeText(asset.last_replacement_at)) {
     return jsonResponse({ ok: false, message: "먼저 V-Belt 교체 이력을 등록해 주세요." }, 409);
@@ -6904,6 +6948,7 @@ async function editLatestRuntimeBoundary(database, user, body) {
   }
   if(siloBasisHistoryMutationBlocked(asset,selectedEvent,normalizeText(body.eventType)))return jsonResponse({ok:false,code:'SILO_BASIS_EVIDENCE_PROTECTED',message:SILO_HISTORY_PROTECTED_MESSAGE},409);
   if(limestone2aFirstRunHistoryMutationBlocked(asset,selectedEvent,normalizeText(body.eventType)))return jsonResponse({ok:false,code:'LIMESTONE2A_FIRST_RUN_EVIDENCE_PROTECTED',message:LIMESTONE2A_HISTORY_PROTECTED_MESSAGE},409);
+  if(limestone1bFirstRunHistoryMutationBlocked(asset,selectedEvent,normalizeText(body.eventType)))return jsonResponse({ok:false,code:'LIMESTONE1B_FIRST_RUN_EVIDENCE_PROTECTED',message:LIMESTONE1B_HISTORY_PROTECTED_MESSAGE},409);
 
   if (
     !["operation_start", "operation_stop"].includes(normalizeText(selectedEvent.event_type)) ||
@@ -8067,6 +8112,8 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
   }
 
   const replacementProof = isReplacementAutoRevision(asset) ? await readReplacementAutoCycleProof(database, asset) : null;
+  if(isLimestone1bRecoveredAsset(asset)&&!appendIntent)return jsonResponse({ok:false,
+    code:'LIMESTONE1B_FIRST_RUN_EVIDENCE_PROTECTED',message:LIMESTONE1B_HISTORY_PROTECTED_MESSAGE},409);
   const normalizationRange = normalizationRangeAuthorized(asset, replacementProof, probe, appendIntent);
   if (isReplacementAutoRevision(asset)) {
     if (!replacementProof || (!replacementProof.clockKnown && !replacementProof.registeredBaseline && !normalizationRange)) {
@@ -8140,7 +8187,7 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
   }
 
   let siloAppendSourceGuards=[];
-  let limestone2aAppendSourceGuards=[];
+  let firstRunAppendSourceGuards=[];
   if (appendIntent) {
     const base = await loadAppendBase(database, asset, probe.dataParcTag);
     // A server-owned partial receipt may continue from its measured endpoint.
@@ -8158,8 +8205,8 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
         requestId,assetTag:asset.tag_number,dataParcTag:probe.dataParcTag,startAt:base.startAt,endAt:probe.rawEndAt}} : {}),
       message: "같은 조회 경계시각의 RUN 상태가 달라 이어 붙이기를 중단했습니다. 저장된 기준부터 전체 구간 검증이 필요합니다. 기존 누적값은 유지합니다." }, 409);
     siloAppendSourceGuards=base.siloSourceGuards||[];
-    limestone2aAppendSourceGuards=base.limestone2aSourceGuards||[];
-    if(isLimestone2aRecoveredAsset(asset)&&!limestone2aAppendSourceGuards.length)
+    firstRunAppendSourceGuards=[...(base.limestone2aSourceGuards||[]),...(base.limestone1bSourceGuards||[])];
+    if((isLimestone2aRecoveredAsset(asset)||isLimestone1bRecoveredAsset(asset))&&!firstRunAppendSourceGuards.length)
       return jsonResponse({ok:false,code:'DATAPARC_APPEND_BASE_CHANGED',
         message:'교체 후 첫 RUN의 현재 원본 검증을 확인할 수 없습니다. 기존 누적값은 유지합니다.'},409);
   }
@@ -8220,7 +8267,7 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
   const recoveryGuardId = coverageRecoveryGuards.length ? crypto.randomUUID() : '';
   // Each source check is its own statement in the same atomic batch. Combining
   // the large saved JSON proofs into one expression exceeds SQL limits in D1.
-  const limestone2aGuardChecks=limestone2aAppendSourceGuards.map(check=>({...check,id:crypto.randomUUID()}));
+  const firstRunGuardChecks=firstRunAppendSourceGuards.map(check=>({...check,id:crypto.randomUUID()}));
   const runtimeHours = probe.runtimeHours;
   const runtimeState = probe.isRunning ? "running" : "stopped";
   const runtimeAnchorAt = probe.isRunning ? probe.observedAt : null;
@@ -8230,7 +8277,7 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
 
   try {
     results = await database.batch([
-      ...limestone2aGuardChecks.map(check=>database.prepare(`INSERT INTO blower_history_atomic_guard(id,valid)
+      ...firstRunGuardChecks.map(check=>database.prepare(`INSERT INTO blower_history_atomic_guard(id,valid)
         VALUES (?,CASE WHEN (${check.sql}) THEN 1 ELSE 0 END)`).bind(check.id,...check.values)),
       ...(recoveryGuardId ? [database.prepare(`INSERT INTO blower_history_atomic_guard(id,valid) VALUES (?,CASE WHEN ${
         coverageRecoveryGuards.map(check => '(' + check.sql + ')').join(' AND ')} THEN 1 ELSE 0 END)`)
@@ -8427,7 +8474,7 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
         .prepare(`DELETE FROM blower_history_atomic_guard WHERE id = ?`)
         .bind(guardId),
       ...(recoveryGuardId ? [database.prepare('DELETE FROM blower_history_atomic_guard WHERE id=?').bind(recoveryGuardId)] : []),
-      ...limestone2aGuardChecks.map(check=>database.prepare('DELETE FROM blower_history_atomic_guard WHERE id=?').bind(check.id))
+      ...firstRunGuardChecks.map(check=>database.prepare('DELETE FROM blower_history_atomic_guard WHERE id=?').bind(check.id))
     ]);
   } catch (error) {
     const retryEvents = await loadDataParcRuntimeSyncEvents(database, requestId);
@@ -8453,7 +8500,7 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
     throw error;
   }
 
-  if(limestone2aGuardChecks.length)results=results.slice(limestone2aGuardChecks.length,-limestone2aGuardChecks.length);
+  if(firstRunGuardChecks.length)results=results.slice(firstRunGuardChecks.length,-firstRunGuardChecks.length);
   if (recoveryGuardId) results = results.slice(1,-1);
   if (
     Number(results?.[0]?.meta?.changes || 0) !== 1 ||
@@ -8477,6 +8524,7 @@ async function correctRuntime(database, user, body) {
   if(asset.tag_number==='104ETH03AN602'&&String(asset.cycle_start_revision||'').startsWith(SILO_BASIS_CYCLE_PREFIX))
     return jsonResponse({ok:false,code:'SILO_BASIS_EVIDENCE_PROTECTED',message:SILO_HISTORY_PROTECTED_MESSAGE},409);
   if(isLimestone2aRecoveredAsset(asset))return jsonResponse({ok:false,code:'LIMESTONE2A_FIRST_RUN_EVIDENCE_PROTECTED',message:LIMESTONE2A_HISTORY_PROTECTED_MESSAGE},409);
+  if(isLimestone1bRecoveredAsset(asset))return jsonResponse({ok:false,code:'LIMESTONE1B_FIRST_RUN_EVIDENCE_PROTECTED',message:LIMESTONE1B_HISTORY_PROTECTED_MESSAGE},409);
 
   if (normalizeText(asset.cycle_start_state) === "pending") {
     return jsonResponse({ ok: false, message: "기동 대기 Cycle은 누적시간을 보정할 수 없습니다. 먼저 [기동 등록]을 완료해 주세요." }, 409);
@@ -15873,6 +15921,8 @@ async function handlePost(context, user, body) {
   if(action==='start_silo_basis_recovery')return siloBasisResponse(database,user,'start',body);
   if(action==='apply_silo_basis_recovery')return siloBasisResponse(database,user,'apply',body);
   if(action==='apply_limestone2a_first_run')return limestone2aFirstRunResponse(database,user,'apply',body);
+  if(action==='start_limestone1b_first_run')return limestone1bFirstRunResponse(database,user,'start',body);
+  if(action==='apply_limestone1b_first_run')return limestone1bFirstRunResponse(database,user,'apply',body);
 
   if (action === "initialize_manure_run") {
     return initializeManureInitialRun(database, user, body);
@@ -16016,7 +16066,7 @@ export async function onRequestGet(context) {
   try {
     const readAction = new URL(context.request.url).searchParams.get('action');
     const replacementAssetRead = readAction === 'replacement_assets';
-    const siloDiagnosticRead = readAction === 'silo_basis_recovery_diagnostics' || readAction === 'limestone2a_first_run_status';
+    const siloDiagnosticRead = ['silo_basis_recovery_diagnostics','limestone2a_first_run_status','limestone1b_first_run_status'].includes(readAction);
     const authentication = await getAuthenticatedUser(
       context,
       { optional: true, readOnly: replacementAssetRead || siloDiagnosticRead }

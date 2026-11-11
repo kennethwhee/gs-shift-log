@@ -1,4 +1,4 @@
-import { verifiedAppendBase, LIMESTONE2A_TAG, LIMESTONE2A_CYCLE_PREFIX } from './blower-incremental.js';
+import { verifiedAppendBase, LIMESTONE2A_TAG, LIMESTONE2A_CYCLE_PREFIX, LIMESTONE1B_TAG, LIMESTONE1B_CYCLE_PREFIX } from './blower-incremental.js';
 
 /* Approved work-log replacements are replayable facts, not calendar runtime.
  * All mutations use existing guarded D1 batches and keep before/after evidence.
@@ -283,6 +283,10 @@ export async function reconcileApprovedReplacementLog(database,user,row,facts,op
   const limeSourceIds=['POCHEON#20260919#DAY#BO2','POCHEON#20260919#DAY#BCO2'];
   const limeOriginalSource=Boolean(row && [row.id,...(Array.isArray(row.sourceAliases)?row.sourceAliases:[])].some(id=>limeSourceIds.includes(text(id).replace(/^legacy-/,''))));
   const limeReview=()=>({...result,ok:false,status:409,code:'LIME2A_FIRST_RUN_SOURCE_REVIEW_REQUIRED'});
+  const lime1bOriginalSource=Boolean(row&&[row.id,...(Array.isArray(row.sourceAliases)?row.sourceAliases:[])].some(id=>['POCHEON#20260922#DAY#BCO1','POCHEON#20260922#DAY#BO1'].includes(text(id).replace(/^legacy-/,''))));
+  const lime1bHeld=lime1bOriginalSource?await database.prepare('SELECT cycle_start_revision FROM blower_history_assets WHERE tag_number=?').bind(LIMESTONE1B_TAG).first():null;
+  const lime1bReview=()=>({...result,ok:false,status:409,code:'LIME1B_FIRST_RUN_SOURCE_REVIEW_REQUIRED'});
+  if(lime1bOriginalSource&&text(lime1bHeld?.cycle_start_revision).startsWith(LIMESTONE1B_CYCLE_PREFIX)&&!['결재완료','approved'].includes(text(row?.status)))return lime1bReview();
   if(limeOriginalSource && !['결재완료','approved'].includes(text(row?.status))){
     const held=await database.prepare('SELECT cycle_start_revision FROM blower_history_assets WHERE tag_number=?').bind(LIMESTONE2A_TAG).first();
     if(text(held?.cycle_start_revision).startsWith(LIMESTONE2A_CYCLE_PREFIX))return limeReview();
@@ -308,13 +312,18 @@ export async function reconcileApprovedReplacementLog(database,user,row,facts,op
         source.sourceSnapshotSha256===sourceHash));
   const linked=await database.prepare(`SELECT * FROM blower_history_events WHERE event_type IN ('replacement','cycle_source_reconcile') AND source_log_id IN (${aliases.map(() => '?').join(',')})`).bind(...aliases).all();
   const related=(linked.results || []).filter(event => AUTO_TYPES.has(event.source_type));
-  const tags=[...new Set([...normalized.map(fact => fact.tagNumber),...related.map(event => event.tag_number)])];
+  const tags=[...new Set([...normalized.map(fact => fact.tagNumber),...related.map(event => event.tag_number),...(text(lime1bHeld?.cycle_start_revision).startsWith(LIMESTONE1B_CYCLE_PREFIX)?[LIMESTONE1B_TAG]:[])])];
   for (const tag of tags) {
     const asset=await database.prepare('SELECT * FROM blower_history_assets WHERE tag_number=? AND enabled=1').bind(tag).first();
     if (!asset) { result.protected++; continue; }
     const loaded=await database.prepare('SELECT * FROM blower_history_events WHERE tag_number=? ORDER BY event_date DESC,created_at DESC,id DESC').bind(tag).all();
     const beforeEvents=loaded.results || [];
     if (JSON.stringify(beforeEvents).length>1200000) return {...result,ok:false,status:409,code:'REPLACEMENT_HISTORY_LIMIT'};
+    if(tag===LIMESTONE1B_TAG&&text(asset.cycle_start_revision).startsWith(LIMESTONE1B_CYCLE_PREFIX)&&(lime1bOriginalSource||text(row.work_date)==='2026-09-22')){
+      const certificates=beforeEvents.filter(event=>event.source_type==='dataparc_limestone1b_first_run_v1'&&parse(event.source_text)?.cycleStartRevision===asset.cycle_start_revision);if(certificates.length!==1)return lime1bReview();
+      try{const {loadLimestone1bApprovedCompletion}=await import('./blower-limestone1b-first-run-v1.js');const current=await loadLimestone1bApprovedCompletion(database,{now:options.now||new Date()});if(current.sourceProofHash!==parse(certificates[0].source_text)?.sourceProofHash)return lime1bReview()}catch{return lime1bReview()}
+      result.protected++;result.results.push({tagNumber:tag,kind:'protected',reason:'LIME1B_FIRST_RUN_EVIDENCE_PROTECTED'});continue;
+    }
     // This day-only job owns a separate first-post-replacement-RUN certificate.
     // Reinterpreting its source must not zero the certified counter, edit its
     // owner or withdraw its immutable evidence. An actual later job, from a

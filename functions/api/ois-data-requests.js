@@ -1,7 +1,8 @@
 import dailyOperationQueryContract from "../../daily-operation/daily-operation-query-contract.js";
 import { prepareScheduledBatch, scheduledBatchStatements, isScheduledBatchConflict } from "../_shared/blower-schedule-v1.js";
 import { loadAppendBase, verifiedAppendBase, ensureAppendSchema, appendIntentStatement, BLOWER_LIMESTONE_INCREMENTAL_VERSION,
-  SILO_BASIS_TAG, SILO_BASIS_CYCLE_PREFIX, LIMESTONE2A_FIRST_RUN_TAG, LIMESTONE2A_FIRST_RUN_CYCLE_PREFIX } from "../_shared/blower-incremental.js";
+  SILO_BASIS_TAG, SILO_BASIS_CYCLE_PREFIX, LIMESTONE2A_FIRST_RUN_TAG, LIMESTONE2A_FIRST_RUN_CYCLE_PREFIX,
+  LIMESTONE1B_FIRST_RUN_TAG, LIMESTONE1B_FIRST_RUN_CYCLE_PREFIX } from "../_shared/blower-incremental.js";
 import { validatedFirstRunStart, validatedTrailingStateStart } from "../_shared/blower-run-transition.js";
 import { replacementAutoCycleProof, isReplacementAutoRevision } from "../_shared/blower-replacement-auto-v3.js";
 import { ROLE_RECOVERY_PREFIX, loadRolePriorityRecoveryProof, validateRoleRecoveryView, ensureRoleRecoverySchema,
@@ -20096,7 +20097,9 @@ async function loadBlowerRuntimeProbeBatchPreparation(database, mappings) {
       String(asset.cycle_start_revision || "").startsWith(SILO_BASIS_CYCLE_PREFIX);
     const recoveredLimestone2a = asset?.tag_number === LIMESTONE2A_FIRST_RUN_TAG &&
       String(asset.cycle_start_revision || "").startsWith(LIMESTONE2A_FIRST_RUN_CYCLE_PREFIX);
-    appendBasesByTag.set(mapping.assetTag, recoveredSilo || recoveredLimestone2a
+    const recoveredLimestone1b = asset?.tag_number === LIMESTONE1B_FIRST_RUN_TAG &&
+      String(asset.cycle_start_revision || "").startsWith(LIMESTONE1B_FIRST_RUN_CYCLE_PREFIX);
+    appendBasesByTag.set(mapping.assetTag, recoveredSilo || recoveredLimestone2a || recoveredLimestone1b
       ? await loadAppendBase(database, asset, mapping.dataParcTag)
       : verifiedAppendBase(asset, eventsByTag.get(mapping.assetTag) || [], mapping.dataParcTag));
   }

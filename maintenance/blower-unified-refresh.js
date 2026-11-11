@@ -179,8 +179,78 @@ DP_TAGS.add("203HRJ01AN602");
         typeof evidence.hours !== 'number' || !Number.isFinite(evidence.hours) || Math.abs(evidence.hours * 3600 - basis.runningSeconds) > 0.01) return null;
     return proof;
   }
+  function verifiedLimestone1bFirstRun(a) {
+    const basis = a?.dataParcRuntimeBasis, evidence = a?.runtimeCoverageEvidence, runtime = a?.runRuntime;
+    const proof = a?.limestone1bFirstRunProof, owned = basis?.limestone1bFirstRun, measured = evidence?.limestone1bFirstRun;
+    const origin = time('2026-09-22T00:00:00+09:00'), first = time('2026-09-22T09:50:26+09:00');
+    const safeId = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,200}$/.test(value);
+    const safeSeconds = value => Number.isSafeInteger(value) && value >= 0;
+    const fields = ['version', 'certificateEventId', 'freshRequestId', 'auditId', 'proofHash', 'sourceProofHash',
+      'cycleStartRevision', 'currentRuntimeRevision', 'currentRunningSeconds', 'firstRunAt', 'completionDay',
+      'completionClockKnown', 'completionBeforeFirstRun', 'noEarlierPostReplacementRun', 'durationEquivalent',
+      'r9RequestId', 'rawFirstRunAt', 'rawOldStopAt', 'measurementStartAt', 'completionWithinStoppedWindow',
+      'excludedRunningSeconds', 'comparisonToleranceSeconds', 'comparisonDifferenceSeconds', 'originalRunningSeconds', 'freshRunningSeconds', 'sampleGoodCertified', 'preservedStateBoundary',
+      'measuredState', 'currentState', 'currentAnchorAt', 'currentObservedAt'];
+    const boundary = basis?.preservedStateBoundary === true;
+    const stateValid = boundary
+      ? proof?.preservedStateBoundary === true && proof.measuredState === basis.state &&
+        proof.currentState === runtime?.state && proof.currentState === a?.cycleRuntimeState &&
+        time(proof.currentObservedAt) === time(basis.observedAt) && time(proof.currentAnchorAt) === time(a?.cycleRuntimeAnchorAt) &&
+        time(proof.currentAnchorAt) > time(basis.observedAt)
+      : proof?.preservedStateBoundary !== true && runtime?.state === basis?.state && a?.cycleRuntimeState === basis?.state &&
+        time(a?.cycleRuntimeAnchorAt) === time(basis?.observedAt);
+    if (a?.tagNumber !== '103HRJ01AN602' || a.blowerType !== 'limestone' || String(a.unitNo) !== '1' ||
+        a.enabled === false || a.enabled === 0 || a.dataParcTag !== 'GSPOGE.ABB_DCS.103HRJ01AN602XB04' ||
+        a.cycleStartState !== 'pending' || a.cycleStartedAt || a.cycleStoredStartedAt ||
+        !/^lime1b-first-run-v1:[a-f0-9]{64}$/.test(String(a.cycleStartRevision || '')) ||
+        typeof a.cycleRuntimeRevision !== 'string' || !a.cycleRuntimeRevision ||
+        time(a.lastReplacementAt) !== origin || a.actualLastReplacementAt !== '' || a.cycleSourceReview ||
+        a.measurementRequired === true || a.replacementAutoCycle?.requiresRunRefresh === true ||
+        a.replacementAutoCycle?.completionClockConflict === true || a.replacementAutoCycle?.rolePrioritySourceRevoked === true ||
+        proof?.version !== 1 || !owned || !measured || fields.some(key => proof[key] !== owned[key] || proof[key] !== measured[key]) ||
+        !safeId(proof.freshRequestId) || !safeId(proof.r9RequestId) || proof.auditId !== 'lime1b_first_run:' + proof.freshRequestId ||
+        proof.certificateEventId !== 'dataparc_limestone1b_first_run:' + proof.freshRequestId ||
+        !/^[a-f0-9]{64}$/.test(String(proof.proofHash || '')) || !/^[a-f0-9]{64}$/.test(String(proof.sourceProofHash || '')) ||
+        a.cycleStartRevision !== 'lime1b-first-run-v1:' + proof.proofHash || proof.cycleStartRevision !== a.cycleStartRevision ||
+        proof.currentRuntimeRevision !== a.cycleRuntimeRevision || proof.currentRunningSeconds !== basis.runningSeconds ||
+        time(proof.currentObservedAt) !== time(basis.observedAt) || time(proof.currentAnchorAt) !== time(a.cycleRuntimeAnchorAt) ||
+        proof.currentState !== a.cycleRuntimeState || proof.measuredState !== basis.state ||
+        proof.completionDay !== '2026-09-22' || proof.completionClockKnown !== false ||
+        proof.completionBeforeFirstRun !== true || proof.noEarlierPostReplacementRun !== true ||
+        proof.durationEquivalent !== true || proof.completionWithinStoppedWindow !== true ||
+        !safeSeconds(proof.freshRunningSeconds) || !safeSeconds(proof.originalRunningSeconds) ||
+        ![34166,34167].includes(proof.excludedRunningSeconds) ||
+        !Number.isSafeInteger(proof.comparisonToleranceSeconds) || proof.comparisonToleranceSeconds < 2 || proof.comparisonToleranceSeconds > 10000 ||
+        !Number.isSafeInteger(proof.comparisonDifferenceSeconds) ||
+        proof.comparisonDifferenceSeconds !== proof.freshRunningSeconds - (proof.originalRunningSeconds-proof.excludedRunningSeconds) ||
+        Math.abs(proof.comparisonDifferenceSeconds) > proof.comparisonToleranceSeconds ||
+        proof.rawFirstRunAt !== proof.firstRunAt || time(proof.measurementStartAt) !== first ||
+        Math.floor(time(proof.rawOldStopAt)/1000) !== time('2026-09-22T09:29:26+09:00')/1000 ||
+        proof.excludedRunningSeconds !== Math.round((time(proof.rawOldStopAt)-origin)/1000) || proof.sampleGoodCertified !== false ||
+        typeof proof.firstRunAt !== 'string' || !/(?:Z|[+-]\d\d:\d\d)$/.test(proof.firstRunAt) ||
+        !Number.isFinite(time(proof.firstRunAt)) || Math.floor(time(proof.firstRunAt) / 1000) !== first / 1000 ||
+        basis.composite !== true || basis.appendReady !== true || basis.coverageComplete !== true ||
+        basis.dataParcTag !== a.dataParcTag || time(basis.startAt) !== first || time(basis.requiredStartAt) !== first ||
+        basis.missingLeadingSeconds !== 0 || basis.cycleRuntimeRevision !== a.cycleRuntimeRevision ||
+        !safeId(basis.requestId) || !safeSeconds(basis.runningSeconds) ||
+        basis.runningSeconds < proof.freshRunningSeconds ||
+        !(time(basis.observedAt) > first) ||
+        typeof basis.runtimeHours !== 'number' || !Number.isFinite(basis.runtimeHours) ||
+        Math.abs(basis.runtimeHours * 3600 - basis.runningSeconds) > 0.01 ||
+        typeof (a.cycleElapsedHours ?? a.runtimeHours) !== 'number' || !Number.isFinite(a.cycleElapsedHours ?? a.runtimeHours) ||
+        Math.abs((a.cycleElapsedHours ?? a.runtimeHours) * 3600 - basis.runningSeconds) > 0.01 ||
+        runtime?.verified !== true || runtime.source !== 'dataparc' || !['running', 'stopped'].includes(runtime.state) ||
+        !['running', 'stopped'].includes(basis.state) || !stateValid || time(runtime.measuredAt) !== time(basis.observedAt) ||
+        evidence?.version !== 1 || evidence.source !== 'dataparc' || evidence.measurementVerified !== true ||
+        evidence.durationEquivalent !== true || evidence.durationVerified !== true || evidence.completionClockKnown !== false ||
+        evidence.wholeCycleVerified !== false || evidence.cycleBasisConfirmed !== false || evidence.coverageComplete !== true ||
+        evidence.missingLeadingSeconds !== 0 || evidence.requestId !== basis.requestId ||
+        time(evidence.startAt) !== first || time(evidence.observedAt) !== time(basis.observedAt) ||
+        typeof evidence.hours !== 'number' || !Number.isFinite(evidence.hours) || Math.abs(evidence.hours * 3600 - basis.runningSeconds) > 0.01) return null;
+    return proof;
+  }
   function runReviewStatus(a, basis = a?.dataParcRuntimeBasis) {
-    if (verifiedCompletionWindow(a) || verifiedLimestone2aFirstRun(a)) return null;
+    if (verifiedCompletionWindow(a) || verifiedLimestone2aFirstRun(a) || verifiedLimestone1bFirstRun(a)) return null;
     const priority = rolePriorityReview(a);
     if (priority) return { key: priority.key, label: priority.label };
     const automatic = a?.replacementAutoCycle;
@@ -202,7 +272,7 @@ DP_TAGS.add("203HRJ01AN602");
   }
 
   function partialAppendResultStatus(task, current) {
-    if (verifiedCompletionWindow(current) || verifiedLimestone2aFirstRun(current)) return null;
+    if (verifiedCompletionWindow(current) || verifiedLimestone2aFirstRun(current) || verifiedLimestone1bFirstRun(current)) return null;
     // Current server projection also supports resuming an older checkpoint
     // whose compact saved asset predates this display-only metadata.
     const currentReason = current ? runReviewStatus(current) : null;
@@ -450,7 +520,7 @@ DP_TAGS.add("203HRJ01AN602");
       JSON.stringify(runtimeRecoverySnapshot(current)) === JSON.stringify(task.recoveryProof);
   }
   function fbheSealRunView(a, basis = null) {
-    const limestoneEquivalent = verifiedLimestone2aFirstRun(a);
+    const limestoneEquivalent = verifiedLimestone2aFirstRun(a) || verifiedLimestone1bFirstRun(a);
     const equivalent = verifiedCompletionWindow(a) || limestoneEquivalent;
     if (equivalent) {
       const hours = a.cycleElapsedHours ?? a.runtimeHours, state = a.runRuntime.state;
@@ -1495,7 +1565,7 @@ DP_TAGS.add("203HRJ01AN602");
     return stop('처리 단위 한도 도달');
   }
 
-  return { fbheSealRunAsset, fbheSealRunView, freshReplacementQuery, replacementRangeTracking, rolePriorityReview, runReviewStatus, verifiedCompletionWindow, verifiedLimestone2aFirstRun,
+  return { fbheSealRunAsset, fbheSealRunView, freshReplacementQuery, replacementRangeTracking, rolePriorityReview, runReviewStatus, verifiedCompletionWindow, verifiedLimestone2aFirstRun, verifiedLimestone1bFirstRun,
     runtimeRecoveryPlan, recognizedRuntimeRecovery, plan, intermittent, snapshot, sameCycle, day, waitRequests, executeDataParc, executeDataParcBatch, executeOis, oisBody,
     refreshLogs, refreshLogsForRuntime, readWithRetry, errorLabel,
     register(kind, fn) { if (!['fbhe','seal_pot'].includes(kind) || typeof fn !== 'function') throw new Error('Invalid OIS bridge'); bridges[kind] = fn; } };
