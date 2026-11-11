@@ -3,6 +3,7 @@ import { incrementalEvidence, verifiedAppendBase, loadAppendBase, loadAppendInte
 import { siloBasisResponse } from "../_shared/blower-silo-basis-v1.js";
 import { limestone2aFirstRunResponse } from "../_shared/blower-limestone2a-first-run-v1.js";
 import { limestone1bFirstRunResponse } from "../_shared/blower-limestone1b-first-run-v1.js";
+import { fbhe1bStandbyResponse, loadFbhe1bStandbyProjection } from "../_shared/blower-fbhe1b-standby-v1.js";
 import { savedFirstRunStart, savedTrailingStateStart, validatedFirstRunStart, validatedTrailingStateStart } from "../_shared/blower-run-transition.js";
 import { blowerStopMaintenanceKind, loadBlowerStopMaintenance } from "../_shared/blower-stop-maintenance.js";
 import { buildRuntimeCoverageEvidence, currentManualRuntimeMeasurement } from "../_shared/blower-runtime-coverage-evidence.js";
@@ -2012,6 +2013,9 @@ async function loadAssetStates(database, settings, options = {}) {
   const limestone1bRecoveredAsset=assets.find(isLimestone1bRecoveredAsset);
   const limestone1bRecoveredProof=limestone1bRecoveredAsset
     ?await loadAppendBase(database,limestone1bRecoveredAsset,'GSPOGE.ABB_DCS.103HRJ01AN602XB04'):null;
+  const fbhe1bStandbyAsset=assets.find(asset=>asset.tag_number==='104HHL60AP621');
+  const fbhe1bStandbyProjection=fbhe1bStandbyAsset
+    ?await loadFbhe1bStandbyProjection(database,fbhe1bStandbyAsset,{now}):null;
 
   return assets.map(asset => {
     const runtimeRows = runtimeByTag.get(asset.tag_number) || [];
@@ -2052,10 +2056,18 @@ async function loadAssetStates(database, settings, options = {}) {
     if(asset===limestone1bRecoveredAsset&&!limestone1bRecoveredProof)runtimeBasis=null;
     const limestone1bFirstRunProof=asset===limestone1bRecoveredAsset?limestone1bRecoveredProof?.limestone1bFirstRun:null;
     const firstRunDurationProof=limestone2aFirstRunProof||limestone1bFirstRunProof;
-    const runRuntime = firstRunDurationProof&&runtimeBasis
+    const fbhe1bStandbyProof=asset===fbhe1bStandbyAsset&&runtimeBasis&&fbhe1bStandbyProjection&&
+      runtimeBasis.runningSeconds===fbhe1bStandbyProjection.currentRunningSeconds&&
+      Date.parse(runtimeBasis.observedAt)===Date.parse(fbhe1bStandbyProjection.currentObservedAt)
+      ?fbhe1bStandbyProjection:null;
+    if(fbhe1bStandbyProof)runtimeBasis={...runtimeBasis,composite:true,appendReady:true,
+      coverageComplete:true,missingLeadingSeconds:0,requiredStartAt:asset.last_replacement_at,
+      completionClockKnown:false,cycleBasisConfirmed:false,fbhe1bStandby:fbhe1bStandbyProof};
+    const durationEquivalentProof=firstRunDurationProof||fbhe1bStandbyProof;
+    const runRuntime = durationEquivalentProof&&runtimeBasis
       ?{version:1,source:'dataparc',verified:true,needsQuery:false,signalConfigured:true,
         measuredAt:runtimeBasis.observedAt,state:asset.cycle_runtime_state,
-        legacyStoredHours:Number(asset.cycle_runtime_hours),reason:limestone1bFirstRunProof?'verified_limestone1b_first_run':'verified_limestone2a_first_run'}
+        legacyStoredHours:Number(asset.cycle_runtime_hours),reason:fbhe1bStandbyProof?'verified_fbhe1b_standby':limestone1bFirstRunProof?'verified_limestone1b_first_run':'verified_limestone2a_first_run'}
       :fbheSealRunProvenance(asset, runtimeRows, now);
     let manualMeasurement = null;
     if (runRuntime) {
@@ -2119,7 +2131,7 @@ async function loadAssetStates(database, settings, options = {}) {
     const limestone1bSourceReview=asset===limestone1bRecoveredAsset&&!limestone1bFirstRunProof
       ?{code:'LIMESTONE1B_FIRST_RUN_SOURCE_CHANGED',cycleBasisConfirmed:false,measuredRangeMayContinue:false,
         message:'교체 후 첫 RUN 실측 근거가 변경되어 재확인이 필요합니다. 기존 누적값은 유지합니다.'}:null;
-    const cycleSourceReview = completionWindowProof || firstRunDurationProof ? null : limestone1bSourceReview || limestone2aSourceReview || siloSourceReview || rolePriorityRevokedReview || rolePriorityReview || confirmedRangeReview || normalizationReview || reviewedCycleSourceWarning(asset, runtimeRows) ||
+    const cycleSourceReview = completionWindowProof || durationEquivalentProof ? null : limestone1bSourceReview || limestone2aSourceReview || siloSourceReview || rolePriorityRevokedReview || rolePriorityReview || confirmedRangeReview || normalizationReview || reviewedCycleSourceWarning(asset, runtimeRows) ||
       (replacementAutoCycle && !replacementAutoCycle.clockKnown && !replacementAutoCycle.registeredBaseline
         ? { code: "REPLACEMENT_COMPLETION_TIME_MISSING", cycleBasisConfirmed: false,
           measuredRangeMayContinue: false,
@@ -2135,7 +2147,7 @@ async function loadAssetStates(database, settings, options = {}) {
     const initialBasis = manureInitialRunProjection(asset, runtimeRows, initialRunAudit);
     const runtimeCoverageEvidence = buildRuntimeCoverageEvidence({ asset, rows: runtimeRows, measuredBasis,
       runRuntime, manualMeasurement,
-      replacementAutoCycle:firstRunDurationProof?{...replacementAutoCycle,requiresRunRefresh:false}:replacementAutoCycle,
+      replacementAutoCycle:durationEquivalentProof?{...replacementAutoCycle,requiresRunRefresh:false}:replacementAutoCycle,
       cycleSourceReview, initialBasis });
     if(measuredBasis?.siloBasis&&runtimeCoverageEvidence.measurementVerified===true&&!cycleSourceReview){
       Object.assign(runtimeCoverageEvidence,{cycleBasisConfirmed:true,wholeCycleVerified:true,composite:true,
@@ -2164,6 +2176,12 @@ async function loadAssetStates(database, settings, options = {}) {
         coverageComplete:true,missingLeadingSeconds:0,requiredStartAt:runtimeBasis.startAt,
         cycleBasisConfirmed:false,wholeCycleVerified:false,sampleGoodCertified:false});
     }
+    if(fbhe1bStandbyProof&&runtimeCoverageEvidence.measurementVerified===true&&runtimeBasis){
+      Object.assign(runtimeCoverageEvidence,{durationEquivalent:true,durationVerified:true,
+        completionClockKnown:false,fbhe1bStandby:fbhe1bStandbyProof,composite:true,
+        coverageComplete:true,missingLeadingSeconds:0,requiredStartAt:asset.last_replacement_at,
+        cycleBasisConfirmed:false,wholeCycleVerified:false,sampleGoodCertified:false});
+    }
     const completionWindowRecovery = completionWindowProof ? null
       : completionWindowRecoveryCandidate(asset,runtimeRows,replacementAutoCycle,
         asset.tag_number === COMPLETION_WINDOW_TAG ? completionWindowReview : null);
@@ -2184,6 +2202,8 @@ async function loadAssetStates(database, settings, options = {}) {
         cycleBasisKind:'replacement_first_run_equivalent'}:{}),
       ...(limestone1bFirstRunProof?{limestone1bFirstRunProof,actualLastReplacementAt:'',
         cycleBasisKind:'replacement_first_run_equivalent'}:{}),
+      ...(fbhe1bStandbyProof?{fbhe1bStandbyProof,actualLastReplacementAt:'',
+        cycleBasisKind:'replacement_standby_equivalent'}:{}),
       ...(completionWindowRecovery ? {completionWindowRecovery} : {}),
       ...(asset.tag_number === COMPLETION_WINDOW_TAG && completionWindowReview
         ? {completionWindowRecoveryReview:completionWindowReview} : {}),
@@ -2194,7 +2214,7 @@ async function loadAssetStates(database, settings, options = {}) {
       ...(runRuntime ? { runRuntime } : {}),
       ...((runtimeBasis?.coverageComplete === false && !completionWindowProof) || cycleSourceReview
         ? { remainingHours: null, progressPct: null, severity: "runtime_unknown" } : {}),
-      ...(replacementAutoCycle?.requiresRunRefresh && !firstRunDurationProof ? {
+      ...(replacementAutoCycle?.requiresRunRefresh && !durationEquivalentProof ? {
         runtimeHours: null, cycleElapsedHours: null, remainingHours: null, progressPct: null,
         severity: "runtime_unknown", measurementRequired: true,
         runRuntime: { verified: false, source: "replacement_auto", state: "unknown", needsQuery: true,
@@ -4965,6 +4985,8 @@ async function handleGet(context, user) {
   if(action==='limestone1b_first_run_status')return limestone1bFirstRunResponse(database,user,'status',{
     requestId:normalizeText(url.searchParams.get('requestId')),nonce:normalizeText(url.searchParams.get('nonce')),
     witnessRequestId:normalizeText(url.searchParams.get('witnessRequestId'))});
+  if(action==='fbhe1b_standby_status')return fbhe1bStandbyResponse(database,user,'status',{
+    requestId:normalizeText(url.searchParams.get('requestId'))});
 
   if (action === 'replacement_assets') {
     if (!user) return jsonResponse({ok:false,message:'로그인이 필요합니다.'},401);
@@ -15923,6 +15945,7 @@ async function handlePost(context, user, body) {
   if(action==='apply_limestone2a_first_run')return limestone2aFirstRunResponse(database,user,'apply',body);
   if(action==='start_limestone1b_first_run')return limestone1bFirstRunResponse(database,user,'start',body);
   if(action==='apply_limestone1b_first_run')return limestone1bFirstRunResponse(database,user,'apply',body);
+  if(action==='apply_fbhe1b_standby')return fbhe1bStandbyResponse(database,user,'apply',body);
 
   if (action === "initialize_manure_run") {
     return initializeManureInitialRun(database, user, body);
@@ -16066,7 +16089,7 @@ export async function onRequestGet(context) {
   try {
     const readAction = new URL(context.request.url).searchParams.get('action');
     const replacementAssetRead = readAction === 'replacement_assets';
-    const siloDiagnosticRead = ['silo_basis_recovery_diagnostics','limestone2a_first_run_status','limestone1b_first_run_status'].includes(readAction);
+    const siloDiagnosticRead = ['silo_basis_recovery_diagnostics','limestone2a_first_run_status','limestone1b_first_run_status','fbhe1b_standby_status'].includes(readAction);
     const authentication = await getAuthenticatedUser(
       context,
       { optional: true, readOnly: replacementAssetRead || siloDiagnosticRead }

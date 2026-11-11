@@ -249,8 +249,53 @@ DP_TAGS.add("203HRJ01AN602");
         typeof evidence.hours !== 'number' || !Number.isFinite(evidence.hours) || Math.abs(evidence.hours * 3600 - basis.runningSeconds) > 0.01) return null;
     return proof;
   }
+  function verifiedFbhe1bStandby(a) {
+    const basis = a?.dataParcRuntimeBasis, evidence = a?.runtimeCoverageEvidence, runtime = a?.runRuntime;
+    const p = a?.fbhe1bStandbyProof, owned = basis?.fbhe1bStandby, measured = evidence?.fbhe1bStandby;
+    const day = time('2026-10-08T00:00:00+09:00'), seam = time('2026-10-09T00:00:00+09:00');
+    const safeId = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,200}$/.test(value);
+    const count = value => Number.isSafeInteger(value) && value >= 0;
+    const fields = ['version', 'certificateId', 'auditId', 'r9RequestId', 'proofHash', 'sourceProofHash', 'cycleStartRevision',
+      'currentRuntimeRevision', 'currentRunningSeconds', 'currentState', 'currentAnchorAt', 'currentObservedAt', 'completionDay',
+      'lastRunStoppedAt', 'zeroWindowEndAt', 'measuredStartAt', 'completionClockKnown', 'durationEquivalent',
+      'originalTailRunningSeconds', 'replacementCompletedAfterStop', 'noRestartAfterReplacement', 'sampleGoodCertified'];
+    const hours = a?.cycleElapsedHours ?? a?.runtimeHours;
+    if (a?.tagNumber !== '104HHL60AP621' || a.blowerType !== 'fbhe' || String(a.unitNo) !== '1' ||
+        a.enabled === false || a.enabled === 0 || a.dataParcTag !== 'GSPOGE.ABB_DCS.104HHL60AP621XB04' ||
+        a.cycleStartState !== 'pending' || a.cycleStartedAt || a.cycleStoredStartedAt || time(a.lastReplacementAt) !== day ||
+        a.actualLastReplacementAt !== '' || a.cycleSourceReview || a.measurementRequired === true ||
+        a.replacementAutoCycle?.requiresRunRefresh === true || a.replacementAutoCycle?.completionClockConflict === true ||
+        a.replacementAutoCycle?.rolePrioritySourceRevoked === true || p?.version !== 1 || !owned || !measured ||
+        fields.some(key => p[key] !== owned[key] || p[key] !== measured[key]) || !safeId(p.r9RequestId) ||
+        p.certificateId !== 'fbhe1b_standby:' + p.r9RequestId || p.auditId !== 'fbhe1b_standby_audit:' + p.r9RequestId ||
+        !/^[a-f0-9]{64}$/.test(String(p.proofHash || '')) || !/^[a-f0-9]{64}$/.test(String(p.sourceProofHash || '')) ||
+        typeof a.cycleStartRevision !== 'string' || !a.cycleStartRevision || p.cycleStartRevision !== a.cycleStartRevision ||
+        typeof a.cycleRuntimeRevision !== 'string' || !a.cycleRuntimeRevision || p.currentRuntimeRevision !== a.cycleRuntimeRevision ||
+        p.currentRunningSeconds !== basis.runningSeconds || p.currentState !== a.cycleRuntimeState ||
+        !['running', 'stopped'].includes(p.currentState) || time(p.currentAnchorAt) !== time(a.cycleRuntimeAnchorAt) ||
+        time(p.currentObservedAt) !== time(basis.observedAt) || time(p.currentAnchorAt) !== time(basis.observedAt) ||
+        p.completionDay !== '2026-10-08' || p.completionClockKnown !== false || p.durationEquivalent !== true ||
+        p.replacementCompletedAfterStop !== true || p.noRestartAfterReplacement !== true || p.sampleGoodCertified !== false ||
+        !count(p.originalTailRunningSeconds) || Math.floor(time(p.lastRunStoppedAt) / 1000) !== time('2026-10-08T13:14:47+09:00') / 1000 ||
+        time(p.zeroWindowEndAt) !== seam || time(p.measuredStartAt) !== seam ||
+        basis.composite !== true || basis.appendReady !== true || basis.coverageComplete !== true || basis.dataParcTag !== a.dataParcTag ||
+        time(basis.startAt) !== seam || time(basis.requiredStartAt) !== day || basis.missingLeadingSeconds !== 0 ||
+        !safeId(basis.requestId) || !count(basis.runningSeconds) || basis.runningSeconds < p.originalTailRunningSeconds ||
+        !(time(basis.observedAt) > seam) || typeof basis.runtimeHours !== 'number' || !Number.isFinite(basis.runtimeHours) ||
+        Math.abs(basis.runtimeHours * 3600 - basis.runningSeconds) > 0.01 || typeof hours !== 'number' || !Number.isFinite(hours) ||
+        Math.abs(hours * 3600 - basis.runningSeconds) > 0.01 ||
+        basis.cycleRuntimeRevision !== undefined && basis.cycleRuntimeRevision !== a.cycleRuntimeRevision ||
+        runtime?.verified !== true || runtime.source !== 'dataparc' || runtime.state !== p.currentState ||
+        time(runtime.measuredAt) !== time(basis.observedAt) || evidence?.version !== 1 || evidence.source !== 'dataparc' ||
+        evidence.measurementVerified !== true || evidence.durationEquivalent !== true || evidence.durationVerified !== true ||
+        evidence.completionClockKnown !== false || evidence.wholeCycleVerified !== false || evidence.cycleBasisConfirmed !== false ||
+        evidence.coverageComplete !== true || evidence.missingLeadingSeconds !== 0 || evidence.requestId !== basis.requestId ||
+        time(evidence.startAt) !== seam || time(evidence.requiredStartAt) !== day || time(evidence.observedAt) !== time(basis.observedAt) ||
+        typeof evidence.hours !== 'number' || !Number.isFinite(evidence.hours) || Math.abs(evidence.hours * 3600 - basis.runningSeconds) > 0.01) return null;
+    return p;
+  }
   function runReviewStatus(a, basis = a?.dataParcRuntimeBasis) {
-    if (verifiedCompletionWindow(a) || verifiedLimestone2aFirstRun(a) || verifiedLimestone1bFirstRun(a)) return null;
+    if (verifiedCompletionWindow(a) || verifiedLimestone2aFirstRun(a) || verifiedLimestone1bFirstRun(a) || verifiedFbhe1bStandby(a)) return null;
     const priority = rolePriorityReview(a);
     if (priority) return { key: priority.key, label: priority.label };
     const automatic = a?.replacementAutoCycle;
@@ -272,7 +317,7 @@ DP_TAGS.add("203HRJ01AN602");
   }
 
   function partialAppendResultStatus(task, current) {
-    if (verifiedCompletionWindow(current) || verifiedLimestone2aFirstRun(current) || verifiedLimestone1bFirstRun(current)) return null;
+    if (verifiedCompletionWindow(current) || verifiedLimestone2aFirstRun(current) || verifiedLimestone1bFirstRun(current) || verifiedFbhe1bStandby(current)) return null;
     // Current server projection also supports resuming an older checkpoint
     // whose compact saved asset predates this display-only metadata.
     const currentReason = current ? runReviewStatus(current) : null;
@@ -521,13 +566,14 @@ DP_TAGS.add("203HRJ01AN602");
   }
   function fbheSealRunView(a, basis = null) {
     const limestoneEquivalent = verifiedLimestone2aFirstRun(a) || verifiedLimestone1bFirstRun(a);
-    const equivalent = verifiedCompletionWindow(a) || limestoneEquivalent;
+    const standbyEquivalent = verifiedFbhe1bStandby(a);
+    const equivalent = verifiedCompletionWindow(a) || limestoneEquivalent || standbyEquivalent;
     if (equivalent) {
       const hours = a.cycleElapsedHours ?? a.runtimeHours, state = a.runRuntime.state;
       return {verified:true,manual:false,pending:false,state,hours,durationEquivalent:true,
         primary:`${hours.toLocaleString('ko-KR',{minimumFractionDigits:1,maximumFractionDigits:1})}시간`,
-        message:limestoneEquivalent ? '교체 완료 후 최초 기동과 RUN 누적 검증 · 완료시각 미기록' : '교체 작업 구간의 정지를 검증한 누적시간 · 완료시각 미기록',
-        measuredAt:a.dataParcRuntimeBasis.observedAt,sourceLabel:limestoneEquivalent ? 'DataPARC · 최초 기동 확인' : 'DataPARC · 정지 구간 검증',
+        message:standbyEquivalent ? '교체 후 정지 구간과 이후 RUN 누적 검증 · 완료시각 미기록' : limestoneEquivalent ? '교체 완료 후 최초 기동과 RUN 누적 검증 · 완료시각 미기록' : '교체 작업 구간의 정지를 검증한 누적시간 · 완료시각 미기록',
+        measuredAt:a.dataParcRuntimeBasis.observedAt,sourceLabel:standbyEquivalent ? 'DataPARC · 교체 후 정지 구간 확인' : limestoneEquivalent ? 'DataPARC · 최초 기동 확인' : 'DataPARC · 정지 구간 검증',
         basis:a.dataParcRuntimeBasis,stateLabel:state==='running'?'기동중':'정지중'};
     }
     const replacement = a?.replacementAutoCycle;
@@ -1565,7 +1611,7 @@ DP_TAGS.add("203HRJ01AN602");
     return stop('처리 단위 한도 도달');
   }
 
-  return { fbheSealRunAsset, fbheSealRunView, freshReplacementQuery, replacementRangeTracking, rolePriorityReview, runReviewStatus, verifiedCompletionWindow, verifiedLimestone2aFirstRun, verifiedLimestone1bFirstRun,
+  return { fbheSealRunAsset, fbheSealRunView, freshReplacementQuery, replacementRangeTracking, rolePriorityReview, runReviewStatus, verifiedCompletionWindow, verifiedLimestone2aFirstRun, verifiedLimestone1bFirstRun, verifiedFbhe1bStandby,
     runtimeRecoveryPlan, recognizedRuntimeRecovery, plan, intermittent, snapshot, sameCycle, day, waitRequests, executeDataParc, executeDataParcBatch, executeOis, oisBody,
     refreshLogs, refreshLogsForRuntime, readWithRetry, errorLabel,
     register(kind, fn) { if (!['fbhe','seal_pot'].includes(kind) || typeof fn !== 'function') throw new Error('Invalid OIS bridge'); bridges[kind] = fn; } };
