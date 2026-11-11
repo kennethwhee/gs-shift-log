@@ -3,6 +3,15 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const ui = require('../maintenance/blower-silo-basis-recovery-v1.js');
+const normalizeLineEndings = source => source.replace(/\r\n?/g, '\n');
+const readHistorySource = () => normalizeLineEndings(fs.readFileSync(require.resolve('../maintenance/blower-history.js'), 'utf8'));
+function extractSection(source, startMarker, endMarker, label) {
+  const start = source.indexOf(startMarker);
+  assert.ok(start >= 0, label + ': start marker was not found');
+  const end = source.indexOf(endMarker, start);
+  assert.ok(end > start, label + ': end marker was not found after the start marker');
+  return source.slice(start, end);
+}
 const PROOF = 'a'.repeat(64);
 const requestId = 'silo-recovery-123';
 function response(patch = {}) {
@@ -27,6 +36,24 @@ function diagnosticResponse(patch = {}) {
     guards: { total: 8, passed: 8, failed: 0, combined: { outcome: 'pass' },
       checks: [{ index: 0, outcome: 'pass' }] },
     dimensions: { maxSqlBytes: 30356, maxBindings: 19, maxBoundValueBytes: 348227, serializedBytes: 1008477 }, ...patch };
+}
+function diagnosticV3(patch = {}) {
+  return diagnosticResponse({ diagnosticVersion: 3,
+    stages: ['EXISTING_REQUEST', 'PREFIX_INTEGRITY', 'LOAD_PROOF', 'COMPATIBILITY', 'BUILD_CERTIFICATE', 'DERIVE_APPEND_BASE', 'BEFORE_GUARDS']
+      .map(stage => ({ stage, outcome: 'pass' })).concat({ stage: 'PREFIX_FRESHNESS', outcome: 'fail', reason: 'SILO_PREFIX_STALE' }),
+    guards: { strategy: 'individual_atomic_v3', total: 11, passed: 11, failed: 0, combined: { outcome: 'skip' },
+      checks: Array.from({ length: 11 }, (_, i) => ({ index: i + 1, outcome: 'pass' })) },
+    applyGuardPlan: { strategy: 'individual_atomic_v3', beforeChecks: 11, afterChecks: 3, sameBatch: true }, ...patch });
+}
+async function expiredController(options = {}) {
+  const old = { version: 1, nonce: 'r3-original-nonce-001', proofHash: PROOF, requestId };
+  const store = new Map([[ui.KEY, JSON.stringify(old)]]);
+  if (options.previousFailure) store.set(ui.FAILURE_KEY, JSON.stringify(options.previousFailure));
+  const storage = { getItem: key => store.get(key) || null, setItem: (key, value) => store.set(key, value) };
+  const h = harness({ storage, nonce: () => 'r3-new-nonce-001', ...options });
+  h.set(complete({ eligible: false, code: 'SILO_PREFIX_STALE' })); await h.controller.refresh();
+  h.set(diagnosticV3()); await h.controller.diagnose();
+  return { ...h, store, old, storage };
 }
 async function readyController(h) {
   await h.controller.refresh(); h.set(response({ request: { id: requestId, status: 'pending' } }));
@@ -172,7 +199,7 @@ test('readback accepts the same verified composite and its normal append descend
   for (const mutate of bad) { const asset = recoveredAsset(10); mutate(asset); assert.equal(ui.verifyReadback(asset, complete()), false); }
 });
 test('actual main history reload bridge accepts a verified append after applied replay without another query', async () => {
-  const source = fs.readFileSync(require.resolve('../maintenance/blower-history.js'), 'utf8');
+  const source = readHistorySource();
   const start = source.indexOf('    window.BlowerSiloBasisRecovery?.mount({');
   const closing = '\n    });', end = source.indexOf(closing, start);
   assert.ok(start > 0 && end > start);
@@ -191,7 +218,7 @@ test('actual main history reload bridge accepts a verified append after applied 
   assert.equal(await options.reload(ui.normalizeView(complete({ replayed: true, eligible: false }))), false);
 });
 test('actual edit/delete helpers protect every composite certificate and recovered Silo boundaries while preserving problem notes', () => {
-  const source = fs.readFileSync(require.resolve('../maintenance/blower-history.js'), 'utf8');
+  const source = readHistorySource();
   const start = source.indexOf('  function canEditAnyHistoryEvent(');
   const end = source.indexOf('\n  async function openHistoryDeleteDialog(', start);
   const helpers = new Function('hasAuthenticatedWriteAccess', 'isMobileMonitoringView', 'isInitialStartupBasis',
@@ -212,7 +239,7 @@ test('actual edit/delete helpers protect every composite certificate and recover
   }
 });
 test('actual history edit dialog locks recovered Silo problem type while keeping note editing and other assets available', () => {
-  const source = fs.readFileSync(require.resolve('../maintenance/blower-history.js'), 'utf8');
+  const source = readHistorySource();
   const start = source.indexOf('  function openHistoryEventEditDialog('), end = source.indexOf('\n  async function submitHistoryEventEdit(', start);
   const makeDialog = new Function('stopMobileMutation', 'state', 'findAsset', 'findEvent', 'canEditAnyHistoryEvent', 'elements',
     'eventLabel', 'historySourceLabel', 'historyEditDateInput', 'formatKstDateTimeInput',
@@ -237,32 +264,35 @@ test('actual history edit dialog locks recovered Silo problem type while keeping
   assert.equal(nodes.historyEventEditType.title, '');
 });
 test('actual correction button hides only the current recovered Silo and direct runtime dialog keeps replacement/state creation available', () => {
-  const source = fs.readFileSync(require.resolve('../maintenance/blower-history.js'), 'utf8');
-  const start = source.indexOf('    if (elements.historyRuntimeCorrectionButton) {');
-  const end = source.indexOf('\n\n    elements.assetHistoryList', start);
-  const render = new Function('elements', 'asset', 'hasAuthenticatedWriteAccess', 'awaitingBackfill', 'startupPending', source.slice(start, end));
-  const setStart = source.indexOf('  const DATAPARC_RUNTIME_ASSET_TAGS = new Set([');
-  const setEnd = source.indexOf('\n  ]);', setStart);
-  const tags = [...source.slice(setStart, setEnd).matchAll(/"([0-9A-Z]+)"/g)].map(match => match[1]);
-  assert.equal(tags.length, 27);
-  for (const tagNumber of tags) {
-    const button = {}, asset = { tagNumber, lastReplacementAt: '2026-01-01T00:00:00Z', cycleStartRevision: 'ordinary-cycle' };
-    render({ historyRuntimeCorrectionButton: button }, asset, () => true, false, false);
-    assert.equal(button.hidden, false, 'ordinary correction remains available: ' + tagNumber);
+  const lfSource = readHistorySource();
+  for (const [lineEnding, rawSource] of [['LF', lfSource], ['CRLF', lfSource.replace(/\n/g, '\r\n')]]) {
+    if (lineEnding === 'CRLF') assert.match(rawSource, /\r\n/);
+    else assert.doesNotMatch(rawSource, /\r/);
+    const source = normalizeLineEndings(rawSource);
+    const correction = extractSection(source, '    if (elements.historyRuntimeCorrectionButton) {',
+      '\n\n    elements.assetHistoryList', lineEnding + ' correction button');
+    const render = new Function('elements', 'asset', 'hasAuthenticatedWriteAccess', 'awaitingBackfill', 'startupPending', correction);
+    const set = extractSection(source, '  const DATAPARC_RUNTIME_ASSET_TAGS = new Set([', '\n  ]);', lineEnding + ' supported assets');
+    const tags = [...set.matchAll(/"([0-9A-Z]+)"/g)].map(match => match[1]);
+    assert.equal(tags.length, 27);
+    for (const tagNumber of tags) {
+      const button = {}, asset = { tagNumber, lastReplacementAt: '2026-01-01T00:00:00Z', cycleStartRevision: 'ordinary-cycle' };
+      render({ historyRuntimeCorrectionButton: button }, asset, () => true, false, false);
+      assert.equal(button.hidden, false, lineEnding + ' ordinary correction remains available: ' + tagNumber);
+    }
+    const recovered = { tagNumber: ui.TAG, lastReplacementAt: '2025-10-23T09:17:00+09:00', cycleStartRevision: 'silo-prefix-basis-v1:fixture' };
+    const button = {}; render({ historyRuntimeCorrectionButton: button }, recovered, () => true, false, false);
+    assert.equal(button.hidden, true); assert.equal(button.disabled, true);
+    const dialog = extractSection(source, '  function openRecordDialog(', '\n    resetRecordDialogVisibility();', lineEnding + ' record dialog');
+    let current = recovered, notices = [];
+    const open = new Function('stopMobileMutation', 'findAsset', 'elements', 'showToast',
+      dialog + '\nreturn true;\n}\nreturn openRecordDialog;')(
+      () => false, () => current, { recordDialog: {} }, message => notices.push(message));
+    assert.equal(open('runtime', ui.TAG), undefined); assert.equal(notices.length, 1);
+    assert.equal(open('replacement', ui.TAG), true); assert.equal(open('runtime_state', ui.TAG), true);
+    current = { ...recovered, tagNumber: '104ETH03AN601' }; assert.equal(open('runtime', current.tagNumber), true);
+    current = { ...recovered, cycleStartRevision: 'new-real-belt-cycle' }; assert.equal(open('runtime', ui.TAG), true);
   }
-  const recovered = { tagNumber: ui.TAG, lastReplacementAt: '2025-10-23T09:17:00+09:00', cycleStartRevision: 'silo-prefix-basis-v1:fixture' };
-  const button = {}; render({ historyRuntimeCorrectionButton: button }, recovered, () => true, false, false);
-  assert.equal(button.hidden, true); assert.equal(button.disabled, true);
-  const dialogStart = source.indexOf('  function openRecordDialog(');
-  const bodyEnd = source.indexOf('\n    resetRecordDialogVisibility();', dialogStart);
-  let current = recovered, notices = [];
-  const open = new Function('stopMobileMutation', 'findAsset', 'elements', 'showToast',
-    source.slice(dialogStart, bodyEnd) + '\nreturn true;\n}\nreturn openRecordDialog;')(
-    () => false, () => current, { recordDialog: {} }, message => notices.push(message));
-  assert.equal(open('runtime', ui.TAG), undefined); assert.equal(notices.length, 1);
-  assert.equal(open('replacement', ui.TAG), true); assert.equal(open('runtime_state', ui.TAG), true);
-  current = { ...recovered, tagNumber: '104ETH03AN601' }; assert.equal(open('runtime', current.tagNumber), true);
-  current = { ...recovered, cycleStartRevision: 'new-real-belt-cycle' }; assert.equal(open('runtime', ui.TAG), true);
 });
 test('changed authentication and broken session storage stop before another mutation', async () => {
   const h = harness();
@@ -317,9 +347,9 @@ test('mounted history panel stays read-only until explicit check, start, review 
 });
 test('history integration is isolated to Silo and loaded before the history bridge with a cache token', () => {
   const html = fs.readFileSync(require.resolve('../maintenance/blower-history.html'), 'utf8');
-  const history = fs.readFileSync(require.resolve('../maintenance/blower-history.js'), 'utf8');
-  assert.match(html, /blower-silo-basis-recovery-v1\.js\?v=20261111-v2/);
-  assert.match(html, /src="blower-history\.js\?[^"\n]*&siloBasis=20261111-v2/);
+  const history = readHistorySource();
+  assert.match(html, /blower-silo-basis-recovery-v1\.js\?v=20261111-v3/);
+  assert.match(html, /src="blower-history\.js\?[^"\n]*&siloBasis=20261111-v3/);
   assert.ok(html.indexOf('blower-silo-basis-recovery-v1.js') < html.indexOf('src="blower-history.js'));
   assert.match(history, /BlowerSiloBasisRecovery\?\.mount/);
   assert.equal(ui.mount({ container: {}, asset: { tagNumber: '104ETH03AN601' }, canWrite: () => true, isMobile: () => false }), null);
@@ -444,4 +474,121 @@ test('R2 mounted diagnostic controls are explicit, copy only sanitized results, 
   ui.mount({ ...h.deps, session: () => 'r2-no-clipboard-session', document: { createElement: element }, container: other,
     asset: { tagNumber: ui.TAG }, clipboard: {} });
   assert.equal(other.children[0].children.at(-1).children[4].hidden, true);
+});
+test('R3 readonly plan never applies or renews automatically and explains the same-transaction individual guard plan', async () => {
+  const h = await expiredController();
+  assert.equal(h.controller.canRenew(), true);
+  assert.equal(h.calls.filter(call => call.method === 'POST').length, 0);
+  assert.equal(h.controller.snapshot().phase, 'stale');
+  assert.equal(await h.controller.apply(), false);
+  const summary = ui.diagnosticSummary(h.controller.snapshot());
+  assert.match(summary, /저장 전 11개 · 저장 후 3개 · 하나의 트랜잭션에서 검사/);
+  assert.match(summary, /실제 반영은 별도/); assert.match(summary, /applyAllowed=false/);
+});
+test('R3 explicit renew rechecks expired status, durably archives the old record, and saves the new nonce before its sole POST', async () => {
+  const failure = { action: 'APPLY', httpStatus: 500, code: 'HTTP_ERROR', stage: 'UNKNOWN', reason: 'UNKNOWN' };
+  const h = await expiredController({ previousFailure: failure });
+  const prior = JSON.stringify(h.old), fresh = 'c'.repeat(64), newId = 'r3-new-request-001';
+  const before = h.calls.length;
+  h.deps.api = async options => {
+    h.calls.push(options);
+    if (!options.method) return complete({ eligible: false, code: 'SILO_PREFIX_STALE', proofHash: fresh });
+    assert.deepEqual(JSON.parse(h.store.get(ui.HISTORY_KEY)), [h.old]);
+    assert.equal(JSON.stringify(JSON.parse(h.store.get(ui.HISTORY_KEY))[0]), prior);
+    assert.deepEqual(JSON.parse(h.store.get(ui.KEY)), { version: 1, nonce: 'r3-new-nonce-001', proofHash: fresh, requestId: '' });
+    assert.equal(h.store.get(ui.FAILURE_KEY), JSON.stringify(failure));
+    assert.deepEqual(options.body, { action: 'start_silo_basis_recovery', nonce: 'r3-new-nonce-001', expectedProofHash: fresh });
+    return response({ proofHash: fresh, request: { id: newId, status: 'pending' } });
+  };
+  assert.equal(await h.controller.renew(), true);
+  assert.equal(h.calls.length, before + 2); assert.match(h.calls[before].url, /requestId=silo-recovery-123$/);
+  assert.equal(h.calls[before + 1].method, 'POST');
+  assert.equal(JSON.parse(h.store.get(ui.KEY)).requestId, newId);
+  assert.equal(h.controller.canRenew(), false); assert.equal(h.controller.snapshot().phase, 'queued');
+  assert.equal(h.controller.snapshot().lastFailure.action, 'APPLY'); assert.equal(h.controller.snapshot().lastFailure.httpStatus, 500);
+});
+test('R3 uncertain renewed start retains its new nonce for reload and GET resume without another DataPARC request', async () => {
+  const h = await expiredController();
+  h.deps.api = async options => { h.calls.push(options);
+    if (!options.method) return complete({ eligible: false, code: 'SILO_PREFIX_STALE' });
+    throw Object.assign(new Error('uncertain'), { status: 0, code: 'NETWORK_ERROR' }); };
+  assert.equal(await h.controller.renew(), false);
+  const current = JSON.parse(h.store.get(ui.KEY)); assert.equal(current.nonce, 'r3-new-nonce-001'); assert.equal(current.requestId, '');
+  assert.deepEqual(JSON.parse(h.store.get(ui.HISTORY_KEY)), [h.old]);
+  const before = h.calls.length;
+  h.deps.api = async options => { h.calls.push(options); return response({ request: { id: 'r3-resumed-request', status: 'pending' } }); };
+  const reloaded = ui.createController(h.deps); assert.equal(reloaded.snapshot().phase, 'resume');
+  await reloaded.refresh(); assert.equal(h.calls.length, before + 1);
+  assert.match(h.calls.at(-1).url, /nonce=r3-new-nonce-001$/); assert.equal(h.calls.at(-1).method, undefined);
+  assert.equal(JSON.parse(h.store.get(ui.KEY)).requestId, 'r3-resumed-request');
+});
+test('R3 explicit retry after uncertain renewal reuses the saved nonce and prevents double-click creation', async () => {
+  const h = await expiredController(); let settle;
+  h.deps.api = options => { h.calls.push(options);
+    if (!options.method) return new Promise(resolve => { settle = resolve; });
+    return Promise.reject(Object.assign(new Error('uncertain'), { status: 504, code: 'REQUEST_TIMEOUT' })); };
+  const before = h.calls.length, first = h.controller.renew();
+  assert.equal(await h.controller.renew(), false); assert.equal(h.calls.length, before + 1);
+  settle(complete({ eligible: false, code: 'SILO_PREFIX_STALE' })); await first;
+  h.deps.nonce = () => { throw new Error('must not create another nonce'); };
+  h.deps.api = async options => { h.calls.push(options); assert.equal(options.body.nonce, 'r3-new-nonce-001');
+    return response({ request: { id: 'r3-retried-request', status: 'pending' } }); };
+  assert.equal(await h.controller.start(), true);
+  assert.equal(JSON.parse(h.store.get(ui.KEY)).requestId, 'r3-retried-request');
+  assert.deepEqual(JSON.parse(h.store.get(ui.HISTORY_KEY)), [h.old]);
+});
+test('R3 every required V3 layout, source, integrity, derivation and individual check is necessary for renewal', async () => {
+  const cases = [
+    d => { d.diagnosticVersion = 2; }, d => { d.guards.strategy = 'unknown'; },
+    d => { d.guards.combined.outcome = 'fail'; }, d => { d.applyGuardPlan.sameBatch = false; },
+    d => { d.applyGuardPlan.beforeChecks = 10; }, d => { d.applyGuardPlan.afterChecks = 2; },
+    d => { d.proof.compatible = false; }, d => { d.derivation.valid = false; },
+    d => { d.prefix.integrity = 'fail'; }, d => { d.prefix.freshness = 'fresh'; },
+    d => { d.requestState = 'pending'; }, d => { d.guards.checks.pop(); },
+    d => { d.guards.checks[0].index = 2; }, d => { d.guards.checks[0].outcome = 'fail'; },
+    d => { d.stages.find(s => s.stage === 'LOAD_PROOF').outcome = 'fail'; }
+  ];
+  for (const change of cases) {
+    const h = await expiredController(), raw = diagnosticV3(); change(raw);
+    h.set(raw); await h.controller.diagnose();
+    assert.equal(h.controller.canRenew(), false);
+    const count = h.calls.length; assert.equal(await h.controller.renew(), false); assert.equal(h.calls.length, count);
+    assert.equal(h.store.get(ui.HISTORY_KEY), undefined);
+  }
+});
+test('R3 status or source changes, archive failure and new-record persistence failure stop before any POST', async () => {
+  for (const mode of ['source_changed', 'already_applied', 'archive_write', 'archive_readback', 'primary_write', 'primary_readback', 'history_full']) {
+    const h = await expiredController();
+    if (mode === 'history_full') h.store.set(ui.HISTORY_KEY, JSON.stringify(Array.from({ length: 10 }, (_, i) =>
+      ({ version: 1, nonce: 'archived-nonce-' + i, proofHash: PROOF, requestId: 'archived-request-' + i }))));
+    const setItem = h.deps.storage.setItem;
+    if (mode === 'archive_readback') {
+      const getItem = h.deps.storage.getItem;
+      h.deps.storage.getItem = key => key === ui.HISTORY_KEY ? null : getItem(key);
+    }
+    if (mode === 'primary_readback') {
+      const getItem = h.deps.storage.getItem, original = h.store.get(ui.KEY);
+      h.deps.storage.getItem = key => key === ui.KEY ? original : getItem(key);
+    }
+    h.deps.storage.setItem = (key, value) => {
+      if (mode === 'archive_write' && key === ui.HISTORY_KEY || mode === 'primary_write' && key === ui.KEY) throw new Error('storage blocked');
+      setItem(key, value);
+    };
+    h.deps.api = async options => { h.calls.push(options); assert.equal(options.method, undefined);
+      return mode === 'source_changed' ? complete({ eligible: false, code: 'SILO_BASIS_SOURCE_CONFLICT' })
+        : mode === 'already_applied' ? complete({ eligible: false, applied: true })
+          : complete({ eligible: false, code: 'SILO_PREFIX_STALE' }); };
+    const original = h.store.get(ui.KEY); assert.equal(await h.controller.renew(), false, mode);
+    if (mode === 'primary_readback') {
+      assert.equal(JSON.parse(h.store.get(ui.KEY)).nonce, 'r3-new-nonce-001');
+      assert.equal(JSON.parse(h.store.get(ui.KEY)).requestId, '');
+      assert.deepEqual(JSON.parse(h.store.get(ui.HISTORY_KEY)), [h.old]);
+    } else assert.equal(h.store.get(ui.KEY), original, mode);
+    if (mode === 'primary_write') assert.deepEqual(JSON.parse(h.store.get(ui.HISTORY_KEY)), [h.old]);
+    if (mode === 'history_full') {
+      assert.equal(h.controller.snapshot().error, 'ARCHIVE_FULL');
+      assert.equal(JSON.parse(h.store.get(ui.HISTORY_KEY)).length, 10);
+    }
+    assert.equal(h.calls.filter(call => call.method === 'POST').length, 0, mode);
+  }
 });

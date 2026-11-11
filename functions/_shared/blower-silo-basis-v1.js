@@ -19,8 +19,13 @@ const insert=(db,t,r)=>db.prepare(`INSERT INTO ${t} (${Object.keys(r).map(col).j
 const exists=(table,row)=>({sql:`EXISTS (SELECT 1 FROM ${table} t CROSS JOIN json_each(?) j WHERE j.key='row' AND ${Object.keys(row).map(k=>`t.${col(k)} IS json_extract(j.value,'$.${k}')`).join(' AND ')})`,values:[JSON.stringify({row})]});
 const rowsExist=(table,key,rows)=>({sql:`NOT EXISTS(SELECT 1 FROM json_each(?) j LEFT JOIN ${table} t ON t.${col(key)} IS json_extract(j.value,'$.${key}') WHERE t.${col(key)} IS NULL OR NOT(${Object.keys(rows[0]||{[key]:null}).map(k=>`t.${col(k)} IS json_extract(j.value,'$.${k}')`).join(' AND ')}))`,values:[JSON.stringify(rows)]});
 const equalRows=(table,key,where,values,rows)=>({sql:`(SELECT COUNT(*) FROM ${table} WHERE ${where})=json_array_length(?) AND NOT EXISTS (SELECT 1 FROM ${table} t LEFT JOIN json_each(?) j ON t.${col(key)} IS json_extract(j.value,'$.${key}') WHERE ${where.replace(/\btag_number\b/g,'t.tag_number')} AND (j.value IS NULL OR NOT (${Object.keys(rows[0]||{[key]:null}).map(k=>`t.${col(k)} IS json_extract(j.value,'$.${k}')`).join(' AND ')})))`,values:[...values,JSON.stringify(rows),JSON.stringify(rows),...values]});
-const guardSpec=(id,checks)=>({sql:`INSERT INTO blower_history_atomic_guard(id,valid) VALUES (?,CASE WHEN ${checks.map(c=>'('+c.sql+')').join(' AND ')} THEN 1 ELSE 0 END)`,values:[id,...checks.flatMap(c=>c.values)]});
-const guard=(db,id,checks)=>{const spec=guardSpec(id,checks);return db.prepare(spec.sql).bind(...spec.values);};
+const GUARD_STRATEGY='individual_atomic_v3';
+// Each complete predicate gets its own CHECK(valid=1) statement. They remain
+// inside one D1 batch transaction, before or after the same protected writes.
+// Joining all predicates into one CASE exceeded D1's query complexity limit.
+const guardSpec=(id,check)=>({sql:`INSERT INTO blower_history_atomic_guard(id,valid) VALUES (?,CASE WHEN (${check.sql}) THEN 1 ELSE 0 END)`,values:[id,...check.values]});
+const guardPlan=(db,checks)=>{const ids=checks.map(()=>crypto.randomUUID());return {ids,statements:checks.map((check,index)=>{const spec=guardSpec(ids[index],check);return db.prepare(spec.sql).bind(...spec.values);})};};
+const cleanupGuards=(db,ids)=>db.prepare(`DELETE FROM blower_history_atomic_guard WHERE id IN (${ids.map(()=>'?').join(',')})`).bind(...ids);
 const authorize=user=>{if(!text(user?.employeeNo)||user?.isSuperAdmin!==true)fail('SILO_BASIS_FORBIDDEN','최고관리자만 Silo B 교체 기준을 확인·반영할 수 있습니다.',403)};
 const nowDate=options=>options?.now instanceof Date?options.now:new Date();
 async function schema(db){await db.prepare(`CREATE TABLE IF NOT EXISTS ${TABLE}(request_id TEXT PRIMARY KEY,version INTEGER NOT NULL CHECK(version=1),actor_id TEXT NOT NULL,nonce TEXT NOT NULL,snapshot_sha256 TEXT NOT NULL,snapshot_json TEXT NOT NULL,created_at TEXT NOT NULL,applied_json TEXT,UNIQUE(actor_id,nonce))`).run();}
@@ -118,8 +123,8 @@ export async function startSiloBasis(db,user,body,options={}){
  const request={id:requestId,request_type:'blower_runtime_probe',target_date:`v1|${TAG}|${START}|${SEAM}`,status:'pending',requested_by_id:text(user.employeeNo),requested_by_name:text(user.name),requested_at:created,started_at:null,completed_at:null,agent_id:'',result_json:null,error_message:'',expires_at:expires,updated_at:created};
  const intent={request_id:requestId,reuse_key:WIRE+body.nonce,schema_version:1,asset_tag:TAG,dataparc_tag:SIGNAL,window_start:START,window_end:SEAM,chunk_days:31,chunk_count:7,expected_last_replacement_at:proof.asset.last_replacement_at,expected_cycle_start_state:'legacy',expected_cycle_started_at:'',expected_cycle_start_revision:text(proof.asset.cycle_start_revision),expected_cycle_runtime_revision:WIRE+proof.asset.cycle_runtime_revision,created_at:created,updated_at:created};
  if(buildBlowerRuntimeProbeChunks(START,SEAM).length!==7||intent.expected_cycle_runtime_revision.length>200)conflict();
- const row={request_id:requestId,version:1,actor_id:text(user.employeeNo),nonce:body.nonce,snapshot_sha256:proof.snapshotSha256,snapshot_json:proof.snapshotJson,created_at:created,applied_json:null},id=crypto.randomUUID();
- try{await db.batch([guard(db,id,[...proof.guards,noActive]),insert(db,'ois_data_requests',request),insert(db,'blower_runtime_probe_intents_v5',intent),insert(db,TABLE,row),db.prepare('DELETE FROM blower_history_atomic_guard WHERE id=?').bind(id)]);}catch(error){const replay=await lookup(db,user,{nonce:body.nonce});if(replay)return siloBasisStatus(db,user,{requestId:replay.request_id},options);if(/CHECK constraint|UNIQUE constraint/i.test(String(error?.message)))conflict();throw error;}
+ const row={request_id:requestId,version:1,actor_id:text(user.employeeNo),nonce:body.nonce,snapshot_sha256:proof.snapshotSha256,snapshot_json:proof.snapshotJson,created_at:created,applied_json:null},before=guardPlan(db,[...proof.guards,noActive]);
+ try{await db.batch([...before.statements,insert(db,'ois_data_requests',request),insert(db,'blower_runtime_probe_intents_v5',intent),insert(db,TABLE,row),cleanupGuards(db,before.ids)]);}catch(error){const replay=await lookup(db,user,{nonce:body.nonce});if(replay)return siloBasisStatus(db,user,{requestId:replay.request_id},options);if(/CHECK constraint|UNIQUE constraint/i.test(String(error?.message)))conflict();throw error;}
  return view(proof,row,{request});
 }
 async function buildSiloBasisCommit(proof,row,item,prefix,user,options={}){
@@ -149,13 +154,14 @@ async function applySiloBasisUnchecked(db,user,body,options={}){
  const {now,auditId,total,source,event,patch,afterAsset,afterOwner,afterEvents,outcome,audit}=await buildSiloBasisCommit(proof,row,item,prefix,user,options);
  options.reportStage?.('DERIVE_APPEND_BASE');
  if(verifiedAppendBase(afterAsset,afterEvents,SIGNAL)?.runningSeconds!==total)fail('SILO_BASIS_DERIVATION_INVALID','결합된 RUN 근거를 다시 확인하지 못해 기존값을 유지했습니다.');
- const id=crypto.randomUUID(),afterId=crypto.randomUUID();
  options.reportStage?.('ATOMIC_BATCH');
- try{await db.batch([guard(db,id,[...proof.guards,exists(TABLE,row),exists('ois_data_requests',item.request),exists('blower_runtime_probe_intents_v5',item.intent)]),insert(db,'blower_history_asset_history',audit),
+ const before=guardPlan(db,[...proof.guards,exists(TABLE,row),exists('ois_data_requests',item.request),exists('blower_runtime_probe_intents_v5',item.intent)]);
+ const after=guardPlan(db,[exists('blower_history_assets',afterAsset),equalRows('blower_history_events','id','tag_number=?',[TAG],afterEvents),exists('blower_history_asset_history',audit)]);
+ try{await db.batch([...before.statements,insert(db,'blower_history_asset_history',audit),
   db.prepare(`UPDATE blower_history_events SET event_date=?,updated_at=? WHERE id=?`).bind(START,now,proof.owner.id),
   db.prepare(`UPDATE blower_history_assets SET ${Object.keys(patch).map(k=>col(k)+'=?').join(',')} WHERE tag_number=?`).bind(...Object.values(patch),TAG),insert(db,'blower_history_events',event),
   db.prepare(`UPDATE ${TABLE} SET applied_json=? WHERE request_id=?`).bind(JSON.stringify(outcome),row.request_id),
-  guard(db,afterId,[exists('blower_history_assets',afterAsset),equalRows('blower_history_events','id','tag_number=?',[TAG],afterEvents),exists('blower_history_asset_history',audit)]),db.prepare('DELETE FROM blower_history_atomic_guard WHERE id IN (?,?)').bind(id,afterId)]);}catch(error){options.reportStage?.('REPLAY_CHECK');const replay=await lookup(db,user,{requestId:row.request_id});if(replay?.applied_json)return appliedReplay(db,replay);options.reportStage?.('ATOMIC_BATCH');if(/CHECK constraint|UNIQUE constraint/i.test(String(error?.message)))conflict();throw error;}
+  ...after.statements,cleanupGuards(db,[...before.ids,...after.ids])]);}catch(error){options.reportStage?.('REPLAY_CHECK');const replay=await lookup(db,user,{requestId:row.request_id});if(replay?.applied_json)return appliedReplay(db,replay);options.reportStage?.('ATOMIC_BATCH');if(/CHECK constraint|UNIQUE constraint/i.test(String(error?.message)))conflict();throw error;}
  return outcome;
 }
 const APPLY_STAGES=new Set(['LOOKUP','LOAD_PROOF','VALIDATE_PREFIX','BUILD_CERTIFICATE','DERIVE_APPEND_BASE','ATOMIC_BATCH','REPLAY_CHECK']);
@@ -187,11 +193,12 @@ export async function applySiloBasis(db,user,body,options={}){
 export async function siloBasisDiagnostics(db,user,body={},options={}){
  authorize(user);
  if(!text(body.requestId)&&!text(body.nonce))fail('SILO_DIAGNOSTIC_REQUEST_REQUIRED','기존 접수 결과를 선택한 뒤 진단해 주세요.',400);
- const out={ok:true,diagnosticVersion:2,readOnly:true,applyAllowed:false,requestState:'unknown',
+ const emptyDimensions=()=>({maxSqlBytes:0,maxBindings:0,maxBoundValueBytes:0,serializedBytes:0});
+ const out={ok:true,diagnosticVersion:3,readOnly:true,applyAllowed:false,requestState:'unknown',
   stages:[],prefix:{integrity:'skip',freshness:'skip'},proof:{compatible:null},derivation:{valid:null},
-  guards:{total:0,passed:0,failed:0,checks:[],combined:{outcome:'skip'}},dimensionsScope:'precondition_diagnostic',dimensions:{maxSqlBytes:0,maxBindings:0,maxBoundValueBytes:0,serializedBytes:0}};
+  guards:{strategy:GUARD_STRATEGY,total:0,passed:0,failed:0,checks:[],combined:{outcome:'skip'}},applyGuardPlan:{strategy:GUARD_STRATEGY,beforeChecks:0,afterChecks:3,sameBatch:true,beforeDimensions:emptyDimensions(),afterDimensions:emptyDimensions()},dimensionsScope:'precondition_diagnostic',dimensions:emptyDimensions()};
  const stage=(name,outcome,error)=>out.stages.push({stage:name,outcome,...(error?{reason:safeReason(error)}:{})});
- const measure=(sql,values)=>{out.dimensions.maxSqlBytes=Math.max(out.dimensions.maxSqlBytes,new TextEncoder().encode(sql).length);out.dimensions.maxBindings=Math.max(out.dimensions.maxBindings,values.length);for(const value of values)out.dimensions.maxBoundValueBytes=Math.max(out.dimensions.maxBoundValueBytes,new TextEncoder().encode(typeof value==='string'?value:JSON.stringify(value)).length);out.dimensions.serializedBytes+=new TextEncoder().encode(JSON.stringify({sql,params:values})).length;};
+ const measure=(sql,values,target=out.dimensions)=>{target.maxSqlBytes=Math.max(target.maxSqlBytes,new TextEncoder().encode(sql).length);target.maxBindings=Math.max(target.maxBindings,values.length);for(const value of values)target.maxBoundValueBytes=Math.max(target.maxBoundValueBytes,new TextEncoder().encode(typeof value==='string'?value:JSON.stringify(value)).length);target.serializedBytes+=new TextEncoder().encode(JSON.stringify({sql,params:values})).length;};
  let row,item,prefix,proof,commit;
  try{row=await lookup(db,user,body);if(!row)fail('SILO_BASIS_REQUEST_NOT_FOUND','접수 기록을 찾을 수 없습니다.',404);item=await read(db,row);out.requestState=['pending','processing','complete','failed'].includes(item.request?.status)?item.request.status:'unknown';stage('EXISTING_REQUEST','pass');}
  catch(error){if(error?.code==='SILO_BASIS_REQUEST_NOT_FOUND')throw error;stage('EXISTING_REQUEST','fail',error);return out;}
@@ -212,16 +219,15 @@ export async function siloBasisDiagnostics(db,user,body={},options={}){
  }else{stage('BUILD_CERTIFICATE','skip');stage('DERIVE_APPEND_BASE','skip');}
  if(proof&&out.proof.compatible&&prefix){
   const checks=[...proof.guards,exists(TABLE,row),exists('ois_data_requests',item.request),exists('blower_runtime_probe_intents_v5',item.intent)];out.guards.total=checks.length;
-  const spec=guardSpec('00000000-0000-4000-8000-000000000000',checks);measure(spec.sql,spec.values);
+  out.applyGuardPlan.beforeChecks=checks.length;
+  for(const check of checks){const spec=guardSpec('00000000-0000-4000-8000-000000000000',check);measure(spec.sql,spec.values);measure(spec.sql,spec.values,out.applyGuardPlan.beforeDimensions);}
+  if(commit)for(const check of [exists('blower_history_assets',commit.afterAsset),equalRows('blower_history_events','id','tag_number=?',[TAG],commit.afterEvents),exists('blower_history_asset_history',commit.audit)]){const spec=guardSpec('00000000-0000-4000-8000-000000000000',check);measure(spec.sql,spec.values,out.applyGuardPlan.afterDimensions);}
   for(let index=0;index<checks.length;index++){
    const check=checks[index],sql=`SELECT CASE WHEN (${check.sql}) THEN 1 ELSE 0 END AS valid`;measure(sql,check.values);
    try{const result=await db.prepare(sql).bind(...check.values).first();if(Number(result?.valid)!==1){out.guards.failed++;out.guards.checks.push({index:index+1,outcome:'fail',reason:'D1_CONSTRAINT'});}else{out.guards.passed++;out.guards.checks.push({index:index+1,outcome:'pass'});}}
    catch(error){out.guards.failed++;out.guards.checks.push({index:index+1,outcome:'fail',reason:safeReason(error)});}
   }
-  const combinedSql=`SELECT CASE WHEN ${checks.map(check=>'('+check.sql+')').join(' AND ')} THEN 1 ELSE 0 END AS valid`,combinedValues=checks.flatMap(check=>check.values);measure(combinedSql,combinedValues);
-  try{const result=await db.prepare(combinedSql).bind(...combinedValues).first();out.guards.combined=Number(result?.valid)===1?{outcome:'pass'}:{outcome:'fail',reason:'D1_CONSTRAINT'};}
-  catch(error){out.guards.combined={outcome:'fail',reason:safeReason(error)};}
-  stage('BEFORE_GUARDS',out.guards.failed||out.guards.combined.outcome==='fail'?'fail':'pass');
+  stage('BEFORE_GUARDS',out.guards.failed?'fail':'pass');
  }else stage('BEFORE_GUARDS','skip');
  return out;
 }

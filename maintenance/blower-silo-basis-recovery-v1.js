@@ -11,6 +11,7 @@
   const END = Date.parse('2026-05-10T00:00:00+09:00');
   const KEY = 'gsShiftLog.siloBasisRecovery.v1';
   const FAILURE_KEY = KEY + '.lastFailure.v2';
+  const HISTORY_KEY = KEY + '.history.v3';
   const API = '/api/blower-history';
   const controllers = new Map();
   const time = value => typeof value === 'string' ? Date.parse(value) : NaN;
@@ -24,7 +25,7 @@
     'D1_REQUEST_LIMIT', 'D1_CAPACITY_LIMIT', 'D1_TIMEOUT', 'D1_BUSY', 'D1_UNAVAILABLE']);
   const CODES = new Set(['UNKNOWN', 'HTTP_ERROR', 'NETWORK_ERROR', 'REQUEST_TIMEOUT', 'INVALID_RESPONSE',
     'CLOUDFLARE_1101', 'CLOUDFLARE_1102', 'CLOUDFLARE_1015',
-    'READBACK_UNCONFIRMED', 'SESSION_CHANGED', 'AUTH_REQUIRED', 'STORAGE_UNAVAILABLE', 'REQUEST_ID_CHANGED',
+    'READBACK_UNCONFIRMED', 'SESSION_CHANGED', 'AUTH_REQUIRED', 'STORAGE_UNAVAILABLE', 'ARCHIVE_FULL', 'REQUEST_ID_CHANGED',
     'READ_ONLY_MOBILE', 'SAVED_STATE_UNREADABLE', 'SILO_BASIS_STORAGE_FAILED', 'SILO_BASIS_COMPETING_OWNER',
     'SILO_BASIS_CONFIRM_REQUIRED', 'SILO_BASIS_CONFLICT', 'SILO_BASIS_DERIVATION_INVALID', 'SILO_BASIS_EVIDENCE_LIMIT',
     'SILO_BASIS_FORBIDDEN', 'SILO_BASIS_HISTORY_LIMIT', 'SILO_BASIS_NONCE_INVALID', 'SILO_BASIS_NOT_ELIGIBLE',
@@ -37,7 +38,7 @@
   const safeCode = value => safeEnum(value, CODES);
   const safeCount = value => Number.isSafeInteger(value) && value >= 0 && value <= 1000000000 ? value : 0;
   function safeFailure(value) {
-    if (!value || !['STATUS', 'START', 'APPLY', 'READBACK', 'DIAGNOSTICS'].includes(value.action)) return null;
+    if (!value || !['STATUS', 'START', 'APPLY', 'READBACK', 'DIAGNOSTICS', 'RENEW'].includes(value.action)) return null;
     return { action: value.action,
       httpStatus: Number.isInteger(value.httpStatus) && value.httpStatus >= 0 && value.httpStatus <= 599 ? value.httpStatus : null,
       code: safeCode(value.code), stage: safeEnum(value.stage, STAGES),
@@ -48,11 +49,11 @@
         Number.isFinite(time(value.atUtc)) ? value.atUtc : null };
   }
   function normalizeDiagnostics(value) {
-    if (!value || value.ok !== true || value.diagnosticVersion !== 2 || value.readOnly !== true || value.applyAllowed !== false ||
+    if (!value || value.ok !== true || ![2, 3].includes(value.diagnosticVersion) || value.readOnly !== true || value.applyAllowed !== false ||
         !Array.isArray(value.stages) || value.stages.length > 32 || !Array.isArray(value.guards?.checks) || value.guards.checks.length > 64)
       throw fail('INVALID_RESPONSE');
     const outcome = value => ['pass', 'fail', 'skip'].includes(value) ? value : 'unknown';
-    return { diagnosticVersion: 2, readOnly: true, applyAllowed: false,
+    return { diagnosticVersion: value.diagnosticVersion, readOnly: true, applyAllowed: false,
       dimensionsScope: value.dimensionsScope === 'precondition_diagnostic' ? 'precondition_diagnostic' : 'unknown',
       requestState: ['pending', 'processing', 'complete', 'failed', 'applied', 'missing'].includes(value.requestState) ? value.requestState : 'unknown',
       stages: value.stages.map(item => ({ stage: safeEnum(item?.stage, STAGES), outcome: outcome(item?.outcome),
@@ -62,10 +63,14 @@
       proof: { compatible: typeof value.proof?.compatible === 'boolean' ? value.proof.compatible : null },
       derivation: { valid: typeof value.derivation?.valid === 'boolean' ? value.derivation.valid : null },
       guards: { total: safeCount(value.guards.total), passed: safeCount(value.guards.passed), failed: safeCount(value.guards.failed),
+        strategy: value.guards.strategy === 'individual_atomic_v3' ? 'individual_atomic_v3' : 'unknown',
         combined: { outcome: outcome(value.guards.combined?.outcome),
           reason: REASONS.has(value.guards.combined?.reason) || CODES.has(value.guards.combined?.reason) ? value.guards.combined.reason : 'UNKNOWN' },
         checks: value.guards.checks.map(item => ({ index: safeCount(item?.index), outcome: outcome(item?.outcome),
           reason: REASONS.has(item?.reason) || CODES.has(item?.reason) ? item.reason : 'UNKNOWN' })) },
+      applyGuardPlan: { strategy: value.applyGuardPlan?.strategy === 'individual_atomic_v3' ? 'individual_atomic_v3' : 'unknown',
+        beforeChecks: safeCount(value.applyGuardPlan?.beforeChecks), afterChecks: safeCount(value.applyGuardPlan?.afterChecks),
+        sameBatch: value.applyGuardPlan?.sameBatch === true },
       dimensions: Object.fromEntries(['maxSqlBytes', 'maxBindings', 'maxBoundValueBytes', 'serializedBytes']
         .map(key => [key, safeCount(value.dimensions?.[key])])) };
   }
@@ -130,11 +135,35 @@
     let record;
     try { record = JSON.parse(storage?.getItem(KEY) || 'null'); } catch { throw fail('SAVED_STATE_UNREADABLE'); }
     if (!record) return null;
+    return normalizeRecord(record);
+  }
+  function normalizeRecord(record) {
     if (record.version !== 1 || !id(record.nonce) || !hash(record.proofHash) || record.requestId && !id(record.requestId)) throw fail('SAVED_STATE_UNREADABLE');
     return { version: 1, nonce: record.nonce, proofHash: record.proofHash, requestId: record.requestId || '' };
   }
+  function renewalPlanReady(diagnostic) {
+    if (!diagnostic || !Array.isArray(diagnostic.stages) || diagnostic.diagnosticVersion !== 3 || diagnostic.readOnly !== true || diagnostic.applyAllowed !== false ||
+        diagnostic.requestState !== 'complete' || diagnostic.prefix?.integrity !== 'pass' || diagnostic.prefix.freshness !== 'expired' ||
+        diagnostic.proof?.compatible !== true || diagnostic.derivation?.valid !== true ||
+        diagnostic.guards?.strategy !== 'individual_atomic_v3' || diagnostic.guards.total !== 11 ||
+        diagnostic.guards.passed !== 11 || diagnostic.guards.failed !== 0 || diagnostic.guards.combined?.outcome !== 'skip' ||
+        diagnostic.applyGuardPlan?.strategy !== 'individual_atomic_v3' || diagnostic.applyGuardPlan.beforeChecks !== 11 ||
+        diagnostic.applyGuardPlan.afterChecks !== 3 || diagnostic.applyGuardPlan.sameBatch !== true) return false;
+    const required = ['EXISTING_REQUEST', 'PREFIX_INTEGRITY', 'LOAD_PROOF', 'COMPATIBILITY', 'BUILD_CERTIFICATE', 'DERIVE_APPEND_BASE', 'BEFORE_GUARDS'];
+    if (!required.every(stage => diagnostic.stages.filter(item => item.stage === stage).length === 1 &&
+      diagnostic.stages.find(item => item.stage === stage).outcome === 'pass')) return false;
+    const checks = diagnostic.guards.checks;
+    return Array.isArray(checks) && checks.length === 11 && new Set(checks.map(item => item.index)).size === 11 &&
+      checks.every(item => item.outcome === 'pass' && Number.isInteger(item.index) && item.index >= 1 && item.index <= 11);
+  }
+  function expiredView(view, requestId) {
+    return Boolean(view && !view.applied && view.eligible === false && view.code === 'SILO_PREFIX_STALE' &&
+      view.request?.id === requestId && view.request.status === 'complete' && hash(view.proofHash) &&
+      time(view.approvedCompletionAt) === START && time(view.prefix?.startAt) === START && time(view.prefix?.endAt) === END &&
+      time(view.tail?.startAt) === END && time(view.tail?.observedAt) > END && seconds(view.tail?.runningSeconds));
+  }
   function createController(deps) {
-    let record = null, savedError = false, listener = () => {}, session = '';
+    let record = null, savedError = false, listener = () => {}, session = '', diagnosticRequestId = '';
     try { record = loadRecord(deps.storage); } catch { savedError = true; }
     let previousFailure = null;
     try { previousFailure = safeFailure(JSON.parse(deps.storage?.getItem(FAILURE_KEY) || 'null')); } catch { /* Optional history cannot block the existing request. */ }
@@ -156,6 +185,30 @@
         if (deps.storage.getItem(KEY) !== JSON.stringify(next)) throw fail('STORAGE_UNAVAILABLE');
       } catch { throw fail('STORAGE_UNAVAILABLE'); }
       record = next;
+    }
+    function archiveCurrent() {
+      let entries;
+      try {
+        entries = JSON.parse(deps.storage.getItem(HISTORY_KEY) || '[]');
+        if (!Array.isArray(entries) || entries.length > 10) throw fail('STORAGE_UNAVAILABLE');
+        entries = entries.map(item => {
+          const old = normalizeRecord(item);
+          if (!old.requestId) throw fail('STORAGE_UNAVAILABLE');
+          return old;
+        });
+        const old = normalizeRecord(record);
+        const existing = entries.some(item => item.nonce === old.nonce && item.requestId === old.requestId);
+        if (entries.length === 10 && !existing) throw fail('ARCHIVE_FULL');
+        const next = [...entries.filter(item => item.nonce !== old.nonce || item.requestId !== old.requestId), old];
+        const encoded = JSON.stringify(next);
+        deps.storage.setItem(HISTORY_KEY, encoded);
+        if (deps.storage.getItem(HISTORY_KEY) !== encoded) throw fail('STORAGE_UNAVAILABLE');
+        return next;
+      } catch (error) { if (error?.code === 'ARCHIVE_FULL') throw error; throw fail('STORAGE_UNAVAILABLE'); }
+    }
+    function canRenew() {
+      return Boolean(record?.requestId && diagnosticRequestId === record.requestId && renewalPlanReady(state.diagnostics) &&
+        (!state.view || expiredView(state.view, record.requestId)));
     }
     function ensureSession() {
       if (!deps.canWrite() || !deps.session() || session !== deps.session() || deps.isMobile()) throw fail('SESSION_CHANGED');
@@ -197,7 +250,7 @@
         return true;
       } catch (error) {
         rememberFailure(error, currentAction, started);
-        state.error = ['AUTH_REQUIRED', 'READ_ONLY_MOBILE', 'SESSION_CHANGED', 'STORAGE_UNAVAILABLE', 'INVALID_RESPONSE',
+        state.error = ['AUTH_REQUIRED', 'READ_ONLY_MOBILE', 'SESSION_CHANGED', 'STORAGE_UNAVAILABLE', 'ARCHIVE_FULL', 'INVALID_RESPONSE',
           'REQUEST_ID_CHANGED', 'SAVED_STATE_UNREADABLE'].includes(error?.code) ? error.code
           : [401, 403].includes(Number(error?.status)) ? 'AUTH_REQUIRED'
           : error?.code === 'SILO_PREFIX_STALE' ? 'PREFIX_EXPIRED'
@@ -236,6 +289,29 @@
         accept(raw);
       }, true);
     }
+    async function renew() {
+      return run('RENEW', async () => {
+        if (!canRenew()) throw fail('INVALID_RESPONSE');
+        const oldId = record.requestId, oldNonce = record.nonce;
+        const raw = await deps.api({ url: API + '?action=silo_basis_recovery_status&requestId=' + encodeURIComponent(oldId), timeoutMs: 30000 });
+        ensureSession();
+        const current = normalizeView(raw);
+        if (!expiredView(current, oldId)) {
+          state.view = current; state.diagnostics = null; diagnosticRequestId = '';
+          throw fail('INVALID_RESPONSE');
+        }
+        const archived = archiveCurrent();
+        const nonce = deps.nonce();
+        if (!id(nonce) || nonce === oldNonce || archived.some(item => item.nonce === nonce)) throw fail('STORAGE_UNAVAILABLE');
+        save({ version: 1, nonce, proofHash: current.proofHash, requestId: '' });
+        state.view = null; state.diagnostics = null; diagnosticRequestId = ''; state.phase = 'resume'; state.readbackVerified = false;
+        const accepted = await deps.api({ method: 'POST', timeoutMs: 30000,
+          body: { action: 'start_silo_basis_recovery', expectedProofHash: record.proofHash, nonce: record.nonce } });
+        ensureSession();
+        if (accepted?.request?.id === oldId) throw fail('REQUEST_ID_CHANGED');
+        accept(accepted);
+      }, true);
+    }
     async function apply() {
       return run('APPLY', async step => {
         if (state.phase !== 'ready' || !state.view?.eligible || !state.view.preview || !record?.requestId ||
@@ -257,12 +333,13 @@
         const raw = await deps.api({ url: API + '?action=silo_basis_recovery_diagnostics&requestId=' + encodeURIComponent(record.requestId), timeoutMs: 30000 });
         ensureSession();
         state.diagnostics = normalizeDiagnostics(raw);
+        diagnosticRequestId = record.requestId;
         if (state.diagnostics.prefix.freshness === 'expired' && state.view) {
           state.view = { ...state.view, eligible: false, code: 'SILO_PREFIX_STALE' }; state.phase = 'stale';
         }
       }, false);
     }
-    return { subscribe(fn) { listener = fn; emit(); }, refresh, start, apply, diagnose,
+    return { subscribe(fn) { listener = fn; emit(); }, refresh, start, apply, diagnose, renew, canRenew,
       snapshot: () => ({ ...state }), hasPendingNonce: () => Boolean(record && !record.requestId), hasRequest: () => Boolean(record?.requestId) };
   }
   function errorText(code) {
@@ -270,6 +347,7 @@
       READ_ONLY_MOBILE: 'PC 화면에서 확인하고 실행해 주세요.', SESSION_CHANGED: '로그인이 바뀌었습니다. 이력을 다시 열어 결과를 확인해 주세요.',
       BUSY: '진행 중인 조회가 끝난 뒤 확인해 주세요.', PROOF_CHANGED: '교체 근거나 누적값이 바뀌었습니다. 기존 값은 유지하며 접수 결과를 다시 확인해 주세요.',
       STORAGE_UNAVAILABLE: '이 브라우저에서 접수 정보를 보관할 수 없어 새 조회를 중단했습니다.',
+      ARCHIVE_FULL: '보관된 이전 접수가 10건이어서 새 조회를 중단했습니다. 기존 접수 기록은 모두 유지합니다.',
       SAVED_STATE_UNREADABLE: '보관된 접수 정보를 확인할 수 없습니다. 새 조회를 시작하지 않았습니다.',
       INVALID_RESPONSE: '응답의 설비·구간·합계를 확인하지 못했습니다. 접수 결과를 다시 확인해 주세요.',
       REQUEST_ID_CHANGED: '기존 접수와 다른 결과여서 중단했습니다. 접수 결과를 다시 확인해 주세요.',
@@ -295,14 +373,19 @@
       const stages = { EXISTING_REQUEST: '기존 접수', PREFIX_INTEGRITY: '앞 구간 원본', PREFIX_FRESHNESS: '수집 유효기간',
         LOAD_PROOF: '승인 원문·보존 구간', COMPATIBILITY: '기존 근거와 연결', BUILD_CERTIFICATE: '결합 근거 구성',
         DERIVE_APPEND_BASE: '누적 합계 검증', BEFORE_GUARDS: '저장 전 비교', REPLAY_CHECK: '기반영 확인' };
-      lines.push('diagnosticVersion=2 · readOnly=true · applyAllowed=false');
+      lines.push('diagnosticVersion=' + diagnostic.diagnosticVersion + ' · readOnly=true · applyAllowed=false');
       lines.push('조회 생성·DB 변경: 없음');
       lines.push('앞 구간 원본: ' + outcomes[diagnostic.prefix.integrity] + ' · 유효기간: ' +
         ({ fresh: '유효', expired: '만료', invalid: '미확인', skip: '미실행' })[diagnostic.prefix.freshness]);
       for (const item of diagnostic.stages) lines.push((stages[item.stage] || '기타 점검') + ': ' + outcomes[item.outcome] +
         ' [' + item.stage + (item.reason !== 'UNKNOWN' ? '/' + item.reason : '') + ']');
       lines.push('저장 전 비교: 전체 ' + diagnostic.guards.total + ' · 통과 ' + diagnostic.guards.passed + ' · 실패 ' + diagnostic.guards.failed);
-      lines.push('저장 전 통합 비교: ' + outcomes[diagnostic.guards.combined.outcome] +
+      if (diagnostic.guards.strategy === 'individual_atomic_v3') {
+        const plan = diagnostic.applyGuardPlan;
+        lines.push('개별 비교 반영 계획: 저장 전 ' + plan.beforeChecks + '개 · 저장 후 ' + plan.afterChecks + '개 · ' +
+          (plan.sameBatch ? '하나의 트랜잭션에서 검사' : '계획 미확인'));
+        lines.push('위 결과는 읽기 전용 점검이며 실제 반영은 별도입니다.');
+      } else lines.push('저장 전 통합 비교: ' + outcomes[diagnostic.guards.combined.outcome] +
         (diagnostic.guards.combined.reason !== 'UNKNOWN' ? ' [' + diagnostic.guards.combined.reason + ']' : ''));
       const d = diagnostic.dimensions;
       if (includeDimensions) lines.push('진단 사전점검 크기 [' + diagnostic.dimensionsScope + ']: SQL ' + d.maxSqlBytes + 'B · bind ' + d.maxBindings +
@@ -332,14 +415,15 @@
     const diagnostic = doc.createElement('pre'); diagnostic.className = 'silo-basis-recovery-diagnostic';
     const actions = doc.createElement('div'); actions.className = 'silo-basis-recovery-actions';
     const check = doc.createElement('button'), start = doc.createElement('button'), apply = doc.createElement('button');
-    const diagnose = doc.createElement('button'), copy = doc.createElement('button');
+    const diagnose = doc.createElement('button'), copy = doc.createElement('button'), renew = doc.createElement('button');
     const clipboard = options.clipboard || (typeof navigator !== 'undefined' ? navigator.clipboard : null);
-    for (const button of [check, start, apply, diagnose, copy]) { button.type = 'button'; button.className = 'button secondary'; actions.appendChild(button); }
+    for (const button of [check, start, apply, diagnose, copy, renew]) { button.type = 'button'; button.className = 'button secondary'; actions.appendChild(button); }
     apply.className = 'button primary';
     check.addEventListener('click', () => { void controller.refresh(); });
     start.addEventListener('click', () => { void controller.start(); });
     apply.addEventListener('click', () => { void controller.apply(); });
     diagnose.addEventListener('click', () => { void controller.diagnose(); });
+    renew.addEventListener('click', () => { void controller.renew(); });
     copy.addEventListener('click', async () => {
       if (!clipboard?.writeText) return;
       try { await clipboard.writeText(diagnosticSummary(controller.snapshot())); copy.textContent = '복사 완료'; }
@@ -390,9 +474,11 @@
       diagnose.textContent = '저장 오류 점검 (읽기 전용)';
       diagnose.hidden = !controller.hasRequest(); diagnose.disabled = state.busy;
       copy.textContent = '진단 결과 복사'; copy.hidden = !clipboard?.writeText || !state.diagnostics; copy.disabled = state.busy;
+      renew.textContent = '누락 구간 다시 조회'; renew.hidden = !controller.canRenew(); renew.disabled = state.busy;
+      renew.title = '이전 요청을 보존하고 같은 누락 구간을 새로 측정합니다. 기존 누적값은 반영 전까지 유지합니다.';
     });
     return controller;
   }
-  return { TAG, KEY, FAILURE_KEY, normalizeView, normalizeDiagnostics, safeFailure, failureSummary, diagnosticSummary,
+  return { TAG, KEY, FAILURE_KEY, HISTORY_KEY, normalizeView, normalizeDiagnostics, renewalPlanReady, safeFailure, failureSummary, diagnosticSummary,
     createController, mount, verifyReadback, formatTime, hours };
 });
