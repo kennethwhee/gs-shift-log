@@ -1,14 +1,113 @@
-.diary-vbelt-confirm { margin: 8px 0 2px; padding: 8px 10px; border: 1px solid #d7e2ec; border-radius: 6px; background: #f7fafc; color: #334b63; font-size: 12px; }
+/* Author-confirmed replacement fields stay beside the diary content. */
+.diary-vbelt-confirm {
+  display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px;
+  width: max-content; margin: 0; padding: 0; color: #334b63;
+  font-size: 12px; white-space: nowrap;
+}
 .diary-vbelt-confirm [hidden], .diary-vbelt-confirm[hidden] { display: none !important; }
-.diary-vbelt-confirm__check { display: flex; align-items: center; gap: 6px; font-weight: 600; }
-.diary-vbelt-confirm__checkbox { width: 15px; height: 15px; margin: 0; }
-.diary-vbelt-confirm__help, .diary-vbelt-confirm__notice, .diary-vbelt-confirm__error { margin: 6px 0; font-size: 11px; line-height: 1.5; }
+.diary-vbelt-confirm__check {
+  display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px;
+  box-sizing: border-box; height: 32px; margin: 0; padding: 0 9px;
+  border: 1px solid #c8e5d2; border-radius: 8px; background: #edf8f1;
+  color: #227451; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.diary-vbelt-confirm__check:has(:checked) { border-color: #79b995; }
+.diary-vbelt-confirm__checkbox { width: 15px; height: 15px; margin: 0; accent-color: #227451; }
+.diary-vbelt-confirm__details, .diary-vbelt-confirm__targets, .diary-vbelt-confirm__target {
+  display: inline-flex; flex: 0 0 auto; align-items: center; flex-wrap: nowrap;
+  gap: 6px; margin: 0; padding: 0;
+}
+.diary-vbelt-confirm__target + .diary-vbelt-confirm__target { padding-left: 6px; border-left: 1px solid #c8e5d2; }
+.diary-vbelt-confirm__target label { position: relative; flex: 0 0 auto; display: block; width: 180px; margin: 0; }
+.diary-vbelt-confirm__target label:nth-child(2) { width: 130px; }
+.diary-vbelt-confirm__target label:nth-child(3) { width: 120px; }
+.diary-vbelt-confirm__caption {
+  position: absolute; width: 1px; height: 1px; padding: 0;
+  overflow: hidden; clip-path: inset(50%);
+}
+.diary-vbelt-confirm__target select, .diary-vbelt-confirm__target input {
+  display: block; box-sizing: border-box; width: 100%; min-width: 0;
+  height: 32px; margin: 0; padding: 3px 6px; border: 1px solid #c8e5d2;
+  border-radius: 7px; background: #f5fbf7; color: #253b52; font: inherit;
+}
+.diary-vbelt-confirm__add, .diary-vbelt-confirm__retry, .diary-vbelt-confirm__remove {
+  box-sizing: border-box; flex: 0 0 auto; height: 32px; min-height: 32px;
+  margin: 0; padding: 3px 7px; border: 1px solid #c8e5d2; border-radius: 7px;
+  background: #edf8f1; color: #227451; font: inherit; cursor: pointer;
+}
+.diary-vbelt-confirm__add { width: 28px; padding: 0; font-size: 18px; }
+.diary-vbelt-confirm__remove { width: 24px; padding: 0; background: #fff; font-size: 17px; }
+.diary-vbelt-confirm__notice, .diary-vbelt-confirm__error { flex: 0 0 auto; margin: 0; font-size: 11px; line-height: 1.5; }
 .diary-vbelt-confirm__notice { color: #8a5a14; }
 .diary-vbelt-confirm__error { color: #a52b32; }
-.diary-vbelt-confirm__target { display: grid; grid-template-columns: minmax(180px, 1fr) 135px 125px 24px; align-items: end; gap: 6px; margin: 7px 0; }
-.diary-vbelt-confirm__target label { display: flex; min-width: 0; flex-direction: column; gap: 3px; font-size: 11px; }
-.diary-vbelt-confirm__target select, .diary-vbelt-confirm__target input { width: 100%; min-width: 0; height: 30px; padding: 3px 5px; border: 1px solid #cbd7e2; border-radius: 4px; background: #fff; color: #253b52; font: inherit; box-sizing: border-box; }
-.diary-vbelt-confirm__add, .diary-vbelt-confirm__retry, .diary-vbelt-confirm__remove { min-height: 27px; padding: 3px 7px; border: 1px solid #cbd7e2; border-radius: 4px; background: #fff; color: #355e83; font: inherit; cursor: pointer; }
-.diary-vbelt-confirm__retry { margin-left: 6px; }
 .diary-vbelt-confirmed-badge { display: inline-block; margin-left: 6px; padding: 1px 5px; border: 1px solid #c6dfd3; border-radius: 4px; background: #edf7f1; color: #397056; font-size: 10px; font-weight: 600; line-height: 1.5; vertical-align: middle; white-space: nowrap; }
-@media (max-width: 700px) { .diary-vbelt-confirm__target { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 24px; } .diary-vbelt-confirm__target label:first-child { grid-column: 1 / -1; } }
+
+/* Override the legacy desktop grid and its 769–1080px second content row.
+   Narrow editors scroll horizontally instead of dropping confirmation below. */
+#logEditorModal .section-context-entry-editor.section-context-entry-editor:has(> .diary-vbelt-confirm) {
+  display: flex !important; flex-wrap: nowrap !important; align-items: center !important;
+  gap: 6px !important; min-width: 0 !important; min-height: 0 !important;
+  padding: 6px 8px !important; overflow-x: auto;
+}
+#logEditorModal .section-context-entry-editor:has(> .diary-vbelt-confirm) > .section-context-entry-editor__heading,
+#logEditorModal .section-context-entry-editor:has(> .diary-vbelt-confirm) .section-context-entry-close,
+#logEditorModal .section-context-entry-editor:has(> .diary-vbelt-confirm) .section-context-entry-shortcut { display: none !important; }
+#logEditorModal .section-context-entry-editor:has(> .diary-vbelt-confirm) > .section-context-entry-editor__tools,
+#logEditorModal .section-context-entry-editor:has(> .diary-vbelt-confirm) .section-context-entry-time-group,
+#logEditorModal .section-context-entry-editor:has(> .diary-vbelt-confirm) > .section-context-entry-editor__actions { display: contents !important; }
+#logEditorModal .section-context-entry-editor:has(> .diary-vbelt-confirm) .section-context-entry-field--handover-type,
+#logEditorModal .section-context-entry-editor:has(> .diary-vbelt-confirm) .section-context-entry-field--type {
+  flex: 0 0 90px !important; width: 90px !important;
+  min-width: 90px !important; max-width: 90px !important;
+}
+#logEditorModal .section-context-entry-editor:has(> .diary-vbelt-confirm) > .section-context-entry-field--content {
+  flex: 1 0 180px !important; width: auto !important;
+  min-width: 180px !important; align-self: center !important;
+}
+#logEditorModal .section-context-entry-editor:has(> .diary-vbelt-confirm) .section-context-entry-field > span { display: none !important; }
+#logEditorModal .section-context-entry-editor:has(> .diary-vbelt-confirm) :is(.section-context-entry-issue-type, .section-context-entry-handover-type, .section-context-entry-tag, .section-context-entry-now, .section-context-entry-cancel, .section-context-entry-save, .section-context-entry-content) {
+  box-sizing: border-box !important; height: 32px !important;
+  min-height: 32px !important; max-height: 32px !important;
+  margin: 0 !important; padding: 4px 8px !important; border-radius: 7px !important;
+  font-size: 13px !important; line-height: 22px !important;
+}
+#logEditorModal .section-context-entry-editor:has(> .diary-vbelt-confirm) :is(.section-context-entry-now, .section-context-entry-cancel, .section-context-entry-save) {
+  flex: 0 0 auto !important; min-width: 0 !important;
+}
+#logEditorModal .section-context-entry-editor:has(> .diary-vbelt-confirm) .section-context-entry-content { field-sizing: fixed; resize: none !important; }
+#logEditorModal .section-context-entry-editor > .diary-vbelt-confirm.diary-vbelt-confirm {
+  flex: 0 0 auto; align-self: center; min-width: max-content; margin: 0;
+}
+
+/* Leader quick-add uses the same inline fields, before its existing Add. */
+#logEntryTableBody .leader-role-quick-add-editor:has(.diary-vbelt-confirm) {
+  display: flex; align-items: center; flex-wrap: nowrap; gap: 6px; overflow-x: auto;
+}
+#logEntryTableBody .leader-role-quick-add-editor:has(.diary-vbelt-confirm) .leader-role-quick-add-editor__top,
+#logEntryTableBody .leader-role-quick-add-editor:has(.diary-vbelt-confirm) .leader-role-quick-add-editor__input-row {
+  display: contents;
+}
+#logEntryTableBody .leader-role-quick-add-editor:has(.diary-vbelt-confirm) .leader-role-quick-add-editor__top strong { display: none; }
+#logEntryTableBody .leader-role-quick-add-editor:has(.diary-vbelt-confirm) .leader-role-quick-add-cancel { flex: 0 0 24px; }
+#logEntryTableBody .leader-role-quick-add-editor:has(.diary-vbelt-confirm) .leader-role-quick-add-time { flex: 0 0 82px; width: 82px; }
+#logEntryTableBody .leader-role-quick-add-editor:has(.diary-vbelt-confirm) .leader-role-quick-add-content { flex: 1 0 180px; width: auto; min-width: 180px; resize: none; }
+#logEntryTableBody .leader-role-quick-add-editor:has(.diary-vbelt-confirm) :is(.leader-role-quick-add-time, .leader-role-quick-add-content, .leader-role-quick-add-now, .leader-role-quick-add-save) {
+  box-sizing: border-box; flex-shrink: 0; height: 32px; min-height: 32px;
+  max-height: 32px; padding: 4px 8px; font-size: 13px;
+}
+
+@media (pointer: coarse) {
+  .diary-vbelt-confirm__check, .diary-vbelt-confirm__add,
+  .diary-vbelt-confirm__retry, .diary-vbelt-confirm__remove,
+  .diary-vbelt-confirm__target :is(input, select) { height: 44px; min-height: 44px; font-size: 16px; }
+  .diary-vbelt-confirm__add, .diary-vbelt-confirm__remove { width: 44px; }
+  .diary-vbelt-confirm__target label { width: 200px; }
+  .diary-vbelt-confirm__target label:nth-child(2) { width: 160px; }
+  .diary-vbelt-confirm__target label:nth-child(3) { width: 150px; }
+  #logEditorModal .section-context-entry-editor:has(> .diary-vbelt-confirm) :is(.section-context-entry-issue-type, .section-context-entry-handover-type, .section-context-entry-tag, .section-context-entry-now, .section-context-entry-cancel, .section-context-entry-save, .section-context-entry-content) {
+    height: 44px !important; min-height: 44px !important; max-height: 44px !important; font-size: 16px !important;
+  }
+  #logEntryTableBody .leader-role-quick-add-editor:has(.diary-vbelt-confirm) :is(.leader-role-quick-add-time, .leader-role-quick-add-content, .leader-role-quick-add-now, .leader-role-quick-add-save, .leader-role-quick-add-cancel) {
+    height: 44px; min-height: 44px; max-height: 44px; font-size: 16px;
+  }
+}
