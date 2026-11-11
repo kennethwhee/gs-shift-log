@@ -49,14 +49,14 @@
   }
 
   function cycleReferenceLabel(asset, short = false) {
-    if ((window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset) || (window.BlowerUnifiedRefresh?.verifiedFbhe1bStandby?.(asset) || window.BlowerUnifiedRefresh?.verifiedFbhe2cStandby?.(asset))) || (window.BlowerUnifiedRefresh?.verifiedLimestone2aFirstRun?.(asset) || window.BlowerUnifiedRefresh?.verifiedLimestone1bFirstRun?.(asset))) return "교체일";
+    if ((window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset) || (window.BlowerUnifiedRefresh?.verifiedFbhe1bStandby?.(asset) || window.BlowerUnifiedRefresh?.verifiedFbhe2cStandby?.(asset) || window.BlowerUnifiedRefresh?.verifiedFbhe1aRuntime?.(asset))) || (window.BlowerUnifiedRefresh?.verifiedLimestone2aFirstRun?.(asset) || window.BlowerUnifiedRefresh?.verifiedLimestone1bFirstRun?.(asset))) return "교체일";
     if (window.BlowerUnifiedRefresh?.rolePriorityReview?.(asset)) return "상위 보직 교체 기준";
     if (asset?.replacementAutoCycle?.normalizationVersion === 4 && asset.replacementAutoCycle.registeredRuntimeRange === true) return "RUN 조회기준";
     return isInitialStartupBasis(asset) ? "최초 기동" : short ? "최근 교체" : "최근 V-Belt 교체";
   }
 
   function cycleReferenceDisplay(asset) {
-    if ((window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset) || (window.BlowerUnifiedRefresh?.verifiedFbhe1bStandby?.(asset) || window.BlowerUnifiedRefresh?.verifiedFbhe2cStandby?.(asset))) || (window.BlowerUnifiedRefresh?.verifiedLimestone2aFirstRun?.(asset) || window.BlowerUnifiedRefresh?.verifiedLimestone1bFirstRun?.(asset))) return formatDate(asset.lastReplacementAt);
+    if ((window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset) || (window.BlowerUnifiedRefresh?.verifiedFbhe1bStandby?.(asset) || window.BlowerUnifiedRefresh?.verifiedFbhe2cStandby?.(asset) || window.BlowerUnifiedRefresh?.verifiedFbhe1aRuntime?.(asset))) || (window.BlowerUnifiedRefresh?.verifiedLimestone2aFirstRun?.(asset) || window.BlowerUnifiedRefresh?.verifiedLimestone1bFirstRun?.(asset))) return formatDate(asset.lastReplacementAt);
     const priority = window.BlowerUnifiedRefresh?.rolePriorityReview?.(asset);
     if (priority) return priority.selected.timePrecision === "minute"
       ? formatKstDateTimeDisplay(priority.selected.selectedCompletionAt)
@@ -1215,7 +1215,7 @@
 
   // The retained number is measured within this receipt, not a certified whole-cycle total.
   function commonRunCoverage(asset) {
-    if ((window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset) || (window.BlowerUnifiedRefresh?.verifiedFbhe1bStandby?.(asset) || window.BlowerUnifiedRefresh?.verifiedFbhe2cStandby?.(asset))) || (window.BlowerUnifiedRefresh?.verifiedLimestone2aFirstRun?.(asset) || window.BlowerUnifiedRefresh?.verifiedLimestone1bFirstRun?.(asset))) return null;
+    if ((window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset) || (window.BlowerUnifiedRefresh?.verifiedFbhe1bStandby?.(asset) || window.BlowerUnifiedRefresh?.verifiedFbhe2cStandby?.(asset) || window.BlowerUnifiedRefresh?.verifiedFbhe1aRuntime?.(asset))) || (window.BlowerUnifiedRefresh?.verifiedLimestone2aFirstRun?.(asset) || window.BlowerUnifiedRefresh?.verifiedLimestone1bFirstRun?.(asset))) return null;
     const automatic = asset?.replacementAutoCycle;
     const rolePriority = window.BlowerUnifiedRefresh?.rolePriorityReview?.(asset) || null;
     const rangeTracking = window.BlowerUnifiedRefresh?.replacementRangeTracking?.(asset) === true;
@@ -2103,7 +2103,7 @@
       tagNumber: asset.tagNumber, enabled: asset.enabled, hours,
       provenance: manual ? "manual" : measured ? "measured" : hours !== null ? "retained" : "unknown",
       pending, wholeCycleVerified: linkedEvidence && evidence.wholeCycleVerified === true,
-      durationEquivalent: linkedEvidence && Boolean((window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset) || (window.BlowerUnifiedRefresh?.verifiedFbhe1bStandby?.(asset) || window.BlowerUnifiedRefresh?.verifiedFbhe2cStandby?.(asset))) || (window.BlowerUnifiedRefresh?.verifiedLimestone2aFirstRun?.(asset) || window.BlowerUnifiedRefresh?.verifiedLimestone1bFirstRun?.(asset))),
+      durationEquivalent: linkedEvidence && Boolean((window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset) || (window.BlowerUnifiedRefresh?.verifiedFbhe1bStandby?.(asset) || window.BlowerUnifiedRefresh?.verifiedFbhe2cStandby?.(asset) || window.BlowerUnifiedRefresh?.verifiedFbhe1aRuntime?.(asset))) || (window.BlowerUnifiedRefresh?.verifiedLimestone2aFirstRun?.(asset) || window.BlowerUnifiedRefresh?.verifiedLimestone1bFirstRun?.(asset))),
       coverage: manual ? { complete: null, startAt: null, observedAt: null, requiredStartAt: null, missingLeadingSeconds: null } : {
         complete: linkedEvidence ? evidence.coverageComplete : measuredBasis?.coverageComplete,
         startAt: measuredBasis?.startAt, observedAt: measuredBasis?.observedAt,
@@ -2147,7 +2147,8 @@
     const completionWindow = window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset);
     const limestoneFirstRun = (window.BlowerUnifiedRefresh?.verifiedLimestone2aFirstRun?.(asset) || window.BlowerUnifiedRefresh?.verifiedLimestone1bFirstRun?.(asset));
     const standbyProof = (window.BlowerUnifiedRefresh?.verifiedFbhe1bStandby?.(asset) || window.BlowerUnifiedRefresh?.verifiedFbhe2cStandby?.(asset));
-    const referenceLabel = completionWindow || limestoneFirstRun || standbyProof ? "교체일" : isInitialStartupBasis(asset) ? "최초 기동" : partialCoverage?.registeredRuntimeRange ? "조회 기준" : "교체 기준";
+    const runtimeProof = window.BlowerUnifiedRefresh?.verifiedFbhe1aRuntime?.(asset);
+    const referenceLabel = completionWindow || limestoneFirstRun || standbyProof || runtimeProof ? "교체일" : isInitialStartupBasis(asset) ? "최초 기동" : partialCoverage?.registeredRuntimeRange ? "조회 기준" : "교체 기준";
     const referenceValue = replacement.split(" · ")[0];
     const manual = assessment.scope === "manual";
     const startText = manual ? formatKstDateTimeDisplay(overviewManualTimestamp(asset))
@@ -2160,7 +2161,7 @@
     const shortMaintenance = maintenance ? maintenance.replace(/^.*?업무일지 · /, "") : "";
     const shortTransition = transition ? `${operation.state === "stopped" ? "최근 정지" : "최근 연속 기동"} ${transition.period.split(" → ")[0]}` : "";
     const note = resolutionGuide?.failure?.title || assessment.reasonLabel ||
-      (standbyProof ? "완료시각 미기록 · 교체 후 정지 확인" : limestoneFirstRun ? "완료시각 미기록 · 최초 기동 확인" : completionWindow ? "완료시각 미기록 · 정지 구간 검증" : behind ? "다른 설비보다 이전 조회값" : shortMaintenance || shortTransition || "");
+      (runtimeProof ? "완료시각 미기록 · RUN 재측정" : standbyProof ? "완료시각 미기록 · 교체 후 정지 확인" : limestoneFirstRun ? "완료시각 미기록 · 최초 기동 확인" : completionWindow ? "완료시각 미기록 · 정지 구간 검증" : behind ? "다른 설비보다 이전 조회값" : shortMaintenance || shortTransition || "");
     const separateRunAt = overviewSeparateRunObservedAt(assessment);
     const previewAt = !manual && preview ? preview.previewObservedAt : "";
     const separateRunNote = previewAt
@@ -3319,7 +3320,7 @@
       const policyAlert = ["warning", "critical", "overdue"].includes(severity);
       elements.historyCycleSummary.innerHTML = `
         <span class="status-pill ${runtimeAssessment.requiresReview ? "runtime_unknown" : policyAlert ? escapeHtml(severity) : "unset"}" data-runtime-assessment="${escapeHtml(runtimeAssessment.scope)}">${escapeHtml(runtimeAssessment.reasonLabel || (policyAlert ? severityLabel(severity) : runtimeAssessment.scopeLabel))}</span>
-        <div><span>${(window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset) || (window.BlowerUnifiedRefresh?.verifiedFbhe1bStandby?.(asset) || window.BlowerUnifiedRefresh?.verifiedFbhe2cStandby?.(asset))) || (window.BlowerUnifiedRefresh?.verifiedLimestone2aFirstRun?.(asset) || window.BlowerUnifiedRefresh?.verifiedLimestone1bFirstRun?.(asset)) ? "교체일 · 완료시각 미기록" : isInitialStartupBasis(asset) ? "최초 기동" : partialCoverage?.registeredRuntimeRange ? "조회 기준" : "교체 기준"}</span><strong>${escapeHtml(cycleReferenceDisplay(asset))}</strong></div>
+        <div><span>${(window.BlowerUnifiedRefresh?.verifiedCompletionWindow?.(asset) || (window.BlowerUnifiedRefresh?.verifiedFbhe1bStandby?.(asset) || window.BlowerUnifiedRefresh?.verifiedFbhe2cStandby?.(asset) || window.BlowerUnifiedRefresh?.verifiedFbhe1aRuntime?.(asset))) || (window.BlowerUnifiedRefresh?.verifiedLimestone2aFirstRun?.(asset) || window.BlowerUnifiedRefresh?.verifiedLimestone1bFirstRun?.(asset)) ? "교체일 · 완료시각 미기록" : isInitialStartupBasis(asset) ? "최초 기동" : partialCoverage?.registeredRuntimeRange ? "조회 기준" : "교체 기준"}</span><strong>${escapeHtml(cycleReferenceDisplay(asset))}</strong></div>
         <div><span>누적 범위</span><strong>${escapeHtml(runtimeAssessment.scopeLabel)}</strong></div>
         <div><span>누적 운전시간</span><strong>${escapeHtml(runtimeText)}</strong></div>
         <div class="run-history-note" data-runtime-assessment-period="true"><strong>${manualAt ? "보정 시각" : "데이터 조회 기간"}</strong><small>${escapeHtml(period)}</small><span>${escapeHtml(operationText)}</span>${runtimeAssessment.freshness.state === "behind" ? '<span>다른 설비의 최신 조회와 반영 시각이 다릅니다.</span>' : ""}</div>`;
@@ -3399,7 +3400,8 @@
       const canCorrectRuntime = hasAuthenticatedWriteAccess() && Boolean(asset.lastReplacementAt) && !awaitingBackfill && !startupPending &&
         !(asset.tagNumber === "104ETH03AN602" && String(asset.cycleStartRevision || "").startsWith("silo-prefix-basis-v1:")) &&
         !(asset.tagNumber === "203HRJ01AN601" && String(asset.cycleStartRevision || "").startsWith("lime2a-first-run-v1:")) &&
-      !(asset.tagNumber === "103HRJ01AN602" && String(asset.cycleStartRevision || "").startsWith("lime1b-first-run-v1:"));
+      !(asset.tagNumber === "103HRJ01AN602" && String(asset.cycleStartRevision || "").startsWith("lime1b-first-run-v1:")) &&
+        !(asset.tagNumber === "104HHL60AP611" && String(asset.cycleStartRevision || "").startsWith("fbhe1a-runtime-v1:"));
       elements.historyRuntimeCorrectionButton.hidden = !canCorrectRuntime;
       elements.historyRuntimeCorrectionButton.disabled = !canCorrectRuntime;
     }
@@ -3504,6 +3506,20 @@
         return window.BlowerFbhe2cStandby.verifyReadback(findAsset(tagNumber), view);
       }
     });
+    window.BlowerFbhe1aRuntime?.mount({
+      container: elements.historyCycleSummary, asset, document,
+      getAsset: () => findAsset(tagNumber),
+      canWrite: () => hasAuthenticatedWriteAccess() && state.data?.permissions?.canAdmin === true,
+      isMobile: isMobileMonitoringView, session: getSessionToken,
+      storage: { getItem: key => window.sessionStorage.getItem(key), setItem: (key, value) => window.sessionStorage.setItem(key, value) },
+      nonce: () => window.crypto.randomUUID(),
+      isBusy: () => state.busy || state.unifiedRefreshBusy || state.dataparcRuntimeBusy || state.backfillRunning,
+      setBusy: value => { state.dataparcRuntimeBusy = value; setBusy(value); }, api: apiRequest,
+      reload: async view => {
+        await loadData({ silent: true, syncOperations: false, strict: true });
+        return window.BlowerFbhe1aRuntime.verifyReadback(findAsset(tagNumber), view);
+      }
+    });
     elements.historyDialog.showModal();
   }
 
@@ -3590,7 +3606,8 @@
     elements.historyEventEditType.disabled = asset.tagNumber === "104ETH03AN602" &&
       String(asset.cycleStartRevision || "").startsWith("silo-prefix-basis-v1:") ||
       asset.tagNumber === "203HRJ01AN601" && String(asset.cycleStartRevision || "").startsWith("lime2a-first-run-v1:") ||
-      asset.tagNumber === "103HRJ01AN602" && String(asset.cycleStartRevision || "").startsWith("lime1b-first-run-v1:");
+      asset.tagNumber === "103HRJ01AN602" && String(asset.cycleStartRevision || "").startsWith("lime1b-first-run-v1:") ||
+      asset.tagNumber === "104HHL60AP611" && String(asset.cycleStartRevision || "").startsWith("fbhe1a-runtime-v1:");
     elements.historyEventEditType.title = elements.historyEventEditType.disabled
       ? "복구한 측정 근거를 유지하기 위해 이력 종류는 변경할 수 없습니다." : "";
     elements.historyEventEditDate.value = historyEditDateInput(event.eventDate);
@@ -3656,12 +3673,15 @@
     return Boolean(hasAuthenticatedWriteAccess() && !isMobileMonitoringView() && asset && event &&
       event.sourceType !== "dataparc_silo_basis_v1" && !String(event.id || "").startsWith("dataparc_silo_basis:") &&
       event.sourceType !== "dataparc_limestone2a_first_run_v1" && !String(event.id || "").startsWith("dataparc_limestone2a_first_run:") &&
+      event.sourceType !== "dataparc_fbhe1a_runtime_v1" && !String(event.id || "").startsWith("dataparc_fbhe1a_runtime:") &&
       event.sourceType !== "dataparc_limestone1b_first_run_v1" && !String(event.id || "").startsWith("dataparc_limestone1b_first_run:") &&
       !(asset.tagNumber === "104ETH03AN602" && String(asset.cycleStartRevision || "").startsWith("silo-prefix-basis-v1:") &&
         ["replacement", "startup", "operation_start", "operation_stop", "runtime_correction"].includes(event.eventType)) &&
       !(asset.tagNumber === "203HRJ01AN601" && String(asset.cycleStartRevision || "").startsWith("lime2a-first-run-v1:") &&
         ["replacement", "startup", "operation_start", "operation_stop", "runtime_correction"].includes(event.eventType)) &&
       !(asset.tagNumber === "103HRJ01AN602" && String(asset.cycleStartRevision || "").startsWith("lime1b-first-run-v1:") &&
+        ["replacement", "startup", "operation_start", "operation_stop", "runtime_correction"].includes(event.eventType)) &&
+      !(asset.tagNumber === "104HHL60AP611" && String(asset.cycleStartRevision || "").startsWith("fbhe1a-runtime-v1:") &&
         ["replacement", "startup", "operation_start", "operation_stop", "runtime_correction"].includes(event.eventType)) &&
       event.sourceType !== "initial_startup_confirmed" && event.sourceType !== "limestone_basis_confirmed" &&
       (!isInitialStartupBasis(asset) || event.eventType === "problem") &&
@@ -11215,7 +11235,8 @@
     if (mode === "runtime" && (asset.tagNumber === "104ETH03AN602" &&
         String(asset.cycleStartRevision || "").startsWith("silo-prefix-basis-v1:") ||
         asset.tagNumber === "203HRJ01AN601" && String(asset.cycleStartRevision || "").startsWith("lime2a-first-run-v1:") ||
-        asset.tagNumber === "103HRJ01AN602" && String(asset.cycleStartRevision || "").startsWith("lime1b-first-run-v1:"))) {
+        asset.tagNumber === "103HRJ01AN602" && String(asset.cycleStartRevision || "").startsWith("lime1b-first-run-v1:") ||
+        asset.tagNumber === "104HHL60AP611" && String(asset.cycleStartRevision || "").startsWith("fbhe1a-runtime-v1:"))) {
       showToast("검증된 누적시간은 RUN 최신화로 갱신합니다.", "error");
       return;
     }

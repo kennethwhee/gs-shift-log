@@ -5,6 +5,7 @@ import { limestone2aFirstRunResponse } from "../_shared/blower-limestone2a-first
 import { limestone1bFirstRunResponse } from "../_shared/blower-limestone1b-first-run-v1.js";
 import { fbhe1bStandbyResponse, loadFbhe1bStandbyProjection } from "../_shared/blower-fbhe1b-standby-v1.js";
 import { fbhe2cStandbyResponse, loadFbhe2cStandbyProjection } from "../_shared/blower-fbhe2c-standby-v1.js";
+import { fbhe1aRuntimeResponse } from "../_shared/blower-fbhe1a-runtime-v1.js";
 import { savedFirstRunStart, savedTrailingStateStart, validatedFirstRunStart, validatedTrailingStateStart } from "../_shared/blower-run-transition.js";
 import { blowerStopMaintenanceKind, loadBlowerStopMaintenance } from "../_shared/blower-stop-maintenance.js";
 import { buildRuntimeCoverageEvidence, currentManualRuntimeMeasurement } from "../_shared/blower-runtime-coverage-evidence.js";
@@ -1791,6 +1792,13 @@ function latestSuccessfulDataParcTag(assetTag, rows) {
 
 function currentDataParcRuntimeBasis(asset, rows) {
   if (!asset?.last_replacement_at) return null;
+  if(isFbhe1aRecoveredAsset(asset)){
+    const base=verifiedAppendBase(asset,rows,'GSPOGE.ABB_DCS.104HHL60AP611XB04');
+    if(!base)return null;
+    const owner=rows.find(row=>row.id===base.eventId);let raw;try{raw=JSON.parse(owner.source_text)}catch{return null;}
+    return {...base,appendReady:true,composite:true,lastQueryStartAt:owner.source_type==='dataparc_runtime'?raw.startAt:'',
+      lastAddedSeconds:owner.source_type==='dataparc_runtime'?raw.incremental?.deltaRunningSeconds??null:null};
+  }
   if(isLimestone1bRecoveredAsset(asset)){
     const base=verifiedAppendBase(asset,rows,'GSPOGE.ABB_DCS.103HRJ01AN602XB04');
     if(!base)return null;
@@ -2014,6 +2022,9 @@ async function loadAssetStates(database, settings, options = {}) {
   const limestone1bRecoveredAsset=assets.find(isLimestone1bRecoveredAsset);
   const limestone1bRecoveredProof=limestone1bRecoveredAsset
     ?await loadAppendBase(database,limestone1bRecoveredAsset,'GSPOGE.ABB_DCS.103HRJ01AN602XB04'):null;
+  const fbhe1aRecoveredAsset=assets.find(isFbhe1aRecoveredAsset);
+  const fbhe1aRecoveredProof=fbhe1aRecoveredAsset
+    ?await loadAppendBase(database,fbhe1aRecoveredAsset,'GSPOGE.ABB_DCS.104HHL60AP611XB04'):null;
   const fbhe1bStandbyAsset=assets.find(asset=>asset.tag_number==='104HHL60AP621');
   const fbhe1bStandbyProjection=fbhe1bStandbyAsset
     ?await loadFbhe1bStandbyProjection(database,fbhe1bStandbyAsset,{now}):null;
@@ -2059,6 +2070,8 @@ async function loadAssetStates(database, settings, options = {}) {
     const limestone2aFirstRunProof=asset===limestone2aRecoveredAsset?limestone2aRecoveredProof?.limestone2aFirstRun:null;
     if(asset===limestone1bRecoveredAsset&&!limestone1bRecoveredProof)runtimeBasis=null;
     const limestone1bFirstRunProof=asset===limestone1bRecoveredAsset?limestone1bRecoveredProof?.limestone1bFirstRun:null;
+    if(asset===fbhe1aRecoveredAsset&&!fbhe1aRecoveredProof)runtimeBasis=null;
+    const fbhe1aRuntimeProof=asset===fbhe1aRecoveredAsset?fbhe1aRecoveredProof?.fbhe1aRuntime:null;
     const firstRunDurationProof=limestone2aFirstRunProof||limestone1bFirstRunProof;
     const fbhe1bStandbyProof=asset===fbhe1bStandbyAsset&&runtimeBasis&&fbhe1bStandbyProjection&&
       runtimeBasis.runningSeconds===fbhe1bStandbyProjection.currentRunningSeconds&&
@@ -2074,11 +2087,11 @@ async function loadAssetStates(database, settings, options = {}) {
     if(fbhe2cStandbyProof)runtimeBasis={...runtimeBasis,composite:true,appendReady:true,
       coverageComplete:true,missingLeadingSeconds:0,requiredStartAt:asset.last_replacement_at,
       completionClockKnown:false,cycleBasisConfirmed:false,fbhe2cStandby:fbhe2cStandbyProof};
-    const durationEquivalentProof=firstRunDurationProof||fbhe1bStandbyProof||fbhe2cStandbyProof;
+    const durationEquivalentProof=fbhe1aRuntimeProof||firstRunDurationProof||fbhe1bStandbyProof||fbhe2cStandbyProof;
     const runRuntime = durationEquivalentProof&&runtimeBasis
       ?{version:1,source:'dataparc',verified:true,needsQuery:false,signalConfigured:true,
         measuredAt:runtimeBasis.observedAt,state:asset.cycle_runtime_state,
-        legacyStoredHours:Number(asset.cycle_runtime_hours),reason:fbhe2cStandbyProof?'verified_fbhe2c_standby':fbhe1bStandbyProof?'verified_fbhe1b_standby':limestone1bFirstRunProof?'verified_limestone1b_first_run':'verified_limestone2a_first_run'}
+        legacyStoredHours:Number(asset.cycle_runtime_hours),reason:fbhe1aRuntimeProof?'verified_fbhe1a_runtime':fbhe2cStandbyProof?'verified_fbhe2c_standby':fbhe1bStandbyProof?'verified_fbhe1b_standby':limestone1bFirstRunProof?'verified_limestone1b_first_run':'verified_limestone2a_first_run'}
       :fbheSealRunProvenance(asset, runtimeRows, now);
     let manualMeasurement = null;
     if (runRuntime) {
@@ -2142,7 +2155,10 @@ async function loadAssetStates(database, settings, options = {}) {
     const limestone1bSourceReview=asset===limestone1bRecoveredAsset&&!limestone1bFirstRunProof
       ?{code:'LIMESTONE1B_FIRST_RUN_SOURCE_CHANGED',cycleBasisConfirmed:false,measuredRangeMayContinue:false,
         message:'교체 후 첫 RUN 실측 근거가 변경되어 재확인이 필요합니다. 기존 누적값은 유지합니다.'}:null;
-    const cycleSourceReview = completionWindowProof || durationEquivalentProof ? null : limestone1bSourceReview || limestone2aSourceReview || siloSourceReview || rolePriorityRevokedReview || rolePriorityReview || confirmedRangeReview || normalizationReview || reviewedCycleSourceWarning(asset, runtimeRows) ||
+    const fbhe1aSourceReview=asset===fbhe1aRecoveredAsset&&!fbhe1aRuntimeProof
+      ?{code:'FBHE1A_RUNTIME_SOURCE_CHANGED',cycleBasisConfirmed:false,measuredRangeMayContinue:false,
+        message:'교체 후 RUN의 실측 근거가 변경되어 재확인이 필요합니다. 기존 누적값은 유지합니다.'}:null;
+    const cycleSourceReview = completionWindowProof || durationEquivalentProof ? null : fbhe1aSourceReview || limestone1bSourceReview || limestone2aSourceReview || siloSourceReview || rolePriorityRevokedReview || rolePriorityReview || confirmedRangeReview || normalizationReview || reviewedCycleSourceWarning(asset, runtimeRows) ||
       (replacementAutoCycle && !replacementAutoCycle.clockKnown && !replacementAutoCycle.registeredBaseline
         ? { code: "REPLACEMENT_COMPLETION_TIME_MISSING", cycleBasisConfirmed: false,
           measuredRangeMayContinue: false,
@@ -2187,6 +2203,12 @@ async function loadAssetStates(database, settings, options = {}) {
         coverageComplete:true,missingLeadingSeconds:0,requiredStartAt:runtimeBasis.startAt,
         cycleBasisConfirmed:false,wholeCycleVerified:false,sampleGoodCertified:false});
     }
+    if(fbhe1aRuntimeProof&&runtimeCoverageEvidence.measurementVerified===true&&runtimeBasis){
+      Object.assign(runtimeCoverageEvidence,{durationEquivalent:true,durationVerified:true,
+        completionClockKnown:false,fbhe1aRuntime:fbhe1aRuntimeProof,composite:true,
+        coverageComplete:true,missingLeadingSeconds:0,requiredStartAt:asset.last_replacement_at,
+        cycleBasisConfirmed:false,wholeCycleVerified:false,sampleGoodCertified:false});
+    }
     if(fbhe1bStandbyProof&&runtimeCoverageEvidence.measurementVerified===true&&runtimeBasis){
       Object.assign(runtimeCoverageEvidence,{durationEquivalent:true,durationVerified:true,
         completionClockKnown:false,fbhe1bStandby:fbhe1bStandbyProof,composite:true,
@@ -2219,6 +2241,8 @@ async function loadAssetStates(database, settings, options = {}) {
         cycleBasisKind:'replacement_first_run_equivalent'}:{}),
       ...(limestone1bFirstRunProof?{limestone1bFirstRunProof,actualLastReplacementAt:'',
         cycleBasisKind:'replacement_first_run_equivalent'}:{}),
+      ...(fbhe1aRuntimeProof?{fbhe1aRuntimeProof,actualLastReplacementAt:'',
+        cycleBasisKind:'replacement_runtime_equivalent'}:{}),
       ...(fbhe1bStandbyProof?{fbhe1bStandbyProof,actualLastReplacementAt:'',
         cycleBasisKind:'replacement_standby_equivalent'}:{}),
       ...(fbhe2cStandbyProof?{fbhe2cStandbyProof,actualLastReplacementAt:'',
@@ -5004,6 +5028,9 @@ async function handleGet(context, user) {
   if(action==='limestone1b_first_run_status')return limestone1bFirstRunResponse(database,user,'status',{
     requestId:normalizeText(url.searchParams.get('requestId')),nonce:normalizeText(url.searchParams.get('nonce')),
     witnessRequestId:normalizeText(url.searchParams.get('witnessRequestId'))});
+  if(action==='fbhe1a_runtime_status')return fbhe1aRuntimeResponse(database,user,'status',{
+    requestId:normalizeText(url.searchParams.get('requestId')),nonce:normalizeText(url.searchParams.get('nonce')),
+    witnessRequestId:normalizeText(url.searchParams.get('witnessRequestId'))});
   if(action==='fbhe1b_standby_status')return fbhe1bStandbyResponse(database,user,'status',{
     requestId:normalizeText(url.searchParams.get('requestId'))});
   if(action==='fbhe2c_standby_status')return fbhe2cStandbyResponse(database,user,'status',{
@@ -6028,6 +6055,7 @@ async function editCurrentManualReplacement(database, user, body, options = {}) 
   if(siloBasisHistoryMutationBlocked(asset,selected,'replacement'))return jsonResponse({ok:false,code:'SILO_BASIS_EVIDENCE_PROTECTED',message:SILO_HISTORY_PROTECTED_MESSAGE},409);
   if(limestone2aFirstRunHistoryMutationBlocked(asset,selected,'replacement'))return jsonResponse({ok:false,code:'LIMESTONE2A_FIRST_RUN_EVIDENCE_PROTECTED',message:LIMESTONE2A_HISTORY_PROTECTED_MESSAGE},409);
   if(limestone1bFirstRunHistoryMutationBlocked(asset,selected,'replacement'))return jsonResponse({ok:false,code:'LIMESTONE1B_FIRST_RUN_EVIDENCE_PROTECTED',message:LIMESTONE1B_HISTORY_PROTECTED_MESSAGE},409);
+  if(fbhe1aRuntimeHistoryMutationBlocked(asset,selected,'replacement'))return jsonResponse({ok:false,code:'FBHE1A_RUNTIME_EVIDENCE_PROTECTED',message:FBHE1A_HISTORY_PROTECTED_MESSAGE},409);
   if (selected.source_type !== "manual" || rows[0]?.id !== eventId) {
     return failure("현재 주기의 최신 수동 교체 이력만 수정할 수 있습니다.", 409);
   }
@@ -6417,6 +6445,17 @@ function isLimestone2aRecoveredAsset(asset){
 function isLimestone1bRecoveredAsset(asset){
   return asset?.tag_number==='103HRJ01AN602'&&String(asset.cycle_start_revision||'').startsWith('lime1b-first-run-v1:');
 }
+function isFbhe1aRecoveredAsset(asset){
+  return asset?.tag_number==='104HHL60AP611'&&String(asset.cycle_start_revision||'').startsWith('fbhe1a-runtime-v1:');
+}
+function fbhe1aRuntimeHistoryMutationBlocked(asset,selected,nextEventType=''){
+  if(!selected)return false;
+  if(selected.source_type==='dataparc_fbhe1a_runtime_v1'||
+    selected.tag_number==='104HHL60AP611'&&String(selected.id||'').startsWith('dataparc_fbhe1a_runtime:'))return true;
+  const boundaries=['replacement','startup','operation_start','operation_stop','runtime_correction','cycle_source_reconcile'];
+  return isFbhe1aRecoveredAsset(asset)&&(boundaries.includes(selected.event_type)||boundaries.includes(nextEventType));
+}
+const FBHE1A_HISTORY_PROTECTED_MESSAGE='교체 후 RUN의 실측 근거는 일반 수정·삭제로 변경할 수 없습니다. 실제 새 V-Belt 교체는 교체 등록을 사용해 주세요.';
 function limestone1bFirstRunHistoryMutationBlocked(asset,selected,nextEventType=''){
   if(!selected)return false;
   if(selected.source_type==='dataparc_limestone1b_first_run_v1'||
@@ -6442,6 +6481,7 @@ function planManualHistoryDeletion(asset, events, eventId, options = {}) {
   if(siloBasisHistoryMutationBlocked(asset,selected))return fail(SILO_HISTORY_PROTECTED_MESSAGE,'SILO_BASIS_EVIDENCE_PROTECTED');
   if(limestone2aFirstRunHistoryMutationBlocked(asset,selected))return fail(LIMESTONE2A_HISTORY_PROTECTED_MESSAGE,'LIMESTONE2A_FIRST_RUN_EVIDENCE_PROTECTED');
   if(limestone1bFirstRunHistoryMutationBlocked(asset,selected))return fail(LIMESTONE1B_HISTORY_PROTECTED_MESSAGE,'LIMESTONE1B_FIRST_RUN_EVIDENCE_PROTECTED');
+  if(fbhe1aRuntimeHistoryMutationBlocked(asset,selected))return fail(FBHE1A_HISTORY_PROTECTED_MESSAGE,'FBHE1A_RUNTIME_EVIDENCE_PROTECTED');
   if (selected.source_type === 'limestone_basis_confirmed') return fail(
     '교체 기준 확정 근거는 보존됩니다. 잘못 확정한 기준은 새 근거와 함께 다시 확정해 주세요.', 'LIMESTONE_BASIS_EVIDENCE_PROTECTED');
   if (manureInitialHistoryMutationBlocked(asset, events, selected, "", options.initialAudit)) return fail(
@@ -6599,6 +6639,7 @@ async function editAnyHistoryEvent(database, user, body, options = {}) {
   if(siloBasisHistoryMutationBlocked(asset,selected,normalizeText(body.eventType)))return fail(SILO_HISTORY_PROTECTED_MESSAGE,409,'SILO_BASIS_EVIDENCE_PROTECTED');
   if(limestone2aFirstRunHistoryMutationBlocked(asset,selected,normalizeText(body.eventType)))return fail(LIMESTONE2A_HISTORY_PROTECTED_MESSAGE,409,'LIMESTONE2A_FIRST_RUN_EVIDENCE_PROTECTED');
   if(limestone1bFirstRunHistoryMutationBlocked(asset,selected,normalizeText(body.eventType)))return fail(LIMESTONE1B_HISTORY_PROTECTED_MESSAGE,409,'LIMESTONE1B_FIRST_RUN_EVIDENCE_PROTECTED');
+  if(fbhe1aRuntimeHistoryMutationBlocked(asset,selected,normalizeText(body.eventType)))return fail(FBHE1A_HISTORY_PROTECTED_MESSAGE,409,'FBHE1A_RUNTIME_EVIDENCE_PROTECTED');
   if (selected.source_type === 'limestone_basis_confirmed') return fail(
     '교체 기준 확정 근거는 보존됩니다. 잘못 확정한 기준은 새 근거와 함께 다시 확정해 주세요.', 409, 'LIMESTONE_BASIS_EVIDENCE_PROTECTED');
   const initialAudit = tagNumber === MANURE_INITIAL_RUN_CONFIG.tagNumber ? await loadManureInitialAudit(database) : null;
@@ -6675,6 +6716,7 @@ async function registerStartup(database, user, body, source = {}) {
   }
   if(isLimestone2aRecoveredAsset(asset))return jsonResponse({ok:false,code:'LIMESTONE2A_FIRST_RUN_EVIDENCE_PROTECTED',message:LIMESTONE2A_HISTORY_PROTECTED_MESSAGE},409);
   if(isLimestone1bRecoveredAsset(asset))return jsonResponse({ok:false,code:'LIMESTONE1B_FIRST_RUN_EVIDENCE_PROTECTED',message:LIMESTONE1B_HISTORY_PROTECTED_MESSAGE},409);
+  if(isFbhe1aRecoveredAsset(asset))return jsonResponse({ok:false,code:'FBHE1A_RUNTIME_EVIDENCE_PROTECTED',message:FBHE1A_HISTORY_PROTECTED_MESSAGE},409);
 
   if (!normalizeText(asset.last_replacement_at)) {
     return jsonResponse({ ok: false, message: "먼저 V-Belt 교체 이력을 등록해 주세요." }, 409);
@@ -6992,6 +7034,7 @@ async function editLatestRuntimeBoundary(database, user, body) {
   if(siloBasisHistoryMutationBlocked(asset,selectedEvent,normalizeText(body.eventType)))return jsonResponse({ok:false,code:'SILO_BASIS_EVIDENCE_PROTECTED',message:SILO_HISTORY_PROTECTED_MESSAGE},409);
   if(limestone2aFirstRunHistoryMutationBlocked(asset,selectedEvent,normalizeText(body.eventType)))return jsonResponse({ok:false,code:'LIMESTONE2A_FIRST_RUN_EVIDENCE_PROTECTED',message:LIMESTONE2A_HISTORY_PROTECTED_MESSAGE},409);
   if(limestone1bFirstRunHistoryMutationBlocked(asset,selectedEvent,normalizeText(body.eventType)))return jsonResponse({ok:false,code:'LIMESTONE1B_FIRST_RUN_EVIDENCE_PROTECTED',message:LIMESTONE1B_HISTORY_PROTECTED_MESSAGE},409);
+  if(fbhe1aRuntimeHistoryMutationBlocked(asset,selectedEvent,normalizeText(body.eventType)))return jsonResponse({ok:false,code:'FBHE1A_RUNTIME_EVIDENCE_PROTECTED',message:FBHE1A_HISTORY_PROTECTED_MESSAGE},409);
 
   if (
     !["operation_start", "operation_stop"].includes(normalizeText(selectedEvent.event_type)) ||
@@ -8157,6 +8200,8 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
   const replacementProof = isReplacementAutoRevision(asset) ? await readReplacementAutoCycleProof(database, asset) : null;
   if(isLimestone1bRecoveredAsset(asset)&&!appendIntent)return jsonResponse({ok:false,
     code:'LIMESTONE1B_FIRST_RUN_EVIDENCE_PROTECTED',message:LIMESTONE1B_HISTORY_PROTECTED_MESSAGE},409);
+  if(isFbhe1aRecoveredAsset(asset)&&!appendIntent)return jsonResponse({ok:false,
+    code:'FBHE1A_RUNTIME_EVIDENCE_PROTECTED',message:FBHE1A_HISTORY_PROTECTED_MESSAGE},409);
   const normalizationRange = normalizationRangeAuthorized(asset, replacementProof, probe, appendIntent);
   if (isReplacementAutoRevision(asset)) {
     if (!replacementProof || (!replacementProof.clockKnown && !replacementProof.registeredBaseline && !normalizationRange)) {
@@ -8248,8 +8293,8 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
         requestId,assetTag:asset.tag_number,dataParcTag:probe.dataParcTag,startAt:base.startAt,endAt:probe.rawEndAt}} : {}),
       message: "같은 조회 경계시각의 RUN 상태가 달라 이어 붙이기를 중단했습니다. 저장된 기준부터 전체 구간 검증이 필요합니다. 기존 누적값은 유지합니다." }, 409);
     siloAppendSourceGuards=base.siloSourceGuards||[];
-    firstRunAppendSourceGuards=[...(base.limestone2aSourceGuards||[]),...(base.limestone1bSourceGuards||[])];
-    if((isLimestone2aRecoveredAsset(asset)||isLimestone1bRecoveredAsset(asset))&&!firstRunAppendSourceGuards.length)
+    firstRunAppendSourceGuards=[...(base.limestone2aSourceGuards||[]),...(base.limestone1bSourceGuards||[]),...(base.fbhe1aSourceGuards||[])];
+    if((isLimestone2aRecoveredAsset(asset)||isLimestone1bRecoveredAsset(asset)||isFbhe1aRecoveredAsset(asset))&&!firstRunAppendSourceGuards.length)
       return jsonResponse({ok:false,code:'DATAPARC_APPEND_BASE_CHANGED',
         message:'교체 후 첫 RUN의 현재 원본 검증을 확인할 수 없습니다. 기존 누적값은 유지합니다.'},409);
   }
@@ -8568,6 +8613,7 @@ async function correctRuntime(database, user, body) {
     return jsonResponse({ok:false,code:'SILO_BASIS_EVIDENCE_PROTECTED',message:SILO_HISTORY_PROTECTED_MESSAGE},409);
   if(isLimestone2aRecoveredAsset(asset))return jsonResponse({ok:false,code:'LIMESTONE2A_FIRST_RUN_EVIDENCE_PROTECTED',message:LIMESTONE2A_HISTORY_PROTECTED_MESSAGE},409);
   if(isLimestone1bRecoveredAsset(asset))return jsonResponse({ok:false,code:'LIMESTONE1B_FIRST_RUN_EVIDENCE_PROTECTED',message:LIMESTONE1B_HISTORY_PROTECTED_MESSAGE},409);
+  if(isFbhe1aRecoveredAsset(asset))return jsonResponse({ok:false,code:'FBHE1A_RUNTIME_EVIDENCE_PROTECTED',message:FBHE1A_HISTORY_PROTECTED_MESSAGE},409);
 
   if (normalizeText(asset.cycle_start_state) === "pending") {
     return jsonResponse({ ok: false, message: "기동 대기 Cycle은 누적시간을 보정할 수 없습니다. 먼저 [기동 등록]을 완료해 주세요." }, 409);
@@ -15966,6 +16012,8 @@ async function handlePost(context, user, body) {
   if(action==='apply_limestone2a_first_run')return limestone2aFirstRunResponse(database,user,'apply',body);
   if(action==='start_limestone1b_first_run')return limestone1bFirstRunResponse(database,user,'start',body);
   if(action==='apply_limestone1b_first_run')return limestone1bFirstRunResponse(database,user,'apply',body);
+  if(action==='start_fbhe1a_runtime')return fbhe1aRuntimeResponse(database,user,'start',body);
+  if(action==='apply_fbhe1a_runtime')return fbhe1aRuntimeResponse(database,user,'apply',body);
   if(action==='apply_fbhe1b_standby')return fbhe1bStandbyResponse(database,user,'apply',body);
   if(action==='apply_fbhe2c_standby')return fbhe2cStandbyResponse(database,user,'apply',body);
 
@@ -16111,7 +16159,7 @@ export async function onRequestGet(context) {
   try {
     const readAction = new URL(context.request.url).searchParams.get('action');
     const replacementAssetRead = readAction === 'replacement_assets';
-    const siloDiagnosticRead = ['silo_basis_recovery_diagnostics','limestone2a_first_run_status','limestone1b_first_run_status','fbhe1b_standby_status','fbhe2c_standby_status'].includes(readAction);
+    const siloDiagnosticRead = ['silo_basis_recovery_diagnostics','limestone2a_first_run_status','limestone1b_first_run_status','fbhe1b_standby_status','fbhe2c_standby_status','fbhe1a_runtime_status'].includes(readAction);
     const authentication = await getAuthenticatedUser(
       context,
       { optional: true, readOnly: replacementAssetRead || siloDiagnosticRead }

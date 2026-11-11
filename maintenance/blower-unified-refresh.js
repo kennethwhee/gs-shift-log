@@ -342,8 +342,53 @@ DP_TAGS.add("203HRJ01AN602");
         typeof evidence.hours !== 'number' || !Number.isFinite(evidence.hours) || Math.abs(evidence.hours * 3600 - basis.runningSeconds) > 0.01) return null;
     return p;
   }
+  function verifiedFbhe1aRuntime(a) {
+    const b = a?.dataParcRuntimeBasis, e = a?.runtimeCoverageEvidence, r = a?.runRuntime;
+    const p = a?.fbhe1aRuntimeProof, owned = b?.fbhe1aRuntime, measured = e?.fbhe1aRuntime;
+    const day = time('2026-09-04T00:00:00+09:00'), start = time('2026-09-05T00:00:00+09:00');
+    const oldStart = time('2026-09-04T10:50:00+09:00'), stop = time('2026-09-04T10:50:39+09:00');
+    const id = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,200}$/.test(value);
+    const seconds = value => Number.isSafeInteger(value) && value >= 0;
+    const fields = ['version', 'certificateEventId', 'auditId', 'proofHash', 'sourceProofHash', 'witnessRequestId', 'freshRequestId',
+      'cycleStartRevision', 'currentRuntimeRevision', 'currentRunningSeconds', 'currentState', 'currentAnchorAt', 'currentObservedAt',
+      'completionDay', 'lastRunStoppedAt', 'zeroWindowEndAt', 'measuredStartAt', 'excludedPreReplacementSeconds',
+      'measuredRunningSeconds', 'completionClockKnown', 'durationEquivalent', 'sampleGoodCertified'];
+    const hours = a?.cycleElapsedHours ?? a?.runtimeHours;
+    if (a?.tagNumber !== '104HHL60AP611' || a.blowerType !== 'fbhe' || String(a.unitNo) !== '1' ||
+        a.enabled === false || a.enabled === 0 || a.dataParcTag !== 'GSPOGE.ABB_DCS.104HHL60AP611XB04' ||
+        a.cycleStartState !== 'legacy' || !Object.hasOwn(a, 'cycleStoredStartedAt') || a.cycleStoredStartedAt ||
+        a.cycleStartedAt && time(a.cycleStartedAt) !== day || time(a.lastReplacementAt) !== day || a.actualLastReplacementAt !== '' ||
+        a.cycleSourceReview || a.measurementRequired === true || a.replacementAutoCycle?.requiresRunRefresh === true ||
+        a.replacementAutoCycle?.completionClockConflict === true || a.replacementAutoCycle?.rolePrioritySourceRevoked === true ||
+        p?.version !== 1 || !owned || !measured || fields.some(key => p[key] !== owned[key] || p[key] !== measured[key]) ||
+        !id(p.witnessRequestId) || !id(p.freshRequestId) || p.certificateEventId !== 'dataparc_fbhe1a_runtime:' + p.freshRequestId ||
+        p.auditId !== 'fbhe1a_runtime:' + p.freshRequestId || !/^[a-f0-9]{64}$/.test(String(p.proofHash || '')) ||
+        !/^[a-f0-9]{64}$/.test(String(p.sourceProofHash || '')) || p.cycleStartRevision !== a.cycleStartRevision ||
+        a.cycleStartRevision !== 'fbhe1a-runtime-v1:' + p.proofHash || typeof a.cycleRuntimeRevision !== 'string' || !a.cycleRuntimeRevision ||
+        p.currentRuntimeRevision !== a.cycleRuntimeRevision || p.currentRunningSeconds !== b.runningSeconds ||
+        p.currentState !== a.cycleRuntimeState || !['running', 'stopped'].includes(p.currentState) ||
+        time(p.currentAnchorAt) !== time(a.cycleRuntimeAnchorAt) || time(p.currentObservedAt) !== time(b.observedAt) ||
+        !(time(p.currentAnchorAt) >= time(p.currentObservedAt)) || p.completionDay !== '2026-09-04' ||
+        p.completionClockKnown !== false || p.durationEquivalent !== true || p.sampleGoodCertified !== false ||
+        Math.floor(time(p.lastRunStoppedAt) / 1000) !== stop / 1000 || time(p.zeroWindowEndAt) !== start ||
+        time(p.measuredStartAt) !== start || !seconds(p.excludedPreReplacementSeconds) ||
+        p.excludedPreReplacementSeconds !== Math.round((time(p.lastRunStoppedAt) - oldStart) / 1000) ||
+        !seconds(p.measuredRunningSeconds) || b.composite !== true || b.appendReady !== true || b.coverageComplete !== true ||
+        b.dataParcTag !== a.dataParcTag || time(b.startAt) !== start || time(b.requiredStartAt) !== day || b.missingLeadingSeconds !== 0 ||
+        !id(b.requestId) || !seconds(b.runningSeconds) || b.runningSeconds < p.measuredRunningSeconds || !(time(b.observedAt) > start) ||
+        typeof b.runtimeHours !== 'number' || !Number.isFinite(b.runtimeHours) || Math.abs(b.runtimeHours * 3600 - b.runningSeconds) > 0.01 ||
+        typeof hours !== 'number' || !Number.isFinite(hours) || Math.abs(hours * 3600 - b.runningSeconds) > 0.01 ||
+        b.cycleRuntimeRevision !== undefined && b.cycleRuntimeRevision !== a.cycleRuntimeRevision ||
+        r?.verified !== true || r.source !== 'dataparc' || r.state !== p.currentState || time(r.measuredAt) !== time(b.observedAt) ||
+        e?.version !== 1 || e.source !== 'dataparc' || e.measurementVerified !== true || e.durationEquivalent !== true ||
+        e.durationVerified !== true || e.completionClockKnown !== false || e.wholeCycleVerified !== false || e.cycleBasisConfirmed !== false ||
+        e.coverageComplete !== true || e.missingLeadingSeconds !== 0 || e.requestId !== b.requestId || time(e.startAt) !== start ||
+        time(e.requiredStartAt) !== day || time(e.observedAt) !== time(b.observedAt) ||
+        typeof e.hours !== 'number' || !Number.isFinite(e.hours) || Math.abs(e.hours * 3600 - b.runningSeconds) > 0.01) return null;
+    return p;
+  }
   function runReviewStatus(a, basis = a?.dataParcRuntimeBasis) {
-    if (verifiedCompletionWindow(a) || verifiedLimestone2aFirstRun(a) || verifiedLimestone1bFirstRun(a) || verifiedFbhe1bStandby(a) || verifiedFbhe2cStandby(a)) return null;
+    if (verifiedCompletionWindow(a) || verifiedLimestone2aFirstRun(a) || verifiedLimestone1bFirstRun(a) || verifiedFbhe1bStandby(a) || verifiedFbhe2cStandby(a) || verifiedFbhe1aRuntime(a)) return null;
     const priority = rolePriorityReview(a);
     if (priority) return { key: priority.key, label: priority.label };
     const automatic = a?.replacementAutoCycle;
@@ -365,7 +410,7 @@ DP_TAGS.add("203HRJ01AN602");
   }
 
   function partialAppendResultStatus(task, current) {
-    if (verifiedCompletionWindow(current) || verifiedLimestone2aFirstRun(current) || verifiedLimestone1bFirstRun(current) || verifiedFbhe1bStandby(current) || verifiedFbhe2cStandby(current)) return null;
+    if (verifiedCompletionWindow(current) || verifiedLimestone2aFirstRun(current) || verifiedLimestone1bFirstRun(current) || verifiedFbhe1bStandby(current) || verifiedFbhe2cStandby(current) || verifiedFbhe1aRuntime(current)) return null;
     // Current server projection also supports resuming an older checkpoint
     // whose compact saved asset predates this display-only metadata.
     const currentReason = current ? runReviewStatus(current) : null;
@@ -615,13 +660,14 @@ DP_TAGS.add("203HRJ01AN602");
   function fbheSealRunView(a, basis = null) {
     const limestoneEquivalent = verifiedLimestone2aFirstRun(a) || verifiedLimestone1bFirstRun(a);
     const standbyEquivalent = verifiedFbhe1bStandby(a) || verifiedFbhe2cStandby(a);
-    const equivalent = verifiedCompletionWindow(a) || limestoneEquivalent || standbyEquivalent;
+    const runtimeEquivalent = verifiedFbhe1aRuntime(a);
+    const equivalent = verifiedCompletionWindow(a) || limestoneEquivalent || standbyEquivalent || runtimeEquivalent;
     if (equivalent) {
       const hours = a.cycleElapsedHours ?? a.runtimeHours, state = a.runRuntime.state;
       return {verified:true,manual:false,pending:false,state,hours,durationEquivalent:true,
         primary:`${hours.toLocaleString('ko-KR',{minimumFractionDigits:1,maximumFractionDigits:1})}시간`,
-        message:standbyEquivalent ? '교체 후 정지 구간과 이후 RUN 누적 검증 · 완료시각 미기록' : limestoneEquivalent ? '교체 완료 후 최초 기동과 RUN 누적 검증 · 완료시각 미기록' : '교체 작업 구간의 정지를 검증한 누적시간 · 완료시각 미기록',
-        measuredAt:a.dataParcRuntimeBasis.observedAt,sourceLabel:standbyEquivalent ? 'DataPARC · 교체 후 정지 구간 확인' : limestoneEquivalent ? 'DataPARC · 최초 기동 확인' : 'DataPARC · 정지 구간 검증',
+        message:runtimeEquivalent ? '교체 후 정지 확인과 RUN 재측정 검증 · 완료시각 미기록' : standbyEquivalent ? '교체 후 정지 구간과 이후 RUN 누적 검증 · 완료시각 미기록' : limestoneEquivalent ? '교체 완료 후 최초 기동과 RUN 누적 검증 · 완료시각 미기록' : '교체 작업 구간의 정지를 검증한 누적시간 · 완료시각 미기록',
+        measuredAt:a.dataParcRuntimeBasis.observedAt,sourceLabel:runtimeEquivalent ? 'DataPARC · 교체 후 RUN 재측정' : standbyEquivalent ? 'DataPARC · 교체 후 정지 구간 확인' : limestoneEquivalent ? 'DataPARC · 최초 기동 확인' : 'DataPARC · 정지 구간 검증',
         basis:a.dataParcRuntimeBasis,stateLabel:state==='running'?'기동중':'정지중'};
     }
     const replacement = a?.replacementAutoCycle;
@@ -717,7 +763,7 @@ DP_TAGS.add("203HRJ01AN602");
         continue;
       }
       const replacementProof = a.replacementAutoCycle;
-      const standbyProof = verifiedFbhe1bStandby(a) || verifiedFbhe2cStandby(a);
+      const standbyProof = verifiedFbhe1bStandby(a) || verifiedFbhe2cStandby(a) || verifiedFbhe1aRuntime(a);
       const priority = standbyProof ? null : rolePriorityReview(a);
       if (priority && a.cycleSourceReview?.measuredRangeMayContinue !== true) {
         skip(`${priority.label} · 기존 조회값 보존`); continue;
@@ -1660,7 +1706,7 @@ DP_TAGS.add("203HRJ01AN602");
     return stop('처리 단위 한도 도달');
   }
 
-  return { fbheSealRunAsset, fbheSealRunView, freshReplacementQuery, replacementRangeTracking, rolePriorityReview, runReviewStatus, verifiedCompletionWindow, verifiedLimestone2aFirstRun, verifiedLimestone1bFirstRun, verifiedFbhe1bStandby, verifiedFbhe2cStandby,
+  return { fbheSealRunAsset, fbheSealRunView, freshReplacementQuery, replacementRangeTracking, rolePriorityReview, runReviewStatus, verifiedCompletionWindow, verifiedLimestone2aFirstRun, verifiedLimestone1bFirstRun, verifiedFbhe1bStandby, verifiedFbhe2cStandby, verifiedFbhe1aRuntime,
     runtimeRecoveryPlan, recognizedRuntimeRecovery, plan, intermittent, snapshot, sameCycle, day, waitRequests, executeDataParc, executeDataParcBatch, executeOis, oisBody,
     refreshLogs, refreshLogsForRuntime, readWithRetry, errorLabel,
     register(kind, fn) { if (!['fbhe','seal_pot'].includes(kind) || typeof fn !== 'function') throw new Error('Invalid OIS bridge'); bridges[kind] = fn; } };
