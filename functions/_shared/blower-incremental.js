@@ -14,6 +14,13 @@ const near = (a, b) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - 
 export const SILO_BASIS_TAG='104ETH03AN602', SILO_BASIS_SIGNAL='GSPOGE.ABB_DCS.003ETH03AN602XB04';
 export const SILO_BASIS_START='2025-10-23T09:17:00+09:00', SILO_BASIS_SEAM='2026-05-10T00:00:00+09:00';
 export const SILO_BASIS_CYCLE_PREFIX='silo-prefix-basis-v1:', SILO_BASIS_SOURCE='dataparc_silo_basis_v1';
+export const LIMESTONE2A_FIRST_RUN_TAG='203HRJ01AN601', LIMESTONE2A_FIRST_RUN_SIGNAL='GSPOGE.ABB_DCS.203HRJ01AN601XB04';
+export const LIMESTONE2A_FIRST_RUN_CYCLE_PREFIX='lime2a-first-run-v1:', LIMESTONE2A_FIRST_RUN_SOURCE='dataparc_limestone2a_first_run_v1';
+export const LIMESTONE2A_TAG=LIMESTONE2A_FIRST_RUN_TAG, LIMESTONE2A_SIGNAL=LIMESTONE2A_FIRST_RUN_SIGNAL;
+export const LIMESTONE2A_START='2026-09-19T00:00:00+09:00', LIMESTONE2A_FIRST_RUN='2026-09-19T09:58:26+09:00', LIMESTONE2A_SEAM='2026-09-20T00:00:00+09:00';
+export const LIMESTONE2A_CYCLE_PREFIX=LIMESTONE2A_FIRST_RUN_CYCLE_PREFIX, LIMESTONE2A_SOURCE=LIMESTONE2A_FIRST_RUN_SOURCE;
+const LIMESTONE2A_OWNER='replacement-auto-v3:303f92e0db83b280551fdc45a570e371bad3d7a1e88a9b0265d0b8727cc6e05b';
+const LIMESTONE2A_CERT_PREFIX='dataparc_limestone2a_first_run:';
 const siloParse=v=>{try{return JSON.parse(v)}catch{return null}};
 const safeSeconds=v=>Number.isSafeInteger(v)&&v>=0;
 /** Follow immutable ordinary receipts, including their exact integer additions. */
@@ -122,6 +129,135 @@ function siloCompositeBoundaryBase(asset,rows,signal){
   const base=siloCompositeAppendBase({...asset,cycle_runtime_anchor_at:receipt.event_date,cycle_runtime_state:state,cycle_runtime_hours:receipt.runtime_hours},rows,signal);
   return base?{...base,cycleRuntimeRevision:asset.cycle_runtime_revision,preservedStateBoundary:true}:null;
 }
+
+/** Closed Sep-19 RUN ownership proof. The date remains a date placeholder;
+ * neither this certificate nor an append supplies a replacement clock. */
+export function limestone2aRawTailChain(asset,rows,headId){
+  if(asset?.tag_number!==LIMESTONE2A_TAG||asset.cycle_start_state!=='pending'||asset.cycle_started_at||
+    instant(asset.last_replacement_at)!==instant(LIMESTONE2A_START))return null;
+  const byId=new Map((rows||[]).map(row=>[row.id,row])),seen=new Set(),chain=[];
+  let row=byId.get(headId),next=null;
+  while(row&&chain.length<2000){
+    const s=siloParse(row.source_text),x=s?.incremental;
+    if(seen.has(row.id)||row.tag_number!==LIMESTONE2A_TAG||row.source_type!=='dataparc_runtime'||
+      row.event_type!=='runtime_correction'||row.updated_at!==row.created_at||!s||s.schemaVersion!==1||s.requestType!=='blower_runtime_probe'||
+      row.id!=='dataparc_runtime:'+s.requestId||row.source_log_id!==s.requestId||s.assetTag!==LIMESTONE2A_TAG||s.dataParcTag!==LIMESTONE2A_SIGNAL||
+      s.manualOverride||s.replacementEdit||s.requiresRunRefresh||instant(s.expectedLastReplacementAt)!==instant(LIMESTONE2A_START)||
+      String(s.expectedCycleStartRevision||'')!==String(asset.cycle_start_revision||'')||s.expectedCycleStartState!=='legacy'||
+      s.signalOnlyCycle!==true||s.expectedCycleStartedAt||!safeSeconds(s.runningSeconds)||
+      !['running','stopped'].includes(s.startState)||!['running','stopped'].includes(s.endState)||
+      !Number.isFinite(instant(s.startAt))||instant(s.startAt)>=instant(s.endAt)||
+      s.runningSeconds>(instant(s.endAt)-instant(s.startAt))/1000+2||instant(s.observedAt)!==instant(s.endAt)||
+      instant(row.event_date)!==instant(s.observedAt))return null;
+    const total=x?.totalRunningSeconds??s.runningSeconds;
+    if(!safeSeconds(total)||!near(number(row.runtime_hours),total/3600)||
+      next&&(next.incremental.baseRunningSeconds!==total||instant(next.startAt)!==instant(s.observedAt)||next.startState!==s.endState))return null;
+    if(x&&(x.version!==1||x.deltaRunningSeconds!==s.runningSeconds||!safeSeconds(x.baseRunningSeconds)||
+      x.totalRunningSeconds!==x.baseRunningSeconds+x.deltaRunningSeconds||instant(x.baseObservedAt)!==instant(s.startAt)||
+      instant(x.coverageStartAt)!==instant(LIMESTONE2A_SEAM)))return null;
+    seen.add(row.id);chain.push({row,source:s,totalRunningSeconds:total});
+    if(!x)return instant(s.startAt)===instant(LIMESTONE2A_SEAM)?{chain,startState:s.startState,startAt:s.startAt,runningSeconds:chain[0].totalRunningSeconds}:null;
+    next=s;row=byId.get(x.baseEventId);
+  }return null;
+}
+export function limestone2aCompositeAppendBase(asset,rows,signal){
+  const marker=String(asset?.cycle_start_revision||''),proofHash=marker.slice(LIMESTONE2A_CYCLE_PREFIX.length);
+  if(asset?.tag_number!==LIMESTONE2A_TAG||signal!==LIMESTONE2A_SIGNAL||!marker.startsWith(LIMESTONE2A_CYCLE_PREFIX)||
+    !/^[a-f0-9]{64}$/.test(proofHash)||instant(asset.last_replacement_at)!==instant(LIMESTONE2A_START)||
+    asset.cycle_start_state!=='pending'||asset.cycle_started_at||!Array.isArray(rows))return null;
+  const certificates=(rows||[]).filter(row=>row.tag_number===LIMESTONE2A_TAG&&row.source_type===LIMESTONE2A_SOURCE&&
+    siloParse(row.source_text)?.cycleStartRevision===marker);
+  if(certificates.length!==1)return null;
+  const cert=certificates[0],s=siloParse(cert.source_text),p=s?.prefix,t=s?.tail,a=s?.attestation;
+  if(!s||s.version!==1||s.assetTag!==LIMESTONE2A_TAG||s.dataParcTag!==signal||s.proofHash!==proofHash||
+    cert.id!==LIMESTONE2A_CERT_PREFIX+p?.requestId||cert.source_log_id!==p?.requestId||cert.event_type!=='runtime_correction'||
+    cert.updated_at!==cert.created_at||!Number.isFinite(instant(cert.created_at))||
+    s.auditId!=='lime2a_first_run:'+p?.requestId||!/^[a-f0-9]{64}$/.test(s.sourceProofHash||'')||
+    s.sampleGoodCertified!==false||s.completionClockKnown!==false||
+    instant(p?.startAt)!==instant(LIMESTONE2A_START)||instant(p?.endAt)!==instant(LIMESTONE2A_SEAM)||
+    p.runningSeconds!==50494||p.startState!=='stopped'||p.endState!=='running'||
+    !Number.isFinite(instant(p.firstRunAt))||Math.floor(instant(p.firstRunAt)/1000)!==instant(LIMESTONE2A_FIRST_RUN)/1000||
+    Math.abs((instant(LIMESTONE2A_SEAM)-instant(p.firstRunAt))/1000-p.runningSeconds)>2||
+    !/^[a-f0-9]{64}$/.test(p.rawResultSha256||'')||!s.tailAsset||s.tailAsset.tag_number!==LIMESTONE2A_TAG||!t||
+    !safeSeconds(t.runningSeconds)||!['running','stopped'].includes(t.endState)||!a||a.version!==1||
+    typeof a.actorId!=='string'||!a.actorId.trim()||a.completionBeforeFirstRun!==true||a.noEarlierPostReplacementRun!==true||
+    a.completionDay!=='2026-09-19'||a.firstRunAt!==p.firstRunAt||a.statementCode!=='BELT_COMPLETED_BEFORE_FIRST_RUN'||
+    cert.created_by_id!==undefined&&cert.created_by_id!==a.actorId)return null;
+  const ownerKeys=['id','tag_number','event_type','event_date','runtime_hours','issue_type','action_type','note','source_type','source_log_id','source_text','created_at','updated_at'];
+  const ownerRows=rows.filter(row=>row.tag_number===LIMESTONE2A_TAG&&row.event_type==='replacement'&&instant(row.event_date)===instant(LIMESTONE2A_START));
+  if(ownerRows.length!==1||!s.owner||s.owner.id!==LIMESTONE2A_OWNER||s.owner.source_type!=='shift_log_auto_v3'||
+    ownerKeys.some(key=>!Object.hasOwn(s.owner,key))||Object.entries(s.owner).some(([key,value])=>ownerRows[0][key]!==value)||
+    rows.some(row=>row.tag_number===LIMESTONE2A_TAG&&row.event_type==='replacement'&&row.id!==LIMESTONE2A_OWNER&&
+      (!Number.isFinite(instant(row.event_date))||instant(row.event_date)>=instant(LIMESTONE2A_START))))return null;
+  const oldRows=rows.filter(row=>row.source_type!==LIMESTONE2A_SOURCE),old=strictVerifiedAppendBase(s.tailAsset,oldRows,signal),chain=limestone2aRawTailChain(s.tailAsset,oldRows,t.eventId);
+  if(!old||!chain||old.eventId!==t.eventId||old.runningSeconds!==t.runningSeconds||
+    instant(old.startAt)!==instant(LIMESTONE2A_SEAM)||instant(old.observedAt)!==instant(t.observedAt)||
+    chain.startState!=='running'||old.state!==t.endState||s.totalRunningSeconds!==50494+t.runningSeconds||
+    !safeSeconds(s.totalRunningSeconds)||!near(number(cert.runtime_hours),s.totalRunningSeconds/3600)||
+    instant(cert.event_date)!==instant(t.observedAt))return null;
+  const byId=new Map(rows.map(row=>[row.id,row]));
+  const relevant=rows.filter(row=>row.tag_number===LIMESTONE2A_TAG&&['runtime_correction','startup','operation_start','operation_stop'].includes(row.event_type));
+  if(relevant.some(row=>!Number.isFinite(instant(row.event_date))||instant(row.event_date)>instant(asset.cycle_runtime_anchor_at)))return null;
+  const owner=relevant.filter(row=>instant(row.event_date)===instant(asset.cycle_runtime_anchor_at)).sort(eventOrder)[0];
+  let current=owner,seen=new Set(),currentSeconds=null,currentState=null;
+  while(current&&seen.size<2000){
+    if(current.id===cert.id){if(currentSeconds===null){currentSeconds=s.totalRunningSeconds;currentState=t.endState;}break;}
+    if(seen.has(current.id)||current.source_type!=='dataparc_runtime'||current.updated_at!==current.created_at)return null;
+    const raw=siloParse(current.source_text),x=raw?.incremental;
+    if(!raw||!x||raw.schemaVersion!==1||raw.requestType!=='blower_runtime_probe'||x.version!==1||raw.assetTag!==LIMESTONE2A_TAG||raw.dataParcTag!==signal||
+      raw.requestId!==current.source_log_id||current.id!=='dataparc_runtime:'+raw.requestId||raw.manualOverride||raw.replacementEdit||raw.requiresRunRefresh||
+      instant(raw.expectedLastReplacementAt)!==instant(LIMESTONE2A_START)||raw.expectedCycleStartRevision!==marker||
+      raw.expectedCycleStartState!=='legacy'||raw.signalOnlyCycle!==true||raw.expectedCycleStartedAt||
+      !safeSeconds(raw.runningSeconds)||!safeSeconds(x.baseRunningSeconds)||!safeSeconds(x.totalRunningSeconds)||
+      x.deltaRunningSeconds!==raw.runningSeconds||x.totalRunningSeconds!==x.baseRunningSeconds+raw.runningSeconds||
+      !near(number(current.runtime_hours),x.totalRunningSeconds/3600)||instant(x.coverageStartAt)!==instant(LIMESTONE2A_START)||
+      instant(x.baseObservedAt)!==instant(raw.startAt)||instant(raw.endAt)!==instant(raw.observedAt)||instant(raw.observedAt)!==instant(current.event_date)||
+      instant(raw.endAt)<=instant(raw.startAt)||raw.runningSeconds>(instant(raw.endAt)-instant(raw.startAt))/1000+2||
+      !['running','stopped'].includes(raw.startState)||!['running','stopped'].includes(raw.endState))return null;
+    const predecessor=byId.get(x.baseEventId),previous=siloParse(predecessor?.source_text);
+    const seconds=predecessor?.id===cert.id?s.totalRunningSeconds:previous?.incremental?.totalRunningSeconds??previous?.runningSeconds;
+    const state=predecessor?.id===cert.id?t.endState:previous?.endState;
+    if(!predecessor||seconds!==x.baseRunningSeconds||instant(predecessor.event_date)!==instant(raw.startAt)||raw.startState!==state)return null;
+    if(currentSeconds===null){currentSeconds=x.totalRunningSeconds;currentState=raw.endState;}
+    seen.add(current.id);current=predecessor;
+  }
+  if(current?.id!==cert.id||!owner||!safeSeconds(currentSeconds)||!near(number(asset.cycle_runtime_hours),currentSeconds/3600)||
+    currentState!==asset.cycle_runtime_state)return null;
+  const requestId=owner.id===cert.id?p.requestId:siloParse(owner.source_text)?.requestId;
+  const metadata={version:1,certificateEventId:cert.id,prefixRequestId:p.requestId,auditId:s.auditId,proofHash,sourceProofHash:s.sourceProofHash,
+    cycleStartRevision:marker,currentRuntimeRevision:asset.cycle_runtime_revision,currentRunningSeconds:currentSeconds,
+    currentObservedAt:asset.cycle_runtime_anchor_at,currentAnchorAt:asset.cycle_runtime_anchor_at,currentState,measuredState:currentState,
+    preservedStateBoundary:false,firstRunAt:p.firstRunAt,completionDay:'2026-09-19',completionClockKnown:false,
+    completionBeforeFirstRun:true,noEarlierPostReplacementRun:true,durationEquivalent:true,prefixRunningSeconds:50494,
+    originalTailRunningSeconds:t.runningSeconds,sampleGoodCertified:false};
+  return {eventId:owner.id,requestId,startAt:LIMESTONE2A_START,observedAt:asset.cycle_runtime_anchor_at,dataParcTag:signal,
+    runningSeconds:currentSeconds,runtimeHours:currentSeconds/3600,coverageComplete:true,requiredStartAt:LIMESTONE2A_START,
+    missingLeadingSeconds:0,state:currentState,cycleRuntimeRevision:asset.cycle_runtime_revision,composite:true,appendReady:true,
+    limestone2aFirstRun:metadata};
+}
+function limestone2aCompositeBoundaryBase(asset,rows,signal){
+  const stored=number(asset.cycle_runtime_hours),anchor=instant(asset.cycle_runtime_anchor_at);
+  if(!Number.isFinite(stored)||!Number.isFinite(anchor))return null;
+  const relevant=(rows||[]).filter(row=>row.tag_number===LIMESTONE2A_TAG&&['runtime_correction','startup','operation_start','operation_stop'].includes(row.event_type));
+  const owner=relevant.filter(row=>instant(row.event_date)===anchor).sort(eventOrder)[0];
+  const manual=owner?.source_type==='manual'?manualRuntimeOverlayState(owner):'',automatic=automaticBoundaryState(owner);
+  if(!owner||(!manual&&!automatic)||(manual||automatic)!==asset.cycle_runtime_state||!near(number(owner.runtime_hours),stored))return null;
+  const measured=relevant.filter(row=>row.source_type===LIMESTONE2A_SOURCE||row.source_type==='dataparc_runtime'&&siloParse(row.source_text)?.expectedCycleStartRevision===asset.cycle_start_revision)
+    .sort((a,b)=>instant(b.event_date)-instant(a.event_date)||eventOrder(a,b));
+  const receipt=measured[0],source=siloParse(receipt?.source_text),observed=instant(receipt?.event_date);
+  const state=receipt?.source_type===LIMESTONE2A_SOURCE?source?.tail?.endState:source?.endState;
+  if(!receipt||!Number.isFinite(observed)||observed>=anchor||!near(number(receipt.runtime_hours),stored))return null;
+  const overlays=relevant.filter(row=>instant(row.event_date)>observed&&instant(row.event_date)<=anchor);
+  if(!overlays.length||!overlays.some(row=>row.id===owner.id)||overlays.some(row=>!near(number(row.runtime_hours),stored)))return null;
+  if(!overlays.every(row=>row.source_type==='manual'&&Boolean(manualRuntimeOverlayState(row)))&&
+    !overlays.every(row=>Boolean(automaticBoundaryState(row))))return null;
+  if(relevant.some(row=>!Number.isFinite(instant(row.event_date))||instant(row.event_date)>anchor))return null;
+  const measuredRows=rows.filter(row=>row.tag_number!==LIMESTONE2A_TAG||!['runtime_correction','startup','operation_start','operation_stop'].includes(row.event_type)||instant(row.event_date)<=observed);
+  const base=limestone2aCompositeAppendBase({...asset,cycle_runtime_anchor_at:receipt.event_date,cycle_runtime_state:state,cycle_runtime_hours:receipt.runtime_hours},measuredRows,signal);
+  return base?{...base,cycleRuntimeRevision:asset.cycle_runtime_revision,preservedStateBoundary:true,
+    limestone2aFirstRun:{...base.limestone2aFirstRun,currentRuntimeRevision:asset.cycle_runtime_revision,
+      currentAnchorAt:asset.cycle_runtime_anchor_at,currentState:asset.cycle_runtime_state,preservedStateBoundary:true}}:null;
+}
 /* A timestamp-owned measured range may continue from its immutable endpoint
  * even when it does not cover the whole recorded belt cycle. Keep that range
  * and its partial status; never rebuild or certify the unmeasured prefix. */
@@ -147,7 +283,9 @@ export function incrementalEvidence(source) {
   if (!x) return null;
   const from = instant(x.coverageStartAt), baseAt = instant(x.baseObservedAt), end = instant(source.observedAt || source.endAt);
   if (x.version !== 1 || typeof x.baseEventId !== 'string' || !(x.baseEventId.startsWith('dataparc_runtime:') ||
-      source.assetTag===SILO_BASIS_TAG&&x.baseEventId.startsWith('dataparc_silo_basis:')) ||
+      source.assetTag===SILO_BASIS_TAG&&x.baseEventId.startsWith('dataparc_silo_basis:') ||
+      source.assetTag===LIMESTONE2A_TAG&&source.dataParcTag===LIMESTONE2A_SIGNAL&&
+        String(source.expectedCycleStartRevision||'').startsWith(LIMESTONE2A_CYCLE_PREFIX)&&x.baseEventId.startsWith(LIMESTONE2A_CERT_PREFIX)) ||
       !Number.isFinite(from) || !Number.isFinite(baseAt) || !Number.isFinite(end) || from >= baseAt || baseAt !== instant(source.startAt) || end <= baseAt ||
       !Number.isSafeInteger(x.baseRunningSeconds) || x.baseRunningSeconds < 0 ||
       !Number.isSafeInteger(x.deltaRunningSeconds) || x.deltaRunningSeconds < 0 ||
@@ -363,9 +501,103 @@ function verifiedAutomaticBoundaryAppendBase(asset, rows, dataParcTag) {
 export function verifiedAppendBase(asset, rows, dataParcTag) {
   if(asset?.tag_number===SILO_BASIS_TAG&&String(asset.cycle_start_revision||'').startsWith(SILO_BASIS_CYCLE_PREFIX))
     return siloCompositeAppendBase(asset,rows,dataParcTag)||siloCompositeBoundaryBase(asset,rows,dataParcTag);
+  if(asset?.tag_number===LIMESTONE2A_TAG&&String(asset.cycle_start_revision||'').startsWith(LIMESTONE2A_CYCLE_PREFIX))
+    return limestone2aCompositeAppendBase(asset,rows,dataParcTag)||limestone2aCompositeBoundaryBase(asset,rows,dataParcTag);
   return strictVerifiedAppendBase(asset, rows, dataParcTag) ||
     verifiedManualBoundaryAppendBase(asset, rows, dataParcTag) ||
     verifiedAutomaticBoundaryAppendBase(asset, rows, dataParcTag);
+}
+
+async function loadLimestone2aAppendDependencies(database,asset,rows,base){
+  try{
+    const {loadLimestone2aApprovedCompletion,validateLimestone2aPrefix,validateLimestone2aPrefixCycle,validateLimestone2aTailRequest}=await import('./blower-limestone2a-first-run-v1.js');
+    const sameRow=(a,b)=>a&&b&&Object.keys(a).length===Object.keys(b).length&&Object.entries(a).every(([key,value])=>b[key]===value);
+    const cert=rows.find(row=>row.id===base.limestone2aFirstRun.certificateEventId),source=siloParse(cert?.source_text);
+    if(!source)return null;
+    const current=await loadLimestone2aApprovedCompletion(database);
+    if(current.sourceProofHash!==source.sourceProofHash)return null;
+    const audit=await database.prepare("SELECT * FROM blower_history_asset_history WHERE id=? AND action_type='limestone2a_first_run_recovery' AND tag_number=?")
+      .bind(source.auditId,LIMESTONE2A_TAG).first();
+    const before=siloParse(audit?.before_json),after=siloParse(audit?.after_json),originalOwner=before?.events?.find(row=>row.id===LIMESTONE2A_OWNER);
+    const actualOwner=rows.find(row=>row.id===LIMESTONE2A_OWNER),p=source.prefix;
+    if(!before||!after||!sameRow(after.event,cert)||!sameRow(before.asset,source.tailAsset)||
+      !sameRow(originalOwner,after.owner)||!sameRow(after.owner,actualOwner)||
+      before.sourceProofHash!==source.sourceProofHash||after.sourceProofHash!==source.sourceProofHash||
+      before.prefixRawResultSha256!==p.rawResultSha256||after.prefixRawResultSha256!==p.rawResultSha256||
+      !sameRow(before.prefixRequest,after.prefixRequest)||!sameRow(before.prefixIntent,after.prefixIntent)||
+      !sameRow(after.attestation,source.attestation)||audit.changed_by_id!==source.attestation.actorId||
+      audit.changed_by_name!==source.attestation.actorName||audit.changed_at!==source.attestation.confirmedAt||
+      cert.created_by_id!==audit.changed_by_id||cert.created_by_name!==audit.changed_by_name||cert.created_at!==audit.changed_at||
+      !Array.isArray(before.events)||!Array.isArray(before.requests)||!before.requests.length||before.requests.length>2000)return null;
+    const snapshotHash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(audit.before_json)))].map(value=>value.toString(16).padStart(2,'0')).join('');
+    if(snapshotHash!==source.proofHash)return null;
+    const initial=verifiedAppendBase(after.asset,[...before.events,after.event],LIMESTONE2A_SIGNAL);
+    if(!initial||initial.eventId!==cert.id||initial.runningSeconds!==source.totalRunningSeconds||
+      !near(number(after.asset.runtime_hours),source.totalRunningSeconds/3600))return null;
+    const prefixRequest=await database.prepare('SELECT * FROM ois_data_requests WHERE id=?').bind(p.requestId).first();
+    const prefixIntent=await database.prepare('SELECT * FROM blower_runtime_probe_intents_v5 WHERE request_id=?').bind(p.requestId).first();
+    const prefix=validateLimestone2aPrefix(prefixRequest,prefixIntent);
+    const rawSha=prefixRequest&&[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(prefixRequest.result_json||'')))].map(value=>value.toString(16).padStart(2,'0')).join('');
+    if(!sameRow(prefixRequest,after.prefixRequest)||!sameRow(prefixIntent,after.prefixIntent)||rawSha!==p.rawResultSha256||
+      prefix.firstRunAt!==p.firstRunAt||prefix.runningSeconds!==p.runningSeconds||prefix.startState!==p.startState||prefix.endState!==p.endState||
+      prefixRequest.requested_by_id!==source.attestation.actorId||
+      String(prefixIntent.expected_cycle_start_revision||'').replace(/^signal-only-v1:/,'')!==source.tailAsset.cycle_start_revision)return null;
+    const oldChain=limestone2aRawTailChain(source.tailAsset,before.events,source.tail.eventId);
+    const requestRows=before.requests.map(row=>Object.fromEntries(Object.entries(row).filter(([key])=>key!=='intent_json')));
+    const intentRows=before.requests.map(row=>siloParse(row.intent_json));
+    if(!oldChain||oldChain.chain.length!==requestRows.length||new Set(requestRows.map(row=>row.id)).size!==requestRows.length||
+      intentRows.some((row,index)=>!row||row.request_id!==requestRows[index].id))return null;
+    validateLimestone2aPrefixCycle(prefixIntent,source.tailAsset,oldChain);
+    if(oldChain.chain.some(node=>!sameRow(node.row,rows.find(row=>row.id===node.row.id))))return null;
+    for(const node of oldChain.chain){
+      const index=requestRows.findIndex(row=>row.id===node.source.requestId);
+      validateLimestone2aTailRequest(requestRows[index],intentRows[index],node.source);
+    }
+    const descendants=[],byId=new Map(rows.map(row=>[row.id,row]));
+    let cursor=byId.get(base.eventId);
+    while(cursor&&cursor.id!==cert.id&&descendants.length<2000){
+      const raw=siloParse(cursor.source_text);if(!raw?.incremental)return null;
+      descendants.push({row:cursor,source:raw});cursor=byId.get(raw.incremental.baseEventId);
+    }
+    if(cursor?.id!==cert.id)return null;
+    let descendantRequests=[],descendantIntents=[],descendantAppends=[];
+    if(descendants.length){
+      const ids=JSON.stringify(descendants.map(node=>node.source.requestId));
+      descendantRequests=(await database.prepare('SELECT * FROM ois_data_requests WHERE id IN (SELECT value FROM json_each(?)) ORDER BY id').bind(ids).all()).results||[];
+      descendantIntents=(await database.prepare('SELECT * FROM blower_runtime_probe_intents_v5 WHERE request_id IN (SELECT value FROM json_each(?)) ORDER BY request_id').bind(ids).all()).results||[];
+      descendantAppends=(await database.prepare('SELECT * FROM blower_runtime_append_v1 WHERE request_id IN (SELECT value FROM json_each(?)) ORDER BY request_id').bind(ids).all()).results||[];
+      if([descendantRequests,descendantIntents,descendantAppends].some(list=>list.length!==descendants.length))return null;
+      for(const node of descendants){
+        const s=node.source,x=s.incremental,q=descendantRequests.find(row=>row.id===s.requestId),intent=descendantIntents.find(row=>row.request_id===s.requestId),append=descendantAppends.find(row=>row.request_id===s.requestId);
+        const normalized=validateLimestone2aTailRequest(q,intent,s);
+        if(!append||normalized.expectedCycleStartState!=='legacy'||normalized.expectedCycleStartedAt||
+          normalized.expectedCycleStartRevision!=='signal-only-v1:'+asset.cycle_start_revision||
+          normalized.expectedCycleRuntimeRevision!=='append-v1:'+append.base_revision||append.base_revision!==s.expectedCycleRuntimeRevision||
+          append.base_event_id!==x.baseEventId||Number(append.base_running_seconds)!==x.baseRunningSeconds||
+          instant(append.base_observed_at)!==instant(s.startAt)||instant(append.coverage_start_at)!==instant(LIMESTONE2A_START))return null;
+      }
+    }
+    const quote=value=>'"'+String(value).replace(/"/g,'""')+'"';
+    const exactRows=(table,key,expected)=>{
+      if(!Array.isArray(expected)||!expected.length||expected.some(row=>!row||typeof row!=='object'||Array.isArray(row)))throw new Error('Invalid immutable proof rows');
+      const keys=Object.keys(expected[0]);
+      if(!keys.length||keys.some(name=>!/^[a-z_][a-z0-9_]*$/.test(name))||expected.some(row=>Object.keys(row).length!==keys.length||keys.some(name=>!Object.hasOwn(row,name))))throw new Error('Invalid immutable proof fields');
+      return {sql:`NOT EXISTS(SELECT 1 FROM json_each(?) j LEFT JOIN ${table} t ON t.${quote(key)} IS json_extract(j.value,'$.${key}') WHERE t.${quote(key)} IS NULL OR NOT(${keys.map(name=>`t.${quote(name)} IS json_extract(j.value,'$.${name}')`).join(' AND ')}))`,values:[JSON.stringify(expected)]};
+    };
+    const guards=[...current.guards,exactRows('ois_data_requests','id',requestRows),exactRows('blower_runtime_probe_intents_v5','request_id',intentRows),
+      exactRows('ois_data_requests','id',[prefixRequest]),exactRows('blower_runtime_probe_intents_v5','request_id',[prefixIntent]),
+      exactRows('blower_history_asset_history','id',[audit]),...(descendants.length?[
+        exactRows('ois_data_requests','id',descendantRequests),exactRows('blower_runtime_probe_intents_v5','request_id',descendantIntents),
+        exactRows('blower_runtime_append_v1','request_id',descendantAppends)]:[])];
+    // Execute the complete predicates individually. The same predicates are
+    // returned for the eventual append transaction, never a combined deep CASE.
+    for(const check of guards){
+      if(Number((await database.prepare(`SELECT CASE WHEN (${check.sql}) THEN 1 ELSE 0 END valid`).bind(...check.values).first())?.valid)!==1)return null;
+    }
+    const fields=Object.keys(rows[0]||{}),encoded=JSON.stringify(rows),where=`tag_number=? AND event_type IN ('runtime_correction','startup','operation_start','operation_stop','replacement') AND (datetime(event_date)>=datetime(?) OR datetime(event_date) IS NULL OR NOT(event_date GLOB '*Z' OR event_date GLOB '*[+-][0-9][0-9]:[0-9][0-9]'))`;
+    const evidenceGuard={sql:`(SELECT COUNT(*) FROM blower_history_events WHERE ${where})=json_array_length(?) AND NOT EXISTS(SELECT 1 FROM json_each(?) j LEFT JOIN blower_history_events t ON t.id=json_extract(j.value,'$.id') WHERE t.id IS NULL OR NOT(${fields.map(key=>`t.${quote(key)} IS json_extract(j.value,'$.${key}')`).join(' AND ')}))`,values:[asset.tag_number,asset.last_replacement_at,encoded,encoded]};
+    return {...base,limestone2aSourceGuards:[...guards,evidenceGuard]};
+  }catch{return null;}
 }
 
 export async function loadAppendBase(database, asset, dataParcTag) {
@@ -374,7 +606,8 @@ export async function loadAppendBase(database, asset, dataParcTag) {
   // are unrelated and can make this hot-path history scan grow without bound.
   // Keep malformed dates visible so automatic recovery cannot ignore a boundary.
   const types="'runtime_correction','startup','operation_start','operation_stop'"+
-    (asset?.tag_number===SILO_BASIS_TAG&&String(asset.cycle_start_revision||'').startsWith(SILO_BASIS_CYCLE_PREFIX)?",'replacement'":'');
+    ((asset?.tag_number===SILO_BASIS_TAG&&String(asset.cycle_start_revision||'').startsWith(SILO_BASIS_CYCLE_PREFIX)||
+      asset?.tag_number===LIMESTONE2A_TAG&&String(asset.cycle_start_revision||'').startsWith(LIMESTONE2A_CYCLE_PREFIX))?",'replacement'":'');
   const result = await database.prepare(`SELECT * FROM blower_history_events
     WHERE tag_number = ? AND event_type IN (${types})
       AND (datetime(event_date) >= datetime(?) OR datetime(event_date) IS NULL
@@ -382,6 +615,7 @@ export async function loadAppendBase(database, asset, dataParcTag) {
     ORDER BY event_date DESC, updated_at DESC, created_at DESC, id DESC`)
     .bind(asset.tag_number, asset.last_replacement_at).all();
   const rows=result.results||[],base=verifiedAppendBase(asset,rows,dataParcTag);
+  if(base?.limestone2aFirstRun)return loadLimestone2aAppendDependencies(database,asset,rows,base);
   if(base?.siloBasis){
     try{
       const {loadSiloApprovedCompletion}=await import('./blower-replacement-log-source-v3.js');

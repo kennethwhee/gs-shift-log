@@ -1,4 +1,4 @@
-import { verifiedAppendBase } from './blower-incremental.js';
+import { verifiedAppendBase, LIMESTONE2A_TAG, LIMESTONE2A_CYCLE_PREFIX } from './blower-incremental.js';
 
 /* Approved work-log replacements are replayable facts, not calendar runtime.
  * All mutations use existing guarded D1 batches and keep before/after evidence.
@@ -280,6 +280,13 @@ export function replacementAutoCycleProof(asset,events) {
  */
 export async function reconcileApprovedReplacementLog(database,user,row,facts,options={}) {
   const result={ok:true,applied:0,corrected:0,retracted:0,historical:0,linked:0,confirmed:0,evidenceSuperseded:0,protected:0,results:[]};
+  const limeSourceIds=['POCHEON#20260919#DAY#BO2','POCHEON#20260919#DAY#BCO2'];
+  const limeOriginalSource=Boolean(row && [row.id,...(Array.isArray(row.sourceAliases)?row.sourceAliases:[])].some(id=>limeSourceIds.includes(text(id).replace(/^legacy-/,''))));
+  const limeReview=()=>({...result,ok:false,status:409,code:'LIME2A_FIRST_RUN_SOURCE_REVIEW_REQUIRED'});
+  if(limeOriginalSource && !['결재완료','approved'].includes(text(row?.status))){
+    const held=await database.prepare('SELECT cycle_start_revision FROM blower_history_assets WHERE tag_number=?').bind(LIMESTONE2A_TAG).first();
+    if(text(held?.cycle_start_revision).startsWith(LIMESTONE2A_CYCLE_PREFIX))return limeReview();
+  }
   if (!row || !['결재완료','approved'].includes(text(row.status)) || !text(row.id) || !Array.isArray(facts)) {
     return {...result,ok:false,status:400,code:'REPLACEMENT_SOURCE_NOT_APPROVED'};
   }
@@ -308,6 +315,22 @@ export async function reconcileApprovedReplacementLog(database,user,row,facts,op
     const loaded=await database.prepare('SELECT * FROM blower_history_events WHERE tag_number=? ORDER BY event_date DESC,created_at DESC,id DESC').bind(tag).all();
     const beforeEvents=loaded.results || [];
     if (JSON.stringify(beforeEvents).length>1200000) return {...result,ok:false,status:409,code:'REPLACEMENT_HISTORY_LIMIT'};
+    // This day-only job owns a separate first-post-replacement-RUN certificate.
+    // Reinterpreting its source must not zero the certified counter, edit its
+    // owner or withdraw its immutable evidence. An actual later job, from a
+    // different source/date, continues through the ordinary replacement path.
+    if(tag===LIMESTONE2A_TAG && text(asset.cycle_start_revision).startsWith(LIMESTONE2A_CYCLE_PREFIX) &&
+        (limeOriginalSource || text(row.work_date)==='2026-09-19')){
+      const certificate=beforeEvents.filter(event=>event.source_type==='dataparc_limestone2a_first_run_v1' &&
+        parse(event.source_text)?.cycleStartRevision===asset.cycle_start_revision);
+      if(certificate.length!==1)return limeReview();
+      try{
+        const {loadLimestone2aApprovedCompletion}=await import('./blower-limestone2a-first-run-v1.js');
+        const current=await loadLimestone2aApprovedCompletion(database,{now:options.now || new Date()});
+        if(current.sourceProofHash!==parse(certificate[0].source_text)?.sourceProofHash)return limeReview();
+      }catch{return limeReview();}
+      result.protected++;result.results.push({tagNumber:tag,kind:'protected',reason:'LIME2A_FIRST_RUN_EVIDENCE_PROTECTED'});continue;
+    }
     const afterEvents=beforeEvents.map(event => ({...event}));
     let afterAsset={...asset},reset=false,resetEvent=null;
     const changes=[];

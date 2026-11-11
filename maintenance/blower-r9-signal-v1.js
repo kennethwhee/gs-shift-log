@@ -29,6 +29,23 @@ function key(x){return 'gs-blower-r9:'+actor()+':'+x.mode;}
 function loadId(x){try{return text(root.sessionStorage.getItem(key(x)))}catch{return ''}}
 function saveId(x,id){try{root.sessionStorage.setItem(key(x),id)}catch{}}
 function clearFailedId(x,id){try{if(loadId(x)===id)root.sessionStorage.removeItem(key(x))}catch{}}
+function sameSession(session){if(!session.actor||actor()!==session.actor||token()!==session.token)
+ throw Error('로그인 상태가 변경되었습니다. 페이지를 새로고침한 뒤 다시 확인해 주세요.');}
+async function freshSnapshot(info,session){
+ const data=await request('/api/blower-history');
+ sameSession(session);
+ const current=selected();
+ if(current.tag!==info.tag||current.day!==info.day)throw Error('선택한 설비 또는 날짜가 변경되었습니다. 다시 확인해 주세요.');
+ if(data.permissions?.isSuperAdmin!==true&&data.user?.isSuperAdmin!==true)throw Error('현재 최고관리자 권한을 확인할 수 없습니다.');
+ const matches=Array.isArray(data.assets)?data.assets.filter(a=>a?.tagNumber===info.tag):[];
+ const a=matches[0],startedAt=a?.cycleStoredStartedAt??a?.cycleStartedAt??'';
+ if(matches.length!==1||a.dataParcTag!==info.signal||a.enabled===false||a.enabled===0||
+  !['legacy','started','pending'].includes(a.cycleStartState)||typeof startedAt!=='string'||
+  ['lastReplacementAt','cycleStartRevision','cycleRuntimeRevision'].some(key=>
+   typeof a[key]!=='string'||!text(a[key])||a[key]!==text(a[key])))
+  throw Error('현재 설비의 RUN 신호 또는 저장 기준을 확인할 수 없습니다. 기존값은 유지됩니다.');
+ return a;
+}
 function empty(){if(el('blowerR9Result'))el('blowerR9Result').textContent='';}
 function showResult(v,info){const zone=el('blowerR9Result');if(!zone)return;zone.textContent='';
  const title=root.document.createElement('p');title.className='blower-r9-total';title.textContent=info.asset.displayName+' · '+info.day+' · RUN '+v.runSeconds+'초 ('+(v.runSeconds/3600).toFixed(3)+'시간)';zone.appendChild(title);
@@ -66,23 +83,29 @@ function verifyResponse(info,raw,id){const item=raw?.item;const probe=item?.prob
   (c.endState==='running')!==(periods.length>0&&stamp(periods.at(-1).endAt)===end))return null;
  return {periods,runSeconds:c.runningSeconds};
 }
-async function begin(){if(busy)return;setBusy(true);empty();try{const info=selected(),old=loadId(info);
+async function begin(){if(busy)return;setBusy(true);empty();try{const info=selected(),session={actor:actor(),token:token()},old=loadId(info);
+ sameSession(session);
  if(old){
   // Only an explicitly confirmed failed R9 request may be retried, and only
   // after a new user click. Preserve pending/processing/complete IDs.
   const prior=await request(API+'?id='+encodeURIComponent(old)+'&_='+Date.now());
+  sameSession(session);
   if(prior?.item?.id!==old)throw Error('이전 R9 요청 ID가 일치하지 않습니다.');
   if(prior.item.status!=='failed'){
     active={...info,id:old};status('기존 R9 요청 '+old+' · 「결과 확인」을 눌러주세요. 중복 요청하지 않았습니다.');return;
   }
   clearFailedId(info,old);
  }
- const a=info.asset;const body={action:'create_blower_runtime_probe',r7EvidenceMode:info.mode,
+ // A normal refresh advances stored revisions independently of this panel.
+ // Read once only for a deliberate new request; never retry a rejected POST.
+ const a=await freshSnapshot(info,session);info.asset=a;
+ const body={action:'create_blower_runtime_probe',r7EvidenceMode:info.mode,
   unifiedRefresh:true,incrementalRefresh:false,requireIncrementalAppend:false,
   assetTag:info.tag,dataParcTag:info.signal,confirmRunSignal:true,startAt:info.day+'T00:00:00+09:00',
   expectedLastReplacementAt:a.lastReplacementAt||'',expectedCycleStartState:a.cycleStartState||'legacy',
   expectedCycleStartedAt:a.cycleStoredStartedAt??a.cycleStartedAt??'',expectedCycleStartRevision:a.cycleStartRevision||'',
   expectedCycleRuntimeRevision:a.cycleRuntimeRevision||''};
+ sameSession(session);
  const reply=await request(API,'POST',body);const id=text(reply.item?.id||reply.items?.[0]?.id||reply.requestId);
  if(!/^[0-9a-f-]{36}$/i.test(id))throw Error('요청 ID가 올바르지 않습니다.');
  active={...info,id};saveId(info,id);status('접수 완료 · '+id+' · 결과 확인을 눌러주세요. 기존 누적시간은 변경하지 않습니다.');
