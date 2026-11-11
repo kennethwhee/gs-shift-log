@@ -1,5 +1,6 @@
 import { handleBlowerSchedule } from "../_shared/blower-schedule-v1.js";
-import { incrementalEvidence, verifiedAppendBase, loadAppendBase, loadAppendIntent, combineAppendProbe, cycleRuntimeCoverage } from "../_shared/blower-incremental.js";
+import { incrementalEvidence, verifiedAppendBase, loadAppendBase, loadAppendIntent, combineAppendProbe, cycleRuntimeCoverage, SILO_BASIS_CYCLE_PREFIX, SILO_BASIS_SIGNAL } from "../_shared/blower-incremental.js";
+import { siloBasisResponse } from "../_shared/blower-silo-basis-v1.js";
 import { savedFirstRunStart, savedTrailingStateStart, validatedFirstRunStart, validatedTrailingStateStart } from "../_shared/blower-run-transition.js";
 import { blowerStopMaintenanceKind, loadBlowerStopMaintenance } from "../_shared/blower-stop-maintenance.js";
 import { buildRuntimeCoverageEvidence, currentManualRuntimeMeasurement } from "../_shared/blower-runtime-coverage-evidence.js";
@@ -1786,6 +1787,12 @@ function latestSuccessfulDataParcTag(assetTag, rows) {
 
 function currentDataParcRuntimeBasis(asset, rows) {
   if (!asset?.last_replacement_at) return null;
+  if(asset.tag_number==='104ETH03AN602'&&String(asset.cycle_start_revision||'').startsWith(SILO_BASIS_CYCLE_PREFIX)){
+    const base=verifiedAppendBase(asset,rows,SILO_BASIS_SIGNAL);if(!base)return null;
+    const owner=rows.find(row=>row.id===base.eventId);let raw;try{raw=JSON.parse(owner.source_text)}catch{return null;}
+    return {...base,appendReady:true,composite:true,lastQueryStartAt:owner.source_type==='dataparc_runtime'?raw.startAt:'',
+      lastAddedSeconds:owner.source_type==='dataparc_runtime'?raw.incremental?.deltaRunningSeconds??null:null};
+  }
   const replacement = Date.parse(asset.last_replacement_at);
   const explicitCycleStart = asset.cycle_start_state === "started" ? Date.parse(asset.cycle_started_at || "") : NaN;
   // A later automatically imported changeover is not proof that the new belt
@@ -1981,6 +1988,8 @@ async function loadAssetStates(database, settings, options = {}) {
     ? await loadCompletionWindowProjection(database,completionWindowAsset,runtimeByTag.get(COMPLETION_WINDOW_TAG) || [],{now}) : null;
   const completionWindowReview = completionWindowAsset && !completionWindowProjection
     ? await loadCompletionWindowRecoveryReview(database,completionWindowAsset,runtimeByTag.get(COMPLETION_WINDOW_TAG) || [],{now}) : null;
+  const siloRecoveredAsset=assets.find(asset=>asset.tag_number==='104ETH03AN602'&&String(asset.cycle_start_revision||'').startsWith(SILO_BASIS_CYCLE_PREFIX));
+  const siloRecoveredProof=siloRecoveredAsset?await loadAppendBase(database,siloRecoveredAsset,SILO_BASIS_SIGNAL):null;
 
   return assets.map(asset => {
     const runtimeRows = runtimeByTag.get(asset.tag_number) || [];
@@ -2014,7 +2023,8 @@ async function loadAssetStates(database, settings, options = {}) {
         }
       : null;
 
-    const runtimeBasis = currentDataParcRuntimeBasis(asset, runtimeRows);
+    let runtimeBasis = currentDataParcRuntimeBasis(asset, runtimeRows);
+    if(asset===siloRecoveredAsset&&!siloRecoveredProof)runtimeBasis=null;
     const runRuntime = fbheSealRunProvenance(asset, runtimeRows, now);
     let manualMeasurement = null;
     if (runRuntime) {
@@ -2071,7 +2081,8 @@ async function loadAssetStates(database, settings, options = {}) {
     const rolePriorityRevokedReview = replacementAutoCycle?.rolePrioritySourceRevoked === true
       ? {code:'ROLE_PRIORITY_SOURCE_REVOKED',cycleBasisConfirmed:false,measuredRangeMayContinue:Boolean(runtimeBasis),
         message:'상위 보직 근거가 변경되어 완료시각 재확인 필요 · 기존 RUN 조회구간 보존'} : null;
-    const cycleSourceReview = completionWindowProof ? null : rolePriorityRevokedReview || rolePriorityReview || confirmedRangeReview || normalizationReview || reviewedCycleSourceWarning(asset, runtimeRows) ||
+    const siloSourceReview=asset===siloRecoveredAsset&&!siloRecoveredProof?{code:'SILO_BASIS_SOURCE_CHANGED',cycleBasisConfirmed:false,measuredRangeMayContinue:false,message:'Silo 교체 완료 원문 또는 결합 근거가 변경되어 재확인이 필요합니다. 기존 누적값은 유지합니다.'}:null;
+    const cycleSourceReview = completionWindowProof ? null : siloSourceReview || rolePriorityRevokedReview || rolePriorityReview || confirmedRangeReview || normalizationReview || reviewedCycleSourceWarning(asset, runtimeRows) ||
       (replacementAutoCycle && !replacementAutoCycle.clockKnown && !replacementAutoCycle.registeredBaseline
         ? { code: "REPLACEMENT_COMPLETION_TIME_MISSING", cycleBasisConfirmed: false,
           measuredRangeMayContinue: false,
@@ -2087,6 +2098,10 @@ async function loadAssetStates(database, settings, options = {}) {
     const initialBasis = manureInitialRunProjection(asset, runtimeRows, initialRunAudit);
     const runtimeCoverageEvidence = buildRuntimeCoverageEvidence({ asset, rows: runtimeRows, measuredBasis,
       runRuntime, manualMeasurement, replacementAutoCycle, cycleSourceReview, initialBasis });
+    if(measuredBasis?.siloBasis&&runtimeCoverageEvidence.measurementVerified===true&&!cycleSourceReview){
+      Object.assign(runtimeCoverageEvidence,{cycleBasisConfirmed:true,wholeCycleVerified:true,composite:true,
+        siloBasis:measuredBasis.siloBasis,sampleGoodCertified:false});
+    }
     if (completionWindowProof && runtimeCoverageEvidence.measurementVerified === true &&
         runtimeCoverageEvidence.source === 'dataparc' && runtimeCoverageEvidence.requestId === completionWindowProof.runtimeRequestId) {
       // This certifies the integral, not an exact physical completion minute.
@@ -4882,6 +4897,8 @@ async function handleGet(context, user) {
   const url = new URL(context.request.url);
   const action = normalizeText(url.searchParams.get("action")) || "data";
   const permissions = buildPermissions(user);
+  if(action==='silo_basis_recovery_status')return siloBasisResponse(database,user,'status',{
+    requestId:normalizeText(url.searchParams.get('requestId')),nonce:normalizeText(url.searchParams.get('nonce'))});
 
   if (action === 'replacement_assets') {
     if (!user) return jsonResponse({ok:false,message:'로그인이 필요합니다.'},401);
@@ -5899,6 +5916,7 @@ async function editCurrentManualReplacement(database, user, body, options = {}) 
   const rows = Array.isArray(replacements.results) ? replacements.results : [];
   const selected = rows.find(event => event.id === eventId);
   if (!selected) return failure("수정할 교체 이력을 찾을 수 없습니다.", 404);
+  if(siloBasisHistoryMutationBlocked(asset,selected,'replacement'))return jsonResponse({ok:false,code:'SILO_BASIS_EVIDENCE_PROTECTED',message:SILO_HISTORY_PROTECTED_MESSAGE},409);
   if (selected.source_type !== "manual" || rows[0]?.id !== eventId) {
     return failure("현재 주기의 최신 수동 교체 이력만 수정할 수 있습니다.", 409);
   }
@@ -6274,11 +6292,21 @@ function manureInitialHistoryMutationBlocked(asset, events, selected, nextEventT
   return selected.event_type === "replacement" && nextEventType !== "replacement" &&
     !events.some(event => event.id !== selected.id && event.event_type === "replacement");
 }
+function siloBasisHistoryMutationBlocked(asset, selected, nextEventType = "") {
+  if(!selected)return false;
+  if(selected.source_type==='dataparc_silo_basis_v1'||
+    selected.tag_number==='104ETH03AN602'&&String(selected.id||'').startsWith('dataparc_silo_basis:'))return true;
+  const boundaries=['replacement','startup','operation_start','operation_stop','runtime_correction'];
+  return asset?.tag_number==='104ETH03AN602'&&String(asset.cycle_start_revision||'').startsWith(SILO_BASIS_CYCLE_PREFIX)&&
+    (boundaries.includes(selected.event_type)||boundaries.includes(nextEventType));
+}
+const SILO_HISTORY_PROTECTED_MESSAGE='Silo 교체 기준과 결합 RUN 근거는 일반 이력 수정·삭제로 변경할 수 없습니다. 실제 새 V-Belt 교체는 교체 등록을 사용해 주세요.';
 function planManualHistoryDeletion(asset, events, eventId, options = {}) {
   const now = options.now instanceof Date && Number.isFinite(options.now.getTime()) ? options.now : new Date();
   const fail = (message, code = "HISTORY_DELETE_BLOCKED", status = 409, extra = {}) => ({ ok: false, message, code, status, ...extra });
   const selected = events.find(event => event.id === eventId && event.event_type !== HISTORY_HIDDEN_EVENT_TYPE);
   if (!selected) return fail("삭제할 이력을 찾을 수 없습니다. 이력을 다시 열어 주세요.", "HISTORY_DELETE_NOT_FOUND", 404);
+  if(siloBasisHistoryMutationBlocked(asset,selected))return fail(SILO_HISTORY_PROTECTED_MESSAGE,'SILO_BASIS_EVIDENCE_PROTECTED');
   if (selected.source_type === 'limestone_basis_confirmed') return fail(
     '교체 기준 확정 근거는 보존됩니다. 잘못 확정한 기준은 새 근거와 함께 다시 확정해 주세요.', 'LIMESTONE_BASIS_EVIDENCE_PROTECTED');
   if (manureInitialHistoryMutationBlocked(asset, events, selected, "", options.initialAudit)) return fail(
@@ -6433,6 +6461,7 @@ async function editAnyHistoryEvent(database, user, body, options = {}) {
   const events = Array.isArray(result.results) ? result.results : [];
   const selected = events.find(event => event.id === eventId);
   if (!selected) return fail("수정할 이력을 찾을 수 없습니다.", 404, "HISTORY_EDIT_NOT_FOUND");
+  if(siloBasisHistoryMutationBlocked(asset,selected,normalizeText(body.eventType)))return fail(SILO_HISTORY_PROTECTED_MESSAGE,409,'SILO_BASIS_EVIDENCE_PROTECTED');
   if (selected.source_type === 'limestone_basis_confirmed') return fail(
     '교체 기준 확정 근거는 보존됩니다. 잘못 확정한 기준은 새 근거와 함께 다시 확정해 주세요.', 409, 'LIMESTONE_BASIS_EVIDENCE_PROTECTED');
   const initialAudit = tagNumber === MANURE_INITIAL_RUN_CONFIG.tagNumber ? await loadManureInitialAudit(database) : null;
@@ -6821,6 +6850,7 @@ async function editLatestRuntimeBoundary(database, user, body) {
   if (!selectedEvent) {
     return jsonResponse({ ok: false, message: "수정할 운전상태 이력을 찾을 수 없습니다." }, 404);
   }
+  if(siloBasisHistoryMutationBlocked(asset,selectedEvent,normalizeText(body.eventType)))return jsonResponse({ok:false,code:'SILO_BASIS_EVIDENCE_PROTECTED',message:SILO_HISTORY_PROTECTED_MESSAGE},409);
 
   if (
     !["operation_start", "operation_stop"].includes(normalizeText(selectedEvent.event_type)) ||
@@ -8056,6 +8086,7 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
       missingLeadingSeconds: coverage.missingLeadingSeconds }, 409);
   }
 
+  let siloAppendSourceGuards=[];
   if (appendIntent) {
     const base = await loadAppendBase(database, asset, probe.dataParcTag);
     // A server-owned partial receipt may continue from its measured endpoint.
@@ -8072,9 +8103,10 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
       ...(asset.tag_number === '204SDF01AN002' && coverage.complete ? {boundaryRecovery:{version:1,eligible:true,
         requestId,assetTag:asset.tag_number,dataParcTag:probe.dataParcTag,startAt:base.startAt,endAt:probe.rawEndAt}} : {}),
       message: "같은 조회 경계시각의 RUN 상태가 달라 이어 붙이기를 중단했습니다. 저장된 기준부터 전체 구간 검증이 필요합니다. 기존 누적값은 유지합니다." }, 409);
+    siloAppendSourceGuards=base.siloSourceGuards||[];
   }
 
-  let coverageRecoveryGuards = [];
+  let coverageRecoveryGuards = siloAppendSourceGuards;
   const fullRecoveryIntentGuard = dataParcRecoveryIntentGuard(intent);
   if (coverageRecoveryIntent) {
     try {
@@ -8377,6 +8409,8 @@ async function correctRuntime(database, user, body) {
   if (!asset) {
     return jsonResponse({ ok: false, message: "등록된 Blower TAG를 찾을 수 없습니다." }, 404);
   }
+  if(asset.tag_number==='104ETH03AN602'&&String(asset.cycle_start_revision||'').startsWith(SILO_BASIS_CYCLE_PREFIX))
+    return jsonResponse({ok:false,code:'SILO_BASIS_EVIDENCE_PROTECTED',message:SILO_HISTORY_PROTECTED_MESSAGE},409);
 
   if (normalizeText(asset.cycle_start_state) === "pending") {
     return jsonResponse({ ok: false, message: "기동 대기 Cycle은 누적시간을 보정할 수 없습니다. 먼저 [기동 등록]을 완료해 주세요." }, 409);
@@ -15770,6 +15804,8 @@ async function handlePost(context, user, body) {
       message: "모바일에서는 Blower 현황과 이력만 조회할 수 있습니다."
     }, 403);
   }
+  if(action==='start_silo_basis_recovery')return siloBasisResponse(database,user,'start',body);
+  if(action==='apply_silo_basis_recovery')return siloBasisResponse(database,user,'apply',body);
 
   if (action === "initialize_manure_run") {
     return initializeManureInitialRun(database, user, body);

@@ -3385,7 +3385,8 @@
     }
 
     if (elements.historyRuntimeCorrectionButton) {
-      const canCorrectRuntime = hasAuthenticatedWriteAccess() && Boolean(asset.lastReplacementAt) && !awaitingBackfill && !startupPending;
+      const canCorrectRuntime = hasAuthenticatedWriteAccess() && Boolean(asset.lastReplacementAt) && !awaitingBackfill && !startupPending &&
+        !(asset.tagNumber === "104ETH03AN602" && String(asset.cycleStartRevision || "").startsWith("silo-prefix-basis-v1:"));
       elements.historyRuntimeCorrectionButton.hidden = !canCorrectRuntime;
       elements.historyRuntimeCorrectionButton.disabled = !canCorrectRuntime;
     }
@@ -3419,6 +3420,24 @@
         }).join("")
       : `<div class="empty-state compact">등록된 이력이 없습니다.</div>`;
 
+    window.BlowerSiloBasisRecovery?.mount({
+      container: elements.historyCycleSummary, asset, document,
+      getAsset: () => findAsset(tagNumber),
+      canWrite: () => hasAuthenticatedWriteAccess() && state.data?.permissions?.canAdmin === true,
+      isMobile: isMobileMonitoringView,
+      session: getSessionToken,
+      storage: { getItem: key => window.sessionStorage.getItem(key),
+        setItem: (key, value) => window.sessionStorage.setItem(key, value) },
+      nonce: () => window.crypto.randomUUID(),
+      isBusy: () => state.busy || state.unifiedRefreshBusy || state.dataparcRuntimeBusy || state.backfillRunning,
+      setBusy: value => { state.dataparcRuntimeBusy = value; setBusy(value); },
+      api: apiRequest,
+      reload: async view => {
+        await loadData({ silent: true, syncOperations: false, strict: true });
+        const saved = findAsset(tagNumber);
+        return window.BlowerSiloBasisRecovery.verifyReadback(saved, view);
+      }
+    });
     elements.historyDialog.showModal();
   }
 
@@ -3500,6 +3519,10 @@
     elements.historyEventEditAsset.textContent = `${asset.displayName} · ${asset.tagNumber}`;
     elements.historyEventEditSource.textContent = `${eventLabel(event.eventType)} · ${historySourceLabel(event)}${event.sourceLogId ? ` · 원본 ${event.sourceLogId}` : ""}`;
     elements.historyEventEditType.value = ["replacement", "startup", "operation_start", "operation_stop", "runtime_correction", "problem", "basis_confirmation"].includes(event.eventType) ? event.eventType : "problem";
+    elements.historyEventEditType.disabled = asset.tagNumber === "104ETH03AN602" &&
+      String(asset.cycleStartRevision || "").startsWith("silo-prefix-basis-v1:");
+    elements.historyEventEditType.title = elements.historyEventEditType.disabled
+      ? "복구한 측정 근거를 유지하기 위해 이력 종류는 변경할 수 없습니다." : "";
     elements.historyEventEditDate.value = historyEditDateInput(event.eventDate);
     elements.historyEventEditDate.max = formatKstDateTimeInput();
     elements.historyEventEditRuntime.value = Number.isFinite(Number(event.runtimeHours)) ? String(Number(event.runtimeHours)) : "0";
@@ -3561,6 +3584,9 @@
   // [BLOWER-MANUAL-HISTORY-DELETE-V1]
   function canEditAnyHistoryEvent(asset, event) {
     return Boolean(hasAuthenticatedWriteAccess() && !isMobileMonitoringView() && asset && event &&
+      event.sourceType !== "dataparc_silo_basis_v1" && !String(event.id || "").startsWith("dataparc_silo_basis:") &&
+      !(asset.tagNumber === "104ETH03AN602" && String(asset.cycleStartRevision || "").startsWith("silo-prefix-basis-v1:") &&
+        ["replacement", "startup", "operation_start", "operation_stop", "runtime_correction"].includes(event.eventType)) &&
       event.sourceType !== "initial_startup_confirmed" && event.sourceType !== "limestone_basis_confirmed" &&
       (!isInitialStartupBasis(asset) || event.eventType === "problem") &&
       event.tagNumber === asset.tagNumber && event.id && event.updatedAt);
@@ -11108,6 +11134,11 @@
     if (stopMobileMutation()) return;
     const asset = findAsset(tagNumber);
     if (!asset || !elements.recordDialog) return;
+    if (mode === "runtime" && asset.tagNumber === "104ETH03AN602" &&
+        String(asset.cycleStartRevision || "").startsWith("silo-prefix-basis-v1:")) {
+      showToast("검증된 누적시간은 RUN 최신화로 갱신합니다.", "error");
+      return;
+    }
 
     resetRecordDialogVisibility();
 

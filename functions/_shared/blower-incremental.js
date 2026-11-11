@@ -11,6 +11,117 @@ const SUPPORTED_BINARY_RUN_ASSET = /^(?:(?:104|204)(?:HHL(?:60AP|10AN)(?:611|621
 const instant = v => typeof v === 'string' && /(?:Z|[+-]\d{2}:\d{2})$/.test(v) ? Date.parse(v) : NaN;
 const number = v => v !== null && v !== undefined && v !== '' && typeof v !== 'boolean' && Number.isFinite(Number(v)) ? Number(v) : NaN;
 const near = (a, b) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) < 0.000001;
+export const SILO_BASIS_TAG='104ETH03AN602', SILO_BASIS_SIGNAL='GSPOGE.ABB_DCS.003ETH03AN602XB04';
+export const SILO_BASIS_START='2025-10-23T09:17:00+09:00', SILO_BASIS_SEAM='2026-05-10T00:00:00+09:00';
+export const SILO_BASIS_CYCLE_PREFIX='silo-prefix-basis-v1:', SILO_BASIS_SOURCE='dataparc_silo_basis_v1';
+const siloParse=v=>{try{return JSON.parse(v)}catch{return null}};
+const safeSeconds=v=>Number.isSafeInteger(v)&&v>=0;
+/** Follow immutable ordinary receipts, including their exact integer additions. */
+export function siloRawTailChain(asset,rows,headId) {
+  if(!asset||asset.tag_number!==SILO_BASIS_TAG)return null;
+  const byId=new Map((rows||[]).map(row=>[row.id,row])),seen=new Set(),chain=[];
+  let row=byId.get(headId),next=null;
+  while(row&&chain.length<2000){
+    const s=siloParse(row.source_text),x=s?.incremental;
+    if(seen.has(row.id)||row.tag_number!==SILO_BASIS_TAG||row.source_type!=='dataparc_runtime'||
+      row.event_type!=='runtime_correction'||row.updated_at!==row.created_at||!s||s.schemaVersion!==1||s.requestType!=='blower_runtime_probe'||
+      row.id!=='dataparc_runtime:'+s.requestId||row.source_log_id!==s.requestId||
+      s.assetTag!==SILO_BASIS_TAG||s.dataParcTag!==SILO_BASIS_SIGNAL||s.manualOverride||s.replacementEdit||s.requiresRunRefresh||
+      instant(s.expectedLastReplacementAt)!==instant(asset.last_replacement_at)||
+      String(s.expectedCycleStartRevision||'')!==String(asset.cycle_start_revision||'')||
+      s.expectedCycleStartState!=='legacy'||s.expectedCycleStartedAt||
+      !safeSeconds(s.runningSeconds)||!['running','stopped'].includes(s.startState)||!['running','stopped'].includes(s.endState)||
+      !Number.isFinite(instant(s.startAt))||instant(s.startAt)>=instant(s.endAt)||s.runningSeconds>(instant(s.endAt)-instant(s.startAt))/1000+2||instant(s.observedAt)!==instant(s.endAt)||
+      instant(row.event_date)!==instant(s.observedAt))return null;
+    const total=x?.totalRunningSeconds??s.runningSeconds;
+    if(!safeSeconds(total)||!near(number(row.runtime_hours),total/3600)||
+      next&&(next.incremental.baseRunningSeconds!==total||instant(next.startAt)!==instant(s.observedAt)||next.startState!==s.endState))return null;
+    if(x&&(x.version!==1||x.deltaRunningSeconds!==s.runningSeconds||!safeSeconds(x.baseRunningSeconds)||
+      x.totalRunningSeconds!==x.baseRunningSeconds+x.deltaRunningSeconds||instant(x.baseObservedAt)!==instant(s.startAt)||
+      instant(x.coverageStartAt)!==instant(SILO_BASIS_SEAM)))return null;
+    seen.add(row.id);chain.push({row,source:s,totalRunningSeconds:total});
+    if(!x)return instant(s.startAt)===instant(SILO_BASIS_SEAM)?{chain,startState:s.startState,startAt:s.startAt,runningSeconds:chain[0].totalRunningSeconds}:null;
+    next=s;row=byId.get(x.baseEventId);
+  }return null;
+}
+/** Distinct composite proof; never reinterpret its prefix request as a full query.
+ * Every later ordinary append must still reach this immutable certificate. */
+export function siloCompositeAppendBase(asset,rows,signal,verifyOldTail=strictVerifiedAppendBase){
+  if(asset?.tag_number!==SILO_BASIS_TAG||signal!==SILO_BASIS_SIGNAL||
+    !String(asset.cycle_start_revision||'').startsWith(SILO_BASIS_CYCLE_PREFIX)||
+    instant(asset.last_replacement_at)!==instant(SILO_BASIS_START)||asset.cycle_start_state!=='legacy'||asset.cycle_started_at)return null;
+  const certificates=(rows||[]).filter(row=>row.tag_number===SILO_BASIS_TAG&&row.source_type===SILO_BASIS_SOURCE&&
+    siloParse(row.source_text)?.cycleStartRevision===asset.cycle_start_revision);
+  if(certificates.length!==1)return null;const cert=certificates[0],s=siloParse(cert.source_text),p=s?.prefix,t=s?.tail;
+  if(!s||s.version!==1||s.assetTag!==SILO_BASIS_TAG||s.dataParcTag!==signal||
+    cert.id!=='dataparc_silo_basis:'+p?.requestId||cert.source_log_id!==p?.requestId||cert.event_type!=='runtime_correction'||
+    cert.updated_at!==cert.created_at||!s.auditId||!s.sourceProofHash||
+    instant(p?.startAt)!==instant(SILO_BASIS_START)||instant(p?.endAt)!==instant(SILO_BASIS_SEAM)||
+    !safeSeconds(p.runningSeconds)||p.runningSeconds>(instant(p.endAt)-instant(p.startAt))/1000||
+    !['running','stopped'].includes(p.startState)||!['running','stopped'].includes(p.endState)||
+    !/^[a-f0-9]{64}$/.test(p.rawResultSha256||'')||!s.tailAsset||s.tailAsset.tag_number!==SILO_BASIS_TAG||!t||
+    !safeSeconds(t.runningSeconds)||!['running','stopped'].includes(t.endState))return null;
+  const ownerRows=rows.filter(row=>row.tag_number===SILO_BASIS_TAG&&row.event_type==='replacement'&&instant(row.event_date)===instant(SILO_BASIS_START));
+  if(ownerRows.length!==1||!s.owner||s.owner.id!=='v13:104ETH03AN602|2025-10-23'||
+    Object.entries(s.owner).some(([k,v])=>ownerRows[0][k]!==v))return null;
+  const oldRows=rows.filter(row=>row.source_type!==SILO_BASIS_SOURCE),old=verifyOldTail(s.tailAsset,oldRows,signal),chain=siloRawTailChain(s.tailAsset,oldRows,t?.eventId);
+  if(!old||!chain||old.eventId!==t?.eventId||old.runningSeconds!==t.runningSeconds||
+    instant(old.startAt)!==instant(SILO_BASIS_SEAM)||instant(old.observedAt)!==instant(t.observedAt)||
+    p.endState!==chain.startState||old.state!==t.endState||
+    s.totalRunningSeconds!==p.runningSeconds+t.runningSeconds||!safeSeconds(s.totalRunningSeconds)||
+    !near(number(cert.runtime_hours),s.totalRunningSeconds/3600)||instant(cert.event_date)!==instant(t.observedAt))return null;
+  const byId=new Map(rows.map(row=>[row.id,row]));
+  const owners=rows.filter(row=>row.tag_number===SILO_BASIS_TAG&&['runtime_correction','startup','operation_start','operation_stop'].includes(row.event_type)&&instant(row.event_date)===instant(asset.cycle_runtime_anchor_at)).sort(eventOrder);
+  let owner=owners[0],current=owner,seen=new Set(),currentSeconds=null,currentState=null;
+  while(current&&seen.size<2000){
+    if(current.id===cert.id){if(currentSeconds===null){currentSeconds=s.totalRunningSeconds;currentState=t.endState;}break;}
+    if(seen.has(current.id)||current.source_type!=='dataparc_runtime'||current.updated_at!==current.created_at)return null;
+    const raw=siloParse(current.source_text),x=raw?.incremental;
+    if(!raw||!x||raw.schemaVersion!==1||raw.requestType!=='blower_runtime_probe'||x.version!==1||raw.assetTag!==SILO_BASIS_TAG||raw.dataParcTag!==signal||raw.requestId!==current.source_log_id||
+      current.id!=='dataparc_runtime:'+raw.requestId||raw.manualOverride||raw.replacementEdit||raw.requiresRunRefresh||
+      instant(raw.expectedLastReplacementAt)!==instant(SILO_BASIS_START)||raw.expectedCycleStartRevision!==asset.cycle_start_revision||
+      raw.expectedCycleStartState!=='legacy'||raw.expectedCycleStartedAt||!safeSeconds(raw.runningSeconds)||!safeSeconds(x.baseRunningSeconds)||
+      !safeSeconds(x.totalRunningSeconds)||x.deltaRunningSeconds!==raw.runningSeconds||x.totalRunningSeconds!==x.baseRunningSeconds+raw.runningSeconds||
+      !near(number(current.runtime_hours),x.totalRunningSeconds/3600)||instant(x.coverageStartAt)!==instant(SILO_BASIS_START)||
+      instant(x.baseObservedAt)!==instant(raw.startAt)||instant(raw.endAt)!==instant(raw.observedAt)||instant(raw.observedAt)!==instant(current.event_date)||
+      instant(raw.endAt)<=instant(raw.startAt)||raw.runningSeconds>(instant(raw.endAt)-instant(raw.startAt))/1000+2||
+      !['running','stopped'].includes(raw.startState)||!['running','stopped'].includes(raw.endState))return null;
+    const predecessor=byId.get(x.baseEventId),prevSource=siloParse(predecessor?.source_text);
+    const prevSeconds=predecessor?.id===cert.id?s.totalRunningSeconds:prevSource?.incremental?.totalRunningSeconds??prevSource?.runningSeconds;
+    const prevState=predecessor?.id===cert.id?t.endState:prevSource?.endState;
+    if(!predecessor||prevSeconds!==x.baseRunningSeconds||instant(predecessor.event_date)!==instant(raw.startAt)||raw.startState!==prevState)return null;
+    if(currentSeconds===null){currentSeconds=x.totalRunningSeconds;currentState=raw.endState;}
+    seen.add(current.id);current=predecessor;
+  }
+  if(current?.id!==cert.id||!owner||!safeSeconds(currentSeconds)||!near(number(asset.cycle_runtime_hours),currentSeconds/3600)||
+    currentState!==asset.cycle_runtime_state)return null;
+  const currentSource=siloParse(owner.source_text),requestId=owner.id===cert.id?p.requestId:currentSource.requestId;
+  return {eventId:owner.id,requestId,startAt:SILO_BASIS_START,observedAt:asset.cycle_runtime_anchor_at,dataParcTag:signal,
+    runningSeconds:currentSeconds,runtimeHours:currentSeconds/3600,coverageComplete:true,requiredStartAt:SILO_BASIS_START,
+    missingLeadingSeconds:0,state:currentState,cycleRuntimeRevision:asset.cycle_runtime_revision,
+    siloBasis:{version:1,certificateEventId:cert.id,prefixRequestId:p.requestId,auditId:s.auditId,approvedCompletionAt:SILO_BASIS_START,
+      prefixRunningSeconds:p.runningSeconds,originalTailRunningSeconds:t.runningSeconds,sampleGoodCertified:false}};
+}
+function siloCompositeBoundaryBase(asset,rows,signal){
+  const stored=number(asset.cycle_runtime_hours),anchor=instant(asset.cycle_runtime_anchor_at);
+  if(!Number.isFinite(stored)||!Number.isFinite(anchor))return null;
+  const relevant=(rows||[]).filter(row=>row.tag_number===SILO_BASIS_TAG&&['runtime_correction','startup','operation_start','operation_stop'].includes(row.event_type));
+  const owners=relevant.filter(row=>instant(row.event_date)===anchor).sort(eventOrder),owner=owners[0];
+  const manualState=owner?.source_type==='manual'?manualRuntimeOverlayState(owner):'',autoState=automaticBoundaryState(owner);
+  if(!owner||(!manualState&&!autoState)||(manualState||autoState)!==asset.cycle_runtime_state||!near(number(owner.runtime_hours),stored))return null;
+  const measured=relevant.filter(row=>row.source_type===SILO_BASIS_SOURCE||row.source_type==='dataparc_runtime'&&siloParse(row.source_text)?.expectedCycleStartRevision===asset.cycle_start_revision)
+    .sort((a,b)=>instant(b.event_date)-instant(a.event_date)||eventOrder(a,b));
+  const receipt=measured[0],source=siloParse(receipt?.source_text),observed=instant(receipt?.event_date);
+  const state=receipt?.source_type===SILO_BASIS_SOURCE?source?.tail?.endState:source?.endState;
+  if(!receipt||!Number.isFinite(observed)||observed>=anchor||!near(number(receipt.runtime_hours),stored))return null;
+  const overlays=relevant.filter(row=>instant(row.event_date)>observed&&instant(row.event_date)<=anchor);
+  if(!overlays.length||!overlays.some(row=>row.id===owner.id)||overlays.some(row=>!near(number(row.runtime_hours),stored)))return null;
+  const manual=overlays.every(row=>row.source_type==='manual'&&Boolean(manualRuntimeOverlayState(row))),automatic=overlays.every(row=>Boolean(automaticBoundaryState(row)));
+  if(!manual&&!automatic)return null;
+  if(relevant.some(row=>!Number.isFinite(instant(row.event_date))||instant(row.event_date)>anchor))return null;
+  const base=siloCompositeAppendBase({...asset,cycle_runtime_anchor_at:receipt.event_date,cycle_runtime_state:state,cycle_runtime_hours:receipt.runtime_hours},rows,signal);
+  return base?{...base,cycleRuntimeRevision:asset.cycle_runtime_revision,preservedStateBoundary:true}:null;
+}
 /* A timestamp-owned measured range may continue from its immutable endpoint
  * even when it does not cover the whole recorded belt cycle. Keep that range
  * and its partial status; never rebuild or certify the unmeasured prefix. */
@@ -35,7 +146,8 @@ export function incrementalEvidence(source) {
   const x = source?.incremental;
   if (!x) return null;
   const from = instant(x.coverageStartAt), baseAt = instant(x.baseObservedAt), end = instant(source.observedAt || source.endAt);
-  if (x.version !== 1 || typeof x.baseEventId !== 'string' || !x.baseEventId.startsWith('dataparc_runtime:') ||
+  if (x.version !== 1 || typeof x.baseEventId !== 'string' || !(x.baseEventId.startsWith('dataparc_runtime:') ||
+      source.assetTag===SILO_BASIS_TAG&&x.baseEventId.startsWith('dataparc_silo_basis:')) ||
       !Number.isFinite(from) || !Number.isFinite(baseAt) || !Number.isFinite(end) || from >= baseAt || baseAt !== instant(source.startAt) || end <= baseAt ||
       !Number.isSafeInteger(x.baseRunningSeconds) || x.baseRunningSeconds < 0 ||
       !Number.isSafeInteger(x.deltaRunningSeconds) || x.deltaRunningSeconds < 0 ||
@@ -249,6 +361,8 @@ function verifiedAutomaticBoundaryAppendBase(asset, rows, dataParcTag) {
 }
 
 export function verifiedAppendBase(asset, rows, dataParcTag) {
+  if(asset?.tag_number===SILO_BASIS_TAG&&String(asset.cycle_start_revision||'').startsWith(SILO_BASIS_CYCLE_PREFIX))
+    return siloCompositeAppendBase(asset,rows,dataParcTag)||siloCompositeBoundaryBase(asset,rows,dataParcTag);
   return strictVerifiedAppendBase(asset, rows, dataParcTag) ||
     verifiedManualBoundaryAppendBase(asset, rows, dataParcTag) ||
     verifiedAutomaticBoundaryAppendBase(asset, rows, dataParcTag);
@@ -259,13 +373,39 @@ export async function loadAppendBase(database, asset, dataParcTag) {
   // after the last DataPARC success while preserving its RUN total. Older Cycles
   // are unrelated and can make this hot-path history scan grow without bound.
   // Keep malformed dates visible so automatic recovery cannot ignore a boundary.
+  const types="'runtime_correction','startup','operation_start','operation_stop'"+
+    (asset?.tag_number===SILO_BASIS_TAG&&String(asset.cycle_start_revision||'').startsWith(SILO_BASIS_CYCLE_PREFIX)?",'replacement'":'');
   const result = await database.prepare(`SELECT * FROM blower_history_events
-    WHERE tag_number = ? AND event_type IN ('runtime_correction','startup','operation_start','operation_stop')
+    WHERE tag_number = ? AND event_type IN (${types})
       AND (datetime(event_date) >= datetime(?) OR datetime(event_date) IS NULL
         OR NOT (event_date GLOB '*Z' OR event_date GLOB '*[+-][0-9][0-9]:[0-9][0-9]'))
     ORDER BY event_date DESC, updated_at DESC, created_at DESC, id DESC`)
     .bind(asset.tag_number, asset.last_replacement_at).all();
-  return verifiedAppendBase(asset, result.results || [], dataParcTag);
+  const rows=result.results||[],base=verifiedAppendBase(asset,rows,dataParcTag);
+  if(base?.siloBasis){
+    try{
+      const {loadSiloApprovedCompletion}=await import('./blower-replacement-log-source-v3.js');
+      const current=await loadSiloApprovedCompletion(database),cert=rows.find(row=>row.id===base.siloBasis.certificateEventId),source=siloParse(cert?.source_text);
+      if(current.sourceProofHash!==source?.sourceProofHash)return null;
+      const audit=await database.prepare('SELECT * FROM blower_history_asset_history WHERE id=? AND action_type=\'silo_prefix_basis_recovery\' AND tag_number=?').bind(source.auditId,SILO_BASIS_TAG).first();
+      const before=siloParse(audit?.before_json),after=siloParse(audit?.after_json);
+      if(!before||!after?.event||Object.entries(after.event).some(([k,v])=>cert[k]!==v)||
+        after.prefixRawResultSha256!==source.prefix.rawResultSha256||!Array.isArray(before.requests))return null;
+      const prefixRequest=await database.prepare('SELECT * FROM ois_data_requests WHERE id=?').bind(source.prefix.requestId).first();
+      const rawSha=prefixRequest&&[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(prefixRequest.result_json||'')))].map(v=>v.toString(16).padStart(2,'0')).join('');
+      if(prefixRequest?.status!=='complete'||prefixRequest.request_type!=='blower_runtime_probe'||rawSha!==source.prefix.rawResultSha256||
+        !after.prefixRequest||!after.prefixIntent||Object.entries(after.prefixRequest).some(([k,v])=>prefixRequest[k]!==v))return null;
+      const auditRows=before.requests.map(q=>Object.fromEntries(Object.entries(q).filter(([key])=>key!=='intent_json'))),intentRows=before.requests.map(q=>siloParse(q.intent_json));
+      const exactRows=(table,key,expected)=>({sql:`NOT EXISTS(SELECT 1 FROM json_each(?) j LEFT JOIN ${table} t ON t."${key}" IS json_extract(j.value,'$.${key}') WHERE t."${key}" IS NULL OR NOT(${Object.keys(expected[0]||{}).map(k=>`t."${k}" IS json_extract(j.value,'$.${k}')`).join(' AND ')}))`,values:[JSON.stringify(expected)]});
+      const exactRow=(table,row)=>exactRows(table,table==='ois_data_requests'?'id':'id',[row]);
+      const rawGuards=[exactRows('ois_data_requests','id',auditRows),exactRows('blower_runtime_probe_intents_v5','request_id',intentRows),exactRow('ois_data_requests',after.prefixRequest),exactRows('blower_runtime_probe_intents_v5','request_id',[after.prefixIntent]),exactRow('blower_history_asset_history',audit)];
+      if(!(await database.prepare(`SELECT CASE WHEN ${rawGuards.map(g=>'('+g.sql+')').join(' AND ')} THEN 1 ELSE 0 END valid`).bind(...rawGuards.flatMap(g=>g.values)).first())?.valid)return null;
+      const fields=Object.keys(rows[0]||{}),encoded=JSON.stringify(rows),where=`tag_number=? AND event_type IN ('runtime_correction','startup','operation_start','operation_stop','replacement') AND (datetime(event_date)>=datetime(?) OR datetime(event_date) IS NULL OR NOT(event_date GLOB '*Z' OR event_date GLOB '*[+-][0-9][0-9]:[0-9][0-9]'))`;
+      const evidenceGuard={sql:`(SELECT COUNT(*) FROM blower_history_events WHERE ${where})=json_array_length(?) AND NOT EXISTS(SELECT 1 FROM json_each(?) j LEFT JOIN blower_history_events t ON t.id=json_extract(j.value,'$.id') WHERE t.id IS NULL OR NOT(${fields.map(k=>`t."${k}" IS json_extract(j.value,'$.${k}')`).join(' AND ')}))`,values:[asset.tag_number,asset.last_replacement_at,encoded,encoded]};
+      return {...base,siloSourceGuards:[...current.guards,...rawGuards,evidenceGuard]};
+    }catch{return null;}
+  }
+  return base;
 }
 export async function ensureAppendSchema(database) {
   await database.prepare(`CREATE TABLE IF NOT EXISTS blower_runtime_append_v1 (

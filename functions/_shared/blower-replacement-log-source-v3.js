@@ -249,6 +249,23 @@ export async function loadCurrentReplacementRoleContext(database, selection = {}
   return { logs:roleContextSnapshotRows(result.results[0].context_snapshot,priority,suppression), coverageIssues };
 }
 
+/* Closed Silo B historical completion proof. An untimed lower-role peer is
+ * corroboration, while any explicitly different completion clock conflicts. */
+export async function loadSiloApprovedCompletion(database,options={}){
+  const context=await loadCurrentReplacementRoleContext(database,{workDate:'2025-10-23',shift:'DS'},options);
+  if(context.coverageIssues.length)fail('현재 승인 원문과 삭제 여부를 모두 확인할 수 없습니다.','SILO_BASIS_SOURCE_COVERAGE');
+  const lines=row=>{const log=JSON.parse(row.log_json);return (log.entries||[]).flatMap(e=>typeof e.content==='string'?e.content.replace(/\\n/g,'\n').split('\n'):[]).filter(s=>/Fly\s*Ash\s*Silo\s*Aeration\s*Blower\s*#\s*B.*V\s*[- ]?\s*Belt.*교체\s*완료/i.test(s));};
+  const exact=s=>/^\s*(?:\d+\.\s*)?09:17\s+\[TM\s*작업\]\s*Fly\s*Ash\s*Silo\s*Aeration\s*Blower\s*#\s*B\s*V\s*[- ]?\s*Belt\s*교체\s*완료\s*$/i.test(s);
+  if(context.logs.some(row=>lines(row).some(s=>/\b\d{1,2}:\d{2}\b/.test(s)&&!exact(s))))fail('같은 작업의 승인 원문 시각이 서로 다릅니다.','SILO_BASIS_SOURCE_CONFLICT');
+  const sources=[];for(const role of ['BCO1','BO1']){const matches=context.logs.filter(row=>row.role===role&&lines(row).some(exact));if(matches.length!==1)fail('BCO1·BO1의 현재 승인 완료 원문이 모두 필요합니다.','SILO_BASIS_SOURCE_REQUIRED');sources.push(matches[0]);}
+  const hashes=await Promise.all(sources.map(async row=>({role:row.role,...await replacementSourceHashes(row)})));
+  const canonical=v=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
+  const sourceProofHash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(canonical(hashes)))))].map(v=>v.toString(16).padStart(2,'0')).join('');
+  const excluded={sql:`NOT EXISTS(SELECT 1 FROM blower_history_candidates WHERE tag_number=? AND status='excluded' AND detected_type='replacement' AND source_log_id IN(SELECT value FROM json_each(?)))`,values:['104ETH03AN602',JSON.stringify(sources.flatMap(row=>[row.id,...(row.sourceAliases||[])]))]};
+  if(!(await database.prepare(`SELECT CASE WHEN ${excluded.sql} THEN 1 ELSE 0 END valid`).bind(...excluded.values).first())?.valid)fail('선택한 작업에 제외한 교체 근거가 있습니다.','SILO_BASIS_SOURCE_EXCLUDED');
+  return {sources,hashes,sourceProofHash,guards:[...sources.map(replacementSourceGuard),excluded]};
+}
+
 export async function loadApprovedReplacementPage(database, body = {}, options = {}) {
   const baseVersion = analysisVersion(options.analysisVersion), v4 = baseVersion === REPLACEMENT_NORMALIZE_ANALYSIS_VERSION;
   const priorityEnabled = v4 && options.rolePriority === true;

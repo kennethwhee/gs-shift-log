@@ -1,0 +1,9 @@
+.silo-basis-recovery { grid-column: 1 / -1; padding: 14px; border: 1px solid #c9d8e0; border-radius: 10px; background: #f7fafc; }
+.silo-basis-recovery > strong { font-size: 14px; color: #244555; }
+.silo-basis-recovery p { margin: 8px 0; font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; }
+.silo-basis-recovery dl { display: grid; grid-template-columns: minmax(110px, .7fr) minmax(0, 1.8fr); gap: 7px 12px; margin: 12px 0; font-size: 12px; line-height: 1.5; }
+.silo-basis-recovery dt { color: #596b78; }
+.silo-basis-recovery dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.silo-basis-recovery-note { color: #596b78; }
+.silo-basis-recovery .silo-basis-recovery-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 0; border: 0; }
+.silo-basis-recovery [hidden] { display: none !important; }
