@@ -230567,8 +230567,10 @@ function initializeLimestoneSlipCameraPicker() {
   /*
    * MORNING_MEETING_OIS_SERIAL_LANE_V1_R2A_V23
    *
-   * Shared Morning Meeting OIS browser work uses the Agent's single serial lane.
-   * Frontend saved-value reads and request creation are prequeued together.
+   * MORNING_MEETING_OIS_PARALLEL_FOUR_V1
+   * Frontend saved-value reads and request creation use up to four workers.
+   * A compatible Agent isolates the actual OIS work in separate contexts;
+   * older Agents can keep processing these same queued requests serially.
    *
    * OIS:
    *   water
@@ -230632,26 +230634,40 @@ function initializeLimestoneSlipCameraPicker() {
       );
 
     /* MORNING_MEETING_NORMAL_OIS_PREQUEUE_V1
-     * Start independent saved-value reads / request creation together.
-     * The company-PC Agent remains the sole, single-request OIS browser owner;
-     * this removes browser-side gaps between its queued jobs, not that lock.
+     * Each source applies its own result before its promise settles. Do not
+     * wait for the whole group to refresh completion controls. The legacy
+     * daily-data compatibility item shares the same four-worker limit.
      */
-    const oisPromise = Promise.allSettled(
-      oisItems.map(async item => {
-        const key = String(item?.key || "unknown");
-        const startedAt = Date.now();
-        console.info?.("[MORNING OIS PREQUEUE V1] QUEUE", key);
-        try {
-          const value = await runBulkLookupItem(item, button);
-          console.info?.("[MORNING OIS PREQUEUE V1] DONE", key, Date.now() - startedAt, "ms");
-          return value;
-        } catch (reason) {
-          console.warn?.("[MORNING OIS PREQUEUE V1] FAILED", key, Date.now() - startedAt, "ms", reason);
-          throw reason;
+    const runDate = getBulkCurrentBaseDate();
+    const runSession = String(getShiftLogSessionToken() || "");
+    const oisResults = new Array(oisItems.length);
+    let nextOisIndex = 0;
+    const oisPromise = Promise.all(
+      Array.from({ length: Math.min(4, oisItems.length) }, async () => {
+        while (nextOisIndex < oisItems.length) {
+          const index = nextOisIndex++;
+          const item = oisItems[index];
+          const key = String(item?.key || "unknown");
+          const startedAt = Date.now();
+          try {
+            if (getBulkCurrentBaseDate() !== runDate ||
+                String(getShiftLogSessionToken() || "") !== runSession) {
+              throw new Error("기준일 또는 로그인 상태가 변경되어 다음 자료 조회를 시작하지 않았습니다.");
+            }
+            console.info?.("[MORNING OIS PARALLEL FOUR V1] START", key);
+            const value = await runBulkLookupItem(item, button);
+            console.info?.("[MORNING OIS PARALLEL FOUR V1] DONE", key, Date.now() - startedAt, "ms");
+            oisResults[index] = { status: "fulfilled", value };
+          } catch (reason) {
+            console.warn?.("[MORNING OIS PARALLEL FOUR V1] FAILED", key, Date.now() - startedAt, "ms", reason);
+            oisResults[index] = { status: "rejected", reason };
+          } finally {
+            scheduleSync();
+          }
         }
       })
-    );
-    const [oisResults, parallelResults] = await Promise.all([
+    ).then(() => oisResults);
+    const [, parallelResults] = await Promise.all([
       oisPromise,
       parallelPromise
     ]);

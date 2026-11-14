@@ -1,4 +1,5 @@
 "use strict";
+const morningOisParallelV1 = require("./morning-ois-parallel-v1.cjs");
 const { parseOisSteamSalesApiResponseV13 } = require("./steam-sales-api-v13");
 // [COFIRING-WEB-BRIDGE-V1] Shares the existing Excel lane; no startup query.
 const {
@@ -11088,7 +11089,7 @@ async function getNextOisAgentRequest(
   - 기존 단건 요청 함수를 그대로 사용한다.
 
   OIS 레인은 Phase 1의 수처리 두 날짜 연속 우선순위를
-  유지하며, OIS 요청끼리는 절대 병렬로 가져오지 않는다.
+  유지하며, 호환 서버에서는 OIS 한 건, 병렬 지원 서버에서는 오전회의 4종을 최대 4건 가져온다.
 ========================================================= */
 
 async function getNextOisAgentLaneRequests(
@@ -11244,6 +11245,8 @@ async function getNextOisAgentLaneRequests(
           action:
             "next_lanes",
 
+          morningOisConcurrency: 4,
+
           oisRequestTypes:
             orderedOisRequestTypes.join(
               ","
@@ -11295,9 +11298,8 @@ async function getNextOisAgentLaneRequests(
     );
 
 
-  const oisItem =
-    result?.items?.ois ||
-    null;
+  const morningOisItems = morningOisParallelV1.claimedOisItems(result);
+  const oisItem = morningOisItems[0] || null;
 
 
   const excelItem =
@@ -11455,13 +11457,40 @@ async function getNextOisAgentLaneRequests(
   }
 
 
-  return [
-    oisItem,
+  const claimedItems = [
+    ...morningOisItems,
     excelItem
-  ]
-    .filter(
-      Boolean
-    );
+  ].filter(Boolean);
+  claimedItems.morningParallelSupported = result?.morningOisParallelVersion === 1 &&
+    result?.morningOisConcurrency === 4;
+  return claimedItems;
+}
+
+async function getMorningOisFillRequests(config, primary, excludeWater = false) {
+  let requestTypes = morningOisParallelV1.TYPES.filter(type =>
+    !excludeWater || type !== "water_environment");
+  if (isCofiringExcelBlocked() || isBedAshExcelBlocked()) {
+    requestTypes = requestTypes.filter(type => type === "limestone_stock");
+  }
+  if (!requestTypes.length) return [];
+  try {
+    const response = await requestOisAgentApi(config, getOisAgentApiUrl(config, {
+      action: "morning_ois_fill",
+      primaryRequestId: primary.id,
+      requestTypes: requestTypes.join(","),
+      _: Date.now()
+    }));
+    const items = morningOisParallelV1.claimedOisItems(response);
+    if (items.some(item => !requestTypes.includes(getOisAgentRequestType(item)) ||
+        String(item.targetDate || item.target_date || "") !== String(primary.targetDate || primary.target_date || ""))) {
+      throw new Error("오전회의 보충 조회의 요청 유형 또는 기준일이 일치하지 않습니다.");
+    }
+    if (response?.laneErrors?.ois) items.fillError = new Error(String(response.laneErrors.ois));
+    return items;
+  } catch (error) {
+    if (error?.status === 409) error.code = "MORNING_OIS_PRIMARY_NOT_LIVE";
+    throw error;
+  }
 }
 
 /* =========================================================
@@ -21349,6 +21378,13 @@ async function ensureOisAgentLoggedIn(
   }
 
 
+  if (config.morningParallelReuseOnly === true) {
+    const error = new Error("OIS 병렬 조회의 로그인 세션이 만료되었습니다. 현재 조회 결과를 확인한 뒤 다시 조회해 주세요.");
+    error.code = "OIS_MORNING_WORKER_SESSION_EXPIRED";
+    throw error;
+  }
+
+
   const userIdInput =
     page.locator(
       "#userid input"
@@ -26370,8 +26406,8 @@ async function loginOis() {
 
 
       /*
-        한 번의 기존 폴링으로
-        OIS 최대 한 건과 Excel 최대 한 건을 가져온다.
+        한 번의 기존 폴링으로 오전회의 OIS 최대 4건(호환 경로는 1건)과
+        Excel 최대 한 건을 가져온다.
 
         요청이 없을 때만 10초 대기하므로
         유휴 HTTP 요청 수는 기존과 동일하다.
@@ -26409,10 +26445,25 @@ async function loginOis() {
       let phase27aWaterFinished =
         !phase27aHasWaterRequest;
 
-      const processingResults =
-        await Promise.allSettled(
-          requestItems.map(
-            async requestItem => {
+      // The API only groups the four same-date morning sources, at most one
+      // of each kind. Other OIS work and Excel keep the original single lane.
+      const morningOisBatchItems = requestItems.filter(item =>
+        !isExcelOnlyRequestType(getOisAgentRequestType(item)));
+      const morningWorkerBatch = requestItems.morningParallelSupported === true &&
+          morningOisBatchItems.length > 0 && morningOisBatchItems.every(item =>
+            morningOisParallelV1.TYPES.includes(getOisAgentRequestType(item)))
+        ? morningOisParallelV1.createWorkerBatch({
+            items: morningOisBatchItems,
+            ensureOwner: () => ensureBrowserSession("오전회의 병렬 조회 공통 로그인"),
+            ensureLoggedIn: ensureOisAgentLoggedIn,
+            config
+          })
+        : null;
+
+      let morningExcelActive = requestItems.some(item =>
+        isExcelOnlyRequestType(getOisAgentRequestType(item)));
+      let morningOwnerSessionExpired = false;
+      const processRequestItem = async requestItem => {
       const requestId =
         normalizeOisAgentText(
           requestItem.id
@@ -26424,6 +26475,24 @@ async function loginOis() {
           requestItem
         );
 
+      let requestBrowserSession = morningWorkerBatch ? null : browserSession;
+      const requestConfig = morningWorkerBatch && !isExcelOnlyRequestType(requestType)
+        ? {...config,morningParallelReuseOnly:true} : config;
+      const ensureRequestBrowserSession = async reason => {
+        requestBrowserSession = morningWorkerBatch
+          ? await morningWorkerBatch.ensure(requestId)
+          : await ensureBrowserSession(reason);
+        return requestBrowserSession;
+      };
+      const closeRequestBrowserSession = async (session, saveState) => {
+        if (morningWorkerBatch) {
+          await morningWorkerBatch.close(requestId);
+        } else {
+          await closeBrowserSession(session, saveState);
+          browserSession = null;
+        }
+      };
+      try {
       if (requestType === "cofiring_period") {
         try { console.log("__COFIRING_CLAIM_TIMING__" + JSON.stringify({
           requestId, phase: "CLAIM_RECEIVED", atUtc: new Date().toISOString(),
@@ -26557,13 +26626,13 @@ async function loginOis() {
             이 시점에만 브라우저를 지연 생성·로그인한다.
           */
 
-          await ensureBrowserSession(
+          await ensureRequestBrowserSession(
             `${requestLabel} 요청 처리 전`
           );
 
 
           await closeOisAuxiliaryPages(
-            browserSession,
+            requestBrowserSession,
             `${requestLabel} 요청 시작`
           );
 
@@ -26571,8 +26640,8 @@ async function loginOis() {
           try {
             result =
               await collectOisAgentRequestResult(
-                browserSession.page,
-                config,
+                requestBrowserSession.page,
+                requestConfig,
                 requestItem
               );
 
@@ -26588,7 +26657,7 @@ async function loginOis() {
                 firstError
               ) &&
               isBrowserSessionUsable(
-                browserSession
+                requestBrowserSession
               )
             ) {
               throw firstError;
@@ -26600,25 +26669,25 @@ async function loginOis() {
             );
 
 
-            await closeBrowserSession(
-              browserSession,
+            await closeRequestBrowserSession(
+              requestBrowserSession,
               false
             );
 
 
-            browserSession =
+            requestBrowserSession =
               null;
 
 
-            await ensureBrowserSession(
+            await ensureRequestBrowserSession(
               `${requestLabel} 처리 중 브라우저 종료`
             );
 
 
             result =
               await collectOisAgentRequestResult(
-                browserSession.page,
-                config,
+                requestBrowserSession.page,
+                requestConfig,
                 requestItem
               );
           }
@@ -26647,11 +26716,12 @@ async function loginOis() {
 
         if (
           requestNeedsOisBrowser &&
+          !morningWorkerBatch &&
           isBrowserSessionUsable(
-            browserSession
+            requestBrowserSession
           )
         ) {
-          await browserSession.context
+          await requestBrowserSession.context
             .storageState({
               path:
                 OIS_SESSION_FILE_PATH
@@ -26675,6 +26745,7 @@ async function loginOis() {
       } catch (
         error
       ) {
+        if (error?.code === "OIS_MORNING_WORKER_SESSION_EXPIRED") morningOwnerSessionExpired = true;
         if (requestType === "silo_level" && error?.code === "SILO_RESULT_DELIVERY_FAILED") {
           console.error("SILO 수집 완료 · 서버 저장 확인 실패:", error.message);
           if (error.backupPath) console.error("보관된 SILO 결과:", error.backupPath);
@@ -26696,18 +26767,18 @@ async function loginOis() {
         */
         if (
           requestNeedsOisBrowser &&
-          browserSession &&
+          requestBrowserSession &&
           (
             isBrowserClosedError(
               error
             ) ||
             !isBrowserSessionUsable(
-              browserSession
+              requestBrowserSession
             )
           )
         ) {
           try {
-            await ensureBrowserSession(
+            await ensureRequestBrowserSession(
               `${requestLabel} 실패 후 복구`
             );
 
@@ -26729,12 +26800,12 @@ async function loginOis() {
         if (
           requestNeedsOisBrowser &&
           isBrowserSessionUsable(
-            browserSession
+            requestBrowserSession
           )
         ) {
           screenshotPath =
             await saveOisAgentErrorScreenshot(
-              browserSession.page,
+              requestBrowserSession.page,
               requestId
             );
         }
@@ -26771,6 +26842,9 @@ async function loginOis() {
         );
       }
 
+      } finally {
+        if (morningWorkerBatch) await morningWorkerBatch.finish(requestId);
+        if (isExcelOnlyRequestType(requestType)) morningExcelActive = false;
       if (
         requestType ===
           "water_environment"
@@ -26783,9 +26857,24 @@ async function loginOis() {
           "[PHASE2.7A] Water request finished; Daily DATA may start."
         );
       }
-            }
-          )
-        );
+      }
+
+      };
+      const processingResults = morningWorkerBatch
+        ? await morningOisParallelV1.runWithFills({
+            items: requestItems,
+            processItem: processRequestItem,
+            claimMore: primary => getMorningOisFillRequests(config, primary, morningExcelActive),
+            onAdded: more => morningWorkerBatch.add(more),
+            onFillError: error => console.warn("오전회의 보충 조회 확인 실패:", error.message),
+            shouldContinue: () => !isShuttingDown
+          })
+        : await Promise.allSettled(requestItems.map(processRequestItem));
+
+      if (morningOwnerSessionExpired) {
+        await closeBrowserSession(browserSession, false);
+        browserSession = null;
+      }
 
 
       processingResults

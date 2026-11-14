@@ -11304,8 +11304,9 @@ async function handleAgentNextRequest(
 
   중요:
   - HTTP 폴링 요청은 기존처럼 한 번만 사용한다.
-  - OIS 레인과 Excel 레인은 각각 최대 한 건만 가져온다.
-  - OIS 요청끼리는 병렬로 가져오지 않는다.
+  - 기본 OIS 레인과 Excel 레인은 각각 최대 한 건만 가져온다.
+  - 독립 context를 사용하는 신형 Agent만 morningOisConcurrency=4로
+    같은 날짜의 오전회의 OIS 4종을 종류별 한 건씩 가져올 수 있다.
   - 기존 action=next는 구버전 에이전트를 위해 유지한다.
 ========================================================= */
 
@@ -11323,6 +11324,13 @@ const OIS_AGENT_OIS_LANE_REQUEST_TYPES = [
   "seal_pot_runtime",
   "steam_status"
 ];
+
+// MORNING_OIS_PARALLEL_V1: only a new Agent with isolated contexts opts in.
+// Excel/DataPARC and every other OIS collector retain their existing lane.
+const MORNING_OIS_PARALLEL_REQUEST_TYPES = Object.freeze([
+  "water_environment", "limestone_stock", "turbine_gear_pinion", "silo_level"
+]);
+const MORNING_OIS_PARALLEL_LIMIT = 4;
 
 
 const OIS_AGENT_EXCEL_LANE_REQUEST_TYPES = [
@@ -11744,7 +11752,8 @@ async function failInvalidBlowerRuntimeProbeClaimCandidate(
 async function claimOisAgentLaneCandidate(
   database,
   pendingRow,
-  agentId
+  agentId,
+  morningParallel = null
 ) {
   if (
     !pendingRow
@@ -11935,6 +11944,46 @@ async function claimOisAgentLaneCandidate(
         ]
       : [];
 
+  // This guard is opt-in and scoped to this Agent. Existing next/next_lanes
+  // clients keep their original protocol. The installer separately requires
+  // one active Agent; this is not a lock against unrelated legacy processes.
+  const morningLaneOrder = `,${OIS_AGENT_OIS_LANE_REQUEST_TYPES.join(",")},`;
+  const morningEligibleOrder = `,${MORNING_OIS_PARALLEL_REQUEST_TYPES.join(",")},`;
+  const morningParallelGuard = morningParallel ? `
+    AND NOT EXISTS (
+      SELECT 1 FROM ois_data_requests AS morning_active
+      WHERE morning_active.status = 'processing'
+        AND morning_active.agent_id = ? AND morning_active.expires_at >= ?
+        AND instr(?, ',' || morning_active.request_type || ',') > 0
+        AND (? = '' OR instr(?, ',' || morning_active.request_type || ',') = 0
+          OR morning_active.target_date <> ?)
+    )
+    AND (SELECT COUNT(*) FROM ois_data_requests AS morning_count
+      WHERE morning_count.status = 'processing' AND morning_count.agent_id = ?
+        AND morning_count.expires_at >= ?
+        AND instr(?, ',' || morning_count.request_type || ',') > 0) < ?
+    AND NOT EXISTS (
+      SELECT 1 FROM ois_data_requests AS morning_same_type
+      WHERE morning_same_type.status = 'processing' AND morning_same_type.agent_id = ?
+        AND morning_same_type.expires_at >= ? AND morning_same_type.request_type = ?
+    )
+    AND (? = '' OR EXISTS (
+      SELECT 1 FROM ois_data_requests AS morning_primary
+      WHERE morning_primary.id = ? AND morning_primary.agent_id = ?
+        AND morning_primary.status = 'processing' AND morning_primary.expires_at >= ?
+        AND morning_primary.target_date = ?
+        AND instr(?, ',' || morning_primary.request_type || ',') > 0
+    ))` : "";
+  const morningPrimaryId = morningParallel?.primaryId || "";
+  const morningParallelBindings = morningParallel ? [
+    agentId, processingStartedAtText, morningLaneOrder,
+    morningPrimaryId, morningEligibleOrder, pendingRow.target_date,
+    agentId, processingStartedAtText, morningLaneOrder, MORNING_OIS_PARALLEL_LIMIT,
+    agentId, processingStartedAtText, requestType,
+    morningPrimaryId, morningPrimaryId, agentId, processingStartedAtText,
+    pendingRow.target_date, morningEligibleOrder
+  ] : [];
+
 
   /*
     다른 에이전트와 동시에 실행되더라도
@@ -11989,6 +12038,7 @@ async function claimOisAgentLaneCandidate(
           )
           ${blowerExistingPrimaryGuard}
           ${blowerIntentClaimGuard}
+          ${morningParallelGuard}
           AND NOT EXISTS (SELECT 1 FROM ois_data_requests AS restart_guard
             WHERE restart_guard.request_type='cofiring_restart_guard' AND restart_guard.status='guard'
               AND restart_guard.agent_id=? AND restart_guard.expires_at>?)
@@ -12024,6 +12074,7 @@ async function claimOisAgentLaneCandidate(
         processingStartedAtText,
         ...blowerExistingPrimaryBindings,
         ...blowerIntentClaimBindings,
+        ...morningParallelBindings,
         agentId,
         processingStartedAtText
       )
@@ -12094,6 +12145,80 @@ function getOisAgentLaneErrorMessage(
   );
 }
 
+async function claimMorningOisParallelExtras(database, primary, requestTypes, agentId, items, laneErrors) {
+  if (!primary || !MORNING_OIS_PARALLEL_REQUEST_TYPES.includes(primary.requestType)) return;
+  const eligibleTypes = requestTypes.filter(type => MORNING_OIS_PARALLEL_REQUEST_TYPES.includes(type));
+  const typeOrder = `,${eligibleTypes.join(",")},`;
+  // Retry bounded CAS races, preserving every item already claimed if a later
+  // SELECT or UPDATE fails. Never return a claimed row only via a follow-up read.
+  for (let attempt = 0; attempt < MORNING_OIS_PARALLEL_LIMIT * 2 &&
+      items.morningOis.length < MORNING_OIS_PARALLEL_LIMIT; attempt += 1) {
+    const now = new Date().toISOString();
+    try {
+      const candidate = await database.prepare(`
+        SELECT request.* FROM ois_data_requests AS request
+        WHERE request.status = 'pending' AND request.expires_at >= ?
+          AND request.target_date = ?
+          AND instr(?, ',' || request.request_type || ',') > 0
+          AND NOT EXISTS (
+            SELECT 1 FROM ois_data_requests AS active
+            WHERE active.status = 'processing' AND active.agent_id = ?
+              AND active.expires_at >= ? AND active.request_type = request.request_type
+          )
+        ORDER BY instr(?, ',' || request.request_type || ','), request.requested_at, request.id
+        LIMIT 1
+      `).bind(now, primary.targetDate, typeOrder, agentId, now, typeOrder).first();
+      if (!candidate) break;
+      const claimed = await claimOisAgentLaneCandidate(database, candidate, agentId, { primaryId: primary.id });
+      if (claimed) items.morningOis.push(claimed);
+    } catch (error) {
+      laneErrors.ois = getOisAgentLaneErrorMessage(error, "오전회의 추가 조회 요청을 가져오지 못했습니다.");
+      break;
+    }
+  }
+}
+
+async function handleMorningOisParallelFill(context, requestUrl) {
+  const authentication = await authenticateOisAgent(context);
+  if (authentication.error) return authentication.error;
+  const primaryRequestId = requestUrl.searchParams.get("primaryRequestId");
+  if (typeof primaryRequestId !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(primaryRequestId)) {
+    return jsonResponse({ ok: false, code: "MORNING_OIS_PRIMARY_INVALID",
+      message: "진행 중인 오전회의 조회 요청 ID를 확인해 주세요." }, 400);
+  }
+  const requestTypeResult = normalizeAgentLaneRequestTypes(
+    requestUrl.searchParams.get("requestTypes"), MORNING_OIS_PARALLEL_REQUEST_TYPES, "requestTypes"
+  );
+  if (!requestTypeResult.ok) {
+    return jsonResponse({ ok: false, code: "MORNING_OIS_FILL_TYPES_INVALID",
+      message: requestTypeResult.message }, 400);
+  }
+  const now = new Date().toISOString();
+  const eligibleOrder = `,${MORNING_OIS_PARALLEL_REQUEST_TYPES.join(",")},`;
+  const primaryRow = await context.env.DB.prepare(`
+    SELECT * FROM ois_data_requests
+    WHERE id = ? AND agent_id = ? AND status = 'processing' AND expires_at >= ?
+      AND instr(?, ',' || request_type || ',') > 0
+    LIMIT 1
+  `).bind(primaryRequestId, authentication.agentId, now, eligibleOrder).first();
+  if (!primaryRow) {
+    return jsonResponse({ ok: false, code: "MORNING_OIS_PRIMARY_NOT_LIVE",
+      message: "추가 조회를 연결할 진행 중인 오전회의 요청이 없습니다." }, 409);
+  }
+  const primary = convertRequestRow(primaryRow);
+  const items = { ois: null, excel: null, morningOis: [] };
+  const laneErrors = { ois: "", excel: "" };
+  // Late card preflights can enqueue after the first Water request was claimed.
+  // Fill free slots while that request runs; never return/restart the primary.
+  // The Agent can omit Water while its existing Excel job is still running.
+  // This subset constrains new claims only, never the anchor's request type.
+  await claimMorningOisParallelExtras(context.env.DB, primary,
+    requestTypeResult.requestTypes, authentication.agentId, items, laneErrors);
+  items.ois = items.morningOis[0] || null;
+  return jsonResponse({ ok: true, items, laneErrors,
+    morningOisParallelVersion: 1, morningOisConcurrency: MORNING_OIS_PARALLEL_LIMIT });
+}
+
 
 async function handleAgentNextLaneRequests(
   context,
@@ -12110,6 +12235,12 @@ async function handleAgentNextLaneRequests(
   ) {
     return authentication.error;
   }
+
+  const morningConcurrencyValue = requestUrl.searchParams.get("morningOisConcurrency");
+  if (morningConcurrencyValue !== null && morningConcurrencyValue !== "4") {
+    return jsonResponse({ ok: false, message: "morningOisConcurrency는 4만 지원합니다." }, 400);
+  }
+  const morningParallelEnabled = morningConcurrencyValue === "4";
 
 
   const oisRequestTypeResult =
@@ -12314,7 +12445,8 @@ async function handleAgentNextLaneRequests(
             claimOisAgentLaneCandidate(
               context.env.DB,
               candidate,
-              authentication.agentId
+              authentication.agentId,
+              morningParallelEnabled && laneName === "ois" ? {} : null
             )
           );
         }
@@ -12396,12 +12528,23 @@ async function handleAgentNextLaneRequests(
     );
   }
 
+  if (morningParallelEnabled) {
+    items.morningOis = items.ois ? [items.ois] : [];
+    await claimMorningOisParallelExtras(
+      context.env.DB, items.ois, oisRequestTypes, authentication.agentId, items, laneErrors
+    );
+  }
 
   return jsonResponse({
     ok:
       true,
 
     items,
+
+    ...(morningParallelEnabled ? {
+      morningOisParallelVersion: 1,
+      morningOisConcurrency: MORNING_OIS_PARALLEL_LIMIT
+    } : {}),
 
     checkedRequestTypes: {
       ois:
@@ -16771,7 +16914,8 @@ if (
       회사 PC OIS · Excel 두 레인 동시 요청
 
       한 번의 HTTP 폴링으로
-      OIS 최대 1건 + Excel 최대 1건을 가져온다.
+      기본 OIS 최대 1건 + Excel 최대 1건을 가져온다.
+      신형 Agent의 명시적 오전회의 capability는 OIS 4종만 확장한다.
     */
     if (
       action ===
@@ -16781,6 +16925,9 @@ if (
         context,
         requestUrl
       );
+    }
+    if (action === "morning_ois_fill") {
+      return await handleMorningOisParallelFill(context, requestUrl);
     }
     /*
       회사 PC 다음 요청
