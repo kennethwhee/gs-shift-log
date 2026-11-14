@@ -159,6 +159,25 @@
     };
     const effective = closedEffectiveState(item, snapshot);
     const summary = effective.summary;
+    // Read provenance from this frozen close, rather than a later effective
+    // adjustment that may omit the original counter evidence. This describes
+    // saved values only; it never recalculates quantities or changes quality.
+    let calculationBasis = null;
+    try {
+      let basisApi = root?.CofiringCalculationBasisV1;
+      if (!basisApi && typeof module === 'object' && module.exports && typeof require === 'function') {
+        basisApi = require('./cofiring-calculation-basis-v1.js');
+      }
+      const original = snapshot.originalResult || snapshot.result;
+      if (basisApi?.describe && original?.period?.startLocal === period.startLocal &&
+          original?.period?.endLocal === period.endLocal &&
+          ['stepUnit', 'stepValue'].every(key => period[key] === undefined || original.period[key] === period[key])) {
+        // Server-validated closes store organicUsage alongside result. Use only
+        // that same snapshot's evidence, retaining an original estimate veto.
+        const candidate = {...original, organicUsage: snapshot.organicUsage ?? original.organicUsage};
+        if (!original.organicUsage || basisApi.describe(original)) calculationBasis = basisApi.describe(candidate);
+      }
+    } catch (_) { /* Optional presentation helper; legacy closes remain usable. */ }
     const organic = emptyOrganic();
     organic.sludgeTotal = number(snapshot.manual?.receipts?.organic);
     organic.organicSiloTotal = number(snapshot.organicUsage?.endTotal);
@@ -178,6 +197,7 @@
     return { targetDate: date, revision: item.revision, updatedAt: String(item.updatedAt || ''),
       source: 'cofiring-closed-history', period: {startLocal: period.startLocal, endLocal: period.endLocal},
       adjustmentApplied: effective.adjustmentApplied, adjustmentSource: effective.adjustmentSource,
+      ...(calculationBasis ? {calculationBasis} : {}),
       receiptInputMode: snapshot.manual?.inputMode === 'manual' ? 'manual' : 'auto',
       ...(inventoryCorrected?{inventoryCorrected:true}:{}),
       unitOne: unit(summary?.unit1), unitTwo: unit(summary?.unit2), combined: ratios(summary?.combined),

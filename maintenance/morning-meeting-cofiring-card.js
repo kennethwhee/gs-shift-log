@@ -196,11 +196,46 @@
     Object.values(VALUE_IDS).forEach((id) => setValue(id, "-"));
   }
 
-  function setStatus(state, text) {
+  function clearCalculationStatusNote(badge) {
+    if (!(badge instanceof HTMLElement)) return;
+    // Restore only attributes still owned by this calculation note. A clean,
+    // loading, reset, other-date or signed-out repaint must not retain it.
+    if (badge.dataset.cofiringCalculationNote !== undefined) {
+      for (const [attribute, hadKey, previousKey] of [
+        ["title", "cofiringCalculationHadTitle", "cofiringCalculationPreviousTitle"],
+        ["aria-label", "cofiringCalculationHadAria", "cofiringCalculationPreviousAria"]
+      ]) {
+        if (badge.getAttribute(attribute) === badge.dataset.cofiringCalculationNote) {
+          if (badge.dataset[hadKey] === "true") badge.setAttribute(attribute, badge.dataset[previousKey] || "");
+          else badge.removeAttribute(attribute);
+        }
+        delete badge.dataset[hadKey];
+        delete badge.dataset[previousKey];
+      }
+      delete badge.dataset.cofiringCalculationNote;
+    }
+  }
+
+  function setStatus(state, text, calculationNote = "") {
     const badge = document.getElementById("efficiencyMorningMeetingCofiringStatus");
 
     if (!(badge instanceof HTMLElement)) {
       return;
+    }
+
+    clearCalculationStatusNote(badge);
+
+    if (calculationNote) {
+      for (const [attribute, hadKey, previousKey] of [
+        ["title", "cofiringCalculationHadTitle", "cofiringCalculationPreviousTitle"],
+        ["aria-label", "cofiringCalculationHadAria", "cofiringCalculationPreviousAria"]
+      ]) {
+        const previous = badge.getAttribute(attribute);
+        badge.dataset[hadKey] = previous !== null ? "true" : "false";
+        badge.dataset[previousKey] = previous || "";
+        badge.setAttribute(attribute, calculationNote);
+      }
+      badge.dataset.cofiringCalculationNote = calculationNote;
     }
 
     badge.className = "efficiency-morning-meeting-auto-card__badge morning-meeting-cofiring-status";
@@ -823,6 +858,7 @@
     }
     if (!saved) return false;
     try {
+      clearCalculationStatusNote(document.getElementById("efficiencyMorningMeetingCofiringStatus"));
       fallback.render?.(targetDate);
       return true;
     } catch (error) {
@@ -837,7 +873,13 @@
         setValue(VALUE_IDS[prefix + suffix], formatRatio(snapshot[unit][field]));
       }
     }
-    setStatus("complete", snapshot.adjustmentApplied === true ? "혼소조정 적용" : "마감자료");
+    const basis = snapshot.calculationBasis;
+    const hasVerifiedGap = basis?.kind === "counter-boundary-quality-gap" &&
+      Number.isFinite(basis.maxGapSeconds) && basis.maxGapSeconds > 0 &&
+      typeof basis.note === "string" && Boolean(basis.note);
+    const label = snapshot.adjustmentApplied === true ? "혼소조정 적용" : hasVerifiedGap ? "누적계 기준" : "마감자료";
+    setStatus("complete", label + (hasVerifiedGap ? " · 품질 공백" : ""),
+      hasVerifiedGap ? (snapshot.adjustmentApplied === true ? "혼소조정 적용 · " : "") + basis.note : "");
   }
 
   function renderClosedState() {

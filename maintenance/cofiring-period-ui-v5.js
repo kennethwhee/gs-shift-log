@@ -5,6 +5,7 @@
   const liveApi=root.CofiringLive;
   const inventoryCorrectionApi=root.CofiringInventoryCorrectionUI;
   const communicationWarning=root.CofiringCommunicationWarningV2;
+  const calculationBasisApi=root.CofiringCalculationBasisV1||(typeof require==='function'?require('./cofiring-calculation-basis-v1.js'):null);
   const sharedScenario=root.CofiringSharedScenarioV7;
   const settingsApi=root.CofiringCalculationSettingsStorage;
   const manualApi=root.CofiringPeriodManualStorage;
@@ -24,6 +25,18 @@
   function coalBioHeat(unit){const total=unit?.heats?.total;return typeof total==='number'&&Number.isFinite(total)?total:null;}
   function coalBioRatio(unit){const direct=unit?.fuelRatios?.bio??unit?.ratios?.bio;if(typeof direct==='number'&&Number.isFinite(direct))return direct;const total=coalBioHeat(unit),bio=unit?.heats?.bio;return total!==null&&total>0&&typeof bio==='number'&&Number.isFinite(bio)?bio/total*100:null;}
   function combinedCoalBio(result){const total=result?.combined?.heats?.total,direct=result?.combined?.fuelRatios?.bio??result?.combined?.ratios?.bio,bio=result?.combined?.heats?.bio;const heat=typeof total==='number'&&Number.isFinite(total)?total:null;const ratio=typeof direct==='number'&&Number.isFinite(direct)?direct:heat!==null&&heat>0&&typeof bio==='number'&&Number.isFinite(bio)?bio/heat*100:null;return {heat,ratio};}
+  // COFIRING_CALCULATION_BASIS_V1: classify the original source without changing
+  // adjusted quantities, detailed quality warnings, or any save/close decision.
+  function calculationBasisFor(result,container){
+    let source=result;
+    if(result?.adjustment?.applied===true){
+      const state=container?.__cfvAdjustedComparisonState;
+      if(!state?.active||state.adjusted!==result||!state.base||
+         !['startLocal','endLocal','stepUnit','stepValue'].every(key=>state.base.period?.[key]===result.period?.[key]))return null;
+      source=state.base;
+    }
+    try{return calculationBasisApi?.describe?.(source)||null;}catch(_){return null;}
+  }
   function cachedReference(state,spec){
     const item=state?.item,report=item?.result?.report,base=report?.reference,reference=base?{...base,organicInventoryReady:report?.organicInventoryReady===true,organicInventory:report?.organicInventory||null,organicInventorySamples:report?.organicInventorySamples||null}:null;
     if(!state?.authenticated||!state.canQuery||!item?.saved||!reference||item.active||item.loading||item.submitting||item.error)return null;
@@ -317,10 +330,10 @@
     const time=container.querySelector('[data-cfv-results-time]');
     if(time)time.textContent=result?.period?.endLocal?result.period.endLocal.replaceAll('-','.').replace('T',' · ')+' 기준':'';
     if(!result){host.innerHTML=summaryPlaceholder(targetPercent);restoreEditor();if(note)note.textContent='DataPARC 조회 전';return;}
-    const cards=[];
+    const cards=[],calculationBasis=calculationBasisFor(result,container);
     for(const [i,unit] of UNITS.entries()){
       const u=result?.units?.[unit],manualComplete=!!(u?.organic?.complete&&u?.manure?.complete),bioReady=coalBioRatio(u)!==null,provisional=result.organicUsage?.provisionalZero===true||result.organicUsage?.provisional===true;
-      cards.push(`<article class="cfv52-card${isHypothesis?' cfv17-hypothesis-card':''}" data-cfv52-unit="${unit}"><header><div class="cfv52-unit-title"><span class="cfv52-unit-number" aria-hidden="true">0${i+1}</span><div><strong>${i+1}호기</strong></div></div><span class="cfv52-card-status${manualComplete&&bioReady&&!provisional?'':' is-waiting'}">${isHypothesis?(pendingHypothesis?'추정 계산 보류':'추정 계산 · 미확정'):result.organicUsage?.provisional?'추정 재고 · 임시 계산':provisional?'유기성 0t 임시 표시':manualComplete&&bioReady?'계산 완료':bioReady&&result?.organicUsage?.code==='ORGANIC_BOUNDARY_CORRECTION_REQUIRED'?'Coal·Bio 완료 · 유기성 미확인':bioReady?'종합 계산 대기':u?.coal?.complete&&u?.bio?.complete?'사용량 확인 · 재고 보완 필요':'조회값 확인'}</span></header><div class="cfv52-metrics">
+      cards.push(`<article class="cfv52-card${isHypothesis?' cfv17-hypothesis-card':''}" data-cfv52-unit="${unit}"><header><div class="cfv52-unit-title"><span class="cfv52-unit-number" aria-hidden="true">0${i+1}</span><div><strong>${i+1}호기</strong></div></div><span class="cfv52-card-status${manualComplete&&bioReady&&!provisional?'':' is-waiting'}">${isHypothesis?(pendingHypothesis?'추정 계산 보류':'추정 계산 · 미확정'):result.organicUsage?.provisional?'추정 재고 · 임시 계산':provisional?'유기성 0t 임시 표시':manualComplete&&bioReady?(calculationBasis?.calculationLabel||'계산 완료'):bioReady&&result?.organicUsage?.code==='ORGANIC_BOUNDARY_CORRECTION_REQUIRED'?'Coal·Bio 완료 · 유기성 미확인':bioReady?'종합 계산 대기':u?.coal?.complete&&u?.bio?.complete?'사용량 확인 · 재고 보완 필요':'조회값 확인'}</span></header><div class="cfv52-metrics">
         ${summaryMetric('바이오 혼소율',coalBioRatio(u),{ratio:true})}
         ${summaryMetric('유기성 · 축분 혼소율',u?.fuelRatios?.organicGroup,{ratio:true})}
         ${summaryMetric('종합 혼소율',u?.fuelRatios?.total,{ratio:true,emphasis:true})}
@@ -333,7 +346,7 @@
     </div></article>`);
     host.innerHTML=cards.join('');
     restoreEditor();
-    if(note)note.textContent=isHypothesis?(pendingHypothesis?'추정 계산 보류':'추정 계산 · 미확정'):result?.organicUsage?.code==='ORGANIC_BOUNDARY_CORRECTION_REQUIRED'&&result?.organicUsage?.ok!==true?'Coal·Bio 완료 · 유기성 재고 미확인':result?.warnings?.length?'자료 확인 필요':'계산 완료';
+    if(note)note.textContent=isHypothesis?(pendingHypothesis?'추정 계산 보류':'추정 계산 · 미확정'):result?.organicUsage?.code==='ORGANIC_BOUNDARY_CORRECTION_REQUIRED'&&result?.organicUsage?.ok!==true?'Coal·Bio 완료 · 유기성 재고 미확인':calculationBasis?.displayLabel||(result?.warnings?.length?'자료 확인 필요':'계산 완료');
   }
 
   // COFIRING_ADJUSTED_COMPARISON_CARDS_V4
@@ -438,7 +451,7 @@
     });
 
     host.replaceChildren(...originalCards,...adjustedCards,...trailingOriginal);
-    const note=container.querySelector('[data-cfv52-summary-note]');if(note)note.textContent='혼소 조정 적용';
+    const note=container.querySelector('[data-cfv52-summary-note]');if(note)note.textContent=calculationBasisFor(state.adjusted,container)?'혼소 조정 적용 · 누적계 기준 · 품질 공백 포함':'혼소 조정 적용';
     paintTonnage();
   }
 
@@ -924,7 +937,7 @@
       else if(hasResult&&organicUsageState?.provisional){parts.push('추정 재고 · 임시 계산');tone='working';}
       else if(hasResult&&organicUsageState?.provisionalZero){parts.push('계산 완료 · 유기성 0t 임시 표시');tone='working';}
       else if(container.querySelector('[data-cfv5-status]')?.dataset.tone==='error'){parts.push('확인 필요 · 상세 확인');tone='error';}
-      else if(hasResult){parts.push(displayResult.warnings?.length?'계산 완료 · 자료 확인 필요':'계산 완료');tone='success';}
+      else if(hasResult){parts.push(calculationBasisFor(displayResult,container)?.displayLabel||(displayResult.warnings?.length?'계산 완료 · 자료 확인 필요':'계산 완료'));tone='success';}
       else if(item?.loading)parts.push('저장 결과 확인 중');
       else parts.push('저장 결과 없음 · 계산하기를 누르세요');
       if(hasResult&&state?.authenticated){const p=displayResult.period;parts.push(queryMode(container)==='daily'&&p.durationHours===24?'하루 전체':p.endLocal.slice(0,10)===defaultCalculationDate()?`${p.endLocal.slice(11)} 기준`:`${p.endLocal.replace('T',' ')} 기준`);}
@@ -1014,7 +1027,7 @@
       // COFIRING_ADJUSTED_COMPARISON_STATE_V4
       container.__cfvAdjustedComparisonState = adjusted
         ? { active: true, base: lastResult || null, adjusted: result || null }
-        : { active: false, base: result || lastResult || null, adjusted: null };displayResult=result;const manualValues=readManual(container);/* CFV6 DETAIL RESULT BRIDGE R2 */container.__cfv6DetailPayload={result,manualValues};if(root.CustomEvent)container.dispatchEvent(new root.CustomEvent('cfv6-detail-result',{detail:container.__cfv6DetailPayload}));renderMain(container,result);renderOrganic(container,result,manualValues);renderSummary(container,result,manualValues,deadlineInputError);cfvSummaryLayoutMaybeReveal(result,adjusted);renderWarnings(container,result);communicationWarning?.render?.(container.querySelector('[data-cfv-communication-warning]'),reference,organicUsageState);scheduleDeadlineRefresh();adjustmentActive=!!adjusted;const b=container.querySelector('[data-cfv56-adjust]');if(b){b.disabled=!lastResult||mobile||organicUsageState?.ok!==true||organicUsageState?.provisional===true||organicUsageState?.provisionalZero===true||!!organicUsageState?.scenario||!!organicUsageState?.sharedScenarioPending;b.classList.toggle('is-active',adjustmentActive);b.textContent=adjustmentActive?'혼소조정 적용 중':'혼소 조정';}const activeResetButton=container.querySelector('[data-cfv56-active-reset]');if(activeResetButton){activeResetButton.hidden=!adjustmentActive;activeResetButton.disabled=!adjustmentActive||mobile;activeResetButton.setAttribute('aria-hidden',String(!adjustmentActive));}const note=container.querySelector('[data-cfv52-summary-note]');if(note&&adjusted)note.textContent='혼소 조정 적용';}
+        : { active: false, base: result || lastResult || null, adjusted: null };displayResult=result;const manualValues=readManual(container);/* CFV6 DETAIL RESULT BRIDGE R2 */container.__cfv6DetailPayload={result,manualValues};if(root.CustomEvent)container.dispatchEvent(new root.CustomEvent('cfv6-detail-result',{detail:container.__cfv6DetailPayload}));renderMain(container,result);renderOrganic(container,result,manualValues);renderSummary(container,result,manualValues,deadlineInputError);cfvSummaryLayoutMaybeReveal(result,adjusted);renderWarnings(container,result);communicationWarning?.render?.(container.querySelector('[data-cfv-communication-warning]'),reference,organicUsageState);scheduleDeadlineRefresh();adjustmentActive=!!adjusted;const b=container.querySelector('[data-cfv56-adjust]');if(b){b.disabled=!lastResult||mobile||organicUsageState?.ok!==true||organicUsageState?.provisional===true||organicUsageState?.provisionalZero===true||!!organicUsageState?.scenario||!!organicUsageState?.sharedScenarioPending;b.classList.toggle('is-active',adjustmentActive);b.textContent=adjustmentActive?'혼소조정 적용 중':'혼소 조정';}const activeResetButton=container.querySelector('[data-cfv56-active-reset]');if(activeResetButton){activeResetButton.hidden=!adjustmentActive;activeResetButton.disabled=!adjustmentActive||mobile;activeResetButton.setAttribute('aria-hidden',String(!adjustmentActive));}const note=container.querySelector('[data-cfv52-summary-note]');if(note&&adjusted)note.textContent=calculationBasisFor(result,container)?'혼소 조정 적용 · 누적계 기준 · 품질 공백 포함':'혼소 조정 적용';}
     // COFIRING_ADJUSTED_COMPARISON_RESTORE_FLASH_FIX_V6_R3_R4
     function cfvSummaryLayoutPending(active){
       if(mobile)return;
