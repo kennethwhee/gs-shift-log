@@ -66,14 +66,20 @@ test('legacy fallback clears the owned gap color while respecting another module
   assert.equal(b.badge.getAttribute('aria-label'), 'ordinary label');
 });
 
-test('date and status occupy their own header row, outside the dynamically extended controls', () => {
+test('status is immediately before refresh in one compact toolbar and date stays with the title', () => {
   const b = browser(), html = b.createCard().innerHTML;
   const controls = /<div class="efficiency-morning-meeting-auto-card__meta morning-meeting-cofiring-card__meta">([\s\S]*?)<\/div>/.exec(html)?.[1];
-  const status = /<div class="morning-meeting-cofiring-card__status-row">([\s\S]*?)<\/div>/.exec(html)?.[1];
-  assert.ok(controls); assert.ok(status);
-  assert.match(controls, /morningMeetingCofiringRefreshButton/);
+  const title = /<header[^>]*>\s*<div>([\s\S]*?)<\/div>/.exec(html)?.[1];
+  assert.ok(controls); assert.ok(title);
+  assert.match(title, /혼소율 현황/);
+  assert.match(title, /efficiencyMorningMeetingCofiringDate/);
+  assert.doesNotMatch(controls, /efficiencyMorningMeetingCofiringDate/);
+  assert.match(controls, /id="efficiencyMorningMeetingCofiringStatus"\s*>조회 대기<\/span>\s*<button[^>]*\bid="morningMeetingCofiringRefreshButton"/);
   assert.match(controls, /morningMeetingCofiringCalorificButton/);
-  assert.doesNotMatch(controls, /efficiencyMorningMeetingCofiring(?:Date|Status)/);
-  assert.match(status, /efficiencyMorningMeetingCofiringDate/);
-  assert.match(status, /efficiencyMorningMeetingCofiringStatus/);
+  assert.doesNotMatch(html, /morning-meeting-cofiring-card__status-row/);
+  const css = fs.readFileSync(path.join(__dirname, '../maintenance/morning-meeting-cofiring-card.css'), 'utf8');
+  const inline = css.slice(css.indexOf('/* MORNING_MEETING_COFIRING_HEADER_INLINE_V3'));
+  assert.match(inline, /flex-flow:\s*row nowrap !important/);
+  assert.match(inline, /grid-template-rows:\s*auto !important/);
+  assert.match(inline, /#efficiencyMorningMeetingCofiringStatus\s*\{[^}]*white-space:\s*nowrap !important[^}]*text-overflow:\s*ellipsis !important/);
 });

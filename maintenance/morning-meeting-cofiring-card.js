@@ -268,7 +268,7 @@
 
     if (dateElement instanceof HTMLElement) {
       dateElement.textContent =
-        targetDate ? `${targetDate}\n마감자료` : "-";
+        targetDate ? `${targetDate} · 마감` : "-";
       dateElement.title = "혼소율 메뉴에서 저장한 선택일의 마감자료";
     }
   }
@@ -282,9 +282,14 @@
         <div>
           <span>CO-FIRING</span>
           <strong>혼소율 현황</strong>
+          <small id="efficiencyMorningMeetingCofiringDate">-</small>
         </div>
 
         <div class="efficiency-morning-meeting-auto-card__meta morning-meeting-cofiring-card__meta">
+          <span
+            class="efficiency-morning-meeting-auto-card__badge morning-meeting-cofiring-status"
+            id="efficiencyMorningMeetingCofiringStatus"
+          >조회 대기</span>
           <button
             type="button"
             class="morning-meeting-daily-mini-refresh"
@@ -305,13 +310,6 @@
           >
             발열량
           </button>
-        </div>
-        <div class="morning-meeting-cofiring-card__status-row">
-          <small id="efficiencyMorningMeetingCofiringDate">-</small>
-          <span
-            class="efficiency-morning-meeting-auto-card__badge morning-meeting-cofiring-status"
-            id="efficiencyMorningMeetingCofiringStatus"
-          >조회 대기</span>
         </div>
       </header>
 
