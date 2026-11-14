@@ -28,7 +28,8 @@ function browser(options = {}) {
     'blowerScheduleTime', 'blowerSchedulePreview', 'blowerScheduleSave', 'blowerScheduleDraftStatus']) elements.set(id, new Target());
   elements.get('loginScreen').hidden = true;
   document.getElementById = id => elements.get(id) || null;
-  document.documentElement = {dataset: options.blower ? {shiftLogPage: 'blower-history'} : {}};
+  document.documentElement = {dataset: options.blower !== false ? {shiftLogPage: 'blower-history'} : {}};
+  document.visibilityState = 'visible';
   document.readyState = 'complete';
   const saved = new Map([[AUTH_KEY, JSON.stringify({employeeNo: 'employee-a', sessionToken: 'token-a', role: 'BCO1'})]]);
   root.localStorage = {getItem: key => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, value)};
@@ -101,15 +102,18 @@ function controllerBrowser(options = {}) {
   return {...f, calls, setState(value) { state = value; }, state: () => state};
 }
 
-test('main page requires visible application, hidden login screen, and complete authenticated identity', () => {
+test('Blower scheduler requires a visible owned document and complete authenticated identity', () => {
   const f = browser();
   assert.deepEqual(identity(f.root), {token: 'token-a', employeeNo: 'employee-a'});
-  f.elements.get('appShell').hidden = true;
+  f.document.hidden = true;
   assert.equal(identity(f.root), null);
-  f.elements.get('appShell').hidden = false;
-  f.elements.get('loginScreen').hidden = false;
+  f.document.hidden = false;
+  f.document.visibilityState = 'hidden';
   assert.equal(identity(f.root), null);
-  f.elements.get('loginScreen').hidden = true;
+  f.document.visibilityState = 'visible';
+  f.document.documentElement.dataset.shiftLogPage = '';
+  assert.equal(identity(f.root), null, 'a logged-in diary shell does not own Blower queries');
+  f.document.documentElement.dataset.shiftLogPage = 'blower-history';
   f.saved.set(AUTH_KEY, JSON.stringify({employeeNo: 'employee-a'}));
   assert.equal(identity(f.root), null);
   f.saved.set(AUTH_KEY, JSON.stringify({sessionToken: 'token-a'}));
@@ -257,13 +261,13 @@ test('logout click blocks the old bearer synchronously before delayed logout API
   assert.equal(io.identity().token, 'token-b');
 });
 
-test('main login visibility, mobile switch, and page lifecycle promptly update scheduler identity', async () => {
+test('Blower document visibility, mobile switch, and page lifecycle promptly update scheduler identity', async () => {
   const f = controllerBrowser(); install(f.root);
-  f.elements.get('appShell').hidden = true;
+  f.document.hidden = true;
   await f.document.emit('visibilitychange');
   assert.equal(f.calls.ticks.at(-1), null);
   assert.equal(f.elements.get('blowerSchedulePanel').hidden, true);
-  f.elements.get('appShell').hidden = false;
+  f.document.hidden = false;
   f.root.mobile = true;
   await f.media.emit('change');
   assert.equal(f.calls.ticks.at(-1), null);
@@ -300,14 +304,20 @@ test('next and last server slot times render in KST including midnight rollover'
   assert.equal(f.elements.get('blowerScheduleProgress').textContent, '예약 연결 확인 필요');
 });
 
-test('both pages load scheduling scripts once; Blower owns the designation panel and main links to it', () => {
+test('only Blower loads scheduling scripts once; the diary main only links to that page', () => {
   for (const relative of ['index.html', 'maintenance/blower-history.html']) {
     const html = fs.readFileSync(path.join(__dirname, '..', relative), 'utf8');
     const scripts = [...html.matchAll(/<script\b[^>]*\bsrc\s*=\s*['"]([^'"]+)['"][^>]*>/gi)].map(match => match[1].split('?')[0].split('/').at(-1));
     const dependencies = ['blower-unified-refresh.js', 'blower-schedule-v1.js', 'blower-schedule-browser-v1.js'];
-    for (const name of dependencies) assert.equal(scripts.filter(src => src === name).length, 1, `${relative}: ${name} once`);
-    assert.ok(scripts.indexOf(dependencies[0]) < scripts.indexOf(dependencies[1]), `${relative}: core before controller`);
-    assert.ok(scripts.indexOf(dependencies[1]) < scripts.indexOf(dependencies[2]), `${relative}: controller before adapter`);
+    const isBlower = relative === 'maintenance/blower-history.html';
+    for (const name of dependencies) {
+      const expected = isBlower || name === 'blower-unified-refresh.js' ? 1 : 0;
+      assert.equal(scripts.filter(src => src === name).length, expected, `${relative}: ${name} scope`);
+    }
+    if (isBlower) {
+      assert.ok(scripts.indexOf(dependencies[0]) < scripts.indexOf(dependencies[1]), `${relative}: core before controller`);
+      assert.ok(scripts.indexOf(dependencies[1]) < scripts.indexOf(dependencies[2]), `${relative}: controller before adapter`);
+    }
     if (relative === 'maintenance/blower-history.html') {
       for (const id of ['blowerSchedulePanel', 'blowerScheduleRegister', 'blowerScheduleDisable', 'blowerScheduleNext',
         'blowerScheduleCadence', 'blowerScheduleInterval', 'blowerScheduleTime', 'blowerSchedulePreview', 'blowerScheduleSave']) {
@@ -351,7 +361,7 @@ test('default midnight cadence is visible when settings are collapsed and contro
   assert.match(html, /id="blowerScheduleTime" type="time" value="00:00" step="60"/);
   assert.doesNotMatch(html, /매일 00 · 04 · 08 · 12 · 16 · 20시/);
   const releases = new Map();
-  for (const entry of ['index.html', 'maintenance/blower-history.html']) {
+  for (const entry of ['maintenance/blower-history.html']) {
     const text = fs.readFileSync(path.join(__dirname, '..', entry), 'utf8');
     for (const name of ['blower-unified-refresh.js', 'blower-schedule-v1.js', 'blower-schedule-browser-v1.js']) {
       const scripts = [...text.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["']/g)]
@@ -363,7 +373,7 @@ test('default midnight cadence is visible when settings are collapsed and contro
         assert.equal(release.searchParams.get('runtimeRepair'), '20261107-r4');
       }
       const key = scripts[0].split('?')[1];
-      if (releases.has(name)) assert.equal(key, releases.get(name), `${name}: both entry points load the same release`);
+      if (releases.has(name)) assert.equal(key, releases.get(name), `${name}: the Blower entry retains its release`);
       else releases.set(name, key);
     }
   }

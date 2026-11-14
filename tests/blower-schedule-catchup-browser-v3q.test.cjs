@@ -36,7 +36,8 @@ function fixture(options = {}) {
     [scheduler.DEVICE_KEY, DEVICE]]);
   if (options.loggedOut) f.saved.delete(AUTH);
   f.nodes = nodes; f.root = root; f.document = document; f.intervals = intervals;
-  document.readyState = 'complete'; document.documentElement = { dataset: { shiftLogPage: 'blower-history' } };
+  document.readyState = 'complete'; document.documentElement = { dataset: { shiftLogPage: options.page ?? 'blower-history' } };
+  document.hidden = options.hidden === true; document.visibilityState = document.hidden ? 'hidden' : 'visible';
   document.getElementById = id => { if (!nodes.has(id)) nodes.set(id, new Target()); return nodes.get(id); };
   root.document = document; root.location = { origin: 'https://schedule.example.invalid' };
   root.localStorage = { getItem: key => f.saved.get(key) ?? null,
@@ -263,4 +264,32 @@ test('pagehide stops the installed timer and persisted pageshow rechecks the cur
   assert.equal(f.actions('create_blower_runtime_probe_batch').length, 1);
   await f.tick(30000);
   assert.equal(f.actions('create_blower_runtime_probe_batch').length, 1);
+});
+
+
+for (const page of ['', 'cofiring'])
+test(`main/co-firing document ${JSON.stringify(page)} cannot boot the real scheduled-query pipeline`, async () => {
+  const f = fixture({page}); await f.flush();
+  assert.equal(f.controllers.length, 0);
+  assert.equal(f.intervals.size, 0);
+  await f.root.emit('online');
+  await f.root.emit('focus');
+  await f.root.emit('storage', {key: AUTH});
+  await f.document.emit('visibilitychange');
+  await f.root.emit('pageshow', {persisted: true});
+  await f.tick(24 * 3600000);
+  assert.equal(f.calls.length, 0, 'no status read, reservation write or equipment query leaves an unowned page');
+});
+
+test('an initially hidden Blower page defers its due slot until it becomes visible', async t => {
+  const f = fixture({hidden: true}); t.after(() => f.close()); await f.flush();
+  assert.equal(f.controllers.length, 1, 'visibility lifecycle is installed for the owned document');
+  assert.equal(f.calls.length, 0);
+  await f.tick();
+  assert.equal(f.calls.length, 0);
+  f.document.hidden = false; f.document.visibilityState = 'visible';
+  await f.document.emit('visibilitychange'); await f.flush();
+  assert.equal(f.operations('claim').length, 1);
+  assert.equal(f.actions('create_blower_runtime_probe_batch').length, 1);
+  assert.equal(f.applied.size, 2);
 });

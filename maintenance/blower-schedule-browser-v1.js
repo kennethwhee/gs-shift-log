@@ -1,4 +1,4 @@
-/* BCO1 scheduled Blower refresh: page/login adapter, no persistent Excel. */
+/* BCO1 scheduled Blower refresh: visible Blower page/login adapter, no persistent Excel. */
 (function (root, factory) {
   'use strict';
   const api = factory();
@@ -20,10 +20,10 @@
     try {
       if (root.matchMedia(MOBILE).matches) return null;
       const document = root.document;
-      const shell = document.getElementById('appShell');
-      const login = document.getElementById('loginScreen');
-      const blower = document.documentElement?.dataset?.shiftLogPage === 'blower-history';
-      if (!blower && (!shell || shell.hidden || !login?.hidden)) return null;
+      // Blower queries belong only to the actively visible Blower document.
+      // A logged-in diary/co-firing shell must never authorize this scheduler.
+      if (document?.documentElement?.dataset?.shiftLogPage !== 'blower-history' ||
+          document.hidden === true || document.visibilityState !== 'visible') return null;
       const user = JSON.parse(root.localStorage.getItem(AUTH_KEY) || 'null');
       const token = String(user?.sessionToken || user?.session_token || '').trim();
       const employeeNo = String(user?.employeeNo || user?.employee_no || user?.employeeId || user?.employee_id || '').trim();
@@ -41,7 +41,8 @@
         throw new Error('자동조회 API 경로가 올바르지 않습니다.');
       }
       const abort = new root.AbortController();
-      const entry = {token, abort}; active.add(entry);
+      const entry = {token, abort, scopeInvalidated: false}; active.add(entry);
+      const assertCurrent = () => { assert(token); if (entry.scopeInvalidated) throw accessError(); };
       const timer = root.setTimeout(() => abort.abort(), Math.max(1000, Math.min(60000, Number(options.timeoutMs) || 30000)));
       try {
         const response = await root.fetch(url.href, {
@@ -50,16 +51,16 @@
             ...(options.body ? {'Content-Type':'application/json'} : {})},
           body: options.body ? JSON.stringify(options.body) : undefined, signal: abort.signal
         });
-        assert(token);
+        assertCurrent();
         const body = await response.json();
-        assert(token);
+        assertCurrent();
         if (!response.ok || body?.ok === false) {
           const error = new Error(body?.message || '자동조회 요청을 처리하지 못했습니다.');
           error.status = response.status; error.code = body?.code || 'HTTP_ERROR'; throw error;
         }
         return body;
       } catch (error) {
-        assert(token);
+        assertCurrent();
         if (error?.name === 'AbortError') {
           const timeout = new Error('자동조회 응답 대기시간을 초과했습니다.');
           timeout.status = 0; timeout.code = 'REQUEST_TIMEOUT'; throw timeout;
@@ -69,7 +70,12 @@
     }
     request.invalidate = (all = false) => {
       const current = readIdentity()?.token;
-      for (const entry of active) if (all || entry.token !== current) entry.abort.abort();
+      for (const entry of active) if (all || entry.token !== current) {
+        // Remember a lost page/session scope even if the browser ignores abort
+        // and becomes visible again before an old response arrives.
+        if (entry.token !== current) entry.scopeInvalidated = true;
+        entry.abort.abort();
+      }
     };
     return request;
   }
@@ -104,9 +110,12 @@
     };
   }
   function install(root) {
+    const document = root.document;
+    // Check document ownership before installing any listeners, timers or API.
+    // A hidden Blower document still installs its visibility-resume lifecycle.
+    if (document?.documentElement?.dataset?.shiftLogPage !== 'blower-history') return;
     if (root.__blowerScheduleBrowserV1) return;
     root.__blowerScheduleBrowserV1 = true;
-    const document = root.document;
     let controller, timer, blockedToken = '', lastBusy = false, paused = false;
     let draftOwner = '', draftDirty = false, settingsPending = false, settingsNotice = '';
     let draft = {...DEFAULT_TIMING};
