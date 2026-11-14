@@ -37,3 +37,33 @@
 /* Reference-only organic scenario; actual quantity above remains unverified. */
 .cofiring-period-v5 .cfv10-fuel-scenario{display:block;margin-top:2px;font-size:10px;line-height:1.2;color:#a56500;font-weight:650;white-space:nowrap;}
 .cofiring-period-v5 .cfv10-fuel.is-unavailable:has(.cfv10-fuel-scenario){border-color:#f2cb91;}
+
+/* Repetitive fuel quality warnings: short visible summary, full keyboard/tap detail. */
+.cofiring-period-v5 .cfv-quality-gap-notice > summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+.cofiring-period-v5 .cfv-quality-gap-notice > summary::-webkit-details-marker { display: none; }
+.cofiring-period-v5 .cfv-quality-gap-notice > summary > span:first-child { min-width: 0; }
+.cofiring-period-v5 .cfv-quality-gap-notice__hint {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.cofiring-period-v5 .cfv-quality-gap-notice > summary:focus-visible {
+  outline: 2px solid #a56500;
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+.cofiring-period-v5 .cfv-quality-gap-notice[open] > summary { margin-bottom: 6px; }
+.cofiring-period-v5 .cfv-quality-gap-notice > ul {
+  margin: 0;
+  padding-left: 18px;
+  font-weight: 400;
+}
+.cofiring-period-v5 .cfv-quality-gap-notice > ul > li + li { margin-top: 3px; }

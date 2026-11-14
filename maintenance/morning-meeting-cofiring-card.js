@@ -213,6 +213,7 @@
         delete badge.dataset[previousKey];
       }
       delete badge.dataset.cofiringCalculationNote;
+      badge.classList.remove("is-quality-gap");
     }
   }
 
@@ -245,6 +246,21 @@
     }
 
     badge.textContent = text;
+    if (calculationNote) {
+      badge.classList.add("is-quality-gap");
+      // Keep the calculation basis and historian quality as separate visible
+      // labels. The complete note remains available to assistive technology.
+      if (typeof badge.replaceChildren === "function" && typeof document.createTextNode === "function") {
+        const parts = text.split(" · ");
+        const basis = document.createElement("span");
+        basis.className = "morning-meeting-cofiring-status__basis";
+        basis.textContent = parts.shift() || "누적계 기준";
+        const quality = document.createElement("span");
+        quality.className = "morning-meeting-cofiring-status__quality";
+        quality.textContent = parts.join(" · ");
+        badge.replaceChildren(basis, document.createTextNode(" · "), quality);
+      }
+    }
   }
 
   function setCardDate(targetDate) {
@@ -269,13 +285,6 @@
         </div>
 
         <div class="efficiency-morning-meeting-auto-card__meta morning-meeting-cofiring-card__meta">
-          <small id="efficiencyMorningMeetingCofiringDate">-</small>
-          <span
-            class="efficiency-morning-meeting-auto-card__badge morning-meeting-cofiring-status"
-            id="efficiencyMorningMeetingCofiringStatus"
-          >
-            조회 대기
-          </span>
           <button
             type="button"
             class="morning-meeting-daily-mini-refresh"
@@ -296,6 +305,13 @@
           >
             발열량
           </button>
+        </div>
+        <div class="morning-meeting-cofiring-card__status-row">
+          <small id="efficiencyMorningMeetingCofiringDate">-</small>
+          <span
+            class="efficiency-morning-meeting-auto-card__badge morning-meeting-cofiring-status"
+            id="efficiencyMorningMeetingCofiringStatus"
+          >조회 대기</span>
         </div>
       </header>
 

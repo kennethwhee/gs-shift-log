@@ -888,3 +888,94 @@ small {
 
 
 /* ===== /MORNING_CALORIFIC_LABEL_SPACING_V9 ===== */
+
+
+/* MORNING_MEETING_COFIRING_HEADER_READABILITY_V2
+   Controls keep their own top row. Date and calculation quality share a
+   separate row, so long saved-state labels cannot squeeze the card title. */
+#efficiencyMorningMeetingAutoCofiringCard.morning-meeting-cofiring-card
+  > .efficiency-morning-meeting-auto-card__header {
+  display: grid !important;
+  grid-template-columns: minmax(72px, 1fr) auto !important;
+  grid-template-rows: auto auto !important;
+  align-items: center !important;
+  gap: 5px 7px !important;
+  height: auto !important;
+  min-height: 58px !important;
+}
+
+#efficiencyMorningMeetingAutoCofiringCard.morning-meeting-cofiring-card
+  > .efficiency-morning-meeting-auto-card__header > div:first-child {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  min-width: 0 !important;
+  overflow: visible !important;
+}
+
+#efficiencyMorningMeetingAutoCofiringCard.morning-meeting-cofiring-card
+  .morning-meeting-cofiring-card__meta {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: flex-end !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  gap: 4px !important;
+}
+
+#efficiencyMorningMeetingAutoCofiringCard.morning-meeting-cofiring-card
+  .morning-meeting-cofiring-card__status-row {
+  grid-column: 1 / -1 !important;
+  grid-row: 2 !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 4px 8px !important;
+  min-width: 0 !important;
+}
+
+#efficiencyMorningMeetingAutoCofiringCard.morning-meeting-cofiring-card
+  #efficiencyMorningMeetingCofiringDate {
+  display: block !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
+  margin: 0 !important;
+  color: #64758a !important;
+  font-size: 8px !important;
+  line-height: 1.25 !important;
+  white-space: pre-line !important;
+}
+
+#efficiencyMorningMeetingAutoCofiringCard.morning-meeting-cofiring-card
+  #efficiencyMorningMeetingCofiringStatus {
+  flex: 0 1 auto !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  margin: 0 0 0 auto !important;
+  padding: 3px 6px !important;
+  font-size: 8px !important;
+  line-height: 1.3 !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  text-align: right !important;
+}
+
+#efficiencyMorningMeetingAutoCofiringCard.morning-meeting-cofiring-card
+  #efficiencyMorningMeetingCofiringStatus.is-quality-gap {
+  border-color: #e6bd77 !important;
+  background: #fff6e8 !important;
+  color: #8d5b14 !important;
+}
+
+#efficiencyMorningMeetingAutoCofiringCard.morning-meeting-cofiring-card
+  .morning-meeting-cofiring-status__basis {
+  color: #53647a;
+}
+
+#efficiencyMorningMeetingAutoCofiringCard.morning-meeting-cofiring-card
+  .morning-meeting-cofiring-status__quality {
+  color: #8d5b14;
+  font-weight: 900;
+}

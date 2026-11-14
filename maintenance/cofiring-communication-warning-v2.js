@@ -101,6 +101,50 @@
     return result;
   }
   function messages(reference,organicUsage){return notices(reference,organicUsage).map(item=>item.text);}
+  // Compact only the repetitive internal-gap-only case. Unknown boundaries,
+  // inventory errors and recovery notices keep their existing visible wording.
+  function compactQualityGap(reference,entries){
+    const byUnit=new Map(),unique=new Set();let maximum=0;
+    for(const item of Array.isArray(reference?.summaries)?reference.summaries:[]){
+      if(!['unit1','unit2'].includes(item?.unit)||!fuelNames[item.fuel])continue;
+      const gap=finite(item.durationBadSeconds)&&item.durationBadSeconds>0.001;
+      if(!gap){if(item.dataComplete===false)return null;continue;}
+      unique.add(item.unit+':'+item.fuel);
+      if(!byUnit.has(item.unit))byUnit.set(item.unit,new Set());
+      byUnit.get(item.unit).add(item.fuel);
+      maximum=Math.max(maximum,item.durationBadSeconds);
+    }
+    // notices() emits exactly one gap row per unit/fuel. Any additional notice
+    // must remain visible, rather than being hidden behind this compact label.
+    if(unique.size<2||entries.length!==unique.size)return null;
+    const fuelOrder=Object.keys(fuelNames);
+    const fuels=unit=>fuelOrder.filter(fuel=>byUnit.get(unit)?.has(fuel));
+    const one=fuels('unit1'),two=fuels('unit2');
+    const names=items=>items.map(fuel=>fuelNames[fuel]).join('·');
+    const subject=one.length&&one.join('|')===two.join('|')
+      ?'1·2호기 '+names(one)
+      :[['1호기',one],['2호기',two]].filter(([,items])=>items.length)
+        .map(([unit,items])=>unit+' '+names(items)).join(' / ');
+    return '⚠ '+subject+' · 품질 공백 최대 '+maximum.toFixed(1)+'초 · 원본 확인 필요';
+  }
+  function renderCompactDetails(host,text,lines){
+    const doc=host.ownerDocument||root.document;
+    if(!doc?.createElement||typeof host.appendChild!=='function'){
+      host.textContent=text+' · 상세 확인';return;
+    }
+    const previous=host.querySelector?.('details.cfv-quality-gap-notice');
+    const expanded=previous?.open===true&&previous.dataset.noticeSummary===text;
+    const details=doc.createElement('details'),summary=doc.createElement('summary');
+    details.className='cfv-quality-gap-notice';
+    details.dataset.noticeSummary=text;
+    details.open=expanded;
+    const label=doc.createElement('span'),hint=doc.createElement('span');
+    label.textContent=text;hint.textContent='상세';hint.className='cfv-quality-gap-notice__hint';
+    summary.appendChild(label);summary.appendChild(hint);details.appendChild(summary);
+    const list=doc.createElement('ul');
+    for(const line of lines){const row=doc.createElement('li');row.textContent=line;list.appendChild(row);}
+    details.appendChild(list);host.textContent='';host.appendChild(details);
+  }
   function render(host,reference,organicUsage){
     if(!host)return [];
     const entries=notices(reference,organicUsage),lines=entries.map(entry=>entry.text);
@@ -116,7 +160,11 @@
     const compact=stock&&(organicUsage?.code==='ORGANIC_BOUNDARY_CORRECTION_REQUIRED'||
       organicUsage?.code==='ORGANIC_SHARED_BOUNDARY_CONFLICT'||organicUsage?.provisional===true||
       (Array.isArray(organicUsage?.corrections)&&organicUsage.corrections.some(x=>x.silo==='organicStorageSiloB'&&x.boundaryLocal===stock.boundaryLocal)));
-    if(compact){
+    const qualityGapSummary=compactQualityGap(reference,entries);
+    if(qualityGapSummary){
+      renderCompactDetails(host,qualityGapSummary,lines);
+      host.title=lines.join(' / ');
+    }else if(compact){
       host.textContent='⚠ 1·2호기 유기성(Storage B) · '+dateLabel(stock.boundaryLocal)+' 원본 재고 계측 오류 · 재확인 필요';
       host.title=lines.join(' / ');
     }else{

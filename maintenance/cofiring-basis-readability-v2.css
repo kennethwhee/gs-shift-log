@@ -1,0 +1,58 @@
+/* Boundary arithmetic remains exact; amber identifies the source quality gap. */
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-card.cfv-quality-gap-card {
+  border-color: #edbd77;
+  border-top-color: #d99a40;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-quality-gap-card > header {
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  min-width: 0;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-card-status.cfv-quality-gap-status {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0;
+  background: transparent;
+  white-space: normal;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-quality-gap-status::before { display: none; }
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-basis-chip,
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-quality-chip {
+  display: inline-block;
+  padding: 3px 6px;
+  border: 1px solid #c6d8dc;
+  border-radius: 5px;
+  background: #f2f7f8;
+  color: #426570;
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-quality-chip {
+  border-color: #e9bd79;
+  background: #fff5e6;
+  color: #986016;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv10-fuel.cfv-quality-gap-fuel {
+  border-color: #e8c89b;
+  background: #fffbf4;
+}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv-quality-gap-label {
+  display: inline-block;
+  margin-left: 3px;
+  color: #986016;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+@media (max-width: 720px) {
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv-quality-gap-fuel .cfv10-fuel-label {
+    min-width: 0;
+    flex: 0 1 auto !important;
+    white-space: normal !important;
+  }
+}
