@@ -3720,7 +3720,8 @@ async function captureOisTagLog24HourValueFromApi(
 
 async function collectOisSiloLevelValuesDirect(
   page,
-  targetDate
+  targetDate,
+  options = null
 ) {
   if (
     !isValidOisAgentDate(
@@ -3773,7 +3774,8 @@ async function collectOisSiloLevelValuesDirect(
 
           rowstatus:
             "C"
-        }
+        },
+        options
       );
 
 
@@ -4218,6 +4220,7 @@ async function collectOisSiloLevelValues(
   );
 
 
+  if (config.morningOwnerApiSkipDirect !== true) {
   try {
     return await collectOisSiloLevelValuesDirect(
       page,
@@ -4234,6 +4237,7 @@ async function collectOisSiloLevelValues(
         ? directError.message
         : directError
     );
+  }
   }
 
 
@@ -8739,12 +8743,39 @@ async function collectOisWaterTreatmentValues(
     };
 
 
+  let waterEntryPrepared = false;
+
   const collectOnce =
     async () => {
+      // MORNING_OWNER_API_V1: protect the owner's normal entry/reset flow.
+      if (config.morningOwnerApiV1) await config.morningOwnerApiV1.beforeWaterEntry();
       await ensureOisAgentLoggedIn(
         page,
         config
       );
+
+      // WATER_ENTRY_PREP_V1: prepare once per request; retain the existing retry.
+      if (!waterEntryPrepared) {
+        waterEntryPrepared = true;
+        const entryStartedAt = Date.now();
+        const existingEnvironmentFrame = await findOisFrameContainingText(
+          page,
+          "1. 원수 (RAW WATER)",
+          1500
+        );
+        if (existingEnvironmentFrame) {
+          console.log(`[WATER ENTRY PREP V1] REUSE elapsedMs=${Date.now() - entryStartedAt}`);
+        } else {
+          console.log(`[WATER ENTRY PREP V1] RESET elapsedMs=${Date.now() - entryStartedAt}`);
+          await page.goto(OIS_LOGIN_URL, {
+            waitUntil: "domcontentloaded",
+            timeout: OIS_QUERY_TIMEOUT
+          });
+          await page.waitForTimeout(800);
+          await ensureOisAgentLoggedIn(page, config);
+          console.log(`[WATER ENTRY PREP V1] READY elapsedMs=${Date.now() - entryStartedAt}`);
+        }
+      }
 
 
       /*
@@ -8777,6 +8808,8 @@ async function collectOisWaterTreatmentValues(
         waterTrace.setFrame(environmentFrame);
         const dateSnapshot = await waterTrace.recordFrame(environmentFrame, "after-date-query");
         waterHelper.assertDate(dateSnapshot, targetDate);
+        // Direct readers can start only after this exact Water frame/date is pinned.
+        if (config.morningOwnerApiV1) await config.morningOwnerApiV1.waterReady();
         await waterTrace.waitForQuiet(OIS_QUERY_TIMEOUT);
         await clickOisEnvironmentRecalculateButton(page, environmentFrame, targetDate, waterTrace);
         waterTrace.setPhase("values");
@@ -8804,6 +8837,8 @@ async function collectOisWaterTreatmentValues(
   } catch (
     firstError
   ) {
+    // Initial login may fail before preparation; never prepare inside the retry.
+    waterEntryPrepared = true;
     console.warn(
       "OIS 수처리 1차 조회 실패. 환경일지를 새로 열어 1회 재시도합니다:",
       getErrorMessage(
@@ -8813,6 +8848,7 @@ async function collectOisWaterTreatmentValues(
 
 
     try {
+      if (config.morningOwnerApiV1) await config.morningOwnerApiV1.beforeWaterEntry();
       await page.goto(
         OIS_LOGIN_URL,
         {
@@ -9560,8 +9596,26 @@ async function requestOisAgentApi(
 async function requestOisInternalAjaxData(
   page,
   command,
-  selectItem
+  selectItem,
+  options = null
 ) {
+  // Optional only for the three owner-page morning readers. Other callers
+  // retain the existing request behavior and the existing timeout collector.
+  if (options?.timeoutMilliseconds !== undefined) {
+    const timeout = options.timeoutMilliseconds;
+    if (!Number.isInteger(timeout) || timeout < 1000 || timeout > 30000) {
+      throw new Error("오전회의 Direct API 제한시간이 올바르지 않습니다.");
+    }
+    try {
+      return await requestOisInternalAjaxDataWithTimeout(page, command, selectItem, timeout);
+    } catch (error) {
+      if (error?.code === "OIS_INTERNAL_AJAX_TIMEOUT") {
+        error.message = `오전회의 OIS Direct API 응답이 ${Math.ceil(timeout / 1000)}초를 초과했습니다.`;
+      }
+      throw error;
+    }
+  }
+
   const requestResult =
     await page.evaluate(
       async (
@@ -9927,7 +9981,8 @@ async function requestOisPhase25UppercaseAjaxData(
 
 async function collectOisPhase25LimestoneStocksDirect(
   page,
-  targetDate
+  targetDate,
+  options = null
 ) {
   const compactDate =
     targetDate.replace(
@@ -9962,7 +10017,8 @@ async function collectOisPhase25LimestoneStocksDirect(
 
           schbase_date:
             compactDate
-        }
+        },
+        options
       );
 
 
@@ -10095,7 +10151,8 @@ async function collectOisPhase25LimestoneStocksDirect(
 
 async function collectOisPhase25GearPinionDirect(
   page,
-  targetDate
+  targetDate,
+  options = null
 ) {
   const compactDate =
     targetDate.replace(
@@ -10116,7 +10173,8 @@ async function collectOisPhase25GearPinionDirect(
 
         schbase_date:
           compactDate
-      }
+      },
+      options
     );
 
 
@@ -20569,6 +20627,30 @@ async function collectOisAgentRequestResult(
     );
 
 
+  // MORNING_OWNER_API_V1: reuse the owner's authenticated page. Only Water
+  // changes its UI while three explicit, bounded API readers run in parallel.
+  const ownerApi = config.morningOwnerApiV1;
+  if (ownerApi && morningOisParallelV1.TYPES.includes(requestType)) {
+    if (!isValidOisAgentDate(targetDate)) throw new Error("오전회의 OIS 조회 날짜가 올바르지 않습니다.");
+    if (requestType === "water_environment") {
+      return await ownerApi.runWater(() => collectOisWaterTreatmentValues(page, config, targetDate));
+    }
+    const directCollector = requestType === "limestone_stock"
+      ? collectOisPhase25LimestoneStocksDirect
+      : requestType === "turbine_gear_pinion"
+        ? collectOisPhase25GearPinionDirect
+        : collectOisSiloLevelValuesDirect;
+    return await ownerApi.runDirect(
+      () => directCollector(page, targetDate, {timeoutMilliseconds: 30000}),
+      () => collectOisAgentRequestResult(page, {
+        ...config, morningOwnerApiV1: undefined, morningOwnerApiSkipDirect: true
+      }, requestItem)
+    );
+  }
+
+
+
+
   if (
     requestType ===
       "water_environment"
@@ -24179,6 +24261,7 @@ async function collectOisTurbineGearPinionValues(
     Date.now();
 
 
+  if (config.morningOwnerApiSkipDirect !== true) {
   try {
     const directResult =
       await collectOisPhase25GearPinionDirect(
@@ -24214,6 +24297,7 @@ async function collectOisTurbineGearPinionValues(
         ? directError.message
         : directError
     );
+  }
   }
 
 
@@ -25241,6 +25325,7 @@ async function collectOisLimestoneStocks(
     Date.now();
 
 
+  if (config.morningOwnerApiSkipDirect !== true) {
   try {
     const directResult =
       await collectOisPhase25LimestoneStocksDirect(
@@ -25276,6 +25361,7 @@ async function collectOisLimestoneStocks(
         ? directError.message
         : directError
     );
+  }
   }
 
 
@@ -26454,7 +26540,11 @@ async function loginOis() {
             morningOisParallelV1.TYPES.includes(getOisAgentRequestType(item)))
         ? morningOisParallelV1.createWorkerBatch({
             items: morningOisBatchItems,
-            ensureOwner: () => ensureBrowserSession("오전회의 병렬 조회 공통 로그인"),
+            ensureOwner: async () => {
+              const owner = await ensureBrowserSession("오전회의 병렬 조회 공통 로그인");
+              await closeOisAuxiliaryPages(owner, "오전회의 owner API 배치 준비");
+              return owner;
+            },
             ensureLoggedIn: ensureOisAgentLoggedIn,
             config
           })
@@ -26477,7 +26567,7 @@ async function loginOis() {
 
       let requestBrowserSession = morningWorkerBatch ? null : browserSession;
       const requestConfig = morningWorkerBatch && !isExcelOnlyRequestType(requestType)
-        ? {...config,morningParallelReuseOnly:true} : config;
+        ? morningWorkerBatch.configFor(requestId, config) : config;
       const ensureRequestBrowserSession = async reason => {
         requestBrowserSession = morningWorkerBatch
           ? await morningWorkerBatch.ensure(requestId)
@@ -26648,6 +26738,9 @@ async function loginOis() {
           } catch (
             firstError
           ) {
+            // A shared owner is recovered only after the whole batch settles.
+            // Water already has its original protected retry inside its collector.
+            if (morningWorkerBatch) throw firstError;
             /*
               브라우저 종료 오류인 경우
               Edge를 새로 열고 같은 요청을 한 번 재시도한다.
@@ -26746,6 +26839,10 @@ async function loginOis() {
         error
       ) {
         if (error?.code === "OIS_MORNING_WORKER_SESSION_EXPIRED") morningOwnerSessionExpired = true;
+        if (morningWorkerBatch && requestNeedsOisBrowser && browserSession &&
+            (isBrowserClosedError(error) || !isBrowserSessionUsable(browserSession))) {
+          morningOwnerSessionExpired = true;
+        }
         if (requestType === "silo_level" && error?.code === "SILO_RESULT_DELIVERY_FAILED") {
           console.error("SILO 수집 완료 · 서버 저장 확인 실패:", error.message);
           if (error.backupPath) console.error("보관된 SILO 결과:", error.backupPath);
@@ -26767,6 +26864,7 @@ async function loginOis() {
         */
         if (
           requestNeedsOisBrowser &&
+          !morningWorkerBatch &&
           requestBrowserSession &&
           (
             isBrowserClosedError(

@@ -1,133 +1,23 @@
 "use strict";
 
-// Only these four bounded morning sources may share a batch. Other OIS
-// workflows and the existing Excel/DataPARC lane retain their original limits.
+// Four bounded morning sources share the existing authenticated owner.
+// Water and UI fallbacks use one UI lane; the three direct reads can overlap.
 const TYPES = Object.freeze([
   "water_environment", "limestone_stock", "turbine_gear_pinion", "silo_level"
 ]);
 const MAX_CONCURRENCY = 4;
-// Keep this entry aligned with the existing Agent's fixed OIS_LOGIN_URL.
-// The login/index page does not necessarily redirect valid reused cookies.
-const AUTHENTICATED_MAIN_URL = "http://ois.gspoge.com/jsp/login/main";
-const LOGIN_ENTRY_URL = "http://ois.gspoge.com/jsp/login/index";
-const AUTHENTICATED_NAVIGATION_TIMEOUT = 30000;
-const OWNED_PAGE_OPEN_TIMEOUT = 5000;
 const typeOf = item => String(item?.requestType || item?.request_type || "").trim();
 const dateOf = item => String(item?.targetDate || item?.target_date || "").trim();
 
-function isAuthenticatedMain(value) {
-  try {
-    const url = new URL(value), expected = new URL(AUTHENTICATED_MAIN_URL);
-    return !url.username && !url.password && url.origin === expected.origin &&
-      url.pathname === expected.pathname;
-  } catch {return false;}
-}
-function routeClassification(value) {
-  try {
-    const url = new URL(value), main = new URL(AUTHENTICATED_MAIN_URL);
-    if (url.username || url.password) return "UNTRUSTED_URL";
-    if (url.href === "about:blank") return "BLANK";
-    if (url.origin !== main.origin) return "OTHER_ORIGIN";
-    if (url.pathname === main.pathname) return "OIS_MAIN";
-    if (url.pathname === "/jsp/login/index") return "OIS_LOGIN";
-    return "OIS_OTHER";
-  } catch {return "UNAVAILABLE";}
-}
-function pageRoute(page) {
-  try {return routeClassification(page?.url());} catch {return "UNAVAILABLE";}
-}
-function workerAuthenticationError(stage = "AUTHENTICATION", route = "UNAVAILABLE", reason = "NOT_CONFIRMED") {
-  const error = new Error("OIS 병렬 조회 화면의 인증을 확인하지 못했습니다. 조회 결과를 확인한 뒤 다시 조회해 주세요.");
-  error.code = "OIS_MORNING_WORKER_SESSION_EXPIRED";
-  // Fixed classifications only: never include URLs, cookies or browser state.
-  error.morningWorkerStage = stage;
-  error.morningWorkerRoute = route;
-  error.morningWorkerReason = reason;
-  return error;
-}
-function requestFinishedError() {
-  const error = new Error("이미 완료된 OIS 요청의 새 탭을 시작하지 않았습니다.");
-  error.code = "OIS_MORNING_REQUEST_FINISHED";
-  return error;
-}
-async function assertAuthenticatedWorker(page, stage) {
-  if (!isAuthenticatedMain(page.url())) throw workerAuthenticationError(stage, pageRoute(page), "UNEXPECTED_ROUTE");
-  // A main URL alone is not sufficient if an expired session renders a login
-  // form in the page or one of its frames. These checks do not fill credentials.
-  for (const frame of page.frames()) {
-    for (const selector of ["#userid input","#pw input"]) {
-      if (await frame.locator(selector).isVisible()) throw workerAuthenticationError(stage, pageRoute(page), "LOGIN_FORM_VISIBLE");
-    }
-  }
-  if (!isAuthenticatedMain(page.url())) throw workerAuthenticationError(stage, pageRoute(page), "ROUTE_CHANGED");
-}
-async function openAuthenticatedWorker(page, owner) {
-  const ownerPage = owner.primaryPage || owner.page;
-  if (!ownerPage || ownerPage.isClosed() || !isAuthenticatedMain(ownerPage.url())) {
-    throw workerAuthenticationError("OWNER_ENTRY", pageRoute(ownerPage), "OWNER_NOT_READY");
-  }
-  // Only the fixed canonical entry is used. Never copy query strings, hashes,
-  // credentials or session tokens from the owner's current URL.
-  await page.goto(AUTHENTICATED_MAIN_URL, {
-    waitUntil:"domcontentloaded",timeout:AUTHENTICATED_NAVIGATION_TIMEOUT
-  });
-  await assertAuthenticatedWorker(page, "WORKER_MAIN_ENTRY");
-  // The installed Water entry preparation and its existing retry reopen the
-  // login index to reset the navigation shell. In a reuse-only worker, reenter
-  // that shell through main instead. Only this owned page is adapted; every
-  // other URL, option and returned response keeps the original Page behavior.
-  const originalGoto = page.goto.bind(page);
-  page.goto = async (url, options) => {
-    const resetAuthenticatedEntry = url === LOGIN_ENTRY_URL;
-    const response = await originalGoto(resetAuthenticatedEntry ? AUTHENTICATED_MAIN_URL : url, options);
-    if (resetAuthenticatedEntry) await assertAuthenticatedWorker(page, "WORKER_MAIN_RESET");
-    return response;
+function coordinatorError(code) {
+  const messages = {
+    OIS_MORNING_REQUEST_FINISHED:"이미 완료된 OIS 요청을 새로 시작하지 않았습니다.",
+    OIS_MORNING_OWNER_UNAVAILABLE:"기존 OIS 로그인 화면을 사용할 수 없습니다. 현재 조회 결과를 확인해 주세요.",
+    OIS_MORNING_COORDINATOR_CONTRACT:"오전회의 조회 순서와 요청 종류를 확인해 주세요."
   };
-}
-
-// The real BrowserContext remains unchanged. This narrow facade is used only
-// by the existing Agent's auxiliary-page cleanup and this worker's teardown.
-// Its pages can never include the authenticated owner or another worker.
-function ownedPageScope() {
-  const pages = new Set(), listeners = new Map(), closingPages = new Map();
-  let closing = false;
-  function detach(page) {
-    const handlers = listeners.get(page);
-    if (!handlers) return;
-    page.off("popup", handlers.popup);
-    page.off("close", handlers.close);
-    listeners.delete(page);
-  }
-  function closePage(page) {
-    if (closingPages.has(page)) return closingPages.get(page);
-    const pending = Promise.resolve().then(async () => {
-      if (!page.isClosed()) await page.close({runBeforeUnload:false});
-    }).catch(() => null).finally(() => {
-      closingPages.delete(page);
-      if (page.isClosed()) detach(page);
-    });
-    closingPages.set(page, pending);
-    return pending;
-  }
-  function adopt(page) {
-    if (!page || pages.has(page)) return page;
-    pages.add(page);
-    const handlers = {popup: popup => adopt(popup), close: () => detach(page)};
-    listeners.set(page, handlers);
-    page.on("popup", handlers.popup);
-    page.on("close", handlers.close);
-    if (closing) void closePage(page);
-    return page;
-  }
-  async function close() {
-    closing = true;
-    await Promise.all([...pages].map(closePage));
-    // A popup observed while its parent is closing is adopted and closed too.
-    while (closingPages.size) await Promise.all([...closingPages.values()]);
-    for (const page of pages) if (page.isClosed()) detach(page);
-  }
-  return {adopt,close,isClosing:()=>closing,
-    context:{pages:()=>[...pages],close}};
+  const error = new Error(messages[code] || messages.OIS_MORNING_COORDINATOR_CONTRACT);
+  error.code = code;
+  return error;
 }
 
 function claimedOisItems(result) {
@@ -155,12 +45,29 @@ function claimedOisItems(result) {
   return extra;
 }
 
-function createWorkerBatch({items, ensureOwner, ensureLoggedIn, config}) {
-  // Check the exact same contract locally even when called outside queue parsing.
+function createWorkerBatch({items, ensureOwner}) {
   claimedOisItems({items:{ois:items?.[0] || null,morningOis:items},
     morningOisParallelVersion:1,morningOisConcurrency:4});
-  const requests = new Map(), seenIds = new Set();
-  const targetDate = dateOf(items[0]);
+  const requests = new Map(), states = new Map(), seenIds = new Set(), sessions = new Map();
+  const targetDate = dateOf(items?.[0]);
+  const waiters = new Set(), uiQueue = [];
+  let ownerPromise, ownerRecord, uiOwner = null, activeReads = 0, fallbackReservations = 0;
+  function changed() {
+    for (const resolve of [...waiters]) resolve();
+    waiters.clear();
+  }
+  function isLive(id) {return requests.has(id) && states.get(id)?.finished !== true;}
+  function live(id) {
+    if (!isLive(id)) throw coordinatorError("OIS_MORNING_REQUEST_FINISHED");
+    return states.get(id);
+  }
+  async function until(id, predicate) {
+    for (;;) {
+      live(id);
+      if (predicate()) return;
+      await new Promise(resolve => waiters.add(resolve));
+    }
+  }
   function add(more) {
     const combined = [...requests.values(),...more];
     if (!combined.length || combined.length > MAX_CONCURRENCY ||
@@ -170,125 +77,199 @@ function createWorkerBatch({items, ensureOwner, ensureLoggedIn, config}) {
           !TYPES.includes(typeOf(item)) || dateOf(item) !== targetDate)) {
       throw new Error("오전회의 병렬 작업의 기준일·종류·빈 슬롯을 확인해 주세요.");
     }
-    for (const item of more) {requests.set(String(item.id),item);seenIds.add(String(item.id));}
+    for (const item of more) {
+      const id = String(item.id), type = typeOf(item);
+      requests.set(id,item); seenIds.add(id);
+      states.set(id,{id,type,finished:false,waterStarted:false,waterDone:false,waterReady:false,
+        directStarted:false,directSettled:false,directActive:false,control:null});
+    }
+    changed();
   }
   add(items);
-  const sessions = new Map(), opening = new Map(), scopes = new Map();
-  let ownerPromise, creationFailure = null, creationQueue = Promise.resolve();
+  function waterPending() {
+    return [...states.values()].some(state => isLive(state.id) && state.type === "water_environment" && !state.waterDone);
+  }
+  function waterBlocksReads() {
+    return [...states.values()].some(state => isLive(state.id) && state.type === "water_environment" &&
+      !state.waterDone && !state.waterReady);
+  }
+  function canRead() {
+    return !waterBlocksReads() && fallbackReservations === 0 && uiOwner?.kind !== "fallback" &&
+      !(uiOwner?.kind === "water" && uiOwner.state.finished);
+  }
+  function nextUi() {
+    const available = uiQueue.filter(token => isLive(token.id));
+    // A late Water request cannot deadlock behind a fallback which is itself
+    // waiting for that registered Water request to complete.
+    if (waterPending()) return available.find(token => token.kind === "water") || null;
+    return available[0] || null;
+  }
+  async function takeUi(id,kind) {
+    live(id);
+    const token = {id,kind,state:live(id)};
+    let held = false, released = false;
+    uiQueue.push(token);
+    if (kind === "fallback") fallbackReservations++;
+    changed();
+    const release = () => {
+      if (released) return;
+      released = true;
+      const index = uiQueue.indexOf(token);
+      if (index >= 0) uiQueue.splice(index,1);
+      if (held && uiOwner === token) uiOwner = null;
+      if (kind === "fallback") fallbackReservations--;
+      changed();
+    };
+    try {
+      for (;;) {
+        await until(id,() => uiOwner === null && nextUi() === token);
+        live(id);
+        if (uiOwner !== null || nextUi() !== token) continue;
+        uiQueue.splice(uiQueue.indexOf(token),1);
+        uiOwner = token; held = true; changed();
+        break;
+      }
+      // Registering Water closes the read gate. Reserving a fallback does the
+      // same. Only active HTTP attempts are drained, never UI fallback waits.
+      await until(id,() => activeReads === 0);
+      return release;
+    } catch (error) {release();throw error;}
+  }
+  function checkedOwner() {
+    const owner = ownerRecord;
+    const page = owner?.primaryPage || owner?.page;
+    if (!owner?.browser?.isConnected() || !owner.context || !page || page.isClosed()) {
+      throw coordinatorError("OIS_MORNING_OWNER_UNAVAILABLE");
+    }
+    return {owner,page};
+  }
   async function ownerSession() {
-    if (!ownerPromise) ownerPromise = Promise.resolve().then(ensureOwner).then(async owner => {
-      if (!owner?.browser?.isConnected() || !owner.context) throw new Error("OIS 공통 로그인 세션을 준비하지 못했습니다.");
+    if (!ownerPromise) ownerPromise = Promise.resolve().then(ensureOwner).then(owner => {
+      ownerRecord = owner;
       return owner;
     });
-    return ownerPromise;
-  }
-  function openOwnedPrimary(owner, id) {
-    // Only native popup creation is serialized. Navigation and collection
-    // happen after this queue releases, independently in all four pages.
-    const attempt = creationQueue.then(async () => {
-      if (!requests.has(id)) throw requestFinishedError();
-      if (creationFailure) {
-        throw workerAuthenticationError("TAB_OPEN_QUEUE", "UNAVAILABLE", "PREVIOUS_OPEN_UNCERTAIN");
-      }
-      const ownerPage = owner.primaryPage || owner.page;
-      if (!ownerPage || ownerPage.isClosed() || !isAuthenticatedMain(ownerPage.url())) {
-        throw workerAuthenticationError("OWNER_ENTRY", pageRoute(ownerPage), "OWNER_NOT_READY");
-      }
-      const scope = ownedPageScope();
-      scopes.set(id, scope);
-      const capture = popup => scope.adopt(popup);
-      const releaseCapture = () => {
-        ownerPage.off("popup", capture);
-        ownerPage.off("close", releaseCapture);
-      };
-      ownerPage.on("popup", capture);
-      let timer;
-      try {
-        // Register before window.open. Each operation has exactly one waiter;
-        // the creation queue prevents sibling workers taking the same popup.
-        const popup = ownerPage.waitForEvent("popup", {timeout:OWNED_PAGE_OPEN_TIMEOUT})
-          .then(page => scope.adopt(page));
-        const opened = Promise.resolve().then(() => ownerPage.evaluate(() =>
-          Boolean(window.open("about:blank", "_blank"))
-        )).then(value => {
-          if (value !== true) throw workerAuthenticationError("TAB_OPEN", "UNAVAILABLE", "POPUP_NOT_OPENED");
-          return value;
-        });
-        const combined = Promise.all([opened, popup]);
-        // The independent deadline also bounds an evaluate acknowledgement
-        // that stalls after its popup event has already arrived.
-        const timeout = new Promise((_, reject) => {
-          timer = setTimeout(() => reject(workerAuthenticationError("TAB_OPEN", "UNAVAILABLE", "OPEN_TIMEOUT")), OWNED_PAGE_OPEN_TIMEOUT);
-        });
-        const [, page] = await Promise.race([combined, timeout]);
-        releaseCapture();
-        if (!requests.has(id) || scope.isClosing()) {
-          await scope.close();
-          throw requestFinishedError();
-        }
-        if (page.isClosed()) throw workerAuthenticationError("TAB_OPEN", "UNAVAILABLE", "PAGE_CLOSED");
-        return {page,scope};
-      } catch (error) {
-        if (error?.code === "OIS_MORNING_REQUEST_FINISHED") {
-          releaseCapture();
-        } else {
-          creationFailure = true;
-          // An uncertain evaluate can still emit a late popup. Keep this
-          // closed scope's capture until the owner closes after the batch;
-          // any late child is immediately closed, never reused by a sibling.
-          ownerPage.on("close", releaseCapture);
-          if (ownerPage.isClosed()) releaseCapture();
-        }
-        await scope.close();
-        if (scopes.get(id) === scope) scopes.delete(id);
-        if (error?.code === "OIS_MORNING_REQUEST_FINISHED") throw error;
-        throw workerAuthenticationError("TAB_OPEN", "UNAVAILABLE", "OPEN_UNCERTAIN");
-      } finally {clearTimeout(timer);}
-    });
-    // Keep the queue usable after a rejected operation, while creationFailure
-    // conservatively prevents another ambiguous window.open in this batch.
-    creationQueue = attempt.then(() => undefined, () => undefined);
-    return attempt;
-  }
-  async function close(id) {
-    const session = sessions.get(id);
-    sessions.delete(id);
-    const scope = scopes.get(id);
-    scopes.delete(id);
-    if (session) await session.context.close().catch(() => null);
-    else if (scope) await scope.close();
+    await ownerPromise;
+    return checkedOwner();
   }
   async function ensure(id) {
-    if (!requests.has(id)) throw new Error("이 배치에 속하지 않는 OIS 요청입니다.");
-    if (opening.has(id)) return opening.get(id);
-    const existing = sessions.get(id);
-    if (existing && existing.browser.isConnected() && !existing.primaryPage.isClosed()) return existing;
-    const pending = (async () => {
-      await close(id);
-      const owner = await ownerSession();
-      if (!requests.has(id)) throw requestFinishedError();
-      // A failed worker never closes/restarts the shared browser under siblings.
-      if (!owner.browser.isConnected()) throw new Error("OIS 공통 브라우저가 종료되었습니다. 현재 배치 결과를 확인해 주세요.");
-      const {page,scope} = await openOwnedPrimary(owner,id);
-      try {
-        await openAuthenticatedWorker(page,owner);
-        await ensureLoggedIn(page,{...config,morningParallelReuseOnly:true});
-        if (!requests.has(id) || scope.isClosing()) throw requestFinishedError();
-        const session = {browser:owner.browser,context:scope.context,page,primaryPage:page,
-          morningParallelRequestId:id,ownsBrowser:false,ownsContext:false};
-        sessions.set(id,session);
-        return session;
-      } catch (error) {
-        await scope.close();
-        if (scopes.get(id) === scope) scopes.delete(id);
-        throw error;
-      }
-    })();
-    opening.set(id,pending);
-    try {return await pending;} finally {opening.delete(id);}
+    live(id);
+    const {owner,page} = await ownerSession();
+    live(id);
+    if (!sessions.has(id)) {
+      // The actual page.context() remains the authenticated BrowserContext.
+      // This facade only bounds existing main-loop auxiliary-page cleanup;
+      // closing one logical request never closes the shared page or context.
+      sessions.set(id,{browser:owner.browser,page,primaryPage:page,
+        context:{pages:()=>[page],close:async()=>{}},
+        morningParallelRequestId:id,ownsBrowser:false,ownsContext:false});
+    }
+    return sessions.get(id);
   }
-  async function finish(id) {requests.delete(id);await close(id);}
-  return {ensure,close,finish,add};
+  async function close(id) {sessions.delete(id);}
+  async function finish(id) {
+    const state = states.get(id);
+    if (state) {
+      state.finished = true;
+      state.waterDone = true;
+      state.directSettled = true;
+    }
+    requests.delete(id); states.delete(id); sessions.delete(id);
+    changed();
+  }
+  function marker(name,type) {console.log("[MORNING OWNER API V1] " + name + " " + type);}
+  async function runWater(id,fn) {
+    const state = live(id);
+    if (state.type !== "water_environment" || state.waterStarted || typeof fn !== "function") {
+      throw coordinatorError("OIS_MORNING_COORDINATOR_CONTRACT");
+    }
+    state.waterStarted = true;
+    let release;
+    try {
+      await ensure(id);
+      release = await takeUi(id,"water");
+      live(id); checkedOwner();
+      return await fn();
+    } finally {
+      state.waterReady = false;
+      state.waterDone = true;
+      if (release) release();
+      changed();
+    }
+  }
+  async function beforeWaterEntry(id) {
+    const state = live(id);
+    if (state.type !== "water_environment" || state.waterDone || uiOwner?.id !== id || uiOwner.kind !== "water") {
+      throw coordinatorError("OIS_MORNING_COORDINATOR_CONTRACT");
+    }
+    state.waterReady = false;
+    changed();
+    await until(id,() => activeReads === 0);
+    checkedOwner();
+  }
+  function waterReady(id) {
+    const state = live(id);
+    if (state.type !== "water_environment" || state.waterDone || uiOwner?.id !== id || uiOwner.kind !== "water") {
+      throw coordinatorError("OIS_MORNING_COORDINATOR_CONTRACT");
+    }
+    checkedOwner();
+    state.waterReady = true;
+    marker("WATER_ENTRY_READY",state.type);
+    changed();
+  }
+  async function runDirect(id,directFn,uiFallbackFn) {
+    const state = live(id);
+    if (state.type === "water_environment" || state.directStarted || typeof directFn !== "function") {
+      throw coordinatorError("OIS_MORNING_COORDINATOR_CONTRACT");
+    }
+    state.directStarted = true;
+    let attempted = false, directError;
+    try {
+      await ensure(id);
+      for (;;) {
+        await until(id,canRead);
+        live(id);
+        if (!canRead()) continue;
+        checkedOwner();
+        // No await may separate the last gate check and this increment.
+        activeReads++; state.directActive = true; attempted = true;
+        marker("DIRECT_START",state.type);
+        break;
+      }
+      try {
+        return await directFn();
+      } finally {
+        activeReads--; state.directActive = false; state.directSettled = true;
+        marker("DIRECT_DONE",state.type);
+        changed();
+      }
+    } catch (error) {
+      if (!attempted) {state.directSettled = true;changed();throw error;}
+      directError = error;
+    }
+    // Snapshot other registered first attempts. Their active counts have
+    // already been released when they wait for the same UI fallback lane.
+    const pending = [...states.values()].filter(other => other.id !== id &&
+      other.type !== "water_environment" && !other.directSettled);
+    await until(id,() => !waterPending() && pending.every(other => other.directSettled || other.finished));
+    if (typeof uiFallbackFn !== "function") throw directError;
+    const release = await takeUi(id,"fallback");
+    try {
+      await ensure(id); live(id);
+      marker("UI_FALLBACK",state.type);
+      return await uiFallbackFn(directError);
+    } finally {release();}
+  }
+  function configFor(id,baseConfig={}) {
+    const state = live(id);
+    if (!state.control) state.control = Object.freeze({
+      runWater: fn => runWater(id,fn),
+      runDirect: (directFn,uiFallbackFn) => runDirect(id,directFn,uiFallbackFn),
+      beforeWaterEntry: () => beforeWaterEntry(id),
+      waterReady: () => waterReady(id)
+    });
+    return {...baseConfig,morningParallelReuseOnly:false,morningOwnerApiV1:state.control};
+  }
+  return {ensure,close,finish,add,configFor};
 }
 
 // While an eligible source is running, fill free slots with requests whose
