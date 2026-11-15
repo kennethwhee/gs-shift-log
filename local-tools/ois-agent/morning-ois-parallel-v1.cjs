@@ -6,8 +6,58 @@ const TYPES = Object.freeze([
   "water_environment", "limestone_stock", "turbine_gear_pinion", "silo_level"
 ]);
 const MAX_CONCURRENCY = 4;
+// Keep this entry aligned with the existing Agent's fixed OIS_LOGIN_URL.
+// The login/index page does not necessarily redirect valid reused cookies.
+const AUTHENTICATED_MAIN_URL = "http://ois.gspoge.com/jsp/login/main";
+const LOGIN_ENTRY_URL = "http://ois.gspoge.com/jsp/login/index";
+const AUTHENTICATED_NAVIGATION_TIMEOUT = 30000;
 const typeOf = item => String(item?.requestType || item?.request_type || "").trim();
 const dateOf = item => String(item?.targetDate || item?.target_date || "").trim();
+
+function isAuthenticatedMain(value) {
+  try {
+    const url = new URL(value), expected = new URL(AUTHENTICATED_MAIN_URL);
+    return !url.username && !url.password && url.origin === expected.origin &&
+      url.pathname === expected.pathname;
+  } catch {return false;}
+}
+function workerAuthenticationError() {
+  const error = new Error("OIS 병렬 조회 화면의 인증을 확인하지 못했습니다. 조회 결과를 확인한 뒤 다시 조회해 주세요.");
+  error.code = "OIS_MORNING_WORKER_SESSION_EXPIRED";
+  return error;
+}
+async function assertAuthenticatedWorker(page) {
+  if (!isAuthenticatedMain(page.url())) throw workerAuthenticationError();
+  // A main URL alone is not sufficient if an expired session renders a login
+  // form in the page or one of its frames. These checks do not fill credentials.
+  for (const frame of page.frames()) {
+    for (const selector of ["#userid input","#pw input"]) {
+      if (await frame.locator(selector).isVisible()) throw workerAuthenticationError();
+    }
+  }
+  if (!isAuthenticatedMain(page.url())) throw workerAuthenticationError();
+}
+async function openAuthenticatedWorker(page, owner) {
+  const ownerPage = owner.primaryPage || owner.page;
+  if (!ownerPage || !isAuthenticatedMain(ownerPage.url())) throw workerAuthenticationError();
+  // Only the fixed canonical entry is used. Never copy query strings, hashes,
+  // credentials or session tokens from the owner's current URL.
+  await page.goto(AUTHENTICATED_MAIN_URL, {
+    waitUntil:"domcontentloaded",timeout:AUTHENTICATED_NAVIGATION_TIMEOUT
+  });
+  await assertAuthenticatedWorker(page);
+  // The installed Water entry preparation and its existing retry reopen the
+  // login index to reset the navigation shell. In a reuse-only worker, reenter
+  // that shell through main instead. Only this owned page is adapted; every
+  // other URL, option and returned response keeps the original Page behavior.
+  const originalGoto = page.goto.bind(page);
+  page.goto = async (url, options) => {
+    const resetAuthenticatedEntry = url === LOGIN_ENTRY_URL;
+    const response = await originalGoto(resetAuthenticatedEntry ? AUTHENTICATED_MAIN_URL : url, options);
+    if (resetAuthenticatedEntry) await assertAuthenticatedWorker(page);
+    return response;
+  };
+}
 
 function claimedOisItems(result) {
   const first = result?.items?.ois || null;
@@ -80,6 +130,7 @@ function createWorkerBatch({items, ensureOwner, ensureLoggedIn, config}) {
       const context = await owner.browser.newContext({storageState});
       try {
         const page = await context.newPage();
+        await openAuthenticatedWorker(page,owner);
         await ensureLoggedIn(page,{...config,morningParallelReuseOnly:true});
         const session = {browser:owner.browser,context,page,primaryPage:page,
           morningParallelRequestId:id,ownsBrowser:false};
