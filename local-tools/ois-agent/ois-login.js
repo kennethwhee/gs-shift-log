@@ -20826,6 +20826,29 @@ if (
   );
 }
 
+async function collectBedAshWithLazyOisFallback(config, requestItem, browserOps) {
+  // The precise reader owns its Excel cleanup gate. Enter OIS only when that
+  // reader explicitly permits the hourly fallback; never retry the precise run.
+  return await collectBedAshWithHourlyFallback(config, requestItem, {
+    hourly: async () => {
+      let session = await browserOps.ensure("Bed Ash 시간별 대체 조회 전");
+      await browserOps.closeAuxiliaryPages(session);
+      try {
+        return await browserOps.collectHourly(session);
+      } catch (firstError) {
+        if (!browserOps.isBrowserClosedError(firstError) &&
+            browserOps.isBrowserSessionUsable(session)) {
+          throw firstError;
+        }
+        browserOps.warn("Bed Ash 시간별 대체 조회 중 브라우저 종료를 감지했습니다. 자동 복구 후 1회 재시도합니다.");
+        await browserOps.close(session);
+        session = await browserOps.ensure("Bed Ash 시간별 대체 조회 중 브라우저 종료");
+        return await browserOps.collectHourly(session);
+      }
+    }
+  });
+}
+
 /* =========================================================
   요청 결과 콘솔 출력
 ========================================================= */
@@ -26634,14 +26657,15 @@ async function loginOis() {
         );
 
 
-      const requestNeedsOisBrowser =
-        !isExcelOnlyRequestType(
+      const isLazyBedAshRequest = requestType === "bed_ash_level";
+      let requestNeedsOisBrowser =
+        !isLazyBedAshRequest && !isExcelOnlyRequestType(
           requestType
         );
 
 
       const requestSourceLabel =
-        requestNeedsOisBrowser
+        isLazyBedAshRequest ? "Bed Ash" : requestNeedsOisBrowser
           ? "OIS"
           : "Excel";
 
@@ -26695,7 +26719,23 @@ async function loginOis() {
         let result;
 
 
-        if (
+        if (isLazyBedAshRequest) {
+          result = await collectBedAshWithLazyOisFallback(requestConfig, requestItem, {
+            ensure: async reason => {
+              requestNeedsOisBrowser = true;
+              return await ensureRequestBrowserSession(reason);
+            },
+            closeAuxiliaryPages: session => closeOisAuxiliaryPages(session, `${requestLabel} 시간별 대체 조회 시작`),
+            collectHourly: session => collectOisBedAshLevelValues(session.page, requestConfig, targetDate),
+            close: async session => {
+              await closeRequestBrowserSession(session, false);
+              requestBrowserSession = null;
+            },
+            isBrowserClosedError,
+            isBrowserSessionUsable,
+            warn: message => console.warn(message)
+          });
+        } else if (
           !requestNeedsOisBrowser
         ) {
           /*
@@ -26864,6 +26904,7 @@ async function loginOis() {
         */
         if (
           requestNeedsOisBrowser &&
+          !isLazyBedAshRequest &&
           !morningWorkerBatch &&
           requestBrowserSession &&
           (
