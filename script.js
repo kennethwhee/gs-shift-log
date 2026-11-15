@@ -198453,6 +198453,8 @@ function getLimestoneData() {
   if (
     rawStatus ===
       "error" ||
+    rawStatus ===
+      "warning" ||
     hasDateMismatch
   ) {
     status =
@@ -198480,6 +198482,10 @@ function getLimestoneData() {
 
   return {
     status,
+
+    // Saved values remain visible after an uncertain/failed requery, but
+    // their presence must not turn the request's warning into completion.
+    needsStatusCheck: rawStatus === "warning",
 
     isRestoringSaved,
 
@@ -198991,7 +198997,7 @@ function renderLimestonePreview(
     setBadge(
       elements.limestoneStatus,
       "error",
-      "조회 실패"
+      data.needsStatusCheck ? "조회 확인 필요" : "조회 실패"
     );
 
   } else {

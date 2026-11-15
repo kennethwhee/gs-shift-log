@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const {EventEmitter} = require('node:events');
 const parallel = require('../local-tools/ois-agent/morning-ois-parallel-v1.cjs');
 const source = fs.readFileSync(path.join(__dirname,'../local-tools/ois-agent/ois-login.js'),'utf8');
 const keys = parallel.TYPES;
@@ -62,26 +63,57 @@ test('a fill error retains newly claimed work and reports the error instead of s
 
 const MAIN_URL='http://ois.gspoge.com/jsp/login/main';
 function fakeBrowser({configurePage=()=>{}}={}){
-  const contexts=[],events=[];let connected=true;
+  const contexts=[],events=[],allPages=[];let connected=true;
+  async function createPage(context,{opener=null,inheritedTabState=false}={}){
+    const page=Object.assign(new EventEmitter(),{closed:false,currentUrl:'about:blank',initialUrl:'about:blank',
+      loginVisible:false,childLoginVisible:false,openerPage:opener,tabAuthenticated:inheritedTabState,
+      url:()=>page.currentUrl,isClosed:()=>page.closed,context:()=>context,async opener(){return opener;},
+      async goto(url,settings){events.push(['goto',page,url,settings]);if(page.navigationError)throw page.navigationError;
+        page.currentUrl=url===MAIN_URL&&(page.redirectToLogin||!context.authenticated||!page.tabAuthenticated)?'http://ois.gspoge.com/jsp/login/index':url;},
+      async waitForTimeout(){events.push(['wait',page]);},
+      locator(selector){return {async isVisible(){return page.loginVisible;},async fill(){events.push(['credential-fill',page]);throw new Error('unexpected worker credential entry');}};},
+      async evaluate(expression,argument){
+        assert.match(String(expression),/window\.open\s*\(/,'this fixture only emulates native popup creation');
+        events.push(['popup-evaluate',page]);
+        if(page.popupCreationError)throw page.popupCreationError;
+        if(page.popupCreationGate)await page.popupCreationGate.promise;
+        if(page.blockPopup)return false;
+        await spawnPopup(page,{delay:page.popupDelay||0});
+        if(page.popupErrorAfterOpen)throw page.popupErrorAfterOpen;
+        return true;
+      },
+      waitForEvent(name,options={}){
+        events.push(['wait-event',page,name]);
+        return new Promise((resolve,reject)=>{
+          const listener=value=>{clearTimeout(timer);page.removeListener(name,listener);resolve(value);};
+          const timer=setTimeout(()=>{page.removeListener(name,listener);reject(new Error('Timeout waiting for popup'));},Math.min(options.timeout||30000,1000));
+          page.once(name,listener);
+        });
+      },
+      async close(){if(page.closed)return;page.closed=true;events.push(['page-close',page]);page.emit('close');}
+    });
+    page.frames=()=>[page,...(page.childLoginVisible?[{locator(){return {async isVisible(){return true;}};}}]:[])];
+    configurePage(page,allPages.length);allPages.push(page);context._pages.push(page);return page;
+  }
+  async function spawnPopup(opener,{delay=0,emit=true}={}){
+    const popup=await createPage(opener.context(),{opener,inheritedTabState:opener.tabAuthenticated});
+    events.push(['popup-open',opener,popup]);
+    const announce=()=>{opener.context().emit('page',popup);if(emit)opener.emit('popup',popup);};
+    if(delay>0)setTimeout(announce,delay);else queueMicrotask(announce);
+    return popup;
+  }
   const browser={on(){},isConnected:()=>connected,async close(){events.push('browser-close');connected=false;},async newContext(options={}){
-    const pages=[];let closed=false;
-    const context={options,authenticated:contexts.length===0||options.storageState?.cookies?.some(c=>c.name==='JSESSIONID'&&c.value==='fixture-owner-session'),
-      pages:()=>pages,async storageState(opts){events.push(['storage',context,opts]);return {cookies:context.authenticated?[{name:'JSESSIONID',value:'fixture-owner-session',domain:'ois.gspoge.com',path:'/'}]:[],origins:[]};},
-      async close(){if(!closed){closed=true;events.push(['context-close',context]);for(const p of pages)p.closed=true;}},
-      async newPage(){
-        const page={closed:false,currentUrl:'about:blank',initialUrl:'about:blank',loginVisible:false,childLoginVisible:false,
-          url:()=>page.currentUrl,isClosed:()=>page.closed,context:()=>context,
-          async goto(url,settings){events.push(['goto',page,url,settings]);if(page.navigationError)throw page.navigationError;
-            page.currentUrl=url===MAIN_URL&&(page.redirectToLogin||!context.authenticated)?'http://ois.gspoge.com/jsp/login/index':url;},
-          async waitForTimeout(){events.push(['wait',page]);},
-          locator(selector){return {async isVisible(){return page.loginVisible;},async fill(){events.push(['credential-fill',page]);throw new Error('unexpected worker credential entry');}};},
-          async close(){page.closed=true;events.push(['page-close',page]);}};
-        page.frames=()=>[page,...(page.childLoginVisible?[{locator(){return {async isVisible(){return true;}};}}]:[])];
-        configurePage(page,contexts.indexOf(context));pages.push(page);return page;
-      }};
+    let closed=false;
+    const context=Object.assign(new EventEmitter(),{options,_pages:[],
+      authenticated:contexts.length===0||options.storageState?.cookies?.some(c=>c.name==='JSESSIONID'&&c.value==='fixture-owner-session'),
+      pages:()=>context._pages.filter(page=>!page.closed),
+      async storageState(opts){events.push(['storage',context,opts]);return {cookies:context.authenticated?[{name:'JSESSIONID',value:'fixture-owner-session',domain:'ois.gspoge.com',path:'/'}]:[],origins:[]};},
+      async close(){if(!closed){closed=true;events.push(['context-close',context]);for(const page of context._pages)await page.close();}},
+      async newPage(){return createPage(context,{inheritedTabState:contexts.length===1&&allPages.length===0});}
+    });
     contexts.push(context);events.push(['context-open',context]);return context;
   }};
-  return {browser,contexts,events};
+  return {browser,contexts,events,allPages,spawnPopup};
 }
 async function makeOwner(f){
   const context=await f.browser.newContext(),page=await context.newPage();await page.goto(MAIN_URL);
@@ -95,22 +127,29 @@ function realLoginGuard(){
   vm.createContext(ctx);vm.runInContext(code,ctx);return ctx.ensureOisAgentLoggedIn;
 }
 
-test('actual login-index behavior reproduces the field error while four blank workers succeed via the authenticated main entry',async()=>{
+test('cookie-only cloned contexts reproduce the field failure while four opener-created workers retain authenticated tab state',async()=>{
   const login=realLoginGuard(),old=fakeBrowser(),oldContext=await old.browser.newContext(),blank=await oldContext.newPage();
   assert.equal(blank.url(),'about:blank');
   await assert.rejects(login(blank,{morningParallelReuseOnly:true}),e=>e.code==='OIS_MORNING_WORKER_SESSION_EXPIRED');
   assert.equal(blank.url(),'http://ois.gspoge.com/jsp/login/index','valid reused state does not imply index auto-redirect');
+  await blank.goto(MAIN_URL);
+  const cookieClone=await old.browser.newContext({storageState:await oldContext.storageState()}),cookieOnlyPage=await cookieClone.newPage();
+  await cookieOnlyPage.goto(MAIN_URL);
+  assert.equal(cookieClone.authenticated,true,'fixture cookies were copied successfully');
+  assert.equal(cookieOnlyPage.url(),'http://ois.gspoge.com/jsp/login/index','copied cookies alone do not preserve tab authentication');
   const f=fakeBrowser(),owner=await makeOwner(f),started=[];
   owner.page.currentUrl=MAIN_URL+'?view=private-value#menu';
   const batch=parallel.createWorkerBatch({items,config:{},ensureOwner:async()=>owner,ensureLoggedIn:login});
   const sessions=await Promise.all(items.map(async item=>{const session=await batch.ensure(item.id);started.push(item.id);return session;}));
   assert.equal(started.length,4);assert.equal(new Set(sessions.map(s=>s.context)).size,4);
-  for(const session of sessions){assert.equal(session.page.initialUrl,'about:blank');assert.equal(session.page.url(),MAIN_URL);}
+  assert.equal(f.contexts.length,1,'workers must reuse the actual authenticated BrowserContext');
+  for(const session of sessions){assert.equal(session.page.initialUrl,'about:blank');assert.equal(session.page.url(),MAIN_URL);
+    assert.equal(session.page.context(),owner.context);assert.equal(session.page.openerPage,owner.page);}
   const workerNavigation=f.events.filter(e=>Array.isArray(e)&&e[0]==='goto'&&e[1]!==owner.page);
   assert.equal(workerNavigation.length,4);
   for(const e of workerNavigation){assert.equal(e[2],MAIN_URL);assert.equal(e[3].timeout,30000);assert.equal(e[3].waitUntil,'domcontentloaded');}
   assert.equal(f.events.some(e=>Array.isArray(e)&&e[0]==='credential-fill'),false);
-  assert.equal(f.events.some(e=>Array.isArray(e)&&e[0]==='storage'&&e[2]?.path),false);
+  assert.equal(f.events.some(e=>Array.isArray(e)&&e[0]==='storage'),false,'there is no auth-state cloning or persistence');
   await Promise.all(items.map(x=>batch.finish(x.id)));
 });
 
@@ -119,7 +158,7 @@ test('main-entry origin stays aligned with the Agent fixed OIS login URL',()=>{
   assert.ok(login);assert.equal(new URL(login[1]).origin,new URL(MAIN_URL).origin);
 });
 
-test('one worker redirected to login fails without credential entry and leaves three sibling contexts alive',async()=>{
+test('one worker redirected to login fails without credential entry and leaves three sibling pages alive',async()=>{
   const f=fakeBrowser({configurePage:(p,index)=>{if(index===1)p.redirectToLogin=true;}}),owner=await makeOwner(f);
   const batch=parallel.createWorkerBatch({items,config:{},ensureOwner:async()=>owner,ensureLoggedIn:realLoginGuard()});
   const results=await Promise.allSettled(items.map(x=>batch.ensure(x.id)));
@@ -130,9 +169,9 @@ test('one worker redirected to login fails without credential entry and leaves t
   await Promise.all(items.map(x=>batch.finish(x.id)));
 });
 
-test('main navigation cannot create a false authenticated success when reused cookies are missing',async()=>{
+test('main navigation cannot create a false authenticated success when the shared session has expired',async()=>{
   const f=fakeBrowser(),owner=await makeOwner(f);
-  owner.context.storageState=async()=>({cookies:[],origins:[]});
+  owner.context.authenticated=false;
   const batch=parallel.createWorkerBatch({items:[items[0]],config:{},ensureOwner:async()=>owner,ensureLoggedIn:realLoginGuard()});
   await assert.rejects(batch.ensure(items[0].id),e=>e.code==='OIS_MORNING_WORKER_SESSION_EXPIRED');
   assert.equal(owner.page.isClosed(),false);assert.equal(f.browser.isConnected(),true);
@@ -164,33 +203,121 @@ test('a worker navigation error remains a navigation error instead of being misl
   assert.equal(owner.page.isClosed(),false);assert.equal(f.browser.isConnected(),true);
 });
 
-test('workers bootstrap once, own distinct contexts and recover without closing siblings or writing shared auth',async()=>{
+test('workers bootstrap once, own distinct pages and recover without closing siblings or writing shared auth',async()=>{
   const f=fakeBrowser(),owner=await makeOwner(f);let bootstraps=0,auth=0;
   const batch=parallel.createWorkerBatch({items,config:{},ensureOwner:async()=>{bootstraps++;return owner;},
     ensureLoggedIn:async(_p,c)=>{assert.equal(c.morningParallelReuseOnly,true);auth++;}});
   const sessions=await Promise.all(items.map(x=>batch.ensure(x.id)));
   assert.equal(bootstraps,1);assert.equal(auth,4);assert.equal(new Set(sessions.map(s=>s.context)).size,4);
   assert.equal(new Set(sessions.map(s=>s.page)).size,4);
+  assert.equal(f.contexts.length,1);for(const session of sessions)assert.equal(session.page.context(),owner.context);
   sessions[0].page.closed=true;const recovered=await batch.ensure(items[0].id);
   assert.notEqual(recovered.context,sessions[0].context);
   assert.equal(sessions[1].page.isClosed(),false);assert.equal(f.browser.isConnected(),true);
   await Promise.all(items.map(x=>batch.close(x.id)));
   assert.equal(f.events.filter(x=>x==='browser-close').length,0);
-  assert.equal(f.events.filter(x=>Array.isArray(x)&&x[0]==='storage').length,1);
+  assert.equal(f.events.filter(x=>Array.isArray(x)&&x[0]==='storage').length,0);
   assert.equal(f.events.some(x=>Array.isArray(x)&&x[0]==='storage'&&x[2]?.path),false);
 });
 
-test('expired worker authentication closes only its context and refuses an unknown request',async()=>{
+test('expired worker authentication closes only its owned page and refuses an unknown request',async()=>{
   const f=fakeBrowser(),owner=await makeOwner(f);
   const batch=parallel.createWorkerBatch({items,config:{},ensureOwner:async()=>owner,
     ensureLoggedIn:async()=>{throw new Error('auth expired');}});
   await assert.rejects(batch.ensure(items[0].id),/auth expired/);
   await assert.rejects(batch.ensure('unknown'),/속하지 않는/);
-  assert.equal(f.events.filter(x=>Array.isArray(x)&&x[0]==='context-close').length,1);
+  assert.equal(f.events.filter(x=>Array.isArray(x)&&x[0]==='context-close').length,0);
+  assert.equal(f.events.filter(x=>Array.isArray(x)&&x[0]==='page-close').length,1);
   assert.equal(f.browser.isConnected(),true);
 });
 
-test('server-completed work releases its type before slow context cleanup so a newly claimed successor is retained',async()=>{
+test('serialized popup capture does not serialize slow worker navigation or sibling authentication',async()=>{
+  const firstNavigation=deferred(),navigationStarted=deferred();
+  const f=fakeBrowser({configurePage:(page,index)=>{if(index===1){const original=page.goto;
+    page.goto=async function(...args){navigationStarted.resolve();await firstNavigation.promise;return original.apply(this,args);};
+  }}}),owner=await makeOwner(f);
+  const batch=parallel.createWorkerBatch({items,config:{},ensureOwner:async()=>owner,ensureLoggedIn:realLoginGuard()});
+  const states=items.map(()=>({settled:false}));
+  const pending=items.map((item,index)=>batch.ensure(item.id).then(session=>{states[index].settled=true;return session;}));
+  try {
+    await navigationStarted.promise;await flush();
+    assert.equal(f.events.filter(event=>Array.isArray(event)&&event[0]==='popup-open').length,4);
+    assert.equal(states[0].settled,false);
+    assert.equal(states.slice(1).every(state=>state.settled),true,'other worker pages finish authentication before slow first navigation');
+    firstNavigation.resolve();const sessions=await Promise.all(pending);
+    assert.equal(new Set(sessions.map(session=>session.page)).size,4,'each serialized popup waiter captured its own page');
+    assert.equal(f.contexts.length,1);
+  } finally {firstNavigation.resolve();await Promise.allSettled(pending);await Promise.all(items.map(item=>batch.finish(item.id)));}
+});
+
+test('real auxiliary-page cleanup sees only one worker ownership tree and cannot close owner, siblings or unknown tabs',async()=>{
+  const f=fakeBrowser(),owner=await makeOwner(f);
+  const batch=parallel.createWorkerBatch({items,config:{},ensureOwner:async()=>owner,ensureLoggedIn:realLoginGuard()});
+  const sessions=await Promise.all(items.map(item=>batch.ensure(item.id)));
+  const child=await f.spawnPopup(sessions[0].page),grandchild=await f.spawnPopup(child);
+  const unknown=await f.spawnPopup(owner.page);await flush();
+  assert.equal(sessions[0].page.context(),owner.context,'collectors keep the original authenticated browser context');
+  assert.deepEqual(new Set(sessions[0].context.pages()),new Set([sessions[0].page,child,grandchild]));
+  const cleanupSource=section('  async function closeOisAuxiliaryPages(','  async function closeBrowserSession(');
+  const cleanup=new vm.Script(cleanupSource+'\ncloseOisAuxiliaryPages;').runInNewContext({console:{log(){},warn(){}}});
+  assert.equal(await cleanup(sessions[0],'fixture request boundary'),2);
+  assert.equal(child.isClosed(),true);assert.equal(grandchild.isClosed(),true);
+  for(const page of [owner.page,unknown,...sessions.map(session=>session.page)])assert.equal(page.isClosed(),false);
+  await batch.finish(items[0].id);
+  assert.equal(sessions[0].page.isClosed(),true);
+  for(const page of [owner.page,unknown,...sessions.slice(1).map(session=>session.page)])assert.equal(page.isClosed(),false);
+  await Promise.all(items.slice(1).map(item=>batch.finish(item.id)));
+  assert.equal(unknown.isClosed(),false);assert.equal(owner.page.isClosed(),false);
+  assert.equal(f.events.some(event=>Array.isArray(event)&&event[0]==='context-close'),false);
+});
+
+test('worker bootstrap failure and a page retry clean only that worker ownership tree',async()=>{
+  const failure=new Error('worker bootstrap navigation failed');
+  const f=fakeBrowser({configurePage:(page,index)=>{if(index===1)page.navigationError=failure;}}),owner=await makeOwner(f);
+  const batch=parallel.createWorkerBatch({items,config:{},ensureOwner:async()=>owner,ensureLoggedIn:realLoginGuard()});
+  const results=await Promise.allSettled(items.map(item=>batch.ensure(item.id)));
+  assert.equal(results[0].status,'rejected');assert.equal(results[0].reason,failure);
+  const failedPage=f.allPages[1];assert.equal(failedPage.isClosed(),true);
+  const unknown=await f.spawnPopup(owner.page),sibling=results[1].value;
+  const child=await f.spawnPopup(sibling.page);await flush();
+  await batch.close(items[1].id);
+  assert.equal(sibling.page.isClosed(),true);assert.equal(child.isClosed(),true);
+  const recovered=await batch.ensure(items[1].id);
+  assert.notEqual(recovered.page,sibling.page);assert.equal(recovered.page.url(),MAIN_URL);
+  assert.equal(owner.page.isClosed(),false);assert.equal(unknown.isClosed(),false);
+  for(const result of results.slice(2))assert.equal(result.value.page.isClosed(),false);
+  assert.equal(f.events.some(event=>Array.isArray(event)&&event[0]==='context-close'),false);
+  await Promise.all(items.map(item=>batch.finish(item.id)));
+});
+
+test('finishing a request during native popup opening retires its late page instead of resurrecting a worker',async()=>{
+  const f=fakeBrowser(),owner=await makeOwner(f);owner.page.popupDelay=20;
+  const batch=parallel.createWorkerBatch({items:[items[0]],config:{},ensureOwner:async()=>owner,ensureLoggedIn:realLoginGuard()});
+  const pending=batch.ensure(items[0].id);await flush();
+  const finishing=batch.finish(items[0].id);
+  const result=await Promise.allSettled([pending,finishing]);
+  assert.equal(result[0].status,'rejected','a retired request must not receive a resurrected session');
+  assert.equal(f.allPages.slice(1).every(page=>page.isClosed()),true);
+  assert.equal(owner.page.isClosed(),false);assert.equal(f.browser.isConnected(),true);
+  await assert.rejects(batch.ensure(items[0].id),/속하지 않는|종료|완료/);
+});
+
+test('uncertain native popup transport failure stops new opens and later closes only its delayed page',async()=>{
+  const f=fakeBrowser(),owner=await makeOwner(f);
+  const batch=parallel.createWorkerBatch({items,config:{},ensureOwner:async()=>owner,ensureLoggedIn:realLoginGuard()});
+  const first=await batch.ensure(items[0].id);
+  owner.page.popupDelay=20;owner.page.popupErrorAfterOpen=new Error('native popup transport acknowledgement lost');
+  await assert.rejects(batch.ensure(items[1].id),error=>error.code==='OIS_MORNING_WORKER_SESSION_EXPIRED');
+  const attempts=f.events.filter(event=>Array.isArray(event)&&event[0]==='popup-evaluate').length;
+  await assert.rejects(batch.ensure(items[2].id),error=>error.code==='OIS_MORNING_WORKER_SESSION_EXPIRED');
+  assert.equal(f.events.filter(event=>Array.isArray(event)&&event[0]==='popup-evaluate').length,attempts,'uncertain creation must not issue another window.open');
+  await new Promise(resolve=>setTimeout(resolve,30));await flush();
+  assert.equal(f.allPages.at(-1).isClosed(),true,'late popup is retired by its uncertain request tombstone');
+  assert.equal(first.page.isClosed(),false);assert.equal(owner.page.isClosed(),false);assert.equal(f.browser.isConnected(),true);
+  await Promise.all(items.map(item=>batch.finish(item.id)));
+});
+
+test('server-completed work releases its type before slow owned-page cleanup so a newly claimed successor is retained',async()=>{
   const f=fakeBrowser(),owner=await makeOwner(f),closing=deferred();
   const batch=parallel.createWorkerBatch({items:[items[0]],config:{},ensureOwner:async()=>owner,ensureLoggedIn:async()=>{}});
   const session=await batch.ensure(items[0].id),originalClose=session.context.close;
@@ -249,7 +376,7 @@ async function loopFixture(failIndex=-1,{late=false,warmAuthFail=false}={}){
   try {
   await allStarted.promise;
   assert.equal(starts.length,expectedStarts);assert.equal(new Set(starts.map(x=>x.page)).size,expectedStarts);
-  assert.equal(new Set(starts.map(x=>x.page.context())).size,expectedStarts);assert.equal(launches,1);if(!warmAuthFail)assert.equal(excelStarted,false);
+  assert.equal(new Set(starts.map(x=>x.page.context())).size,1);assert.equal(launches,1);if(!warmAuthFail)assert.equal(excelStarted,false);
   if(late)assert.ok(fills>=1,'late sources were claimed before Water completed');
   // Silo completes while Water remains pending; completion is delivered immediately.
   gates[3].resolve();await flush();if(warmAuthFail)assert.deepEqual([...completed].sort(),['excel','request-3','warm-owner']);else assert.deepEqual(completed,['request-3']);
@@ -259,8 +386,8 @@ async function loopFixture(failIndex=-1,{late=false,warmAuthFail=false}={}){
   assert.equal(exits[0],0);assert.equal(polls,warmAuthFail?2:1);assert.equal(excelStarted,!late);
   assert.equal(completed.length,total-((failIndex>=0||warmAuthFail)?1:0));assert.equal(failed.length,(failIndex>=0||warmAuthFail)?1:0);
   if(warmAuthFail){assert.equal(screenshots.length,0,'worker auth failure must not capture owner page');assert.equal(failed[0].id,items[0].id);}
-  assert.equal(f.contexts.length,5);assert.equal(f.events.filter(x=>x==='browser-close').length,1);
-  assert.equal(f.events.filter(x=>Array.isArray(x)&&x[0]==='context-close').length,5);
+  assert.equal(f.contexts.length,1);assert.equal(f.events.filter(x=>x==='browser-close').length,1);
+  assert.equal(f.events.filter(x=>Array.isArray(x)&&x[0]==='context-close').length,1);
   for(const event of f.events.filter(x=>Array.isArray(x)&&x[0]==='storage'&&x[2]?.path))assert.equal(event[1],f.contexts[0]);
   } finally {gates.forEach(g=>g.resolve());await run;}
 }
