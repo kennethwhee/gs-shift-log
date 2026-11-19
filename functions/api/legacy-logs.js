@@ -14,10 +14,26 @@ import { protectedRequest } from "../_shared/attachment-access.js";
 
   /api/legacy-logs?date=2026-07-21
 
+  /api/legacy-logs?from=2026-11-06&to=2026-11-20
+  (기간 조회, 최대 62일. 날짜마다 따로 부르던 요청을 한 번으로 줄인다)
+
   응답:
   - D1 legacy_logs 테이블에서 조회
   - 기존 script.js가 사용하기 쉬운 형태로 반환
 ========================================================= */
+
+
+/* D1 바인딩 값 100개 제한보다 작게 첨부 조회를 나눈다. */
+const LEGACY_ATTACHMENT_QUERY_CHUNK_SIZE = 90;
+
+/* 기간 조회 한 번에 허용하는 최대 일수. 화면은 31일씩 나눠 부른다. */
+const LEGACY_RANGE_MAX_DAYS = 62;
+
+/*
+  삭제 차단 테이블 확인(CREATE TABLE/INDEX IF NOT EXISTS)은
+  같은 DB 연결에서 한 번만 실행한다. 예전에는 조회 요청마다 2번씩 실행됐다.
+*/
+const legacySuppressionReadyDatabases = new WeakSet();
 
 
 /* =========================================================
@@ -426,53 +442,78 @@ async function loadLegacyAttachmentsByDiaryIds(
   }
 
 
-  const placeholders =
-    normalizedDiaryIds
-      .map(
-        (
-          _legacyDiaryId,
-          index
-        ) => {
-          return `?${index + 1}`;
-        }
+  /*
+    D1은 한 문장에 바인딩 값을 100개까지만 받는다.
+    기간 조회에서는 업무일지 ID가 100개를 넘을 수 있으므로
+    ID를 나눠서 조회한다. 같은 업무일지의 첨부는 항상
+    같은 묶음에 들어가므로 업무일지별 순서는 그대로다.
+  */
+  const attachmentRows = [];
+
+
+  for (
+    let offset = 0;
+    offset < normalizedDiaryIds.length;
+    offset += LEGACY_ATTACHMENT_QUERY_CHUNK_SIZE
+  ) {
+    const diaryIdChunk =
+      normalizedDiaryIds.slice(
+        offset,
+        offset + LEGACY_ATTACHMENT_QUERY_CHUNK_SIZE
+      );
+
+
+    const placeholders =
+      diaryIdChunk
+        .map(
+          (
+            _legacyDiaryId,
+            index
+          ) => {
+            return `?${index + 1}`;
+          }
+        )
+        .join(", ");
+
+
+    const queryResult =
+      await database
+        .prepare(
+          `
+            SELECT
+              id,
+              legacy_diary_id,
+              file_name,
+              original_url,
+              r2_key,
+              mime_type,
+              file_size,
+              uploaded_at
+            FROM legacy_attachments
+            WHERE legacy_diary_id IN (
+              ${placeholders}
+            )
+            ORDER BY
+              legacy_diary_id ASC,
+              id ASC
+          `
+        )
+        .bind(
+          ...diaryIdChunk
+        )
+        .all();
+
+
+    if (
+      Array.isArray(
+        queryResult.results
       )
-      .join(", ");
-
-
-  const queryResult =
-    await database
-      .prepare(
-        `
-          SELECT
-            id,
-            legacy_diary_id,
-            file_name,
-            original_url,
-            r2_key,
-            mime_type,
-            file_size,
-            uploaded_at
-          FROM legacy_attachments
-          WHERE legacy_diary_id IN (
-            ${placeholders}
-          )
-          ORDER BY
-            legacy_diary_id ASC,
-            id ASC
-        `
-      )
-      .bind(
-        ...normalizedDiaryIds
-      )
-      .all();
-
-
-  const attachmentRows =
-    Array.isArray(
-      queryResult.results
-    )
-      ? queryResult.results
-      : [];
+    ) {
+      attachmentRows.push(
+        ...queryResult.results
+      );
+    }
+  }
 
 
   return attachmentRows.reduce(
@@ -630,6 +671,61 @@ async function ensureLegacyLogSuppressionTable(
     .run();
 }
 
+async function ensureLegacyLogSuppressionTableOnce(
+  database
+) {
+  const canRemember =
+    Boolean(database) &&
+    typeof database === "object";
+
+
+  if (
+    canRemember &&
+    legacySuppressionReadyDatabases.has(
+      database
+    )
+  ) {
+    return;
+  }
+
+
+  await ensureLegacyLogSuppressionTable(
+    database
+  );
+
+
+  if (
+    canRemember
+  ) {
+    legacySuppressionReadyDatabases.add(
+      database
+    );
+  }
+}
+
+
+function countInclusiveDays(
+  fromDate,
+  toDate
+) {
+  const [fromYear, fromMonth, fromDay] =
+    fromDate.split("-").map(Number);
+
+  const [toYear, toMonth, toDay] =
+    toDate.split("-").map(Number);
+
+
+  return (
+    Math.round(
+      (
+        Date.UTC(toYear, toMonth - 1, toDay) -
+        Date.UTC(fromYear, fromMonth - 1, fromDay)
+      ) /
+      86400000
+    ) + 1
+  );
+}
+
 /* =========================================================
   GET /api/legacy-logs
 
@@ -662,7 +758,7 @@ async function handleGet(
       삭제 차단 테이블 준비
     ====================================================== */
 
-    await ensureLegacyLogSuppressionTable(
+    await ensureLegacyLogSuppressionTableOnce(
       context.env.DB
     );
 
@@ -681,6 +777,34 @@ async function handleGet(
       );
 
 
+    /*
+      기간 조회: date 대신 from/to를 보내면
+      여러 날짜를 한 번에 돌려준다.
+    */
+    const fromDate =
+      normalizeText(
+        requestUrl.searchParams.get(
+          "from"
+        )
+      );
+
+
+    const toDate =
+      normalizeText(
+        requestUrl.searchParams.get(
+          "to"
+        )
+      );
+
+
+    const isRangeRequest =
+      !date &&
+      Boolean(
+        fromDate ||
+        toDate
+      );
+
+
     const shift =
       normalizeShift(
         requestUrl.searchParams.get(
@@ -694,6 +818,68 @@ async function handleGet(
     ====================================================== */
 
     if (
+      isRangeRequest
+    ) {
+      if (
+        !isValidIsoDate(
+          fromDate
+        ) ||
+        !isValidIsoDate(
+          toDate
+        )
+      ) {
+        return createJsonResponse(
+          {
+            success:
+              false,
+
+            message:
+              "from과 to는 YYYY-MM-DD 형식의 실제 날짜여야 합니다.",
+
+            example:
+              "/api/legacy-logs?from=2026-11-06&to=2026-11-20"
+          },
+          400
+        );
+      }
+
+
+      if (
+        fromDate >
+        toDate
+      ) {
+        return createJsonResponse(
+          {
+            success:
+              false,
+
+            message:
+              "from은 to보다 늦을 수 없습니다."
+          },
+          400
+        );
+      }
+
+
+      if (
+        countInclusiveDays(
+          fromDate,
+          toDate
+        ) >
+        LEGACY_RANGE_MAX_DAYS
+      ) {
+        return createJsonResponse(
+          {
+            success:
+              false,
+
+            message:
+              `기간 조회는 최대 ${LEGACY_RANGE_MAX_DAYS}일까지 가능합니다.`
+          },
+          400
+        );
+      }
+    } else if (
       !date
     ) {
       return createJsonResponse(
@@ -713,6 +899,7 @@ async function handleGet(
 
 
     if (
+      !isRangeRequest &&
       !isValidIsoDate(
         date
       )
@@ -766,7 +953,11 @@ async function handleGet(
       FROM legacy_logs AS legacy
 
       WHERE
-        legacy.work_date = ?1
+        ${
+          isRangeRequest
+            ? "legacy.work_date BETWEEN ?1 AND ?2"
+            : "legacy.work_date = ?1"
+        }
 
         AND NOT EXISTS (
           SELECT
@@ -790,9 +981,15 @@ async function handleGet(
     `;
 
 
-    const bindValues = [
-      date
-    ];
+    const bindValues =
+      isRangeRequest
+        ? [
+            fromDate,
+            toDate
+          ]
+        : [
+            date
+          ];
 
 
     /* =====================================================
@@ -803,7 +1000,7 @@ async function handleGet(
       shift
     ) {
       queryText += `
-        AND legacy.shift = ?2
+        AND legacy.shift = ?${bindValues.length + 1}
       `;
 
 
@@ -819,6 +1016,11 @@ async function handleGet(
 
     queryText += `
       ORDER BY
+        ${
+          isRangeRequest
+            ? "legacy.work_date ASC,"
+            : ""
+        }
         CASE legacy.role
           WHEN '파트장' THEN 1
           WHEN 'TGO' THEN 2
@@ -931,6 +1133,33 @@ async function handleGet(
     /* =====================================================
       응답
     ====================================================== */
+
+    if (
+      isRangeRequest
+    ) {
+      return createJsonResponse({
+        success:
+          true,
+
+        from:
+          fromDate,
+
+        to:
+          toDate,
+
+        shift:
+          shift ||
+          "ALL",
+
+        totalCount:
+          items.length,
+
+        attachmentCount,
+
+        items
+      });
+    }
+
 
     return createJsonResponse({
       success:

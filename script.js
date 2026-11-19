@@ -11985,7 +11985,8 @@ async function fetchShiftLogWithTimeout(
 ========================================================= */
 
 async function loadLegacyLogsForSearchDate(
-  searchDate
+  searchDate,
+  prefetchedDateItems = null
 ) {
   const normalizedDate =
     String(
@@ -11998,63 +11999,81 @@ async function loadLegacyLogsForSearchDate(
   }
 
 
-  const requestUrl =
-    new URL(
-      "/api/legacy-logs",
-      window.location.origin
-    );
-
-
   /*
-    shift를 지정하지 않으면
-    해당 날짜의 D/S와 N/S를 모두 반환한다.
+    기간 조회(/api/legacy-logs?from&to)로 이미 받은 그 날짜 자료가 있으면
+    다시 부르지 않고 아래의 같은 변환 과정만 거친다.
   */
-  requestUrl.searchParams.set(
-    "date",
-    normalizedDate
-  );
-
-
-  const response =
-    await fetchShiftLogWithTimeout(
-      requestUrl.toString(),
-      {
-        method:
-          "GET",
-
-        headers: getShiftLogAuthHeaders({
-          Accept:
-            "application/json"
-        }),
-
-        cache:
-          "no-store"
-      }
-    );
-
-
   let result = {};
 
 
-  try {
-    result =
-      await response.json();
-
-  } catch (error) {
-    throw new Error(
-      `${normalizedDate} D1 과거 업무일지 응답을 읽을 수 없습니다.`
-    );
-  }
-
-
   if (
-    !response.ok ||
-    !result.success
+    Array.isArray(
+      prefetchedDateItems
+    )
   ) {
-    throw new Error(
-      result.message ||
-      `${normalizedDate} 저장된 과거 업무일지를 불러오지 못했습니다.`
+    result = {
+      success:
+        true,
+
+      items:
+        prefetchedDateItems
+    };
+  } else {
+    const requestUrl =
+      new URL(
+        "/api/legacy-logs",
+        window.location.origin
+      );
+
+
+    /*
+      shift를 지정하지 않으면
+      해당 날짜의 D/S와 N/S를 모두 반환한다.
+    */
+    requestUrl.searchParams.set(
+      "date",
+      normalizedDate
     );
+
+
+    const response =
+      await fetchShiftLogWithTimeout(
+        requestUrl.toString(),
+        {
+          method:
+            "GET",
+
+          headers: getShiftLogAuthHeaders({
+            Accept:
+              "application/json"
+          }),
+
+          cache:
+            "no-store"
+        }
+      );
+
+
+    try {
+      result =
+        await response.json();
+
+    } catch (error) {
+      throw new Error(
+        `${normalizedDate} D1 과거 업무일지 응답을 읽을 수 없습니다.`
+      );
+    }
+
+
+    if (
+      !response.ok ||
+      !result.success
+    ) {
+      throw new Error(
+        result.message ||
+        `${normalizedDate} 저장된 과거 업무일지를 불러오지 못했습니다.`
+      );
+    }
   }
 
 
@@ -12387,6 +12406,215 @@ async function loadLegacyLogsForSearchRange(
   }
 
 
+  /*
+    31일씩 기간 조회(/api/legacy-logs?from&to)로 한 번에 받는다.
+    (2026-11-20 이전에는 날짜마다 한 번씩 불러서,
+    운영 알림의 15일 계산에 15번, 30일 검색에 30번 호출했다.)
+
+    서버가 기간 조회에 실패하면 그 구간만
+    예전처럼 날짜별로 부른다.
+  */
+  const rangeWindowSize =
+    31;
+
+
+  const allLegacyLogs = [];
+
+
+  for (
+    let windowStart = 0;
+    windowStart <
+      searchDates.length;
+    windowStart +=
+      rangeWindowSize
+  ) {
+    const windowDates =
+      searchDates.slice(
+        windowStart,
+        windowStart +
+        rangeWindowSize
+      );
+
+
+    allLegacyLogs.push(
+      ...(
+        await loadLegacyLogsSearchWindowV1(
+          windowDates
+        )
+      )
+    );
+  }
+
+
+  return allLegacyLogs;
+}
+
+
+async function requestLegacyLogsDateRangeV1(
+  fromDate,
+  toDate
+) {
+  try {
+    const requestUrl =
+      new URL(
+        "/api/legacy-logs",
+        window.location.origin
+      );
+
+
+    requestUrl.searchParams.set(
+      "from",
+      fromDate
+    );
+
+
+    requestUrl.searchParams.set(
+      "to",
+      toDate
+    );
+
+
+    const response =
+      await fetchShiftLogWithTimeout(
+        requestUrl.toString(),
+        {
+          method:
+            "GET",
+
+          headers: getShiftLogAuthHeaders({
+            Accept:
+              "application/json"
+          }),
+
+          cache:
+            "no-store"
+        }
+      );
+
+
+    const result =
+      await response.json();
+
+
+    if (
+      !response.ok ||
+      !result?.success ||
+      result.from !== fromDate ||
+      result.to !== toDate ||
+      !Array.isArray(
+        result.items
+      )
+    ) {
+      return null;
+    }
+
+
+    return result.items;
+
+  } catch (error) {
+    console.warn(
+      `${fromDate}~${toDate} 과거 업무일지 기간 조회 실패, 날짜별 조회로 대신합니다:`,
+      error
+    );
+
+
+    return null;
+  }
+}
+
+
+async function loadLegacyLogsSearchWindowV1(
+  windowDates
+) {
+  const rangeItems =
+    await requestLegacyLogsDateRangeV1(
+      windowDates[0],
+      windowDates[
+        windowDates.length - 1
+      ]
+    );
+
+
+  if (
+    !rangeItems
+  ) {
+    return loadLegacyLogsSearchDatesOneByOneV1(
+      windowDates
+    );
+  }
+
+
+  const itemsByDate =
+    new Map(
+      windowDates.map(
+        searchDate => [
+          searchDate,
+          []
+        ]
+      )
+    );
+
+
+  rangeItems.forEach(
+    item => {
+      const itemDate =
+        String(
+          item?.date || ""
+        ).trim();
+
+
+      if (
+        itemsByDate.has(
+          itemDate
+        )
+      ) {
+        itemsByDate
+          .get(
+            itemDate
+          )
+          .push(
+            item
+          );
+      }
+    }
+  );
+
+
+  const windowLogs = [];
+
+
+  for (
+    const searchDate of
+    windowDates
+  ) {
+    try {
+      windowLogs.push(
+        ...(
+          await loadLegacyLogsForSearchDate(
+            searchDate,
+            itemsByDate.get(
+              searchDate
+            )
+          )
+        )
+      );
+
+    } catch (error) {
+      console.error(
+        `${searchDate} 조회용 과거 업무일지 불러오기 실패:`,
+        error
+      );
+    }
+  }
+
+
+  return windowLogs;
+}
+
+
+async function loadLegacyLogsSearchDatesOneByOneV1(
+  searchDates
+) {
   const allLegacyLogs = [];
 
 
