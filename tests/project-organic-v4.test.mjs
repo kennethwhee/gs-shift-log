@@ -56,7 +56,10 @@ test('valid closes record the balance and loss of source inventory cannot replac
 // Model only the DOM selectors and remote transport; mount the shipped UI and
 // use the actual core and validated DataPARC report. No browser/package install.
 class Element {
-  constructor(attributes={}){this.attributes=attributes;this.dataset={};this.value=attributes.value||'';this.hidden=Object.hasOwn(attributes,'hidden');this.disabled=Object.hasOwn(attributes,'disabled');this.textContent='';this.children=[];this.listeners={};this.classList={add(){},remove(){},toggle(){}};}
+  constructor(attributes={}){this.attributes=attributes;this.dataset={};this.value=attributes.value||'';this.hidden=Object.hasOwn(attributes,'hidden');this.disabled=Object.hasOwn(attributes,'disabled');this.textContent='';this.children=[];this.listeners={};
+    // Working class list: the UI reads it back with contains() since 2026-10-06.
+    const classes=new Set();this.classList={add:(...names)=>names.forEach(name=>classes.add(name)),remove:(...names)=>names.forEach(name=>classes.delete(name)),
+      toggle:(name,force)=>{const on=force===undefined?!classes.has(name):Boolean(force);if(on)classes.add(name);else classes.delete(name);return on;},contains:name=>classes.has(name)};}
   set innerHTML(value){this.html=value;this.children=[];for(const tag of value.matchAll(/<[a-z][^>]*\bdata-cfv[^>]*>/g)){const attrs={};for(const a of tag[0].matchAll(/([a-z][a-z0-9-]*)(?:="([^"]*)")?/g))attrs[a[1]]=a[2]||'';this.children.push(new Element(attrs));}}
   get innerHTML(){return this.html||'';}
   querySelectorAll(selector){const selectors=selector.split(',').map(s=>/^\[([^=\]]+)(?:="([^\"]+)")?\]$/.exec(s.trim())),out=[];for(const child of this.children){if(selectors.some(m=>m&&Object.hasOwn(child.attributes,m[1])&&(m[2]===undefined||child.attributes[m[1]]===m[2])))out.push(child);out.push(...child.querySelectorAll(selector));}return out;}
@@ -65,6 +68,7 @@ class Element {
   setAttribute(name,value){this.attributes[name]=String(value);}
   removeAttribute(name){delete this.attributes[name];}
   closest(){return null;}
+  appendChild(child){this.children.push(child);return child;}
   addEventListener(type,fn){(this.listeners[type]||=[]).push(fn);}
   async fire(type){for(const fn of this.listeners[type]||[])await fn({target:this});}
 }
@@ -87,7 +91,8 @@ function mounted({inventory=true,receipt=115.39,receiptGate=null,receiptError=fa
     CofiringCalculationSettingsStorage:{create:options=>store('settings',options)},
     CofiringPeriodManualStorage:{blank,parseValue:v=>String(v).trim()===''?null:Number(v),create:options=>store('manual',options)},
     CofiringPeriodAdjustmentV56:{create:()=>null},getShiftLogAuthHeaders:()=>({Authorization:'Bearer synthetic'}),
-    document:{readyState:'loading',addEventListener(){},getElementById:()=>null},navigator:{userAgent:'desktop'},location:{pathname:'/maintenance/',origin:'https://review.invalid'},
+    // mount() injects one runtime <style> into document.head (added 2026-10-01).
+    document:{readyState:'loading',addEventListener(){},getElementById:()=>null,createElement:tag=>new Element({tag}),head:new Element()},navigator:{userAgent:'desktop'},location:{pathname:'/maintenance/',origin:'https://review.invalid'},
     setTimeout:(fn,ms)=>{timers.set(++serial,{fn,ms});return serial;},clearTimeout:id=>timers.delete(id),confirm:()=>true,
     addEventListener(){},removeEventListener(){},async fetch(url){const params=new URL(url,'https://review.invalid').searchParams;
       const data={ok:true,receiptStart:params.get('receiptStart'),receiptEnd:params.get('receiptEnd'),source:'solid-fuel-unloading',basis:'completed-unloading-departure',receipts:{organic:h.receipt,manure:0},counts:{organic:4,manure:0}};
@@ -112,7 +117,8 @@ test('mounted UI discards saved 10.42 values without inventory, retains coal/bio
 
 test('mounted UI uses the confirmed inventory before calculating and keeps four-decimal allocation consistent',async t=>{
   const h=mounted({receipt:30.12345});t.after(()=>h.controller.dispose());await h.ready();const r=h.seed();
-  for(const unit of ['unit1','unit2']){assert.equal(r.units[unit].organic.quantity,10.0617);assert.equal(h.container.querySelector(`[data-cfv5-manual="${unit}:organic"]`).value,'10.0617');}
+  // Ton inputs display two decimals since 2026-09-27; the snapshot and saved values below keep four decimals.
+  for(const unit of ['unit1','unit2']){assert.equal(r.units[unit].organic.quantity,10.0617);assert.equal(h.container.querySelector(`[data-cfv5-manual="${unit}:organic"]`).value,'10.06');}
   assert.equal(h.find('cfv5-manual-save').disabled,false);assert.equal(h.controller.getSnapshotInputs().manual.unit1.organic,10.0617);
   await h.find('cfv5-manual-save').fire('click');assert.equal(h.saves.length,1);assert.equal(h.saves[0].unit1.organic,10.0617);
 });

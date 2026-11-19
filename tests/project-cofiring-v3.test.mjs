@@ -13,7 +13,7 @@ test('server recomputes summaries and preserves blank manual input separately fr
   const db=database(t),p=packet();p.snapshot.manual.unit2.manure=null;p.summary={combined:{totalRatio:999}};p.snapshot.summary=p.summary;p.snapshot.result.heats={total:999};
   const r=await call(db,{body:p});assert.equal(r.status,200,JSON.stringify(r.payload));
   const saved=stored(db),snapshot=JSON.parse(saved.snapshot_json),summary=JSON.parse(saved.summary_json);
-  assert.equal(snapshot.validationVersion,5);assert.equal(snapshot.manual.unit2.manure,null);assert.equal(snapshot.manual.receipts.manure,0);
+  assert.equal(snapshot.validationVersion,6);assert.equal(snapshot.manual.unit2.manure,null);assert.equal(snapshot.manual.receipts.manure,0);
   assert.equal(snapshot.result.units.unit2.manure.quantity,0);assert.deepEqual(summary,core.summaryFromResult(p.snapshot.result));
   assert.equal(summary.unit1.organicGroupRatio,snapshot.result.units.unit1.fuelRatios.organicGroup);
   assert.notEqual(summary.combined.totalRatio,999);assert.match(r.payload.item.version,/^[a-f0-9]{64}$/);
