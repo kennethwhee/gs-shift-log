@@ -20,17 +20,29 @@ function database(t) {
     CREATE TABLE shift_log_sessions(token_hash TEXT PRIMARY KEY, employee_no TEXT, expires_at TEXT);
     CREATE TABLE ois_data_requests(id TEXT PRIMARY KEY, target_date TEXT, request_type TEXT,
       status TEXT, expires_at TEXT, requested_at TEXT, result_json TEXT);
+    -- Same columns and constraints as the production D1 tables (checked 2026-11-19).
     CREATE TABLE morning_meeting_auto_history_overrides(target_date TEXT PRIMARY KEY,
-      revision INTEGER, values_json TEXT, reset_active INTEGER, reset_at TEXT, reset_by_id TEXT,
-      reset_by_name TEXT, reset_snapshot_values_json TEXT, reset_restored_at TEXT,
-      updated_by_id TEXT, updated_by_name TEXT, updated_at TEXT);
+      values_json TEXT NOT NULL DEFAULT '{}', created_by_id TEXT NOT NULL DEFAULT '',
+      created_by_name TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL,
+      updated_by_id TEXT NOT NULL DEFAULT '', updated_by_name TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1, reset_active INTEGER NOT NULL DEFAULT 0, reset_at TEXT NOT NULL DEFAULT '',
+      reset_by_id TEXT NOT NULL DEFAULT '', reset_by_name TEXT NOT NULL DEFAULT '',
+      reset_snapshot_values_json TEXT NOT NULL DEFAULT '', reset_restored_at TEXT NOT NULL DEFAULT '');
+    CREATE TABLE morning_meeting_boiler_snapshots(target_date TEXT PRIMARY KEY, values_json TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1 CHECK (revision >= 1), updated_by_id TEXT NOT NULL,
+      updated_by_name TEXT NOT NULL, updated_at TEXT NOT NULL);
     INSERT INTO users VALUES('test-user','검토 사용자','user',1),('disabled','중지 사용자','user',0);`);
   for (const [token, id, expiry] of [['valid', 'test-user', '2099-01-01'], ['disabled', 'disabled', '2099-01-01'],
     ['expired', 'test-user', '2000-01-01'], ['bad-date', 'test-user', 'invalid']]) {
     raw.prepare('INSERT INTO shift_log_sessions VALUES(?,?,?)').run(hash(token), id, expiry);
   }
-  for (const d of [date, otherDate]) raw.prepare(`INSERT INTO morning_meeting_auto_history_overrides
-    VALUES(?,4,'{"water":123}',1,'before','owner','작성자','{"water":456}',NULL,'owner','작성자','before')`).run(d);
+  for (const d of [date, otherDate]) {
+    raw.prepare(`INSERT INTO morning_meeting_auto_history_overrides(target_date, values_json,
+      created_by_id, created_by_name, created_at, updated_by_id, updated_by_name, updated_at, revision,
+      reset_active, reset_at, reset_by_id, reset_by_name, reset_snapshot_values_json, reset_restored_at)
+      VALUES(?,'{"water":123}','owner','작성자','before','owner','작성자','before',4,1,'before','owner','작성자','{"water":456}','')`).run(d);
+    raw.prepare(`INSERT INTO morning_meeting_boiler_snapshots VALUES(?,'{"boiler":789}',1,'owner','작성자','before')`).run(d);
+  }
   for (const [id, d, type] of [['selected',date,'daily_data_excel'], ['selected-water',date,'water_environment'],
     ['other-day',otherDate,'daily_data_excel'], ['other-feature',date,'cofiring_period']]) {
     raw.prepare('INSERT INTO ois_data_requests VALUES(?,?,?,\'completed\',NULL,\'before\',\'{"value":123}\')').run(id,d,type);
@@ -60,7 +72,8 @@ function database(t) {
 }
 function snapshot(db) {
   return JSON.stringify({requests:db.raw.prepare('SELECT * FROM ois_data_requests ORDER BY id').all(),
-    overrides:db.raw.prepare('SELECT * FROM morning_meeting_auto_history_overrides ORDER BY target_date').all()});
+    overrides:db.raw.prepare('SELECT * FROM morning_meeting_auto_history_overrides ORDER BY target_date').all(),
+    boilers:db.raw.prepare('SELECT * FROM morning_meeting_boiler_snapshots ORDER BY target_date').all()});
 }
 async function call(db,{payload=body(),token='valid',origin='https://review.invalid'}={}) {
   const request=new Request('https://review.invalid/api/morning-meeting-purge',{method:'POST',
@@ -84,7 +97,7 @@ test('selected-date purge authenticates and rejects malformed requests before an
   assert.equal(db.writes,0); assert.equal(snapshot(db),before);
 });
 
-test('confirmed purge deletes only selected-date meeting sources and clears reset state atomically',async t=>{
+test('confirmed purge deletes only selected-date meeting sources and leaves a blank reset tombstone atomically',async t=>{
   const db=database(t);
   const other=db.raw.prepare('SELECT * FROM morning_meeting_auto_history_overrides WHERE target_date=?').get(otherDate);
   const response=await call(db);
@@ -93,16 +106,20 @@ test('confirmed purge deletes only selected-date meeting sources and clears rese
   assert.equal(response.payload.remainingRows,0); assert.equal(response.payload.revision,5);
   assert.deepEqual(db.raw.prepare('SELECT id FROM ois_data_requests ORDER BY id').all().map(x=>x.id),['other-day','other-feature']);
   assert.deepEqual(db.raw.prepare('SELECT * FROM morning_meeting_auto_history_overrides WHERE target_date=?').get(otherDate),other);
+  assert.deepEqual(db.raw.prepare('SELECT target_date FROM morning_meeting_boiler_snapshots').all().map(x=>x.target_date),[otherDate]);
   const saved=db.raw.prepare('SELECT * FROM morning_meeting_auto_history_overrides WHERE target_date=?').get(date);
   assert.equal(saved.values_json,'{}'); assert.equal(saved.reset_snapshot_values_json,'{}');
-  assert.equal(saved.reset_active,0); assert.equal(saved.revision,5); assert.equal(saved.updated_by_id,'test-user');
+  // Since 2026-10-02 the purge keeps an active blank tombstone until an explicit All/Requery succeeds.
+  assert.equal(saved.reset_active,1); assert.equal(saved.reset_by_id,'test-user');
+  assert.equal(saved.revision,5); assert.equal(saved.updated_by_id,'test-user');
   assert.equal((await call(db)).status,409,'an old revision cannot repeat the purge');
 });
 
 test('a failure after DELETE rolls back both saved sources and reset state without SQL disclosure',async t=>{
   const db=database(t),before=snapshot(db);
   t.mock.method(console,'error',()=>{});
-  db.failSql=/UPDATE morning_meeting_auto_history_overrides/;
+  // The reset row is now written by an INSERT ... ON CONFLICT upsert right after the DELETE.
+  db.failSql=/INSERT INTO morning_meeting_auto_history_overrides/;
   const response=await call(db);
   assert.equal(response.status,500); assert.equal(db.writes,1,'DELETE was reached before the injected failure');
   assert.equal(snapshot(db),before); assert.doesNotMatch(JSON.stringify(response.payload),/SQL|secret|injected|SELECT|UPDATE/);
@@ -138,12 +155,16 @@ test('appearance of an initially absent reset row is a conflict, while an unchan
   const db=database(t);
   db.raw.prepare('DELETE FROM morning_meeting_auto_history_overrides WHERE target_date=?').run(date);
   let current;
-  db.beforeBatch=()=>{db.raw.prepare('INSERT INTO morning_meeting_auto_history_overrides(target_date,revision,values_json) VALUES(?,0,?)').run(date,'new value');current=snapshot(db);};
+  // Every real writer creates rows with revision 1 (also the D1 default); no production row is below 1.
+  db.beforeBatch=()=>{db.raw.prepare("INSERT INTO morning_meeting_auto_history_overrides(target_date,revision,values_json,created_at,updated_at) VALUES(?,1,?,'now','now')").run(date,'new value');current=snapshot(db);};
   assert.equal((await call(db,{payload:{...body(),expectedRevision:0}})).status,409);
   assert.equal(snapshot(db),current);
   db.raw.prepare('DELETE FROM morning_meeting_auto_history_overrides WHERE target_date=?').run(date);
   const response=await call(db,{payload:{...body(),expectedRevision:0}});
-  assert.equal(response.status,200);assert.equal(response.payload.deletedRows,2);assert.equal(response.payload.overrideChanges,0);
+  // An absent row is replaced by a new blank tombstone (the API requires exactly one tombstone write).
+  assert.equal(response.status,200);assert.equal(response.payload.deletedRows,2);assert.equal(response.payload.overrideChanges,1);
+  const tombstone=db.raw.prepare('SELECT * FROM morning_meeting_auto_history_overrides WHERE target_date=?').get(date);
+  assert.equal(tombstone.values_json,'{}');assert.equal(tombstone.reset_active,1);assert.equal(tombstone.revision,1);
 });
 
 test('concurrent purges from one saved revision yield one success and one conflict',async t=>{
