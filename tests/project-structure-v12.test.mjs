@@ -134,7 +134,9 @@ test('PC search installer loads before the runtime and mobile preload/execution 
   const runtime = scripts.filter(item => /^script\.js\?/.test(item.src));
   const installer = scripts.filter(item => /^maintenance\/shift-log-search-matched-items\.js\?/.test(item.src));
   assert.equal(runtime.length, 1); assert.equal(installer.length, 1);
-  assert.equal(scripts.indexOf(installer[0]) + 1, scripts.indexOf(runtime[0]));
+  // Both are deferred classic scripts, so document order is execution order. Other scripts may sit
+  // between them (the V-belt module since 2026-11-04) as long as the installer comes first.
+  assert.ok(scripts.indexOf(installer[0]) < scripts.indexOf(runtime[0]), 'search installer must precede script.js');
   for (const item of [installer[0], runtime[0]]) {
     assert.match(item.tag, /\bdefer\b/);
     assert.doesNotMatch(item.tag, /\basync\b|\btype\s*=/);
@@ -147,5 +149,7 @@ test('PC search installer loads before the runtime and mobile preload/execution 
   const mobile = read('mobile-app/index.html');
   const urls = [...mobile.matchAll(/(?:src|href)="(\/mobile-app\/mobile-runtime-v14\.js\?[^"\s]+)"/g)].map(m => m[1]);
   assert.equal(urls.length, 2); assert.equal(urls[0], urls[1]);
-  assert.ok(urls[0].endsWith('?v=20260925-structure-v12'));
+  // The mobile runtime version changes with each mobile release (first on 2026-09-28), so check that
+  // preload and execution share one versioned URL instead of pinning the 2026-09-25 value.
+  assert.ok(new URL(urls[0].replaceAll('&amp;', '&'), 'https://example.invalid/').searchParams.get('v'), 'mobile runtime keeps a cache version');
 });
